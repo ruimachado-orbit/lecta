@@ -3,13 +3,19 @@ import { loadAnthropicKey, loadAnthropicModel } from './env-loader'
 import { DEFAULT_AI_MODEL } from '../../../packages/shared/src/constants'
 
 const SLIDE_7x7_RULE = `
-CRITICAL — 7×7 RULE: Every slide MUST follow the 7×7 presentation rule:
-- Maximum 7 bullet points / lines of content per slide (excluding the title)
-- Maximum 7 words per bullet point or sentence
-- One heading (#) per slide as the title
-- If content exceeds these limits, split into multiple slides or condense
-- Prefer short, punchy phrases over full sentences
-- Use bold for key terms, not for entire lines`
+MANDATORY 7×7 RULE — NEVER VIOLATE:
+1. EXACTLY ONE # heading per slide (the title, max 7 words)
+2. Maximum 7 bullet points below the heading
+3. Each bullet: maximum 7 words — NO EXCEPTIONS
+4. NO paragraphs, NO long sentences, NO explanations
+5. Every line is a "- " bullet (not a sentence)
+6. Use **bold** on 1-2 key words per bullet only
+7. If you need more content, create another slide — NEVER exceed 7 bullets
+
+WRONG (too long):
+- Retrieval-Augmented Generation combines document retrieval with generative AI models
+RIGHT (7 words max):
+- **RAG** combines retrieval with generation`
 
 const SYSTEM_PROMPT = `You are a technical presentation coach helping a developer prepare speaker notes for a live technical talk.
 

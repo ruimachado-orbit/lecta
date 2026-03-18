@@ -4,13 +4,14 @@ import { useUIStore } from '../../stores/ui-store'
 import { SlideRenderer } from './SlideRenderer'
 import { SlideNavigator } from './SlideNavigator'
 import { SlideEditToolbar } from './SlideEditToolbar'
+import { WysiwygEditor } from './WysiwygEditor'
 import { AIGeneratePanel, AIImproveBar } from './AISlidePanel'
 import { ArtifactBar } from '../artifacts/ArtifactBar'
 import Editor, { type OnMount } from '@monaco-editor/react'
 
 export function SlidePanel(): JSX.Element {
   const { slides, currentSlideIndex, updateMarkdownContent, saveSlideContent, presentation } = usePresentationStore()
-  const { showNavigator, editingSlide } = useUIStore()
+  const { showNavigator, editingSlide, editorMode, setEditorMode } = useUIStore()
   const currentSlide = slides[currentSlideIndex]
   const editorRef = useRef<any>(null)
   const [showAIGenerate, setShowAIGenerate] = useState(false)
@@ -42,8 +43,31 @@ export function SlidePanel(): JSX.Element {
 
   return (
     <div className="h-full flex flex-col bg-gray-950">
-      {/* Editing toolbar */}
-      {editingSlide && <SlideEditToolbar editorRef={editorRef} />}
+      {/* Editor mode selector + toolbar */}
+      {editingSlide && (
+        <>
+          {/* Mode toggle */}
+          <div className="h-7 bg-gray-900 border-b border-gray-800 flex items-center px-3 gap-2">
+            <button
+              onClick={() => setEditorMode('wysiwyg')}
+              className={`text-[10px] px-2 py-0.5 rounded transition-colors ${
+                editorMode === 'wysiwyg' ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              Visual
+            </button>
+            <button
+              onClick={() => setEditorMode('markdown')}
+              className={`text-[10px] px-2 py-0.5 rounded transition-colors ${
+                editorMode === 'markdown' ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              Markdown
+            </button>
+          </div>
+          {editorMode === 'markdown' && <SlideEditToolbar editorRef={editorRef} />}
+        </>
+      )}
 
       {/* AI improve bar (shown for AI-generated slides in preview mode) */}
       {!editingSlide && <AIImproveBar />}
@@ -51,31 +75,36 @@ export function SlidePanel(): JSX.Element {
       {/* Slide content — edit or preview */}
       <div className="flex-1 min-h-0 overflow-hidden">
         {editingSlide ? (
-          <div className="h-full" onBlur={handleEditorBlur}>
-            <Editor
-              height="100%"
-              language="markdown"
-              value={currentSlide.markdownContent}
-              onChange={handleEditorChange}
-              onMount={handleEditorMount}
-              theme="vs-dark"
-              options={{
-                fontSize: 15,
-                lineHeight: 22,
-                fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
-                minimap: { enabled: false },
-                scrollBeyondLastLine: false,
-                padding: { top: 16, bottom: 16 },
-                lineNumbers: 'off',
-                renderLineHighlight: 'none',
-                wordWrap: 'on',
-                automaticLayout: true,
-                tabSize: 2
-              }}
-            />
-          </div>
+          editorMode === 'wysiwyg' ? (
+            <WysiwygEditor slideIndex={currentSlideIndex} />
+          ) : (
+            <div className="h-full" onBlur={handleEditorBlur}>
+              <Editor
+                height="100%"
+                language="markdown"
+                value={currentSlide.markdownContent}
+                onChange={handleEditorChange}
+                onMount={handleEditorMount}
+                theme="vs-dark"
+                options={{
+                  fontSize: 15,
+                  lineHeight: 22,
+                  fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
+                  minimap: { enabled: false },
+                  scrollBeyondLastLine: false,
+                  padding: { top: 16, bottom: 16 },
+                  lineNumbers: 'off',
+                  renderLineHighlight: 'none',
+                  wordWrap: 'on',
+                  automaticLayout: true,
+                  tabSize: 2
+                }}
+              />
+            </div>
+          )
         ) : (
-          <div className="h-full overflow-y-auto p-8">
+          <div className="h-full overflow-y-auto p-8 relative slide-preview-area">
+            <div className="slide-limit-line" />
             <SlideRenderer markdown={currentSlide.markdownContent} rootPath={presentation?.rootPath} />
           </div>
         )}

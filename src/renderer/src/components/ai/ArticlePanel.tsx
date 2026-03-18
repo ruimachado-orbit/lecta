@@ -53,6 +53,14 @@ export function ArticlePanel(): JSX.Element {
     navigator.clipboard.writeText(articleContent)
   }, [articleContent])
 
+  const handleSaveAsFile = useCallback(async () => {
+    if (!articleContent || !presentation) return
+    const fileName = `${presentation.title.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}-takeaway.md`
+    const filePath = `${presentation.rootPath}/${fileName}`
+    await window.electronAPI.writeFile(filePath, articleContent)
+    alert(`Saved as ${fileName}`)
+  }, [articleContent, presentation])
+
   return (
     <div className="h-full flex flex-col bg-gray-950">
       {/* Header */}
@@ -60,7 +68,7 @@ export function ArticlePanel(): JSX.Element {
         <div className="flex items-center gap-2">
           <ArticleIcon />
           <span className="text-xs font-medium uppercase tracking-wider text-gray-400">
-            Article Generator
+            Takeaway Document
           </span>
         </div>
 
@@ -72,6 +80,12 @@ export function ArticlePanel(): JSX.Element {
                 className="px-2 py-0.5 text-[10px] bg-gray-800 hover:bg-gray-700 text-gray-400 rounded transition-colors"
               >
                 Copy
+              </button>
+              <button
+                onClick={handleSaveAsFile}
+                className="px-2 py-0.5 text-[10px] bg-indigo-600 hover:bg-indigo-500 text-white rounded transition-colors"
+              >
+                Save Takeaway
               </button>
               <button
                 onClick={() => setShowRules(!showRules)}

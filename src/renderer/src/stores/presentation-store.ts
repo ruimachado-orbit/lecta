@@ -82,6 +82,29 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
     try {
       const loaded: LoadedPresentation = await window.electronAPI.loadPresentation(folderPath)
       set(applyLoaded(loaded))
+
+      // Auto-register as a tab (lazy import to avoid circular deps)
+      const { useTabsStore } = await import('./tabs-store')
+      const tabsState = useTabsStore.getState()
+      const alreadyOpen = tabsState.tabs.some((t) => t.rootPath === loaded.config.rootPath)
+      if (!alreadyOpen) {
+        const tabId = `tab-${Date.now()}`
+        useTabsStore.setState((s) => ({
+          tabs: [...s.tabs, {
+            id: tabId,
+            title: loaded.config.title,
+            rootPath: loaded.config.rootPath,
+            presentation: loaded.config,
+            slides: loaded.slides,
+            currentSlideIndex: 0
+          }],
+          activeTabId: tabId
+        }))
+      } else {
+        // Switch to existing tab
+        const existing = tabsState.tabs.find((t) => t.rootPath === loaded.config.rootPath)
+        if (existing) useTabsStore.setState({ activeTabId: existing.id })
+      }
     } catch (error) {
       set({
         isLoading: false,
@@ -151,6 +174,31 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
         const codePath = `${presentation.rootPath}/${slide.config.code.file}`
         await window.electronAPI.writeFile(codePath, slide.codeContent)
       }
+
+      // Save notes if they exist (creates file + updates YAML if needed)
+      if (slide.notesContent) {
+        const notesPath = await window.electronAPI.saveNotes(
+          presentation.rootPath,
+          slideIndex,
+          slide.notesContent
+        )
+        // Update local config so subsequent saves know the notes path
+        if (!slide.config.notes) {
+          set((state) => {
+            const slides = [...state.slides]
+            if (slides[slideIndex]) {
+              slides[slideIndex] = {
+                ...slides[slideIndex],
+                config: { ...slides[slideIndex].config, notes: notesPath }
+              }
+            }
+            return { slides }
+          })
+        }
+      }
+
+      // Pack changes back into .lecta file if workspace is from one
+      await window.electronAPI.saveLecta(presentation.rootPath)
 
       set({ isSaving: false, lastSavedAt: new Date(), hasUnsavedChanges: false })
     } catch {

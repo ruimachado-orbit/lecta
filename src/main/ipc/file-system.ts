@@ -512,6 +512,36 @@ export function registerFileSystemHandlers(): void {
     }
   )
 
+  // Save notes content for a slide (creates file + updates YAML if needed)
+  ipcMain.handle(
+    'fs:save-notes',
+    async (_event, rootPath: string, slideIndex: number, content: string): Promise<string> => {
+      const configPath = join(rootPath, DECK_CONFIG_FILE)
+      const yamlContent = await readFile(configPath, 'utf-8')
+      const config = parsePresentationYaml(yamlContent, rootPath)
+
+      const slide = config.slides[slideIndex]
+      if (!slide) throw new Error(`Slide at index ${slideIndex} not found`)
+
+      // Create notes file path if not already set
+      if (!slide.notes) {
+        const notesPath = `slides/${slide.id}.notes.md`
+        slide.notes = notesPath
+        await savePresentationYaml(config)
+      }
+
+      // Write notes content to file
+      const notesFullPath = join(rootPath, slide.notes)
+      await mkdir(join(rootPath, 'slides'), { recursive: true })
+      await writeFile(notesFullPath, content, 'utf-8')
+
+      // Auto-save to .lecta
+      await autoSave(rootPath)
+
+      return slide.notes
+    }
+  )
+
   ipcMain.handle('fs:read-file', async (_event, filePath: string): Promise<string> => {
     return readFile(filePath, 'utf-8')
   })

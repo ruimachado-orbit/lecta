@@ -85,10 +85,14 @@ export function SlideRenderer({ markdown, rootPath }: SlideRendererProps): JSX.E
               </code>
             )
           },
-          pre: ({ children }) => {
-            // If the child is a mermaid diagram, don't wrap in pre
-            const child = children as any
-            if (child?.props?.className?.includes('language-mermaid')) {
+          pre: ({ node, children }) => {
+            // Check if this pre contains a mermaid code block
+            // by inspecting the original AST node's child
+            const codeChild = node?.children?.[0] as any
+            if (
+              codeChild?.tagName === 'code' &&
+              codeChild?.properties?.className?.some?.((c: string) => c.includes('mermaid'))
+            ) {
               return <>{children}</>
             }
             return (

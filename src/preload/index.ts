@@ -36,6 +36,8 @@ const api = {
     ipcRenderer.invoke('fs:reorder-slide', rootPath, fromIndex, toIndex),
   writeFile: (filePath: string, content: string): Promise<void> =>
     ipcRenderer.invoke('fs:write-file', filePath, content),
+  saveNotes: (rootPath: string, slideIndex: number, content: string): Promise<string> =>
+    ipcRenderer.invoke('fs:save-notes', rootPath, slideIndex, content),
   uploadImage: (rootPath: string): Promise<string | null> =>
     ipcRenderer.invoke('fs:upload-image', rootPath),
   addVideo: (rootPath: string, slideIndex: number, url: string, label?: string): Promise<LoadedPresentation> =>

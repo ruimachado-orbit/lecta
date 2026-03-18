@@ -34,6 +34,7 @@ interface UIState {
   showArtifactDrawer: boolean
   showSlideMap: boolean
   editingSlide: boolean
+  editorMode: 'markdown' | 'wysiwyg'
   splitRatio: number
   fontSize: number
   palette: ColorPalette
@@ -50,6 +51,7 @@ interface UIState {
   toggleSlideMap: () => void
   toggleEditingSlide: () => void
   setEditingSlide: (editing: boolean) => void
+  setEditorMode: (mode: 'markdown' | 'wysiwyg') => void
   setSplitRatio: (ratio: number) => void
   setFontSize: (size: number) => void
   setPalette: (palette: ColorPalette) => void
@@ -76,6 +78,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   showArtifactDrawer: false,
   showSlideMap: false,
   editingSlide: false,
+  editorMode: 'wysiwyg' as const,
   splitRatio: 40,
   fontSize: 16,
   palette: COLOR_PALETTES[0],
@@ -94,6 +97,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   toggleSlideMap: () => set((s) => ({ showSlideMap: !s.showSlideMap })),
   toggleEditingSlide: () => set((s) => ({ editingSlide: !s.editingSlide })),
   setEditingSlide: (editing) => set({ editingSlide: editing }),
+  setEditorMode: (mode) => set({ editorMode: mode }),
   setSplitRatio: (ratio) => set({ splitRatio: ratio }),
   setFontSize: (size) => set({ fontSize: size }),
   setPalette: (palette) => {

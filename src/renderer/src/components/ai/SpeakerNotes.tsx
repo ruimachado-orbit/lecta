@@ -3,7 +3,7 @@ import { usePresentationStore } from '../../stores/presentation-store'
 import ReactMarkdown from 'react-markdown'
 
 export function SpeakerNotes(): JSX.Element {
-  const { slides, currentSlideIndex, presentation, updateNotesContent } =
+  const { slides, currentSlideIndex, presentation, updateNotesContent, saveSlideContent } =
     usePresentationStore()
   const currentSlide = slides[currentSlideIndex]
   const [isGenerating, setIsGenerating] = useState(false)
@@ -30,6 +30,7 @@ export function SpeakerNotes(): JSX.Element {
           if (chunk === '[DONE]') {
             updateNotesContent(currentSlideIndex, accumulated)
             setIsGenerating(false)
+            saveSlideContent(currentSlideIndex)
             return
           }
           accumulated += chunk
@@ -44,6 +45,7 @@ export function SpeakerNotes(): JSX.Element {
   const handleSave = () => {
     updateNotesContent(currentSlideIndex, editContent)
     setIsEditing(false)
+    saveSlideContent(currentSlideIndex)
   }
 
   const handleStartEdit = () => {

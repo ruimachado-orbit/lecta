@@ -129,7 +129,7 @@ export function PresenterView(): JSX.Element {
               <PanelGroup direction="vertical">
                 <Panel defaultSize={notes ? 65 : 100} minSize={30}>
                   <div className="h-full m-2 flex flex-col border border-gray-800 rounded-lg overflow-hidden">
-                    <div className="flex-1 overflow-y-auto p-8 bg-black">
+                    <div className={`flex-1 overflow-y-auto p-8 bg-black ${currentSlide?.config.layout && currentSlide.config.layout !== 'default' ? `slide-layout-${currentSlide.config.layout}` : ''}`}>
                       {currentSlide && (
                         <SlideRenderer markdown={currentSlide.markdownContent} rootPath={presentation?.rootPath} />
                       )}

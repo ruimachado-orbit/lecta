@@ -13,8 +13,19 @@ app.commandLine.appendSwitch('ignore-gpu-blocklist')
 
 // Set app name so dock/taskbar shows "Lecta" instead of "Electron"
 app.name = 'Lecta'
+process.title = 'Lecta'
 if (process.platform === 'darwin') {
   app.setName('Lecta')
+  // Patch the dock tooltip in dev mode by modifying the helper plist
+  try {
+    const { execSync } = require('child_process')
+    const electronPath = process.execPath
+    const plistPath = join(electronPath, '..', '..', 'Info.plist')
+    execSync(`/usr/libexec/PlistBuddy -c "Set :CFBundleName Lecta" "${plistPath}" 2>/dev/null || true`)
+    execSync(`/usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Lecta" "${plistPath}" 2>/dev/null || true`)
+  } catch {
+    // Non-critical — only affects dev tooltip
+  }
 }
 
 // Register custom protocol for serving local files (works in both dev and production)

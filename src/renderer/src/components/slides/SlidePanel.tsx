@@ -100,6 +100,7 @@ export function SlidePanel(): JSX.Element {
           <SlideCanvas
             markdown={currentSlide.markdownContent}
             rootPath={presentation?.rootPath}
+            layout={currentSlide.config.layout}
             slideIndex={currentSlideIndex}
             drawingMode={true}
           />
@@ -110,7 +111,7 @@ export function SlidePanel(): JSX.Element {
           /* Markdown: split view — canvas top, editor bottom */
           <>
             <div className="h-[40%] flex-shrink-0 border-b border-gray-800">
-              <SlideCanvas markdown={currentSlide.markdownContent} rootPath={presentation?.rootPath} slideIndex={currentSlideIndex} />
+              <SlideCanvas markdown={currentSlide.markdownContent} rootPath={presentation?.rootPath} layout={currentSlide.config.layout} slideIndex={currentSlideIndex} />
             </div>
             <div className="flex-1 min-h-0" onBlur={handleEditorBlur}>
               <Editor
@@ -137,6 +138,7 @@ export function SlidePanel(): JSX.Element {
             markdown={activeMarkdown}
             rootPath={presentation?.rootPath}
             transition={currentSlide.config.transition}
+            layout={currentSlide.config.layout}
             slideIndex={currentSlideIndex}
             drawingMode={drawingMode}
             editable={true}
@@ -189,8 +191,8 @@ export function SlidePanel(): JSX.Element {
 }
 
 /** 16:9 slide canvas that auto-scales content to fit */
-function SlideCanvas({ markdown, rootPath, transition, slideIndex, drawingMode, editable, onUpdateMarkdown }: {
-  markdown: string; rootPath?: string; transition?: string; slideIndex?: number; drawingMode?: boolean
+function SlideCanvas({ markdown, rootPath, transition, layout, slideIndex, drawingMode, editable, onUpdateMarkdown }: {
+  markdown: string; rootPath?: string; transition?: string; layout?: string; slideIndex?: number; drawingMode?: boolean
   editable?: boolean; onUpdateMarkdown?: (md: string) => void
 }): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -272,11 +274,12 @@ function SlideCanvas({ markdown, rootPath, transition, slideIndex, drawingMode, 
         }}
       >
         <div className="absolute inset-0 bg-black rounded" />
-        <div ref={transitionRef} className={`absolute inset-0 p-12 overflow-hidden ${transition && transition !== 'none' ? `slide-transition-${transition}` : ''}`}>
+        <div ref={transitionRef} className={`absolute inset-0 ${layout === 'blank' ? '' : 'p-12'} overflow-hidden ${transition && transition !== 'none' ? `slide-transition-${transition}` : ''} ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
           <div
             ref={contentRef}
             style={{
-              width: SLIDE_W - PAD * 2,
+              width: layout === 'blank' ? SLIDE_W : SLIDE_W - PAD * 2,
+              height: layout === 'blank' ? SLIDE_H : undefined,
               transform: `scale(${contentScale})`,
               transformOrigin: 'top left'
             }}

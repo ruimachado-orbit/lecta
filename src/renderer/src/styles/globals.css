@@ -1,6 +1,11 @@
 @import "tailwindcss";
 
+html, body, * {
+  font-family: -apple-system, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
 @theme {
+  --font-sans: -apple-system, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
   --color-brand: #ffffff;
   --color-brand-light: #e5e5e5;
   --color-brand-dark: #d4d4d4;
@@ -207,6 +212,254 @@ html[data-theme="light"] .slide-content hr { border-color: #e2e8f0 !important; }
 
 .slide-content td {
   @apply border border-border px-4 py-2;
+}
+
+/* ============================================================
+   SLIDE LAYOUTS
+   Applied to the slide content wrapper (the p-12 container).
+   The .slide-content inside adapts via these parent rules.
+   ============================================================ */
+
+/* Center — vertically + horizontally centered content */
+.slide-layout-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.slide-layout-center .slide-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Title — large centered title with subtitle */
+.slide-layout-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.slide-layout-title .slide-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.slide-layout-title .slide-content h1 {
+  font-size: 4rem !important;
+  margin-bottom: 1rem !important;
+  line-height: 1.1 !important;
+}
+.slide-layout-title .slide-content h2 {
+  font-size: 2rem !important;
+  font-weight: 400 !important;
+  color: #a3a3a3 !important;
+}
+.slide-layout-title .slide-content p {
+  font-size: 1.25rem !important;
+  color: #737373 !important;
+}
+
+/* Section break — bold accent bar + heading */
+.slide-layout-section {
+  display: flex;
+  align-items: center;
+  padding-left: 80px !important;
+}
+.slide-layout-section .slide-content {
+  position: relative;
+  padding-left: 2rem;
+}
+.slide-layout-section .slide-content::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: linear-gradient(180deg, #818cf8 0%, #6366f1 100%);
+  border-radius: 2px;
+}
+.slide-layout-section .slide-content h1 {
+  font-size: 3.5rem !important;
+  margin-bottom: 0.5rem !important;
+}
+.slide-layout-section .slide-content p {
+  color: #737373 !important;
+  font-size: 1.5rem !important;
+}
+
+/* Two columns — equal split */
+.slide-layout-two-col .slide-content {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3rem;
+  align-content: start;
+}
+.slide-layout-two-col .slide-content > *:first-child {
+  grid-column: 1 / -1;
+}
+
+/* Two columns — 60/40 left heavy */
+.slide-layout-two-col-wide-left .slide-content {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 3rem;
+  align-content: start;
+}
+.slide-layout-two-col-wide-left .slide-content > *:first-child {
+  grid-column: 1 / -1;
+}
+
+/* Two columns — 40/60 right heavy */
+.slide-layout-two-col-wide-right .slide-content {
+  display: grid;
+  grid-template-columns: 2fr 3fr;
+  gap: 3rem;
+  align-content: start;
+}
+.slide-layout-two-col-wide-right .slide-content > *:first-child {
+  grid-column: 1 / -1;
+}
+
+/* Three columns */
+.slide-layout-three-col .slide-content {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 2rem;
+  align-content: start;
+}
+.slide-layout-three-col .slide-content > *:first-child {
+  grid-column: 1 / -1;
+}
+
+/* Top/Bottom split */
+.slide-layout-top-bottom .slide-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+}
+
+/* Big number — large stat centered, context below */
+.slide-layout-big-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.slide-layout-big-number .slide-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.slide-layout-big-number .slide-content h1 {
+  font-size: 7rem !important;
+  line-height: 1 !important;
+  margin-bottom: 1.5rem !important;
+  background: linear-gradient(135deg, #818cf8 0%, #6366f1 50%, #a855f7 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 800 !important;
+}
+.slide-layout-big-number .slide-content h2 {
+  font-size: 1.75rem !important;
+  font-weight: 400 !important;
+  color: #d4d4d4 !important;
+}
+.slide-layout-big-number .slide-content p {
+  color: #737373 !important;
+  font-size: 1.125rem !important;
+}
+
+/* Quote — centered blockquote style */
+.slide-layout-quote {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.slide-layout-quote .slide-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  max-width: 900px;
+  margin: 0 auto;
+}
+.slide-layout-quote .slide-content p {
+  font-size: 2rem !important;
+  font-style: italic !important;
+  line-height: 1.5 !important;
+  color: #e2e8f0 !important;
+  position: relative;
+}
+.slide-layout-quote .slide-content p:first-of-type::before {
+  content: '\201C';
+  font-size: 5rem;
+  color: #6366f1;
+  position: absolute;
+  left: -3rem;
+  top: -1.5rem;
+  line-height: 1;
+  font-style: normal;
+}
+.slide-layout-quote .slide-content blockquote {
+  border: none !important;
+  font-size: 2rem !important;
+  padding: 0 !important;
+  text-align: center !important;
+  color: #e2e8f0 !important;
+}
+.slide-layout-quote .slide-content h3,
+.slide-layout-quote .slide-content h2 {
+  font-weight: 400 !important;
+  color: #737373 !important;
+  margin-top: 2rem !important;
+  font-size: 1.125rem !important;
+}
+
+/* Blank — full canvas, no padding */
+.slide-layout-blank .slide-content {
+  width: 100%;
+  height: 100%;
+}
+
+/* Light-mode overrides for layout accent colors */
+html[data-theme="light"] .slide-layout-section .slide-content::before {
+  background: linear-gradient(180deg, #6366f1 0%, #4f46e5 100%);
+}
+html[data-theme="light"] .slide-layout-big-number .slide-content h1 {
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 50%, #7c3aed 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+html[data-theme="light"] .slide-layout-quote .slide-content p:first-of-type::before {
+  color: #4f46e5;
+}
+html[data-theme="light"] .slide-layout-title .slide-content h2 {
+  color: #64748b !important;
+}
+html[data-theme="light"] .slide-layout-title .slide-content p {
+  color: #94a3b8 !important;
+}
+html[data-theme="light"] .slide-layout-section .slide-content p {
+  color: #94a3b8 !important;
+}
+html[data-theme="light"] .slide-layout-big-number .slide-content h2 {
+  color: #334155 !important;
+}
+html[data-theme="light"] .slide-layout-big-number .slide-content p {
+  color: #94a3b8 !important;
+}
+html[data-theme="light"] .slide-layout-quote .slide-content h3,
+html[data-theme="light"] .slide-layout-quote .slide-content h2 {
+  color: #94a3b8 !important;
 }
 
 /* Multi-column layout */

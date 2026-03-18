@@ -78,41 +78,52 @@ export function HomeScreen(): JSX.Element {
         </div>
 
         {/* Actions */}
-        <div className="space-y-3">
-          <button
-            onClick={openFolder}
-            disabled={isLoading}
-            className="w-full py-4 px-6 bg-white hover:bg-gray-200 disabled:bg-gray-700 disabled:text-gray-400
-                       text-black font-medium rounded-xl transition-colors text-lg
-                       flex items-center justify-center gap-3"
-          >
-            {isLoading ? (
-              <>
-                <LoadingSpinner />
-                Loading...
-              </>
-            ) : (
-              <>
-                <FolderIcon />
-                Open Presentation
-              </>
-            )}
-          </button>
-          <p className="text-center text-gray-600 text-xs">
-            Open a folder, <code className="text-gray-500">.lecta</code> file, or import a <code className="text-gray-500">.pptx</code>
-          </p>
+        <div className="space-y-4">
+          <div className="flex gap-3">
+            <button
+              onClick={openFolder}
+              disabled={isLoading}
+              className="flex-1 py-2.5 px-4 bg-white hover:bg-gray-200 disabled:bg-gray-700 disabled:text-gray-400
+                         text-black font-medium rounded-full transition-colors text-sm
+                         flex items-center justify-center gap-2"
+            >
+              {isLoading ? (
+                <>
+                  <LoadingSpinner />
+                  Loading...
+                </>
+              ) : (
+                <>
+                  <FolderIcon />
+                  Open
+                </>
+              )}
+            </button>
 
           {!showCreate ? (
             <button
               onClick={() => setShowCreate(true)}
-              className="w-full py-4 px-6 bg-gray-800 hover:bg-gray-700
-                         text-gray-300 font-medium rounded-xl transition-colors text-lg
-                         flex items-center justify-center gap-3 border border-gray-700"
+              className="flex-1 py-2.5 px-4 bg-gray-800 hover:bg-gray-700
+                         text-gray-300 font-medium rounded-full transition-colors text-sm
+                         flex items-center justify-center gap-2 border border-gray-700"
             >
               <PlusIcon />
-              Create New Presentation
+              New
             </button>
           ) : (
+            <button
+              onClick={() => setShowCreate(true)}
+              className="flex-1 py-2.5 px-4 bg-gray-800 hover:bg-gray-700
+                         text-gray-300 font-medium rounded-full transition-colors text-sm
+                         flex items-center justify-center gap-2 border border-gray-700"
+            >
+              <PlusIcon />
+              New
+            </button>
+          )}
+          </div>
+
+          {showCreate && (
             <div className="bg-gray-900 rounded-xl border border-gray-700 p-4 space-y-3">
               <label className="text-sm text-gray-400 block">Presentation name</label>
               <input
@@ -125,24 +136,14 @@ export function HomeScreen(): JSX.Element {
                 className="w-full px-4 py-3 bg-gray-950 text-white rounded-lg border border-gray-700
                            focus:border-white focus:outline-none text-base placeholder-gray-600"
               />
-              <div className="flex gap-2">
-                <button
-                  onClick={handleCreateLecta}
-                  disabled={!newName.trim()}
-                  className="flex-1 py-2.5 px-4 bg-white hover:bg-gray-200 disabled:bg-gray-700 disabled:text-gray-400 disabled:opacity-50
-                             text-black font-medium rounded-lg transition-colors text-sm"
-                >
-                  Save as .lecta
-                </button>
-                <button
-                  onClick={handleCreateFolder}
-                  disabled={!newName.trim()}
-                  className="flex-1 py-2.5 px-4 bg-gray-700 hover:bg-gray-600 disabled:opacity-50
-                             text-gray-300 font-medium rounded-lg transition-colors text-sm"
-                >
-                  Save as Folder
-                </button>
-              </div>
+              <button
+                onClick={handleCreateLecta}
+                disabled={!newName.trim()}
+                className="w-full py-2.5 px-4 bg-white hover:bg-gray-200 disabled:bg-gray-700 disabled:text-gray-400 disabled:opacity-50
+                           text-black font-medium rounded-lg transition-colors text-sm"
+              >
+                Create
+              </button>
               <button
                 onClick={() => { setShowCreate(false); setNewName(''); setCreateError(null) }}
                 className="w-full py-1.5 text-gray-500 hover:text-gray-300 text-xs transition-colors"

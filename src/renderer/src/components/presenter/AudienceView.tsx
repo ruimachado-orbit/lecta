@@ -104,7 +104,7 @@ export function AudienceView(): JSX.Element {
         }}
       >
         <div className="absolute inset-0 bg-black" />
-        <div className="absolute inset-0 p-[4%] overflow-hidden">
+        <div className={`absolute inset-0 ${currentSlide.config.layout === 'blank' ? '' : 'p-[4%]'} overflow-hidden ${currentSlide.config.layout && currentSlide.config.layout !== 'default' ? `slide-layout-${currentSlide.config.layout}` : ''}`}>
           <div
             ref={contentRef}
             style={{

@@ -3,7 +3,7 @@ import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore } from '../../stores/ui-store'
 
 export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCount?: number; currentSubSlide?: number }): JSX.Element {
-  const { slides, currentSlideIndex, goToSlide, addSlide, deleteSlide, reorderSlide, renameSlide, setSlideTransition } =
+  const { slides, currentSlideIndex, goToSlide, addSlide, deleteSlide, reorderSlide, renameSlide, setSlideTransition, setSlideLayout } =
     usePresentationStore()
   const { slideGroups, addSlideGroup, removeSlideGroup, toggleGroupCollapsed, addSlideToGroup, removeSlideFromGroup } =
     useUIStore()
@@ -265,10 +265,11 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
       {contextMenu && selectedIndices.size > 0 && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => { setContextMenu(null); setSelectedIndices(new Set()); setShowNewGroupInMenu(false) }} />
-          <div className="fixed z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl py-1 w-52"
+          <div className="fixed z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl py-1 w-64 max-h-[85vh] overflow-y-auto"
             style={{
-              left: Math.min(contextMenu.x, window.innerWidth - 220),
-              top: contextMenu.y > window.innerHeight - 300 ? contextMenu.y - 250 : contextMenu.y
+              left: Math.min(contextMenu.x, window.innerWidth - 270),
+              bottom: window.innerHeight - contextMenu.y,
+              maxHeight: `${contextMenu.y - 8}px`
             }}>
             <div className="px-3 py-1 text-[9px] text-gray-500 uppercase tracking-wider">
               {selectedIndices.size} slide{selectedIndices.size > 1 ? 's' : ''} selected
@@ -344,6 +345,44 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
               </>
             )}
 
+            {/* Layout picker */}
+            {selectedIndices.size === 1 && (
+              <>
+                <div className="border-t border-gray-800 my-1" />
+                <div className="text-[9px] uppercase tracking-wider text-gray-600 px-3 py-0.5">Layout</div>
+                <div className="px-2 py-1 grid grid-cols-3 gap-1.5">
+                  {SLIDE_LAYOUTS.map((l) => {
+                    const idx = Array.from(selectedIndices)[0]
+                    const current = slides[idx]?.config.layout || 'default'
+                    return (
+                      <button
+                        key={l.value}
+                        onClick={() => {
+                          goToSlide(idx)
+                          setTimeout(() => {
+                            usePresentationStore.getState().setSlideLayout(l.value)
+                            setContextMenu(null)
+                            setSelectedIndices(new Set())
+                          }, 50)
+                        }}
+                        className={`group/layout rounded-md p-1.5 transition-colors ${
+                          current === l.value
+                            ? 'bg-indigo-500/20 ring-1 ring-indigo-400/50'
+                            : 'hover:bg-gray-800'
+                        }`}
+                        title={l.label}
+                      >
+                        <LayoutThumbnail layout={l.value} active={current === l.value} />
+                        <span className={`block text-[9px] mt-1 text-center truncate ${
+                          current === l.value ? 'text-indigo-300 font-medium' : 'text-gray-500 group-hover/layout:text-gray-300'
+                        }`}>{l.label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </>
+            )}
+
             {selectedIndices.size < slides.length && (
               <>
                 <div className="border-t border-gray-800 my-1" />
@@ -357,6 +396,107 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
         </>
       )}
     </div>
+  )
+}
+
+const SLIDE_LAYOUTS = [
+  { value: 'default', label: 'Default' },
+  { value: 'center', label: 'Center' },
+  { value: 'title', label: 'Title' },
+  { value: 'section', label: 'Section' },
+  { value: 'two-col', label: '2 Columns' },
+  { value: 'two-col-wide-left', label: 'Wide Left' },
+  { value: 'two-col-wide-right', label: 'Wide Right' },
+  { value: 'three-col', label: '3 Columns' },
+  { value: 'top-bottom', label: 'Top / Bot' },
+  { value: 'big-number', label: 'Big Number' },
+  { value: 'quote', label: 'Quote' },
+  { value: 'blank', label: 'Blank' },
+]
+
+/** SVG thumbnail that visually represents each layout — always on dark bg for visibility */
+function LayoutThumbnail({ layout, active }: { layout: string; active: boolean }): JSX.Element {
+  const fill = active ? '#e2e8f0' : '#94a3b8'
+  const accent = active ? '#818cf8' : '#64748b'
+  const bg = active ? '#1e1b4b' : '#111827'
+  const w = 56; const h = 34
+
+  const rects: Record<string, JSX.Element> = {
+    'default': <>
+      <rect x="5" y="4" width="24" height="4" rx="1" fill={accent} />
+      <rect x="5" y="11" width="46" height="3" rx="1" fill={fill} opacity="0.5" />
+      <rect x="5" y="17" width="40" height="3" rx="1" fill={fill} opacity="0.4" />
+      <rect x="5" y="23" width="43" height="3" rx="1" fill={fill} opacity="0.35" />
+      <rect x="5" y="29" width="28" height="2" rx="0.5" fill={fill} opacity="0.2" />
+    </>,
+    'center': <>
+      <rect x="12" y="10" width="32" height="4" rx="1" fill={accent} />
+      <rect x="14" y="17" width="28" height="3" rx="1" fill={fill} opacity="0.5" />
+      <rect x="18" y="23" width="20" height="3" rx="1" fill={fill} opacity="0.35" />
+    </>,
+    'title': <>
+      <rect x="8" y="8" width="40" height="7" rx="1.5" fill={accent} />
+      <rect x="14" y="19" width="28" height="3" rx="1" fill={fill} opacity="0.35" />
+      <rect x="18" y="25" width="20" height="2" rx="0.5" fill={fill} opacity="0.2" />
+    </>,
+    'section': <>
+      <rect x="4" y="10" width="3" height="14" rx="1" fill={accent} />
+      <rect x="11" y="11" width="36" height="6" rx="1.5" fill={accent} />
+      <rect x="11" y="21" width="24" height="3" rx="1" fill={fill} opacity="0.3" />
+    </>,
+    'two-col': <>
+      <rect x="4" y="4" width="23" height="3" rx="1" fill={accent} />
+      <rect x="4" y="10" width="23" height="20" rx="1.5" fill={fill} opacity="0.15" />
+      <rect x="29" y="4" width="23" height="3" rx="1" fill={accent} />
+      <rect x="29" y="10" width="23" height="20" rx="1.5" fill={fill} opacity="0.15" />
+    </>,
+    'two-col-wide-left': <>
+      <rect x="4" y="4" width="31" height="3" rx="1" fill={accent} />
+      <rect x="4" y="10" width="31" height="20" rx="1.5" fill={fill} opacity="0.15" />
+      <rect x="37" y="4" width="15" height="3" rx="1" fill={accent} />
+      <rect x="37" y="10" width="15" height="20" rx="1.5" fill={fill} opacity="0.15" />
+    </>,
+    'two-col-wide-right': <>
+      <rect x="4" y="4" width="15" height="3" rx="1" fill={accent} />
+      <rect x="4" y="10" width="15" height="20" rx="1.5" fill={fill} opacity="0.15" />
+      <rect x="21" y="4" width="31" height="3" rx="1" fill={accent} />
+      <rect x="21" y="10" width="31" height="20" rx="1.5" fill={fill} opacity="0.15" />
+    </>,
+    'three-col': <>
+      <rect x="3" y="4" width="16" height="26" rx="1.5" fill={fill} opacity="0.15" />
+      <rect x="21" y="4" width="15" height="26" rx="1.5" fill={fill} opacity="0.15" />
+      <rect x="38" y="4" width="15" height="26" rx="1.5" fill={fill} opacity="0.15" />
+      <rect x="5" y="7" width="12" height="3" rx="1" fill={accent} />
+      <rect x="23" y="7" width="11" height="3" rx="1" fill={accent} />
+      <rect x="40" y="7" width="11" height="3" rx="1" fill={accent} />
+    </>,
+    'top-bottom': <>
+      <rect x="4" y="3" width="48" height="13" rx="1.5" fill={fill} opacity="0.15" />
+      <rect x="7" y="6" width="28" height="3" rx="1" fill={accent} />
+      <rect x="4" y="18" width="48" height="13" rx="1.5" fill={fill} opacity="0.15" />
+      <rect x="7" y="21" width="28" height="3" rx="1" fill={accent} />
+    </>,
+    'big-number': <>
+      <rect x="10" y="5" width="36" height="14" rx="2" fill={accent} opacity="0.8" />
+      <rect x="16" y="22" width="24" height="3" rx="1" fill={fill} opacity="0.4" />
+      <rect x="20" y="28" width="16" height="2" rx="0.5" fill={fill} opacity="0.25" />
+    </>,
+    'quote': <>
+      <rect x="6" y="6" width="6" height="10" rx="1.5" fill={accent} opacity="0.5" />
+      <rect x="15" y="9" width="34" height="4" rx="1" fill={fill} opacity="0.5" />
+      <rect x="15" y="16" width="28" height="3" rx="1" fill={fill} opacity="0.35" />
+      <rect x="30" y="24" width="16" height="3" rx="1" fill={fill} opacity="0.25" />
+    </>,
+    'blank': <>
+      <rect x="3" y="3" width="50" height="28" rx="2" fill={fill} opacity="0.06" stroke={fill} strokeWidth="0.7" strokeDasharray="3 3" />
+    </>,
+  }
+
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="block mx-auto rounded">
+      <rect width={w} height={h} rx="3" fill={bg} />
+      {rects[layout] ?? rects['default']}
+    </svg>
   )
 }
 

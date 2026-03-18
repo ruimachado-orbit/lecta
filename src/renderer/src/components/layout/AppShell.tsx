@@ -6,6 +6,8 @@ import { CodePanel } from '../code/CodePanel'
 import { VideoPanel } from '../video/VideoPanel'
 import { WebPanel } from '../web/WebPanel'
 import { SpeakerNotes } from '../ai/SpeakerNotes'
+import { ArticlePanel } from '../ai/ArticlePanel'
+import { ArtifactDrawer } from '../artifacts/ArtifactDrawer'
 import { PresenterView } from '../presenter/PresenterView'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore } from '../../stores/ui-store'
@@ -13,7 +15,7 @@ import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
 import { useFileWatcher } from '../../hooks/useFileWatcher'
 
 export function AppShell(): JSX.Element {
-  const { isPresenting, showNotes } = useUIStore()
+  const { isPresenting, showNotes, showArticlePanel, showArtifactDrawer } = useUIStore()
   const currentSlide = usePresentationStore((s) => s.slides[s.currentSlideIndex])
 
   useKeyboardShortcuts()
@@ -35,15 +37,15 @@ export function AppShell(): JSX.Element {
       <div className="flex-1 min-h-0 flex flex-col">
         <PanelGroup direction="horizontal" className="flex-1">
           {/* Left Pane: Slides */}
-          <Panel defaultSize={hasRightPane ? 40 : 100} minSize={25}>
+          <Panel defaultSize={hasRightPane || showArticlePanel || showArtifactDrawer ? 40 : 100} minSize={25}>
             <SlidePanel />
           </Panel>
 
-          {/* Right Pane: Code or Video */}
+          {/* Right Pane: Code / Video / Web */}
           {hasRightPane && (
             <>
               <PanelResizeHandle className="w-1 bg-gray-800 hover:bg-indigo-500 transition-colors cursor-col-resize" />
-              <Panel defaultSize={60} minSize={30}>
+              <Panel defaultSize={showArticlePanel ? 30 : 60} minSize={20}>
                 {hasCode ? (
                   <CodePanel />
                 ) : hasVideo ? (
@@ -51,6 +53,26 @@ export function AppShell(): JSX.Element {
                 ) : hasWebApp ? (
                   <WebPanel webapp={currentSlide!.config.webapp!} />
                 ) : null}
+              </Panel>
+            </>
+          )}
+
+          {/* Artifact Drawer */}
+          {showArtifactDrawer && (
+            <>
+              <PanelResizeHandle className="w-1 bg-gray-800 hover:bg-indigo-500 transition-colors cursor-col-resize" />
+              <Panel defaultSize={30} minSize={20}>
+                <ArtifactDrawer />
+              </Panel>
+            </>
+          )}
+
+          {/* Article Panel */}
+          {showArticlePanel && (
+            <>
+              <PanelResizeHandle className="w-1 bg-gray-800 hover:bg-indigo-500 transition-colors cursor-col-resize" />
+              <Panel defaultSize={hasRightPane ? 30 : 60} minSize={25}>
+                <ArticlePanel />
               </Panel>
             </>
           )}

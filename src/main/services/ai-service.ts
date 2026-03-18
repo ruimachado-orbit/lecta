@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { loadAnthropicKey } from './env-loader'
+import { loadAnthropicKey, loadAnthropicModel } from './env-loader'
 import { DEFAULT_AI_MODEL } from '../../../packages/shared/src/constants'
 
 const SYSTEM_PROMPT = `You are a technical presentation coach helping a developer prepare speaker notes for a live technical talk.
@@ -24,9 +24,14 @@ export class AIService {
   private client: Anthropic | null = null
   private model: string = DEFAULT_AI_MODEL
 
-  setDeckPath(deckPath: string): void {
+  async setDeckPath(deckPath: string): Promise<void> {
     currentDeckPath = deckPath
     this.client = null // Reset client so it reloads the key
+
+    const envModel = await loadAnthropicModel(deckPath)
+    if (envModel) {
+      this.model = envModel
+    }
   }
 
   setModel(model: string): void {
@@ -280,5 +285,59 @@ Rules:
 
     const textBlock = response.content.find((block) => block.type === 'text')
     return textBlock?.text ?? ''
+  }
+
+  async streamArticle(
+    deckTitle: string,
+    author: string,
+    slidesContent: { title: string; markdown: string; code: string | null; notes: string | null }[],
+    rules: string,
+    onChunk: (chunk: string) => void
+  ): Promise<void> {
+    const client = await this.getClient()
+
+    const slidesContext = slidesContent
+      .map(
+        (s, i) =>
+          `--- Slide ${i + 1}: ${s.title} ---\n${s.markdown}${s.code ? `\n\nCode:\n\`\`\`\n${s.code}\n\`\`\`` : ''}${s.notes ? `\n\nSpeaker notes:\n${s.notes}` : ''}`
+      )
+      .join('\n\n')
+
+    const userRules = rules.trim()
+      ? `\n\nAdditional rules from the author:\n${rules}`
+      : ''
+
+    const stream = client.messages.stream({
+      model: this.model,
+      max_tokens: 8192,
+      system: `You are an expert technical writer. Your task is to transform a technical presentation into a well-structured, publication-ready article.
+
+Rules:
+- Output ONLY the article in markdown format, no meta-commentary or wrapping
+- The article should read as a standalone piece — not as a transcript of slides
+- Synthesize slide content into flowing prose with clear sections and transitions
+- Preserve all technical accuracy: code snippets, data, and terminology
+- Include code blocks from the presentation where they add value to the article
+- Use proper markdown: headings (##, ###), code blocks, bold, bullet points, blockquotes
+- Add an introduction that sets context and a conclusion that summarizes key takeaways
+- The tone should be professional yet approachable — like a high-quality technical blog post
+- Credit the author naturally if appropriate
+- Speaker notes contain what the presenter would SAY — use them to enrich explanations and add depth that slides alone lack`,
+      messages: [
+        {
+          role: 'user',
+          content: `Presentation: "${deckTitle}"\nAuthor: ${author}\n\nFull presentation content:\n\n${slidesContext}${userRules}\n\nTransform this presentation into a complete article.`
+        }
+      ]
+    })
+
+    for await (const event of stream) {
+      if (
+        event.type === 'content_block_delta' &&
+        event.delta.type === 'text_delta'
+      ) {
+        onChunk(event.delta.text)
+      }
+    }
   }
 }

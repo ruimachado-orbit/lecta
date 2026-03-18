@@ -1,14 +1,30 @@
 import { config as dotenvConfig } from 'dotenv'
-import { app, BrowserWindow, session, shell } from 'electron'
+import { app, BrowserWindow, nativeImage, session, shell } from 'electron'
 import { join } from 'path'
 import { registerAllIpcHandlers } from './ipc/register'
 
 // Load .env from project root (for ANTHROPIC_API_KEY, etc.)
 dotenvConfig()
 
+// Set app name so dock/taskbar shows "Lecta" instead of "Electron"
+app.name = 'Lecta'
+if (process.platform === 'darwin') {
+  app.setName('Lecta')
+}
+
 let mainWindow: BrowserWindow | null = null
 
+function getIconPath(): string {
+  const isDev = !!process.env['ELECTRON_RENDERER_URL']
+  if (isDev) {
+    return join(app.getAppPath(), 'build', 'icon.png')
+  }
+  return join(process.resourcesPath, 'icon.png')
+}
+
 function createWindow(): void {
+  const icon = nativeImage.createFromPath(getIconPath())
+
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -16,6 +32,7 @@ function createWindow(): void {
     minHeight: 600,
     show: false,
     title: 'Lecta',
+    icon,
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 15, y: 10 },
     webPreferences: {
@@ -25,6 +42,10 @@ function createWindow(): void {
       nodeIntegration: false
     }
   })
+
+  if (process.platform === 'darwin') {
+    app.dock.setIcon(icon)
+  }
 
   // Set CSP via session headers — works reliably in both dev and production
   const isDev = !!process.env['ELECTRON_RENDERER_URL']

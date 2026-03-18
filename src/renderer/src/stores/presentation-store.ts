@@ -32,6 +32,7 @@ interface PresentationState {
   addVideo: (url: string, label?: string) => Promise<void>
   addWebApp: (url: string, label?: string) => Promise<void>
   deleteSlide: (slideIndex: number) => Promise<void>
+  reorderSlide: (fromIndex: number, toIndex: number) => Promise<void>
 }
 
 function applyLoaded(loaded: LoadedPresentation, goToIndex?: number) {
@@ -260,6 +261,26 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
       )
       const newIndex = Math.min(currentSlideIndex, loaded.slides.length - 1)
       set(applyLoaded(loaded, newIndex))
+    } catch (error) {
+      set({ error: (error as Error).message })
+    }
+  },
+
+  reorderSlide: async (fromIndex: number, toIndex: number) => {
+    const { presentation } = get()
+    if (!presentation || fromIndex === toIndex) return
+    try {
+      const loaded = await window.electronAPI.reorderSlide(
+        presentation.rootPath,
+        fromIndex,
+        toIndex
+      )
+      set({
+        presentation: loaded.config,
+        slides: loaded.slides,
+        currentSlideIndex: toIndex,
+        error: null
+      })
     } catch (error) {
       set({ error: (error as Error).message })
     }

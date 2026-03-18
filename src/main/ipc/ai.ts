@@ -10,8 +10,8 @@ function getAIService(): AIService {
   return aiService
 }
 
-export function setAIDeckPath(deckPath: string): void {
-  getAIService().setDeckPath(deckPath)
+export async function setAIDeckPath(deckPath: string): Promise<void> {
+  await getAIService().setDeckPath(deckPath)
 }
 
 export function registerAiHandlers(): void {
@@ -120,6 +120,33 @@ export function registerAiHandlers(): void {
     ): Promise<string> => {
       const service = getAIService()
       return service.improveSlide(slideContent, deckTitle, userPrompt, artifactContext)
+    }
+  )
+
+  ipcMain.handle(
+    'ai:stream-article',
+    async (
+      _event,
+      deckTitle: string,
+      author: string,
+      slidesContent: { title: string; markdown: string; code: string | null; notes: string | null }[],
+      rules: string,
+      responseChannel: string
+    ): Promise<void> => {
+      const service = getAIService()
+      const window = BrowserWindow.getFocusedWindow()
+
+      await service.streamArticle(
+        deckTitle,
+        author,
+        slidesContent,
+        rules,
+        (chunk: string) => {
+          window?.webContents.send(responseChannel, chunk)
+        }
+      )
+
+      window?.webContents.send(responseChannel, '[DONE]')
     }
   )
 }

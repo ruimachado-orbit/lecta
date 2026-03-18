@@ -23,6 +23,8 @@ interface UIState {
   isPresenting: boolean
   showNotes: boolean
   showNavigator: boolean
+  showArticlePanel: boolean
+  showArtifactDrawer: boolean
   editingSlide: boolean
   splitRatio: number
   fontSize: number
@@ -34,6 +36,8 @@ interface UIState {
   setPresenting: (presenting: boolean) => void
   toggleNotes: () => void
   toggleNavigator: () => void
+  toggleArticlePanel: () => void
+  toggleArtifactDrawer: () => void
   toggleEditingSlide: () => void
   setEditingSlide: (editing: boolean) => void
   setSplitRatio: (ratio: number) => void
@@ -53,6 +57,8 @@ export const useUIStore = create<UIState>((set) => ({
   isPresenting: false,
   showNotes: false,
   showNavigator: true,
+  showArticlePanel: false,
+  showArtifactDrawer: false,
   editingSlide: false,
   splitRatio: 40,
   fontSize: 16,
@@ -66,6 +72,8 @@ export const useUIStore = create<UIState>((set) => ({
   setPresenting: (presenting) => set({ isPresenting: presenting }),
   toggleNotes: () => set((s) => ({ showNotes: !s.showNotes })),
   toggleNavigator: () => set((s) => ({ showNavigator: !s.showNavigator })),
+  toggleArticlePanel: () => set((s) => ({ showArticlePanel: !s.showArticlePanel })),
+  toggleArtifactDrawer: () => set((s) => ({ showArtifactDrawer: !s.showArtifactDrawer })),
   toggleEditingSlide: () => set((s) => ({ editingSlide: !s.editingSlide })),
   setEditingSlide: (editing) => set({ editingSlide: editing }),
   setSplitRatio: (ratio) => set({ splitRatio: ratio }),

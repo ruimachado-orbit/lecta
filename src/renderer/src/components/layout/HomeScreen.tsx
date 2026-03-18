@@ -47,11 +47,16 @@ export function HomeScreen(): JSX.Element {
       <div className="max-w-lg w-full px-8" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         {/* Logo / Title */}
         <div className="text-center mb-12">
-          <h1 className="text-5xl font-bold text-white mb-3 tracking-tight">
-            Lec<span className="text-indigo-400">ta</span>
-          </h1>
-          <p className="text-gray-400 text-lg">
-            Technical presentations with live code execution
+          <div className="flex items-center justify-center gap-4 mb-3">
+            <span className="text-5xl text-indigo-400" style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontStyle: 'italic' }}>
+              l
+            </span>
+            <h1 className="text-5xl font-bold text-white tracking-tight">
+              Lec<span className="text-indigo-400">ta</span>
+            </h1>
+          </div>
+          <p className="text-gray-500 text-base">
+            Present. Execute. Engage.
           </p>
         </div>
 

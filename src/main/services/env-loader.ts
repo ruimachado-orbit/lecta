@@ -44,3 +44,30 @@ export async function loadAnthropicKey(deckRootPath?: string): Promise<string | 
 
   return null
 }
+
+/**
+ * Load the AI model using the fallback chain:
+ * 1. Deck's .env file (ANTHROPIC_MODEL)
+ * 2. Process environment variable (ANTHROPIC_MODEL)
+ * 3. null (caller uses hardcoded default)
+ */
+export async function loadAnthropicModel(deckRootPath?: string): Promise<string | null> {
+  if (deckRootPath) {
+    try {
+      const envContent = await readFile(join(deckRootPath, '.env'), 'utf-8')
+      const match = envContent.match(/ANTHROPIC_MODEL\s*=\s*(.+)/)
+      if (match && match[1]) {
+        const model = match[1].trim().replace(/^["']|["']$/g, '')
+        if (model) return model
+      }
+    } catch {
+      // No .env in deck root
+    }
+  }
+
+  if (process.env.ANTHROPIC_MODEL) {
+    return process.env.ANTHROPIC_MODEL
+  }
+
+  return null
+}

@@ -7,15 +7,11 @@ import type { SupportedLanguage } from '../../../../../packages/shared/src/types
 export function Toolbar(): JSX.Element {
   const { presentation, currentSlideIndex, slides, nextSlide, prevSlide, addSlide, addCodeToSlide, addArtifact, addVideo, addWebApp } =
     usePresentationStore()
-  const { togglePresenting, toggleNotes, showNotes, editingSlide, toggleEditingSlide, theme, setTheme } = useUIStore()
+  const { togglePresenting, toggleNotes, showNotes, editingSlide, toggleEditingSlide, theme, setTheme, showArticlePanel, toggleArticlePanel, showArtifactDrawer, toggleArtifactDrawer } = useUIStore()
   const { saveSlideContent } = usePresentationStore()
   const { isExecuting } = useExecutionStore()
 
-  const [showAddSlide, setShowAddSlide] = useState(false)
-  const [showAddCode, setShowAddCode] = useState(false)
-  const [showAddVideo, setShowAddVideo] = useState(false)
-  const [showAddWebApp, setShowAddWebApp] = useState(false)
-  const [newSlideId, setNewSlideId] = useState('')
+  const [showAddMenu, setShowAddMenu] = useState(false)
   const [videoUrl, setVideoUrl] = useState('')
   const [webAppUrl, setWebAppUrl] = useState('')
 
@@ -25,16 +21,12 @@ export function Toolbar(): JSX.Element {
   const hasWebApp = !!currentSlide?.config.webapp
 
   const handleAddSlide = async () => {
-    const id = newSlideId.trim().replace(/\s+/g, '-').toLowerCase()
-    if (!id) return
-    await addSlide(id)
-    setNewSlideId('')
-    setShowAddSlide(false)
+    const nextNum = slides.length + 1
+    await addSlide(`slide-${nextNum}`)
   }
 
   const handleAddCode = async (language: SupportedLanguage) => {
     await addCodeToSlide(language)
-    setShowAddCode(false)
   }
 
   const handleAddVideo = async () => {
@@ -42,7 +34,6 @@ export function Toolbar(): JSX.Element {
     if (!url) return
     await addVideo(url)
     setVideoUrl('')
-    setShowAddVideo(false)
   }
 
   const handleAddWebApp = async () => {
@@ -51,14 +42,10 @@ export function Toolbar(): JSX.Element {
     if (!url.match(/^https?:\/\//)) url = `https://${url}`
     await addWebApp(url)
     setWebAppUrl('')
-    setShowAddWebApp(false)
   }
 
   const closeAllDropdowns = () => {
-    setShowAddSlide(false)
-    setShowAddCode(false)
-    setShowAddVideo(false)
-    setShowAddWebApp(false)
+    setShowAddMenu(false)
   }
 
   return (
@@ -124,173 +111,111 @@ export function Toolbar(): JSX.Element {
           <EditIcon />
         </button>
 
-        {/* Add Slide */}
+        {/* Add menu — unified dropdown for all artifact types */}
         <div className="relative">
           <button
-            onClick={() => { closeAllDropdowns(); setShowAddSlide(!showAddSlide) }}
-            className="p-1.5 rounded hover:bg-gray-800 text-gray-400 hover:text-gray-200 transition-colors"
-            title="Add new slide"
+            onClick={() => { closeAllDropdowns(); setShowAddMenu(!showAddMenu) }}
+            className={`p-1.5 rounded transition-colors ${
+              showAddMenu ? 'bg-indigo-600 text-white' : 'hover:bg-gray-800 text-gray-400 hover:text-gray-200'
+            }`}
+            title="Add to this slide"
           >
             <PlusSlideIcon />
           </button>
-          {showAddSlide && (
-            <div className="absolute right-0 top-full mt-2 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-3 w-64">
-              <label className="text-xs text-gray-400 block mb-1.5">Slide ID</label>
-              <input
-                type="text"
-                value={newSlideId}
-                onChange={(e) => setNewSlideId(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleAddSlide()}
-                placeholder="e.g. intro, demo, conclusion"
-                autoFocus
-                className="w-full px-3 py-2 bg-gray-950 text-white rounded-md border border-gray-700
-                           focus:border-indigo-500 focus:outline-none text-sm placeholder-gray-600"
-              />
-              <div className="flex gap-2 mt-2">
-                <button
-                  onClick={handleAddSlide}
-                  disabled={!newSlideId.trim()}
-                  className="flex-1 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40
-                             text-white text-xs font-medium rounded-md transition-colors"
-                >
-                  Add after current
-                </button>
-                <button
-                  onClick={() => { setShowAddSlide(false); setNewSlideId('') }}
-                  className="py-1.5 px-3 bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs rounded-md transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
+          {showAddMenu && (
+            <div className="absolute right-0 top-full mt-2 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl w-56 overflow-hidden">
+              {/* Code */}
+              {!hasCode && (
+                <div className="px-2 pt-2 pb-1">
+                  <div className="text-[9px] uppercase tracking-wider text-gray-500 px-1 pb-1">Code</div>
+                  <select
+                    onChange={(e) => { if (e.target.value) { handleAddCode(e.target.value as SupportedLanguage); setShowAddMenu(false) } }}
+                    defaultValue=""
+                    className="w-full px-2 py-1.5 bg-gray-950 text-gray-300 text-xs rounded border border-gray-700
+                               focus:border-indigo-500 focus:outline-none"
+                  >
+                    <option value="" disabled>Select language...</option>
+                    {(['javascript', 'python', 'sql', 'typescript', 'bash', 'go', 'rust', 'java', 'ruby'] as SupportedLanguage[]).map((lang) => (
+                      <option key={lang} value={lang} className="capitalize">{lang}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Video */}
+              {!hasVideo && (
+                <div className="px-2 pt-2 pb-1 border-t border-gray-800">
+                  <div className="text-[9px] uppercase tracking-wider text-gray-500 px-1 pb-1">Video</div>
+                  <div className="flex gap-1">
+                    <input
+                      type="text"
+                      value={videoUrl}
+                      onChange={(e) => setVideoUrl(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { handleAddVideo(); setShowAddMenu(false) } }}
+                      placeholder="YouTube URL..."
+                      className="flex-1 px-2 py-1.5 bg-gray-950 text-gray-300 text-xs rounded border border-gray-700
+                                 focus:border-indigo-500 focus:outline-none"
+                    />
+                    <button
+                      onClick={() => { handleAddVideo(); setShowAddMenu(false) }}
+                      disabled={!videoUrl.trim()}
+                      className="px-2 py-1.5 bg-red-600 hover:bg-red-500 disabled:opacity-40
+                                 text-white text-[10px] rounded transition-colors"
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Web App */}
+              {!hasWebApp && (
+                <div className="px-2 pt-2 pb-1 border-t border-gray-800">
+                  <div className="text-[9px] uppercase tracking-wider text-gray-500 px-1 pb-1">Web App</div>
+                  <div className="flex gap-1">
+                    <input
+                      type="text"
+                      value={webAppUrl}
+                      onChange={(e) => setWebAppUrl(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { handleAddWebApp(); setShowAddMenu(false) } }}
+                      placeholder="https://localhost:3000"
+                      className="flex-1 px-2 py-1.5 bg-gray-950 text-gray-300 text-xs rounded border border-gray-700
+                                 focus:border-indigo-500 focus:outline-none"
+                    />
+                    <button
+                      onClick={() => { handleAddWebApp(); setShowAddMenu(false) }}
+                      disabled={!webAppUrl.trim()}
+                      className="px-2 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40
+                                 text-white text-[10px] rounded transition-colors"
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* File */}
+              <button
+                onClick={() => { addArtifact(); setShowAddMenu(false) }}
+                className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-gray-300 hover:bg-gray-800 transition-colors border-t border-gray-800"
+              >
+                <PaperclipIcon />
+                Upload file
+              </button>
             </div>
           )}
         </div>
 
-        {/* Add Code (only if current slide has no code) */}
-        {!hasCode && (
-          <div className="relative">
-            <button
-              onClick={() => { closeAllDropdowns(); setShowAddCode(!showAddCode) }}
-              className="p-1.5 rounded hover:bg-gray-800 text-gray-400 hover:text-gray-200 transition-colors"
-              title="Add code to this slide"
-            >
-              <CodeIcon />
-            </button>
-            {showAddCode && (
-              <div className="absolute right-0 top-full mt-2 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-2 w-44">
-                <div className="text-[10px] uppercase tracking-wider text-gray-500 px-2 py-1">Language</div>
-                {(['javascript', 'python', 'sql', 'typescript', 'bash', 'rust', 'go'] as SupportedLanguage[]).map((lang) => (
-                  <button
-                    key={lang}
-                    onClick={() => handleAddCode(lang)}
-                    className="w-full text-left px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-800
-                               rounded-md transition-colors capitalize"
-                  >
-                    {lang}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Add Artifact */}
+        {/* Toggle Artifact Drawer */}
         <button
-          onClick={addArtifact}
-          className="p-1.5 rounded hover:bg-gray-800 text-gray-400 hover:text-gray-200 transition-colors"
-          title="Add artifact to this slide"
+          onClick={toggleArtifactDrawer}
+          className={`p-1.5 rounded transition-colors ${
+            showArtifactDrawer ? 'bg-indigo-600 text-white' : 'hover:bg-gray-800 text-gray-400'
+          }`}
+          title="Toggle artifact drawer"
         >
-          <PaperclipIcon />
+          <FolderOpenIcon />
         </button>
-
-        {/* Add YouTube Video */}
-        {!hasVideo && (
-          <div className="relative">
-            <button
-              onClick={() => { closeAllDropdowns(); setShowAddVideo(!showAddVideo) }}
-              className="p-1.5 rounded hover:bg-gray-800 text-gray-400 hover:text-gray-200 transition-colors"
-              title="Add YouTube video to this slide"
-            >
-              <YouTubeIcon />
-            </button>
-            {showAddVideo && (
-              <div className="absolute right-0 top-full mt-2 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-3 w-80">
-                <label className="text-xs text-gray-400 block mb-1.5">YouTube URL</label>
-                <input
-                  type="text"
-                  value={videoUrl}
-                  onChange={(e) => setVideoUrl(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleAddVideo()}
-                  placeholder="https://www.youtube.com/watch?v=..."
-                  autoFocus
-                  className="w-full px-3 py-2 bg-gray-950 text-white rounded-md border border-gray-700
-                             focus:border-indigo-500 focus:outline-none text-sm placeholder-gray-600"
-                />
-                <div className="flex gap-2 mt-2">
-                  <button
-                    onClick={handleAddVideo}
-                    disabled={!videoUrl.trim()}
-                    className="flex-1 py-1.5 bg-red-600 hover:bg-red-500 disabled:opacity-40
-                               text-white text-xs font-medium rounded-md transition-colors"
-                  >
-                    Add Video
-                  </button>
-                  <button
-                    onClick={() => { setShowAddVideo(false); setVideoUrl('') }}
-                    className="py-1.5 px-3 bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs rounded-md transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Add Web App */}
-        {!hasWebApp && (
-          <div className="relative">
-            <button
-              onClick={() => { closeAllDropdowns(); setShowAddWebApp(!showAddWebApp) }}
-              className="p-1.5 rounded hover:bg-gray-800 text-gray-400 hover:text-gray-200 transition-colors"
-              title="Embed a web app or URL"
-            >
-              <GlobeIcon />
-            </button>
-            {showAddWebApp && (
-              <div className="absolute right-0 top-full mt-2 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-3 w-80">
-                <label className="text-xs text-gray-400 block mb-1.5">Web App URL</label>
-                <input
-                  type="text"
-                  value={webAppUrl}
-                  onChange={(e) => setWebAppUrl(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleAddWebApp()}
-                  placeholder="https://localhost:3000 or any URL"
-                  autoFocus
-                  className="w-full px-3 py-2 bg-gray-950 text-white rounded-md border border-gray-700
-                             focus:border-indigo-500 focus:outline-none text-sm placeholder-gray-600"
-                />
-                <p className="text-[10px] text-gray-600 mt-1">Embed a local dev server, web app, or any website</p>
-                <div className="flex gap-2 mt-2">
-                  <button
-                    onClick={handleAddWebApp}
-                    disabled={!webAppUrl.trim()}
-                    className="flex-1 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40
-                               text-white text-xs font-medium rounded-md transition-colors"
-                  >
-                    Embed
-                  </button>
-                  <button
-                    onClick={() => { setShowAddWebApp(false); setWebAppUrl('') }}
-                    className="py-1.5 px-3 bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs rounded-md transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Separator */}
         <div className="w-px h-6 bg-gray-800" />
@@ -313,6 +238,17 @@ export function Toolbar(): JSX.Element {
           title="Toggle speaker notes (N)"
         >
           <NotesIcon />
+        </button>
+
+        {/* Article generator toggle */}
+        <button
+          onClick={toggleArticlePanel}
+          className={`p-1.5 rounded transition-colors ${
+            showArticlePanel ? 'bg-indigo-600 text-white' : 'hover:bg-gray-800 text-gray-400'
+          }`}
+          title="Generate article from presentation"
+        >
+          <ArticleIcon />
         </button>
 
         {/* Present mode */}
@@ -394,6 +330,14 @@ function PaperclipIcon(): JSX.Element {
   )
 }
 
+function FolderOpenIcon(): JSX.Element {
+  return (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
+    </svg>
+  )
+}
+
 function GlobeIcon(): JSX.Element {
   return (
     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -422,6 +366,14 @@ function YouTubeIcon(): JSX.Element {
   return (
     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
       <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0C.488 3.45.029 5.804 0 12c.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0C23.512 20.55 23.971 18.196 24 12c-.029-6.185-.484-8.549-4.385-8.816zM9 16V8l8 3.993L9 16z" />
+    </svg>
+  )
+}
+
+function ArticleIcon(): JSX.Element {
+  return (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 0 1-2.25 2.25M16.5 7.5V18a2.25 2.25 0 0 0 2.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 0 0 2.25 2.25h13.5M6 7.5h3v3H6V7.5Z" />
     </svg>
   )
 }

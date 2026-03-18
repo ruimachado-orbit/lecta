@@ -173,7 +173,7 @@ export function registerFileSystemHandlers(): void {
 
     // Track recent decks and set AI deck path
     recentDecks = [folderPath, ...recentDecks.filter((d) => d !== folderPath)].slice(0, 10)
-    setAIDeckPath(folderPath)
+    await setAIDeckPath(folderPath)
 
     // Start watching code files for changes
     const codeFiles = config.slides
@@ -460,6 +460,26 @@ export function registerFileSystemHandlers(): void {
       if (config.slides.length <= 1) throw new Error('Cannot delete the last slide')
 
       config.slides.splice(slideIndex, 1)
+      await savePresentationYaml(config)
+
+      const reloaded = await readFile(configPath, 'utf-8')
+      const reloadedConfig = parsePresentationYaml(reloaded, rootPath)
+      const slides = await loadAllSlides(reloadedConfig, rootPath)
+      return { config: reloadedConfig, slides }
+    }
+  )
+
+  // Reorder slides
+  ipcMain.handle(
+    'fs:reorder-slide',
+    async (_event, rootPath: string, fromIndex: number, toIndex: number): Promise<LoadedPresentation> => {
+      const configPath = join(rootPath, DECK_CONFIG_FILE)
+      const yamlContent = await readFile(configPath, 'utf-8')
+      const config = parsePresentationYaml(yamlContent, rootPath)
+
+      const [moved] = config.slides.splice(fromIndex, 1)
+      config.slides.splice(toIndex, 0, moved)
+
       await savePresentationYaml(config)
 
       const reloaded = await readFile(configPath, 'utf-8')

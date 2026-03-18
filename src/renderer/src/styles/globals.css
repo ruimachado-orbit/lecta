@@ -11,13 +11,32 @@
   --color-border-light: #475569;
 }
 
-/* Light mode overrides */
+/* ============================================================
+   LIGHT MODE — remap Tailwind's gray scale via CSS variables
+   This is the most reliable approach: override the actual
+   oklch color variables that Tailwind generates.
+   ============================================================ */
 html[data-theme="light"] {
+  /* Remap gray scale: dark grays become light, light grays become dark */
+  --color-gray-950: #ffffff;
+  --color-gray-900: #f8fafc;
+  --color-gray-800: #f1f5f9;
+  --color-gray-700: #e2e8f0;
+  --color-gray-600: #cbd5e1;
+  --color-gray-500: #94a3b8;
+  --color-gray-400: #64748b;
+  --color-gray-300: #475569;
+  --color-gray-200: #334155;
+  --color-gray-100: #1e293b;
+  --color-white: #0f172a;
+  --color-black: #ffffff;
+
+  /* Theme tokens */
   --color-surface: #ffffff;
   --color-surface-light: #f1f5f9;
   --color-surface-lighter: #e2e8f0;
-  --color-border: #cbd5e1;
-  --color-border-light: #94a3b8;
+  --color-border: #e2e8f0;
+  --color-border-light: #cbd5e1;
 }
 
 html[data-theme="light"] body {
@@ -25,37 +44,23 @@ html[data-theme="light"] body {
   color: #1e293b;
 }
 
-/* Light mode component overrides */
-html[data-theme="light"] .bg-gray-950 { background-color: #ffffff; }
-html[data-theme="light"] .bg-gray-900 { background-color: #f8fafc; }
-html[data-theme="light"] .bg-gray-800 { background-color: #e2e8f0; }
-html[data-theme="light"] .border-gray-800 { border-color: #e2e8f0; }
-html[data-theme="light"] .border-gray-700 { border-color: #cbd5e1; }
-html[data-theme="light"] .text-gray-300 { color: #475569; }
-html[data-theme="light"] .text-gray-400 { color: #64748b; }
-html[data-theme="light"] .text-gray-500 { color: #94a3b8; }
-html[data-theme="light"] .text-gray-600 { color: #94a3b8; }
-html[data-theme="light"] .text-white { color: #0f172a; }
-html[data-theme="light"] .text-gray-200 { color: #334155; }
-
-/* Light mode slide content */
+/* Light mode slide content — needs explicit overrides since
+   SlideRenderer uses inline className, not Tailwind variables */
 html[data-theme="light"] .slide-content h1,
-html[data-theme="light"] .slide-content h2 { color: #0f172a; }
-html[data-theme="light"] .slide-content h3 { color: #1e293b; }
+html[data-theme="light"] .slide-content h2 { color: #0f172a !important; }
+html[data-theme="light"] .slide-content h3 { color: #1e293b !important; }
 html[data-theme="light"] .slide-content p,
+html[data-theme="light"] .slide-content li,
 html[data-theme="light"] .slide-content ul,
-html[data-theme="light"] .slide-content ol { color: #334155; }
-html[data-theme="light"] .slide-content code { background-color: #e2e8f0; color: #4f46e5; }
-html[data-theme="light"] .slide-content pre { background-color: #f1f5f9; }
-html[data-theme="light"] .slide-content th { background-color: #f1f5f9; border-color: #cbd5e1; }
-html[data-theme="light"] .slide-content td { border-color: #cbd5e1; }
-html[data-theme="light"] .slide-content blockquote { color: #64748b; }
-
-/* Light mode hover states */
-@media (hover: hover) {
-  html[data-theme="light"] .hover\:bg-gray-800:hover { background-color: #e2e8f0; }
-  html[data-theme="light"] .hover\:bg-gray-700:hover { background-color: #cbd5e1; }
-}
+html[data-theme="light"] .slide-content ol { color: #334155 !important; }
+html[data-theme="light"] .slide-content code { background-color: #f1f5f9 !important; color: #4f46e5 !important; }
+html[data-theme="light"] .slide-content pre { background-color: #f1f5f9 !important; }
+html[data-theme="light"] .slide-content pre code { background-color: transparent !important; color: inherit !important; }
+html[data-theme="light"] .slide-content th { background-color: #f1f5f9 !important; border-color: #e2e8f0 !important; color: #1e293b !important; }
+html[data-theme="light"] .slide-content td { border-color: #e2e8f0 !important; color: #334155 !important; }
+html[data-theme="light"] .slide-content blockquote { color: #64748b !important; }
+html[data-theme="light"] .slide-content a { color: #4f46e5 !important; }
+html[data-theme="light"] .slide-content hr { border-color: #e2e8f0 !important; }
 
 /* Presentation-quality slide styling */
 .slide-content h1 {

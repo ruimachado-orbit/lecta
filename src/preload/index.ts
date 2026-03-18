@@ -30,6 +30,8 @@ const api = {
     ipcRenderer.invoke('fs:add-bulk-slides', rootPath, slides, afterIndex),
   deleteSlide: (rootPath: string, slideIndex: number): Promise<LoadedPresentation> =>
     ipcRenderer.invoke('fs:delete-slide', rootPath, slideIndex),
+  reorderSlide: (rootPath: string, fromIndex: number, toIndex: number): Promise<LoadedPresentation> =>
+    ipcRenderer.invoke('fs:reorder-slide', rootPath, fromIndex, toIndex),
   writeFile: (filePath: string, content: string): Promise<void> =>
     ipcRenderer.invoke('fs:write-file', filePath, content),
   uploadImage: (rootPath: string): Promise<string | null> =>
@@ -83,6 +85,17 @@ const api = {
     slideContent: string, deckTitle: string, userPrompt: string, artifactContext?: string
   ): Promise<string> =>
     ipcRenderer.invoke('ai:improve-slide', slideContent, deckTitle, userPrompt, artifactContext),
+  streamArticle: (
+    deckTitle: string,
+    author: string,
+    slidesContent: { title: string; markdown: string; code: string | null; notes: string | null }[],
+    rules: string,
+    callback: (chunk: string) => void
+  ): void => {
+    const channel = `ai:article-stream-${Date.now()}`
+    ipcRenderer.on(channel, (_event, chunk: string) => callback(chunk))
+    ipcRenderer.invoke('ai:stream-article', deckTitle, author, slidesContent, rules, channel)
+  },
 
   // File watcher
   onFileChanged: (callback: (filePath: string, content: string) => void): void => {

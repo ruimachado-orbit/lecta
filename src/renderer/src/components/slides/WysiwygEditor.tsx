@@ -2,6 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
+import Color from '@tiptap/extension-color'
+import { TextStyle } from '@tiptap/extension-text-style'
+import Highlight from '@tiptap/extension-highlight'
+import Underline from '@tiptap/extension-underline'
 import { ResizableImage } from '../../extensions/resizable-image'
 import TurndownService from 'turndown'
 import { usePresentationStore } from '../../stores/presentation-store'
@@ -15,6 +19,29 @@ const SHAPES = [
 const ARROWS = [
   '→', '←', '↑', '↓', '↗', '↘', '↙', '↖',
   '⟶', '⟵', '⇒', '⇐', '⇑', '⇓', '↔', '↕',
+]
+
+const TEXT_COLORS = [
+  { label: 'White', value: '#ffffff' },
+  { label: 'Gray', value: '#a3a3a3' },
+  { label: 'Red', value: '#ef4444' },
+  { label: 'Orange', value: '#f97316' },
+  { label: 'Yellow', value: '#eab308' },
+  { label: 'Green', value: '#22c55e' },
+  { label: 'Blue', value: '#3b82f6' },
+  { label: 'Purple', value: '#a855f7' },
+  { label: 'Pink', value: '#ec4899' },
+  { label: 'Cyan', value: '#06b6d4' },
+]
+
+const HIGHLIGHT_COLORS = [
+  { label: 'None', value: '' },
+  { label: 'Yellow', value: '#854d0e' },
+  { label: 'Green', value: '#166534' },
+  { label: 'Blue', value: '#1e3a5f' },
+  { label: 'Purple', value: '#581c87' },
+  { label: 'Red', value: '#7f1d1d' },
+  { label: 'Gray', value: '#374151' },
 ]
 
 const EMOJIS = [
@@ -188,6 +215,10 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
         heading: { levels: [1, 2, 3] }
       }),
       ResizableImage.configure({ inline: false }),
+      TextStyle,
+      Color,
+      Highlight.configure({ multicolor: true }),
+      Underline,
       Placeholder.configure({
         placeholder: 'Start typing your slide content...'
       })
@@ -246,6 +277,15 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
 
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [showShapePicker, setShowShapePicker] = useState(false)
+  const [showTextColor, setShowTextColor] = useState(false)
+  const [showHighlight, setShowHighlight] = useState(false)
+
+  const closeAllPickers = () => {
+    setShowEmojiPicker(false)
+    setShowShapePicker(false)
+    setShowTextColor(false)
+    setShowHighlight(false)
+  }
 
   const insertText = (text: string) => {
     editor.chain().focus().insertContent(text).run()
@@ -280,6 +320,71 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
           active={editor.isActive('code')}
           onClick={() => editor.chain().focus().toggleCode().run()}
         ><span className="font-mono text-[9px]">{`</>`}</span></WBtn>
+        <WBtn
+          active={editor.isActive('underline')}
+          onClick={() => editor.chain().focus().toggleUnderline().run()}
+        ><span className="underline text-[10px]">U</span></WBtn>
+        <Sep />
+        {/* Text color */}
+        <div className="relative">
+          <WBtn onClick={() => { closeAllPickers(); setShowTextColor(!showTextColor) }}>
+            <span className="text-[10px] font-bold" style={{ color: editor.getAttributes('textStyle').color || '#fff' }}>A</span>
+          </WBtn>
+          {showTextColor && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setShowTextColor(false)} />
+              <div className="absolute left-0 top-full mt-1 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-2">
+                <div className="grid grid-cols-5 gap-1">
+                  {TEXT_COLORS.map((c) => (
+                    <button key={c.value} onClick={() => { editor.chain().focus().setColor(c.value).run(); setShowTextColor(false) }}
+                      className="w-6 h-6 rounded-full border border-gray-700 hover:scale-110 transition-transform"
+                      style={{ backgroundColor: c.value }} title={c.label} />
+                  ))}
+                </div>
+                <button onClick={() => { editor.chain().focus().unsetColor().run(); setShowTextColor(false) }}
+                  className="w-full mt-1 text-[9px] text-gray-500 hover:text-gray-300 py-0.5">Reset</button>
+              </div>
+            </>
+          )}
+        </div>
+        {/* Highlight color */}
+        <div className="relative">
+          <WBtn onClick={() => { closeAllPickers(); setShowHighlight(!showHighlight) }}>
+            <span className="text-[10px] font-bold px-0.5 rounded" style={{ backgroundColor: editor.getAttributes('highlight').color || 'transparent' }}>H</span>
+          </WBtn>
+          {showHighlight && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setShowHighlight(false)} />
+              <div className="absolute left-0 top-full mt-1 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-2">
+                <div className="grid grid-cols-4 gap-1">
+                  {HIGHLIGHT_COLORS.map((c) => (
+                    <button key={c.value || 'none'} onClick={() => {
+                      if (c.value) editor.chain().focus().setHighlight({ color: c.value }).run()
+                      else editor.chain().focus().unsetHighlight().run()
+                      setShowHighlight(false)
+                    }}
+                      className="w-6 h-6 rounded border border-gray-700 hover:scale-110 transition-transform flex items-center justify-center"
+                      style={{ backgroundColor: c.value || 'transparent' }} title={c.label}>
+                      {!c.value && <span className="text-[8px] text-gray-500">✕</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+        <Sep />
+        {/* Indent */}
+        <WBtn onClick={() => { editor.chain().focus().sinkListItem('listItem').run() }} title="Indent">
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 4.5h18M3 9h18M9 13.5h12M9 18h12M3 13l3 2.25L3 17.5" />
+          </svg>
+        </WBtn>
+        <WBtn onClick={() => { editor.chain().focus().liftListItem('listItem').run() }} title="Outdent">
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 4.5h18M3 9h18M9 13.5h12M9 18h12M6 13L3 15.25 6 17.5" />
+          </svg>
+        </WBtn>
         <Sep />
         <WBtn
           active={editor.isActive('bulletList')}
@@ -308,7 +413,7 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
         <Sep />
         {/* Shapes picker */}
         <div className="relative">
-          <WBtn onClick={() => { setShowShapePicker(!showShapePicker); setShowEmojiPicker(false) }}>
+          <WBtn onClick={() => { closeAllPickers(); setShowShapePicker(!showShapePicker) }}>
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.53 16.122a3 3 0 0 0-5.78 1.128 2.25 2.25 0 0 1-2.4 2.245 4.5 4.5 0 0 0 8.4-2.245c0-.399-.078-.78-.22-1.128Zm0 0a15.998 15.998 0 0 0 3.388-1.62m-5.043-.025a15.994 15.994 0 0 1 1.622-3.395m3.42 3.42a15.995 15.995 0 0 0 4.764-4.648l3.876-5.814a1.151 1.151 0 0 0-1.597-1.597L14.146 6.32a15.996 15.996 0 0 0-4.649 4.763m3.42 3.42a6.776 6.776 0 0 0-3.42-3.42" />
             </svg>
@@ -341,7 +446,7 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
         </div>
         {/* Emoji picker */}
         <div className="relative">
-          <WBtn onClick={() => { setShowEmojiPicker(!showEmojiPicker); setShowShapePicker(false) }}>
+          <WBtn onClick={() => { closeAllPickers(); setShowEmojiPicker(!showEmojiPicker) }}>
             <span className="text-[11px]">😀</span>
           </WBtn>
           {showEmojiPicker && (
@@ -364,9 +469,9 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
       </div>
 
       {/* Editor */}
-      <div className="flex-1 overflow-y-auto p-6 relative" ref={editorContainerRef}>
+      <div className="flex-1 overflow-y-auto p-12 relative" ref={editorContainerRef}>
         {isOverflow && (
-          <div className="sticky top-0 z-10 -mx-6 -mt-6 mb-2 px-3 py-1 bg-red-500/10 border-b border-red-500/20 text-red-400 text-[10px] text-center">
+          <div className="sticky top-0 z-10 -mx-12 -mt-12 mb-2 px-3 py-1 bg-red-500/10 border-b border-red-500/20 text-red-400 text-[10px] text-center">
             Slide limit reached — content exceeds visible area
           </div>
         )}
@@ -390,10 +495,11 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
   )
 }
 
-function WBtn({ children, onClick, active }: { children: React.ReactNode; onClick: () => void; active?: boolean }): JSX.Element {
+function WBtn({ children, onClick, active, title }: { children: React.ReactNode; onClick: () => void; active?: boolean; title?: string }): JSX.Element {
   return (
     <button
       onClick={onClick}
+      title={title}
       className={`px-2 py-1 rounded text-[11px] transition-colors ${
         active ? 'bg-white text-black' : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
       }`}

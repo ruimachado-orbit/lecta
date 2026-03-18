@@ -81,48 +81,36 @@ export function SlidePanel(): JSX.Element {
 
       {/* Main content */}
       <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-        {editingSlide ? (
+        {editingSlide && editorMode === 'wysiwyg' ? (
+          /* WYSIWYG: editor IS the canvas */
+          <EditableSlideCanvas slideIndex={currentSlideIndex} breakOffsets={breakOffsets} rootPath={presentation?.rootPath} />
+        ) : editingSlide && editorMode === 'markdown' ? (
+          /* Markdown: split view — canvas top, editor bottom */
           <>
-            {/* Canvas preview — top */}
             <div className="h-[40%] flex-shrink-0 border-b border-gray-800">
-              <SlideCanvas
-                markdown={currentSlide.markdownContent}
-                rootPath={presentation?.rootPath}
-              />
+              <SlideCanvas markdown={currentSlide.markdownContent} rootPath={presentation?.rootPath} />
             </div>
-            {/* Editor — bottom */}
-            <div className="flex-1 min-h-0">
-              {editorMode === 'wysiwyg' ? (
-                <WysiwygEditor slideIndex={currentSlideIndex} breakOffsets={breakOffsets} />
-              ) : (
-                <div className="h-full" onBlur={handleEditorBlur}>
-                  <Editor
-                    height="100%"
-                    language="markdown"
-                    value={currentSlide.markdownContent}
-                    onChange={handleEditorChange}
-                    onMount={handleEditorMount}
-                    theme="vs-dark"
-                    options={{
-                      fontSize: 14,
-                      lineHeight: 20,
-                      fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
-                      minimap: { enabled: false },
-                      scrollBeyondLastLine: false,
-                      padding: { top: 12, bottom: 12 },
-                      lineNumbers: 'off',
-                      renderLineHighlight: 'none',
-                      wordWrap: 'on',
-                      automaticLayout: true,
-                      tabSize: 2
-                    }}
-                  />
-                </div>
-              )}
+            <div className="flex-1 min-h-0" onBlur={handleEditorBlur}>
+              <Editor
+                height="100%"
+                language="markdown"
+                value={currentSlide.markdownContent}
+                onChange={handleEditorChange}
+                onMount={handleEditorMount}
+                theme="vs-dark"
+                options={{
+                  fontSize: 14, lineHeight: 20,
+                  fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
+                  minimap: { enabled: false }, scrollBeyondLastLine: false,
+                  padding: { top: 12, bottom: 12 }, lineNumbers: 'off',
+                  renderLineHighlight: 'none', wordWrap: 'on',
+                  automaticLayout: true, tabSize: 2
+                }}
+              />
             </div>
           </>
         ) : (
-          /* Full canvas in preview mode */
+          /* Preview mode: read-only canvas */
           <SlideCanvas
             markdown={activeMarkdown}
             rootPath={presentation?.rootPath}
@@ -263,6 +251,54 @@ function SlideCanvas({ markdown, rootPath, transition }: { markdown: string; roo
           >
             <SlideRenderer markdown={markdown} rootPath={rootPath} />
           </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** Editable slide canvas — WYSIWYG editor rendered inside the scaled 16:9 frame */
+function EditableSlideCanvas({ slideIndex, breakOffsets, rootPath }: {
+  slideIndex: number; breakOffsets?: number[]; rootPath?: string
+}): JSX.Element {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [canvasScale, setCanvasScale] = useState(1)
+
+  const SLIDE_W = 1280
+  const SLIDE_H = 720
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    const updateScale = () => {
+      const cw = container.clientWidth
+      const ch = container.clientHeight
+      const margin = 16
+      const s = Math.min((cw - margin * 2) / SLIDE_W, (ch - margin * 2) / SLIDE_H)
+      setCanvasScale(Math.max(0.05, s))
+    }
+    updateScale()
+    const ro = new ResizeObserver(updateScale)
+    ro.observe(container)
+    return () => ro.disconnect()
+  }, [])
+
+  return (
+    <div ref={containerRef} className="h-full w-full flex items-center justify-center bg-neutral-800 overflow-hidden">
+      <div
+        className="relative rounded overflow-hidden"
+        style={{
+          width: SLIDE_W,
+          height: SLIDE_H,
+          transform: `scale(${canvasScale})`,
+          transformOrigin: 'center center',
+          flexShrink: 0,
+          boxShadow: '0 0 0 1px rgba(255,255,255,0.15), 0 4px 24px rgba(0,0,0,0.6), 0 0 80px rgba(0,0,0,0.4)'
+        }}
+      >
+        <div className="absolute inset-0 bg-black rounded" />
+        <div className="absolute inset-0 overflow-hidden">
+          <WysiwygEditor slideIndex={slideIndex} breakOffsets={breakOffsets} />
         </div>
       </div>
     </div>

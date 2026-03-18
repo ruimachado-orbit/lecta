@@ -128,6 +128,10 @@ const api = {
   // Presenter window
   openPresenterWindow: (): Promise<void> =>
     ipcRenderer.invoke('presenter:open'),
+  openAudienceWindow: (): Promise<void> =>
+    ipcRenderer.invoke('presenter:open-audience'),
+  closeAudienceWindow: (): Promise<void> =>
+    ipcRenderer.invoke('presenter:close-audience'),
   syncPresenterSlide: (slideIndex: number): void => {
     ipcRenderer.send('presenter:sync-slide', slideIndex)
   },

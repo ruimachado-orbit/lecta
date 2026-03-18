@@ -10,12 +10,15 @@ interface SlideRendererProps {
 function resolveImageSrc(src: string | undefined, rootPath?: string): string {
   if (!src) return ''
   // Already absolute URL or data URI
-  if (src.startsWith('http://') || src.startsWith('https://') || src.startsWith('data:')) {
+  if (src.startsWith('http://') || src.startsWith('https://') || src.startsWith('data:') || src.startsWith('file://')) {
     return src
   }
   // Local file — resolve relative to workspace root
   if (rootPath) {
-    return `file://${rootPath}/${src}`
+    // Decode first in case path is already encoded, then re-encode each segment
+    const decoded = decodeURIComponent(src)
+    const fullPath = `${rootPath}/${decoded}`
+    return `file://${fullPath.split('/').map(encodeURIComponent).join('/')}`
   }
   return src
 }

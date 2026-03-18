@@ -30,6 +30,8 @@ const api = {
     ipcRenderer.invoke('fs:add-bulk-slides', rootPath, slides, afterIndex),
   deleteSlide: (rootPath: string, slideIndex: number): Promise<LoadedPresentation> =>
     ipcRenderer.invoke('fs:delete-slide', rootPath, slideIndex),
+  renameSlide: (rootPath: string, slideIndex: number, newId: string): Promise<LoadedPresentation> =>
+    ipcRenderer.invoke('fs:rename-slide', rootPath, slideIndex, newId),
   reorderSlide: (rootPath: string, fromIndex: number, toIndex: number): Promise<LoadedPresentation> =>
     ipcRenderer.invoke('fs:reorder-slide', rootPath, fromIndex, toIndex),
   writeFile: (filePath: string, content: string): Promise<void> =>

@@ -91,7 +91,9 @@ export function SlideEditToolbar({ editorRef }: SlideEditToolbarProps): JSX.Elem
           if (!presentation) return
           const relativePath = await window.electronAPI.uploadImage(presentation.rootPath)
           if (relativePath) {
-            insertAtCursor(`\n![image](${relativePath})\n`)
+            // Encode spaces/special chars so markdown parser doesn't break
+            const encodedPath = relativePath.split('/').map(encodeURIComponent).join('/')
+            insertAtCursor(`\n![image](${encodedPath})\n`)
           }
         }}>🖼</Btn>
         <Sep />

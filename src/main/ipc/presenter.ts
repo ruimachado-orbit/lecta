@@ -86,6 +86,13 @@ export function registerPresenterHandlers(): void {
     }
   })
 
+  // Send presentation path to audience window so it can load it
+  ipcMain.on('presenter:send-path', (_event, rootPath: string) => {
+    if (audienceWindow && !audienceWindow.isDestroyed()) {
+      audienceWindow.webContents.send('presenter:load-path', rootPath)
+    }
+  })
+
   ipcMain.on('presenter:sync-slide', (_event, slideIndex: number) => {
     if (presenterWindow && !presenterWindow.isDestroyed()) {
       presenterWindow.webContents.send('presenter:sync-slide', slideIndex)

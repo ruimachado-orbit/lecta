@@ -3,6 +3,7 @@ import { usePresentationStore } from './stores/presentation-store'
 import { useUIStore, COLOR_PALETTES } from './stores/ui-store'
 import { AppShell } from './components/layout/AppShell'
 import { HomeScreen } from './components/layout/HomeScreen'
+import { AudienceView } from './components/presenter/AudienceView'
 
 export default function App(): JSX.Element {
   const presentation = usePresentationStore((s) => s.presentation)
@@ -23,6 +24,11 @@ export default function App(): JSX.Element {
       }
     })
   }, [])
+
+  // Audience window — separate fullscreen slide display
+  if (window.location.hash === '#/audience') {
+    return <AudienceView />
+  }
 
   if (presentation) {
     return <AppShell />

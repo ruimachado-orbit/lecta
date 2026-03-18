@@ -101,6 +101,17 @@ const api = {
     ipcRenderer.invoke('ai:stream-article', deckTitle, author, slidesContent, rules, channel)
   },
 
+  // Presenter sync listener (for audience/presenter windows)
+  onPresenterSync: (callback: (slideIndex: number) => void): void => {
+    ipcRenderer.on('presenter:sync-slide', (_event, slideIndex: number) => callback(slideIndex))
+  },
+  onPresenterLoadPath: (callback: (rootPath: string) => void): void => {
+    ipcRenderer.on('presenter:load-path', (_event, rootPath: string) => callback(rootPath))
+  },
+  sendPresenterPath: (rootPath: string): void => {
+    ipcRenderer.send('presenter:send-path', rootPath)
+  },
+
   // File watcher
   onFileChanged: (callback: (filePath: string, content: string) => void): void => {
     ipcRenderer.on('fs:file-changed', (_event, filePath: string, content: string) => {

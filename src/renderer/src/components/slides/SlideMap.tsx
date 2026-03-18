@@ -136,7 +136,7 @@ export function SlideMap(): JSX.Element {
                           onClick={() => { goToSlide(globalIndex); toggleSlideMap() }}
                           className={`flex-shrink-0 w-44 rounded-xl border transition-colors text-left ${
                             isActive
-                              ? 'border-white bg-gray-900 shadow-md shadow-white/10 ring-1 ring-white/30'
+                              ? 'border-white bg-gray-900 shadow-md shadow-white/5 ring-1 ring-white/30'
                               : 'border-gray-800 bg-gray-900 hover:border-gray-500 hover:bg-gray-800'
                           }`}
                         >
@@ -174,22 +174,22 @@ export function SlideMap(): JSX.Element {
                           {(hasCode || hasVideo || hasWebApp || artifactCount > 0) && (
                             <div className="px-3 py-1.5 border-t border-gray-800 flex items-center gap-1 flex-wrap">
                               {hasCode && (
-                                <span className="text-[7px] px-1.5 py-0.5 bg-emerald-900/30 text-emerald-400 rounded-full font-medium">
+                                <span className="text-[7px] px-1.5 py-0.5 bg-gray-800 text-gray-300 rounded-full font-medium">
                                   {slide.config.code!.language}
                                 </span>
                               )}
                               {hasVideo && (
-                                <span className="text-[7px] px-1.5 py-0.5 bg-red-900/30 text-red-400 rounded-full font-medium">
+                                <span className="text-[7px] px-1.5 py-0.5 bg-gray-800 text-red-400 rounded-full font-medium">
                                   video
                                 </span>
                               )}
                               {hasWebApp && (
-                                <span className="text-[7px] px-1.5 py-0.5 bg-cyan-900/30 text-cyan-400 rounded-full font-medium">
+                                <span className="text-[7px] px-1.5 py-0.5 bg-gray-800 text-gray-300 rounded-full font-medium">
                                   web
                                 </span>
                               )}
                               {artifactCount > 0 && (
-                                <span className="text-[7px] px-1.5 py-0.5 bg-amber-900/30 text-amber-400 rounded-full font-medium">
+                                <span className="text-[7px] px-1.5 py-0.5 bg-gray-800 text-gray-300 rounded-full font-medium">
                                   {artifactCount} file{artifactCount > 1 ? 's' : ''}
                                 </span>
                               )}
@@ -208,10 +208,10 @@ export function SlideMap(): JSX.Element {
         {/* Footer */}
         <div className="px-6 py-3 border-t border-gray-800 flex items-center justify-between">
           <div className="flex items-center gap-4 text-[10px] text-gray-600">
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500/50" /> Code</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500/50" /> Video</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-cyan-500/50" /> Web</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500/50" /> Files</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-500/50" /> Code</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-400/50" /> Video</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-500/50" /> Web</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-500/50" /> Files</span>
             <span className="flex items-center gap-1"><span className="text-white">✦</span> AI generated</span>
           </div>
           <span className="text-[10px] text-gray-600">Click a slide to navigate</span>

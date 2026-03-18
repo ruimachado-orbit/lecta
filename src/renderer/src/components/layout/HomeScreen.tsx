@@ -128,7 +128,7 @@ export function HomeScreen(): JSX.Element {
                 Cancel
               </button>
               {createError && (
-                <div className="bg-red-900/30 border border-red-800 text-red-300 rounded-lg px-4 py-3 text-sm">
+                <div className="bg-gray-800 border border-gray-700 text-gray-300 rounded-lg px-4 py-3 text-sm">
                   {createError}
                 </div>
               )}
@@ -136,7 +136,7 @@ export function HomeScreen(): JSX.Element {
           )}
 
           {(error && !createError) && (
-            <div className="bg-red-900/30 border border-red-800 text-red-300 rounded-lg px-4 py-3 text-sm">
+            <div className="bg-gray-800 border border-gray-700 text-gray-300 rounded-lg px-4 py-3 text-sm">
               {error}
             </div>
           )}

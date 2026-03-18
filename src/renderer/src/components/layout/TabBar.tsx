@@ -5,8 +5,6 @@ export function TabBar(): JSX.Element {
   const { tabs, activeTabId, switchTab, closeTab, openInNewTab } = useTabsStore()
   const { openFolder } = usePresentationStore()
 
-  if (tabs.length <= 1) return <></>
-
   const handleOpenNew = async () => {
     const folderPath = await window.electronAPI.openFolder()
     if (folderPath) {

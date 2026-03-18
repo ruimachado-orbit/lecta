@@ -7,20 +7,23 @@ const getSettingsPath = (): string =>
 
 let cachedSettings: Record<string, unknown> = {}
 
+const DEFAULTS: Record<string, unknown> = {
+  theme: 'dark',
+  aiModel: 'claude-sonnet-4-20250514',
+  executionTimeout: 30000,
+  nativeExecutionEnabled: false,
+  fontSize: 16,
+  splitRatio: 40,
+  anthropicApiKey: '',
+  recentDecks: []
+}
+
 async function loadSettings(): Promise<Record<string, unknown>> {
   try {
     const content = await readFile(getSettingsPath(), 'utf-8')
-    cachedSettings = JSON.parse(content)
+    cachedSettings = { ...DEFAULTS, ...JSON.parse(content) }
   } catch {
-    cachedSettings = {
-      theme: 'dark',
-      aiModel: 'claude-sonnet-4-20250514',
-      executionTimeout: 30000,
-      nativeExecutionEnabled: false,
-      fontSize: 16,
-      splitRatio: 40,
-      anthropicApiKey: ''
-    }
+    cachedSettings = { ...DEFAULTS }
   }
   return cachedSettings
 }

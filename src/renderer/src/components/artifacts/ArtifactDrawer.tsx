@@ -281,7 +281,7 @@ function AddMenu({
             <button
               onClick={onAddVideo}
               disabled={!videoUrl.trim()}
-              className="px-2 py-1.5 bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white text-[10px] rounded transition-colors"
+              className="px-2 py-1.5 bg-gray-300 hover:bg-gray-400 disabled:opacity-40 text-white text-[10px] rounded transition-colors"
             >
               Add
             </button>

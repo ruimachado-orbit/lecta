@@ -23,14 +23,14 @@ export function ExecutionOutput(): JSX.Element {
         </span>
         {isExecuting && (
           <div className="ml-2 flex items-center gap-1">
-            <div className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse" />
-            <span className="text-[10px] text-amber-400">Running</span>
+            <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-pulse" />
+            <span className="text-[10px] text-gray-300">Running</span>
           </div>
         )}
         {lastResult && !isExecuting && (
           <span
             className={`ml-2 text-[10px] ${
-              lastResult.status === 'success' ? 'text-green-400' : 'text-red-400'
+              lastResult.status === 'success' ? 'text-gray-300' : 'text-red-400'
             }`}
           >
             {lastResult.status} ({lastResult.duration}ms)

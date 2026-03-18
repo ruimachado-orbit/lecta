@@ -36,7 +36,7 @@ export function AppShell(): JSX.Element {
 
   return (
     <div className="h-screen flex flex-col bg-gray-950">
-      {tabs.length > 1 && <TabBar />}
+      <TabBar />
       <Toolbar />
 
       <div className="flex-1 min-h-0 flex flex-col">

@@ -9,19 +9,19 @@ function initMermaid() {
     startOnLoad: false,
     theme: 'dark',
     themeVariables: {
-      primaryColor: '#6366f1',
-      primaryTextColor: '#e2e8f0',
-      primaryBorderColor: '#818cf8',
-      lineColor: '#475569',
-      secondaryColor: '#1e293b',
-      tertiaryColor: '#334155',
-      background: '#0f172a',
-      mainBkg: '#1e293b',
-      nodeBorder: '#818cf8',
-      clusterBkg: '#1e293b',
-      clusterBorder: '#334155',
-      titleColor: '#e2e8f0',
-      edgeLabelBackground: '#1e293b',
+      primaryColor: '#ffffff',
+      primaryTextColor: '#e5e5e5',
+      primaryBorderColor: '#a3a3a3',
+      lineColor: '#525252',
+      secondaryColor: '#171717',
+      tertiaryColor: '#262626',
+      background: '#0a0a0a',
+      mainBkg: '#171717',
+      nodeBorder: '#a3a3a3',
+      clusterBkg: '#171717',
+      clusterBorder: '#262626',
+      titleColor: '#e5e5e5',
+      edgeLabelBackground: '#171717',
       fontSize: '14px'
     },
     flowchart: { htmlLabels: true, curve: 'basis' },
@@ -60,9 +60,9 @@ export function MermaidDiagram({ chart }: MermaidDiagramProps): JSX.Element {
 
   if (error) {
     return (
-      <div className="bg-red-900/20 border border-red-800 rounded-lg p-3 my-4 text-xs">
+      <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 my-4 text-xs">
         <div className="text-red-400 font-medium mb-1">Mermaid diagram error</div>
-        <pre className="text-red-300 whitespace-pre-wrap">{error}</pre>
+        <pre className="text-gray-300 whitespace-pre-wrap">{error}</pre>
         <pre className="text-gray-500 mt-2 whitespace-pre-wrap text-[10px]">{chart}</pre>
       </div>
     )

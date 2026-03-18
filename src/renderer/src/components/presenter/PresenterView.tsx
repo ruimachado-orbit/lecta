@@ -85,11 +85,11 @@ export function PresenterView(): JSX.Element {
                           {currentSlide?.config.code?.language}
                         </span>
                         {isExecuting ? (
-                          <button onClick={cancelCode} className="px-2 py-0.5 bg-red-600 hover:bg-red-500 text-white text-[10px] rounded">
+                          <button onClick={cancelCode} className="px-2 py-0.5 bg-gray-300 hover:bg-gray-400 text-white text-[10px] rounded">
                             Stop
                           </button>
                         ) : (
-                          <button onClick={handleRun} className="px-2 py-0.5 bg-green-600 hover:bg-green-500 text-white text-[10px] rounded">
+                          <button onClick={handleRun} className="px-2 py-0.5 bg-white hover:bg-gray-200 text-white text-[10px] rounded">
                             Run
                           </button>
                         )}
@@ -196,7 +196,7 @@ export function PresenterView(): JSX.Element {
           <button
             onClick={() => setTimerRunning(!timerRunning)}
             className={`text-sm font-mono px-3 py-1 rounded transition-colors ${
-              timerRunning ? 'text-white bg-gray-800' : 'text-amber-400 bg-amber-900/30'
+              timerRunning ? 'text-white bg-gray-800' : 'text-gray-300 bg-gray-800'
             }`}
             title={timerRunning ? 'Pause timer' : 'Resume timer'}
           >
@@ -205,7 +205,7 @@ export function PresenterView(): JSX.Element {
 
           <button
             onClick={() => setPresenting(false)}
-            className="px-3 py-1.5 text-xs bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors font-medium"
+            className="px-3 py-1.5 text-xs bg-gray-300 hover:bg-gray-400 text-white rounded-lg transition-colors font-medium"
             title="Exit (Esc)"
           >
             End

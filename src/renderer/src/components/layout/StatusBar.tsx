@@ -37,10 +37,10 @@ export function StatusBar(): JSX.Element {
         <div
           className={`w-2 h-2 rounded-full ${
             isExecuting
-              ? 'bg-amber-400 animate-pulse'
+              ? 'bg-gray-400 animate-pulse'
               : lastResult?.status === 'error'
                 ? 'bg-red-400'
-                : 'bg-green-400'
+                : 'bg-gray-300'
           }`}
         />
         <span>
@@ -59,17 +59,17 @@ export function StatusBar(): JSX.Element {
       <div className="flex items-center gap-1.5">
         {isSaving ? (
           <>
-            <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+            <div className="w-2 h-2 rounded-full bg-gray-400 animate-pulse" />
             <span className="text-gray-500">Saving...</span>
           </>
         ) : hasUnsavedChanges ? (
           <>
-            <div className="w-2 h-2 rounded-full bg-amber-400" />
+            <div className="w-2 h-2 rounded-full bg-gray-400" />
             <span className="text-gray-500">Unsaved changes</span>
           </>
         ) : lastSavedAt ? (
           <>
-            <div className="w-2 h-2 rounded-full bg-green-400" />
+            <div className="w-2 h-2 rounded-full bg-gray-300" />
             <span className="text-gray-500">Saved {formatTimeAgo(lastSavedAt)}</span>
           </>
         ) : null}

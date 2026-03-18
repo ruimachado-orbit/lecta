@@ -103,8 +103,7 @@ export function SlidePanel(): JSX.Element {
             </div>
           )
         ) : (
-          <div className="h-full overflow-y-auto p-8 relative slide-preview-area">
-            <div className="slide-limit-line" />
+          <div className="h-full overflow-y-auto p-8">
             <SlideRenderer markdown={currentSlide.markdownContent} rootPath={presentation?.rootPath} />
           </div>
         )}

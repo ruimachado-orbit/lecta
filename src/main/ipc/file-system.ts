@@ -26,6 +26,35 @@ import type {
 
 let recentDecks: string[] = []
 
+async function loadRecentDecks(): Promise<void> {
+  try {
+    const settings = await ipcMain.handle('settings:get', async () => {}) as Record<string, unknown> | null
+    if (settings && Array.isArray(settings.recentDecks)) {
+      recentDecks = settings.recentDecks as string[]
+    }
+  } catch {
+    // Settings not loaded yet, use empty array
+  }
+}
+
+async function persistRecentDecks(): Promise<void> {
+  try {
+    // Use direct file I/O to avoid IPC circular issues
+    const { app } = await import('electron')
+    const settingsPath = join(app.getPath('userData'), 'settings.json')
+    let settings: Record<string, unknown> = {}
+    try {
+      const content = await readFile(settingsPath, 'utf-8')
+      settings = JSON.parse(content)
+    } catch { /* fresh settings */ }
+    settings.recentDecks = recentDecks
+    await mkdir(app.getPath('userData'), { recursive: true })
+    await writeFile(settingsPath, JSON.stringify(settings, null, 2))
+  } catch {
+    // Non-critical, ignore
+  }
+}
+
 /** Write the current presentation config back to lecta.yaml */
 async function savePresentationYaml(presentation: Presentation): Promise<void> {
   const configPath = join(presentation.rootPath, DECK_CONFIG_FILE)
@@ -173,6 +202,7 @@ export function registerFileSystemHandlers(): void {
 
     // Track recent decks and set AI deck path
     recentDecks = [folderPath, ...recentDecks.filter((d) => d !== folderPath)].slice(0, 10)
+    await persistRecentDecks()
     await setAIDeckPath(folderPath)
 
     // Start watching code files for changes

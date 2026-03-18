@@ -226,7 +226,7 @@ export function SlideNavigator(): JSX.Element {
               {slides.length > 1 && (
                 <button
                   onClick={(e) => { e.stopPropagation(); handleDelete(index) }}
-                  className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-600 hover:bg-red-500 text-white
+                  className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-gray-300 hover:bg-gray-400 text-white
                              rounded-full hidden group-hover:flex items-center justify-center z-10"
                   title="Delete slide"
                 >

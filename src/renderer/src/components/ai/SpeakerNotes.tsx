@@ -75,7 +75,7 @@ export function SpeakerNotes(): JSX.Element {
             <>
               <button
                 onClick={handleSave}
-                className="px-2 py-0.5 text-[10px] bg-green-600 hover:bg-green-500 text-white rounded transition-colors"
+                className="px-2 py-0.5 text-[10px] bg-white hover:bg-gray-200 text-white rounded transition-colors"
               >
                 Save
               </button>

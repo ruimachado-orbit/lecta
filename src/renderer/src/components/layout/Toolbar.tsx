@@ -2,14 +2,15 @@ import { useState } from 'react'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useExecutionStore } from '../../stores/execution-store'
+import { useTabsStore } from '../../stores/tabs-store'
 import type { SupportedLanguage } from '../../../../../packages/shared/src/types/presentation'
 
 export function Toolbar(): JSX.Element {
-  const { presentation, currentSlideIndex, slides, nextSlide, prevSlide, addSlide, addCodeToSlide, addArtifact, addVideo, addWebApp } =
+  const { presentation, currentSlideIndex, slides, nextSlide, prevSlide, addSlide, addCodeToSlide, addArtifact, addVideo, addWebApp, saveSlideContent, hasUnsavedChanges } =
     usePresentationStore()
   const { togglePresenting, toggleNotes, showNotes, editingSlide, toggleEditingSlide, theme, setTheme, showArticlePanel, toggleArticlePanel, showArtifactDrawer, toggleArtifactDrawer, toggleSlideMap } = useUIStore()
-  const { saveSlideContent } = usePresentationStore()
   const { isExecuting } = useExecutionStore()
+  const { activeTabId, closeTab } = useTabsStore()
 
   const [showAddMenu, setShowAddMenu] = useState(false)
   const [videoUrl, setVideoUrl] = useState('')
@@ -50,6 +51,26 @@ export function Toolbar(): JSX.Element {
 
   return (
     <div className="h-12 bg-gray-900 border-b border-gray-800 flex items-center pl-20 pr-4 gap-4 select-none" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
+      {/* Close presentation */}
+      <div className="flex items-center" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+        <button
+          onClick={async () => {
+            if (hasUnsavedChanges) {
+              await saveSlideContent(currentSlideIndex)
+            }
+            if (activeTabId) {
+              closeTab(activeTabId)
+            }
+          }}
+          className="p-1.5 rounded hover:bg-gray-800 text-gray-500 hover:text-gray-300 transition-colors"
+          title="Close presentation"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
       {/* Navigation */}
       <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         <button
@@ -89,8 +110,8 @@ export function Toolbar(): JSX.Element {
       <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         {/* Execution status */}
         {isExecuting && (
-          <div className="flex items-center gap-1.5 text-amber-400 text-xs">
-            <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse" />
+          <div className="flex items-center gap-1.5 text-gray-300 text-xs">
+            <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse" />
             Running...
           </div>
         )}
@@ -103,12 +124,12 @@ export function Toolbar(): JSX.Element {
             }
             toggleEditingSlide()
           }}
-          className={`p-1.5 rounded transition-colors ${
+          className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
             editingSlide ? 'bg-white text-black' : 'hover:bg-gray-800 text-gray-400'
           }`}
           title={editingSlide ? 'Switch to preview (save)' : 'Edit slide content'}
         >
-          <EditIcon />
+          Editor
         </button>
 
         {/* Add menu — unified dropdown for all artifact types */}
@@ -159,7 +180,7 @@ export function Toolbar(): JSX.Element {
                     <button
                       onClick={() => { handleAddVideo(); setShowAddMenu(false) }}
                       disabled={!videoUrl.trim()}
-                      className="px-2 py-1.5 bg-red-600 hover:bg-red-500 disabled:opacity-40
+                      className="px-2 py-1.5 bg-gray-300 hover:bg-gray-400 disabled:opacity-40
                                  text-white text-[10px] rounded transition-colors"
                     >
                       Add

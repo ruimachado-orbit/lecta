@@ -157,8 +157,4 @@ export const useUIStore = create<UIState>((set, get) => ({
       slideGroups: groups.map((g) => ({ ...g, collapsed: false }))
     })
   }
-    slideGroups: s.slideGroups.map((g) =>
-      g.id === groupId ? { ...g, slideIds: g.slideIds.filter((id) => id !== slideId) } : g
-    )
-  }))
 }))

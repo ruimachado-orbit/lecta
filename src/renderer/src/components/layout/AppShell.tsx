@@ -84,30 +84,27 @@ export function AppShell(): JSX.Element {
             </>
           )}
 
-          {/* Vertical icon strip — artifact type toggles */}
-          <div className="flex flex-col items-center py-2 gap-1 w-7 flex-shrink-0">
-            {availableArtifacts.map((type) => (
-              <button
-                key={type}
-                onClick={() => {
-                  if (activeArtifact === type && showRightPane) {
-                    useUIStore.setState({ showRightPane: false })
-                  } else {
-                    setActiveArtifact(type)
-                    useUIStore.setState({ showRightPane: true })
-                  }
-                }}
-                className={`w-6 h-6 rounded flex items-center justify-center text-[8px] transition-colors ${
-                  activeArtifact === type && showRightPane
-                    ? 'bg-white text-black'
-                    : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
-                }`}
-                title={artifactLabel(type)}
-              >
-                {artifactIcon(type)}
-              </button>
-            ))}
-          </div>
+          {/* Vertical icon strip */}
+          <ArtifactIconStrip
+            availableArtifacts={availableArtifacts}
+            activeArtifact={activeArtifact}
+            showRightPane={showRightPane}
+            onSelectArtifact={(type) => {
+              if (activeArtifact === type && showRightPane) {
+                useUIStore.setState({ showRightPane: false })
+              } else {
+                setActiveArtifact(type)
+                useUIStore.setState({ showRightPane: true })
+              }
+            }}
+            onToggleAll={() => {
+              if (availableArtifacts.length > 0) {
+                useUIStore.setState({ showRightPane: !showRightPane })
+              }
+            }}
+            artifactLabel={artifactLabel}
+            artifactIcon={artifactIcon}
+          />
 
           {/* Artifact Drawer */}
           {showArtifactDrawer && (

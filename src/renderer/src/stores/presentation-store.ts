@@ -85,6 +85,14 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
       const loaded: LoadedPresentation = await window.electronAPI.loadPresentation(folderPath)
       set(applyLoaded(loaded))
 
+      // Load groups from presentation config into UI store
+      const { useUIStore } = await import('./ui-store')
+      if (loaded.config.groups && loaded.config.groups.length > 0) {
+        useUIStore.getState().loadGroupsFromPresentation(loaded.config.groups)
+      } else {
+        useUIStore.getState().loadGroupsFromPresentation([])
+      }
+
       // Auto-register as a tab (lazy import to avoid circular deps)
       const { useTabsStore } = await import('./tabs-store')
       const tabsState = useTabsStore.getState()

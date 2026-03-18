@@ -502,6 +502,69 @@ html[data-theme="light"] .slide-textbox:hover {
   border-color: rgba(0,0,0,0.2);
 }
 
+/* ============================================================
+   NOTEBOOK LAYOUTS — background patterns for note pages
+   ============================================================ */
+.note-layout-lines {
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 31px,
+    rgba(255,255,255,0.05) 31px,
+    rgba(255,255,255,0.05) 32px
+  );
+  background-position: 0 8px;
+}
+
+.note-layout-grid {
+  background-image:
+    repeating-linear-gradient(0deg, transparent, transparent 31px, rgba(255,255,255,0.05) 31px, rgba(255,255,255,0.05) 32px),
+    repeating-linear-gradient(90deg, transparent, transparent 31px, rgba(255,255,255,0.05) 31px, rgba(255,255,255,0.05) 32px);
+}
+
+.note-layout-agenda {
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 79px,
+    rgba(255,255,255,0.07) 79px,
+    rgba(255,255,255,0.07) 80px
+  );
+  padding-left: 60px !important;
+  border-left: 2px solid rgba(255,255,255,0.08);
+}
+
+.note-layout-blank {
+  /* no background pattern */
+}
+
+/* Light mode notebook layouts */
+html[data-theme="light"] .note-layout-lines {
+  background-image: repeating-linear-gradient(0deg, transparent, transparent 31px, rgba(0,0,0,0.06) 31px, rgba(0,0,0,0.06) 32px);
+}
+html[data-theme="light"] .note-layout-grid {
+  background-image:
+    repeating-linear-gradient(0deg, transparent, transparent 31px, rgba(0,0,0,0.06) 31px, rgba(0,0,0,0.06) 32px),
+    repeating-linear-gradient(90deg, transparent, transparent 31px, rgba(0,0,0,0.06) 31px, rgba(0,0,0,0.06) 32px);
+}
+html[data-theme="light"] .note-layout-agenda {
+  background-image: repeating-linear-gradient(0deg, transparent, transparent 79px, rgba(0,0,0,0.07) 79px, rgba(0,0,0,0.07) 80px);
+  border-left-color: rgba(0,0,0,0.1);
+}
+
+/* Strikethrough button hover effect for notebook */
+.note-strike-btn {
+  opacity: 0;
+  transition: opacity 0.2s;
+  position: absolute;
+  left: -24px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.note-line-hover:hover .note-strike-btn {
+  opacity: 1;
+}
+
 /* Excalidraw integration */
 .excalidraw {
   --island-bg-color: rgba(23,23,23,0.95) !important;

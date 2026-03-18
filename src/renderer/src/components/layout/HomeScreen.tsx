@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { usePresentationStore } from '../../stores/presentation-store'
+import { useNotebookStore } from '../../stores/notebook-store'
 import { useUIStore, COLOR_PALETTES } from '../../stores/ui-store'
 
 interface RecentDeck {
@@ -13,8 +14,10 @@ interface RecentDeck {
 
 export function HomeScreen(): JSX.Element {
   const { openFolder, loadPresentation, isLoading, error } = usePresentationStore()
+  const { loadNotebook } = useNotebookStore()
   const [recentDecks, setRecentDecks] = useState<RecentDeck[]>([])
   const [showCreate, setShowCreate] = useState(false)
+  const [createType, setCreateType] = useState<'presentation' | 'notebook'>('presentation')
   const [showSettings, setShowSettings] = useState(false)
   const [newName, setNewName] = useState('')
   const [createError, setCreateError] = useState<string | null>(null)
@@ -36,9 +39,13 @@ export function HomeScreen(): JSX.Element {
 
     setCreateError(null)
     try {
-      const workspaceDir = await window.electronAPI.createLectaFile(trimmed)
+      const workspaceDir = await window.electronAPI.createLectaFile(trimmed, createType)
       if (workspaceDir) {
-        await loadPresentation(workspaceDir)
+        if (createType === 'notebook') {
+          await loadNotebook(workspaceDir)
+        } else {
+          await loadPresentation(workspaceDir)
+        }
       }
     } catch (err) {
       setCreateError((err as Error).message)
@@ -125,13 +132,34 @@ export function HomeScreen(): JSX.Element {
 
           {showCreate && (
             <div className="bg-gray-900 rounded-xl border border-gray-700 p-4 space-y-3">
-              <label className="text-sm text-gray-400 block">Presentation name</label>
+              {/* Type selector */}
+              <div className="flex gap-1 bg-gray-800 rounded-lg p-0.5">
+                <button
+                  onClick={() => setCreateType('presentation')}
+                  className={`flex-1 py-1.5 text-xs rounded-md transition-colors ${
+                    createType === 'presentation' ? 'bg-white text-black' : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  Presentation
+                </button>
+                <button
+                  onClick={() => setCreateType('notebook')}
+                  className={`flex-1 py-1.5 text-xs rounded-md transition-colors ${
+                    createType === 'notebook' ? 'bg-white text-black' : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  Notebook
+                </button>
+              </div>
+              <label className="text-sm text-gray-400 block">
+                {createType === 'notebook' ? 'Notebook name' : 'Presentation name'}
+              </label>
               <input
                 type="text"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleCreateLecta()}
-                placeholder="My Awesome Talk"
+                placeholder={createType === 'notebook' ? 'My Notes' : 'My Awesome Talk'}
                 autoFocus
                 className="w-full px-4 py-3 bg-gray-950 text-white rounded-lg border border-gray-700
                            focus:border-white focus:outline-none text-base placeholder-gray-600"

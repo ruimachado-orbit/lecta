@@ -190,15 +190,8 @@ export function Toolbar(): JSX.Element {
 
         {/* Present mode */}
         <button
-          onClick={async () => {
+          onClick={() => {
             useUIStore.setState({ showArtifactDrawer: false, showArticlePanel: false, showSlideMap: false, showRightPane: false, showNotes: false, editingSlide: false })
-            await window.electronAPI.openAudienceWindow()
-            if (presentation?.rootPath) {
-              setTimeout(() => {
-                window.electronAPI.sendPresenterPath(presentation.rootPath)
-                window.electronAPI.syncPresenterSlide(currentSlideIndex)
-              }, 1000)
-            }
             togglePresenting()
           }}
           className="px-3 py-1.5 bg-white hover:bg-gray-200 text-black text-sm font-medium

@@ -172,8 +172,9 @@ export function registerNotebookHandlers(): void {
       const config = parseNotebookYaml(yamlContent, rootPath)
 
       const contentPath = `pages/${noteId}.md`
+      const title = noteId.replace(/^note-\d+$/, 'Untitled').replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
       await mkdir(join(rootPath, 'pages'), { recursive: true })
-      await writeFile(join(rootPath, contentPath), '', 'utf-8')
+      await writeFile(join(rootPath, contentPath), `## ${title}\n\n`, 'utf-8')
 
       const newNote: NoteConfig = {
         id: noteId,
@@ -242,7 +243,7 @@ export function registerNotebookHandlers(): void {
       function setLayout(notes: NoteConfig[]): boolean {
         for (const note of notes) {
           if (note.id === noteId) {
-            note.layout = (layout === 'blank' ? undefined : layout) as NoteLayout | undefined
+            note.layout = layout as NoteLayout
             return true
           }
           if (note.children && setLayout(note.children)) return true

@@ -32,7 +32,8 @@ export default defineConfig({
     plugins: [react()],
     define: {
       'process.env.IS_PREACT': JSON.stringify(''),
-      'process.env.NODE_ENV': JSON.stringify('production')
+      'process.env.NODE_ENV': JSON.stringify('production'),
+      'process.env': JSON.stringify({ NODE_ENV: 'production', IS_PREACT: '' })
     }
   }
 })

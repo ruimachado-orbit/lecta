@@ -20,6 +20,7 @@ export function NotebookToolbar(): JSX.Element {
   const [searchQuery, setSearchQuery] = useState('')
   const [showSearch, setShowSearch] = useState(false)
   const [showLayoutPicker, setShowLayoutPicker] = useState(false)
+  const { goToPage } = useNotebookStore()
 
   const currentPage = pages[currentPageIndex]
   const currentLayout = currentPage?.config.layout || notebook?.defaultLayout || 'blank'
@@ -131,22 +132,73 @@ export function NotebookToolbar(): JSX.Element {
                     {filteredPages.length === 0 ? (
                       <div className="px-3 py-3 text-xs text-gray-500 text-center">No matching notes</div>
                     ) : (
-                      filteredPages.map(({ page, index }) => (
+                      filteredPages.map(({ page, index }) => {
+                        // Find matching context snippet
+                        const q = searchQuery.toLowerCase()
+                        const plainText = page.markdownContent.replace(/<[^>]+>/g, '').replace(/^#+\s*/gm, '')
+                        const matchIdx = plainText.toLowerCase().indexOf(q)
+                        let snippet = ''
+                        if (matchIdx >= 0) {
+                          const start = Math.max(0, matchIdx - 20)
+                          const end = Math.min(plainText.length, matchIdx + q.length + 40)
+                          snippet = (start > 0 ? '...' : '') + plainText.slice(start, end) + (end < plainText.length ? '...' : '')
+                        }
+
+                        return (
                         <button
                           key={page.config.id}
                           onClick={() => {
-                            useNotebookStore.getState().goToPage(index)
+                            const query = searchQuery
+                            goToPage(index)
                             setShowSearch(false)
                             setSearchQuery('')
+                            // After navigation, highlight the match in the editor
+                            setTimeout(() => {
+                              const editorEl = document.querySelector('.ProseMirror')
+                              if (!editorEl || !query) return
+                              // Use browser's built-in find
+                              const sel = window.getSelection()
+                              if (!sel) return
+                              const walker = document.createTreeWalker(editorEl, NodeFilter.SHOW_TEXT)
+                              const lowerQ = query.toLowerCase()
+                              let node: Text | null
+                              while ((node = walker.nextNode() as Text | null)) {
+                                const idx = node.textContent?.toLowerCase().indexOf(lowerQ) ?? -1
+                                if (idx >= 0) {
+                                  const range = document.createRange()
+                                  range.setStart(node, idx)
+                                  range.setEnd(node, idx + query.length)
+                                  sel.removeAllRanges()
+                                  sel.addRange(range)
+                                  // Scroll into view
+                                  const rect = range.getBoundingClientRect()
+                                  const container = editorEl.closest('.overflow-y-auto')
+                                  if (container && rect) {
+                                    const containerRect = container.getBoundingClientRect()
+                                    if (rect.top < containerRect.top || rect.bottom > containerRect.bottom) {
+                                      node.parentElement?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                                    }
+                                  }
+                                  break
+                                }
+                              }
+                            }, 200)
                           }}
                           className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-800 transition-colors ${
                             index === currentPageIndex ? 'text-white bg-gray-800/50' : 'text-gray-400'
                           }`}
                         >
-                          <div className="font-medium truncate">{page.config.id}</div>
-                          <div className="text-gray-600 truncate mt-0.5">
-                            {page.markdownContent.replace(/^#+\s*/, '').trim().split('\n')[0]?.slice(0, 60) || 'Empty'}
+                          <div className="font-medium truncate">
+                            {page.markdownContent.replace(/<[^>]+>/g, '').replace(/^#+\s*/gm, '').trim().split('\n')[0]?.slice(0, 40) || page.config.id}
                           </div>
+                          {snippet && (
+                            <div className="text-gray-600 truncate mt-0.5" dangerouslySetInnerHTML={{
+                              __html: snippet.replace(
+                                new RegExp(`(${searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'),
+                                '<span class="text-white bg-gray-700 px-0.5 rounded">\$1</span>'
+                              )
+                            }} />
+                          )}
                         </button>
                       ))
                     )}

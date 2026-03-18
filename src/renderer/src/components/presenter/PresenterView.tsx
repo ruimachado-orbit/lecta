@@ -14,8 +14,6 @@ import { VideoPanel } from '../video/VideoPanel'
 
 type ArtifactType = 'code' | 'video' | 'webapp'
 
-const BOTTOM_BAR_H = 40
-
 export function PresenterView(): JSX.Element {
   const { slides, currentSlideIndex, nextSlide, prevSlide, presentation } =
     usePresentationStore()
@@ -33,10 +31,18 @@ export function PresenterView(): JSX.Element {
   const isMarkdown = currentSlide?.config.code?.language === 'markdown'
   const layout = currentSlide?.config.layout
   const hasAnyArtifact = hasCode || hasVideo || hasWebApp
-  const sidebarW = hasAnyArtifact ? 36 : 0
+
+  // Force dark theme while presenting, restore on exit
+  useEffect(() => {
+    const prevTheme = document.documentElement.getAttribute('data-theme') || 'dark'
+    document.documentElement.setAttribute('data-theme', 'dark')
+    return () => {
+      const t = useUIStore.getState().theme
+      document.documentElement.setAttribute('data-theme', t || prevTheme)
+    }
+  }, [])
 
   useEffect(() => { setActiveArtifact(null) }, [currentSlideIndex])
-  useEffect(() => { window.electronAPI.syncPresenterSlide(currentSlideIndex) }, [currentSlideIndex])
 
   const handleRun = () => {
     if (currentSlide?.codeContent && currentSlide.config.code) {
@@ -44,25 +50,19 @@ export function PresenterView(): JSX.Element {
     }
   }
 
-  const endPresentation = () => {
-    setPresenting(false)
-    window.electronAPI.closeAudienceWindow()
-  }
+  const slideMarkdown = currentSlide?.markdownContent ?? ''
+  const rootPath = presentation?.rootPath
 
   return (
-    <div style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column', background: '#0a0a0a' }}>
+    <div className="h-screen w-screen flex flex-col" style={{ background: '#0a0a0a' }}>
       {/* Main area */}
-      <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+      <div className="flex-1 min-h-0 flex overflow-hidden">
         {activeArtifact ? (
-          <PanelGroup direction="horizontal" style={{ flex: 1, minWidth: 0 }}>
+          <PanelGroup direction="horizontal" className="flex-1 min-w-0">
             <Panel defaultSize={66} minSize={30}>
-              <PresenterSlide
-                markdown={currentSlide?.markdownContent ?? ''}
-                rootPath={presentation?.rootPath}
-                layout={layout}
-              />
+              <PresenterSlide markdown={slideMarkdown} rootPath={rootPath} layout={layout} />
             </Panel>
-            <PanelResizeHandle style={{ width: 6, background: '#1f2937', cursor: 'col-resize' }} />
+            <PanelResizeHandle className="w-1.5 bg-gray-800 hover:bg-indigo-500 transition-colors" />
             <Panel defaultSize={34} minSize={15}>
               <ArtifactPanel
                 activeArtifact={activeArtifact}
@@ -76,23 +76,12 @@ export function PresenterView(): JSX.Element {
             </Panel>
           </PanelGroup>
         ) : (
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <PresenterSlide
-              markdown={currentSlide?.markdownContent ?? ''}
-              rootPath={presentation?.rootPath}
-              layout={layout}
-            />
-          </div>
+          <PresenterSlide markdown={slideMarkdown} rootPath={rootPath} layout={layout} />
         )}
 
         {/* Artifact sidebar */}
         {hasAnyArtifact && (
-          <div style={{
-            width: sidebarW, flexShrink: 0,
-            display: 'flex', flexDirection: 'column', alignItems: 'center',
-            gap: 4, paddingTop: 8, paddingBottom: 8,
-            background: '#111827', borderLeft: '1px solid #1f2937'
-          }}>
+          <div className="flex flex-col items-center py-2 gap-1 w-9 flex-shrink-0" style={{ background: '#111827', borderLeft: '1px solid #1f2937' }}>
             {hasCode && (
               <SidebarBtn active={activeArtifact === 'code'} onClick={() => setActiveArtifact(activeArtifact === 'code' ? null : 'code')} title="Code">{'{ }'}</SidebarBtn>
             )}
@@ -107,38 +96,26 @@ export function PresenterView(): JSX.Element {
       </div>
 
       {/* Bottom bar */}
-      <div style={{
-        height: BOTTOM_BAR_H, flexShrink: 0,
-        display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px',
-        background: '#111827', borderTop: '1px solid #1f2937'
-      }}>
+      <div className="h-10 bg-gray-900 border-t border-gray-800 flex items-center px-4 gap-3 flex-shrink-0">
         <button onClick={prevSlide} disabled={currentSlideIndex === 0}
-          style={{ padding: 4, borderRadius: 4, background: 'none', border: 'none', cursor: 'pointer', opacity: currentSlideIndex === 0 ? 0.3 : 1 }}>
-          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="#d1d5db">
+          className="p-1 rounded hover:bg-gray-800 disabled:opacity-30 transition-colors">
+          <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
           </svg>
         </button>
-        <span style={{ color: '#fff', fontSize: 12, fontFamily: 'monospace', fontWeight: 600, minWidth: 50, textAlign: 'center' }}>
+        <span className="text-white text-xs font-mono font-semibold min-w-[50px] text-center">
           {currentSlideIndex + 1} / {slides.length}
         </span>
         <button onClick={nextSlide} disabled={currentSlideIndex === slides.length - 1}
-          style={{ padding: 4, borderRadius: 4, background: 'none', border: 'none', cursor: 'pointer', opacity: currentSlideIndex === slides.length - 1 ? 0.3 : 1 }}>
-          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="#d1d5db">
+          className="p-1 rounded hover:bg-gray-800 disabled:opacity-30 transition-colors">
+          <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
           </svg>
         </button>
-        <div style={{ width: 1, height: 20, background: '#1f2937' }} />
-        <span style={{ color: '#4b5563', fontSize: 11, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {presentation?.title}
-        </span>
-        <button onClick={endPresentation}
-          style={{
-            padding: '4px 12px', fontSize: 11, borderRadius: 4,
-            background: '#1f2937', color: '#9ca3af', border: 'none', cursor: 'pointer'
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = '#ef4444'; e.currentTarget.style.color = '#fff' }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = '#1f2937'; e.currentTarget.style.color = '#9ca3af' }}
-        >
+        <div className="w-px h-5 bg-gray-800" />
+        <span className="text-gray-600 text-[11px] truncate flex-1">{presentation?.title}</span>
+        <button onClick={() => setPresenting(false)}
+          className="px-3 py-1 text-[11px] bg-gray-800 hover:bg-red-500 text-gray-400 hover:text-white rounded transition-colors">
           End (Esc)
         </button>
       </div>
@@ -146,83 +123,70 @@ export function PresenterView(): JSX.Element {
   )
 }
 
-/** Slide canvas — uses viewport-relative sizing to guarantee correct scaling */
+/** 16:9 slide canvas — identical pattern to SlidePanel's SlideCanvas */
 function PresenterSlide({ markdown, rootPath, layout }: {
   markdown: string; rootPath?: string; layout?: string
 }): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
-  const [scale, setScale] = useState(1)
+  const [canvasScale, setCanvasScale] = useState(1)
   const [contentScale, setContentScale] = useState(1)
 
-  const W = 1280
-  const H = 720
+  const SLIDE_W = 1280
+  const SLIDE_H = 720
   const PAD = 48
-  const CH = H - PAD * 2
+  const CONTENT_H = SLIDE_H - PAD * 2
 
   useEffect(() => {
-    const el = containerRef.current
-    if (!el) return
-    const update = () => {
-      const cw = el.clientWidth || el.offsetWidth || window.innerWidth
-      const ch = el.clientHeight || el.offsetHeight || window.innerHeight
+    const container = containerRef.current
+    if (!container) return
+    const updateScale = () => {
+      const cw = container.clientWidth
+      const ch = container.clientHeight
       if (cw > 0 && ch > 0) {
-        setScale(Math.min(cw / W, ch / H))
+        const margin = 16
+        setCanvasScale(Math.min((cw - margin * 2) / SLIDE_W, (ch - margin * 2) / SLIDE_H))
       }
     }
-    // Delay initial measurement to ensure layout is complete
-    requestAnimationFrame(update)
-    const ro = new ResizeObserver(update)
-    ro.observe(el)
+    updateScale()
+    const ro = new ResizeObserver(updateScale)
+    ro.observe(container)
     return () => ro.disconnect()
   }, [])
 
   useEffect(() => {
     const el = contentRef.current
     if (!el) return
-    const m = () => {
+    const measure = () => {
       el.style.transform = 'scale(1)'
       el.style.transformOrigin = 'top left'
-      const h = el.scrollHeight
-      setContentScale(h > CH ? Math.max(0.3, CH / h) : 1)
+      const natural = el.scrollHeight
+      setContentScale(natural > CONTENT_H ? Math.max(0.3, CONTENT_H / natural) : 1)
     }
-    m()
-    const t = setTimeout(m, 400)
+    measure()
+    const t = setTimeout(measure, 500)
     return () => clearTimeout(t)
   }, [markdown])
 
   return (
-    <div
-      ref={containerRef}
-      style={{
-        position: 'relative', width: '100%', height: '100%',
-        overflow: 'hidden', background: '#0a0a0a'
-      }}
-    >
-      <div style={{
-        width: W, height: H,
-        transform: `scale(${scale})`,
-        transformOrigin: 'center center',
-        position: 'absolute',
-        left: '50%', top: '50%',
-        marginLeft: -W / 2, marginTop: -H / 2,
-        borderRadius: 4, overflow: 'hidden'
-      }}>
-        {/* Slide background */}
-        <div style={{ position: 'absolute', inset: 0, background: '#000', borderRadius: 4 }} />
-        {/* Content wrapper with layout */}
-        <div
-          className={layout && layout !== 'default' ? `slide-layout-${layout}` : ''}
-          style={{
-            position: 'absolute', inset: 0, overflow: 'hidden',
-            padding: layout === 'blank' ? 0 : PAD
-          }}
-        >
+    <div ref={containerRef} className="h-full w-full flex items-center justify-center overflow-hidden" style={{ background: '#262626' }}>
+      <div
+        className="relative rounded overflow-hidden"
+        style={{
+          width: SLIDE_W, height: SLIDE_H,
+          transform: `scale(${canvasScale})`,
+          transformOrigin: 'center center',
+          flexShrink: 0,
+          boxShadow: '0 0 0 1px rgba(255,255,255,0.15), 0 4px 24px rgba(0,0,0,0.6), 0 0 80px rgba(0,0,0,0.4)'
+        }}
+      >
+        <div className="absolute inset-0 rounded" style={{ background: '#000' }} />
+        <div className={`absolute inset-0 ${layout === 'blank' ? '' : 'p-12'} overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
           <div
             ref={contentRef}
             style={{
-              width: layout === 'blank' ? W : W - PAD * 2,
-              height: layout === 'blank' ? H : undefined,
+              width: layout === 'blank' ? SLIDE_W : SLIDE_W - PAD * 2,
+              height: layout === 'blank' ? SLIDE_H : undefined,
               transform: `scale(${contentScale})`,
               transformOrigin: 'top left'
             }}
@@ -240,7 +204,6 @@ function ArtifactPanel({ activeArtifact, currentSlide, presentation, isExecuting
   isExecuting: boolean; isMarkdown: boolean; onRun: () => void; onCancel: () => void
 }): JSX.Element {
   const idx = usePresentationStore((s) => s.currentSlideIndex)
-
   if (activeArtifact === 'code' && currentSlide?.config.code) {
     return (
       <div className="h-full flex flex-col bg-gray-950">
@@ -276,16 +239,10 @@ function SidebarBtn({ active, onClick, title, children }: {
   active: boolean; onClick: () => void; title: string; children: React.ReactNode
 }): JSX.Element {
   return (
-    <button
-      onClick={onClick}
-      title={title}
-      style={{
-        width: 28, height: 28, borderRadius: 4, border: 'none', cursor: 'pointer',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 9, transition: 'all 0.15s',
-        background: active ? '#fff' : 'transparent',
-        color: active ? '#000' : '#6b7280'
-      }}
+    <button onClick={onClick} title={title}
+      className={`w-7 h-7 rounded flex items-center justify-center text-[9px] transition-colors ${
+        active ? 'bg-white text-black' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
+      }`}
     >{children}</button>
   )
 }

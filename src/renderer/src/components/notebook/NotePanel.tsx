@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { useNotebookStore } from '../../stores/notebook-store'
 import { useUIStore } from '../../stores/ui-store'
 import { NoteEditor } from './NoteEditor'
@@ -10,6 +10,33 @@ export function NotePanel(): JSX.Element {
   const currentPage = pages[currentPageIndex]
   const [mode, setMode] = useState<'visual' | 'markdown' | 'draw'>('visual')
   const editorRef = useRef<any>(null)
+  const [showAI, setShowAI] = useState(false)
+  const [aiPrompt, setAIPrompt] = useState('')
+  const [aiLoading, setAILoading] = useState(false)
+  const { aiEnabled } = useUIStore()
+
+  const handleAIGenerate = async () => {
+    if (!aiPrompt.trim() || !notebook || !currentPage) return
+    setAILoading(true)
+    try {
+      const result = await window.electronAPI.generateInlineText(
+        aiPrompt.trim() + ' (max 400 characters)',
+        currentPage.markdownContent,
+        notebook.title
+      )
+      if (result) {
+        // Append to current note content
+        updateMarkdownContent(currentPageIndex, currentPage.markdownContent + '\n\n' + result)
+        savePageContent(currentPageIndex)
+      }
+    } catch (err) {
+      console.error('AI generation failed:', err)
+    } finally {
+      setAILoading(false)
+      setShowAI(false)
+      setAIPrompt('')
+    }
+  }
 
   const handleEditorMount: OnMount = (editor) => {
     editorRef.current = editor
@@ -73,10 +100,54 @@ export function NotePanel(): JSX.Element {
 
         <div className="flex-1" />
 
+        {/* AI generate button */}
+        <button
+          onClick={() => setShowAI(!showAI)}
+          disabled={!aiEnabled}
+          className={`text-[10px] px-2 py-0.5 rounded transition-colors flex items-center gap-1 ${
+            !aiEnabled ? 'text-gray-700 cursor-not-allowed' :
+            showAI ? 'bg-white text-black' : 'text-gray-500 hover:text-gray-300'
+          }`}
+          title={aiEnabled ? 'Generate with AI' : 'Set API key in settings'}
+        >
+          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+          </svg>
+          AI
+        </button>
+
         <span className="text-[9px] text-gray-600 uppercase tracking-wider px-1.5 py-0.5 bg-gray-800/50 rounded">
           {layout}
         </span>
       </div>
+
+      {/* AI prompt bar */}
+      {showAI && (
+        <div className="h-9 bg-gray-900 border-b border-gray-800 flex items-center px-3 gap-2 flex-shrink-0">
+          <svg className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+          </svg>
+          <input
+            type="text"
+            value={aiPrompt}
+            onChange={(e) => setAIPrompt(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleAIGenerate()}
+            placeholder="What should I write? (max 400 chars)"
+            disabled={aiLoading}
+            autoFocus
+            className="flex-1 bg-transparent text-sm text-gray-300 placeholder-gray-600 focus:outline-none disabled:opacity-50"
+          />
+          {aiPrompt.trim() && (
+            <button
+              onClick={handleAIGenerate}
+              disabled={aiLoading}
+              className="px-3 py-1 bg-white hover:bg-gray-200 disabled:opacity-50 text-black text-[11px] font-medium rounded-md transition-colors"
+            >
+              {aiLoading ? 'Writing...' : 'Generate'}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Editor area */}
       <div className={`flex-1 min-h-0 overflow-hidden relative ${mode !== 'markdown' ? layoutClass : ''}`}>

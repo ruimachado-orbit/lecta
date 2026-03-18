@@ -531,6 +531,61 @@ function RecentCard({ deck, onClick }: { deck: RecentDeck; onClick: () => void }
 
   const isNotebook = deck.type === 'notebook'
 
+  if (isNotebook) {
+    return (
+      <button
+        onClick={onClick}
+        className="group text-left rounded-xl border border-gray-700 bg-gray-800 hover:border-gray-500
+                   hover:bg-gray-700 transition-all overflow-hidden"
+      >
+        {/* Notebook-style preview — lined paper look */}
+        <div className="h-28 p-3 border-b border-gray-700 overflow-hidden relative"
+          style={{
+            background: 'linear-gradient(to bottom, transparent 23px, rgba(255,255,255,0.04) 23px)',
+            backgroundSize: '100% 24px'
+          }}
+        >
+          <span className="absolute top-2 right-2 text-[8px] px-1.5 py-0.5 rounded-full bg-gray-700 text-gray-400">
+            Notebook
+          </span>
+          {/* Spine accent */}
+          <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500/40 rounded-l" />
+          {previewLines.length > 0 ? (
+            <div className="space-y-1 pl-2">
+              {previewLines.map((line, i) => {
+                const text = line.replace(/^#{1,3}\s/, '').replace(/^[-*+]\s/, '').replace(/\*\*/g, '').replace(/<[^>]+>/g, '')
+                return (
+                  <div key={i} className={`truncate ${
+                    i === 0 ? 'text-[11px] font-semibold text-gray-200' : 'text-[9px] text-gray-500'
+                  }`}>{text}</div>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="h-full flex items-center justify-center pl-2">
+              <svg className="w-6 h-6 text-gray-600" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
+              </svg>
+            </div>
+          )}
+        </div>
+        <div className="p-3">
+          <div className="text-sm text-gray-200 font-medium truncate group-hover:text-white">{deck.title}</div>
+          <div className="flex items-center gap-2 mt-1.5">
+            {deck.slideCount && (
+              <span className="text-[10px] text-gray-500">{deck.slideCount} notes</span>
+            )}
+            {deck.date && (
+              <span className="text-[10px] text-gray-600">
+                {new Date(deck.date).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })}
+              </span>
+            )}
+          </div>
+        </div>
+      </button>
+    )
+  }
+
   return (
     <button
       onClick={onClick}
@@ -538,11 +593,8 @@ function RecentCard({ deck, onClick }: { deck: RecentDeck; onClick: () => void }
                  hover:bg-gray-800 transition-all overflow-hidden"
     >
       <div className="h-28 bg-black p-3 border-b border-gray-800 overflow-hidden relative">
-        {/* Type badge */}
-        <span className={`absolute top-2 right-2 text-[8px] px-1.5 py-0.5 rounded-full ${
-          isNotebook ? 'bg-gray-800 text-gray-400' : 'bg-gray-800 text-gray-500'
-        }`}>
-          {isNotebook ? 'Notebook' : 'Slides'}
+        <span className="absolute top-2 right-2 text-[8px] px-1.5 py-0.5 rounded-full bg-gray-800 text-gray-500">
+          Slides
         </span>
         {previewLines.length > 0 ? (
           <div className="space-y-1">
@@ -579,9 +631,7 @@ function RecentCard({ deck, onClick }: { deck: RecentDeck; onClick: () => void }
             </span>
           ))}
           {deck.slideCount && (
-            <span className="text-[10px] text-gray-600">
-              {deck.slideCount} {isNotebook ? 'notes' : 'slides'}
-            </span>
+            <span className="text-[10px] text-gray-600">{deck.slideCount} slides</span>
           )}
           {deck.date && (
             <span className="text-[10px] text-gray-600">

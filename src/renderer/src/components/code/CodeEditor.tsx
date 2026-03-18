@@ -14,6 +14,7 @@ function getMonacoLanguage(language: string): string {
 
 export function CodeEditor(): JSX.Element {
   const { slides, currentSlideIndex, updateCodeContent, saveSlideContent } = usePresentationStore()
+  const { fontSize } = useUIStore()
   const currentSlide = slides[currentSlideIndex]
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const lastSavedIndex = useRef<number>(currentSlideIndex)
@@ -62,8 +63,8 @@ export function CodeEditor(): JSX.Element {
         onChange={handleChange}
         theme="vs-dark"
         options={{
-          fontSize: 15,
-          lineHeight: 22,
+          fontSize,
+          lineHeight: Math.round(fontSize * 1.5),
           fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace",
           minimap: { enabled: false },
           scrollBeyondLastLine: false,

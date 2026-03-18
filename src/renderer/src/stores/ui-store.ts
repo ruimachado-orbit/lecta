@@ -83,20 +83,9 @@ export const useUIStore = create<UIState>((set, get) => ({
     set({ theme })
   },
   togglePresenting: () => {
-    const next = !get().isPresenting
-    if (next) {
-      document.documentElement.requestFullscreen?.().catch(() => {})
-    } else {
-      document.exitFullscreen?.().catch(() => {})
-    }
-    set({ isPresenting: next })
+    set((s) => ({ isPresenting: !s.isPresenting }))
   },
   setPresenting: (presenting) => {
-    if (presenting) {
-      document.documentElement.requestFullscreen?.().catch(() => {})
-    } else {
-      document.exitFullscreen?.().catch(() => {})
-    }
     set({ isPresenting: presenting })
   },
   toggleNotes: () => set((s) => ({ showNotes: !s.showNotes })),

@@ -93,6 +93,7 @@ export function DrawingOverlay({ slideIndex, active, width, height }: DrawingOve
             appState: {
               viewBackgroundColor: 'transparent',
               theme: 'dark',
+              showWelcomeScreen: false,
               currentItemStrokeColor: '#ffffff',
               currentItemBackgroundColor: 'transparent',
               currentItemFillStyle: 'solid',

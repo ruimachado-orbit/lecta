@@ -5,12 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Lecta</title>
     <script>
-      window.process = window.process || {};
-      window.process.env = window.process.env || {};
-      window.process.env.NODE_ENV = window.process.env.NODE_ENV || 'production';
-      window.process.env.IS_PREACT = '';
-      window.process.platform = window.process.platform || '';
-      window.process.version = window.process.version || '';
+      var p = { env: { NODE_ENV: 'production', IS_PREACT: '' }, platform: '', version: '', browser: true };
+      if (typeof window.process === 'undefined') window.process = p;
+      else Object.assign(window.process, p);
+      if (typeof globalThis.process === 'undefined') globalThis.process = window.process;
     </script>
   </head>
   <body class="bg-black text-gray-100 overflow-hidden">

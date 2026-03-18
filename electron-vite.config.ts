@@ -33,7 +33,9 @@ export default defineConfig({
     define: {
       'process.env.IS_PREACT': JSON.stringify(''),
       'process.env.NODE_ENV': JSON.stringify('production'),
-      'process.env': JSON.stringify({ NODE_ENV: 'production', IS_PREACT: '' })
+      'process.env': JSON.stringify({ NODE_ENV: 'production', IS_PREACT: '' }),
+      'process.platform': JSON.stringify(''),
+      'process.version': JSON.stringify('')
     }
   }
 })

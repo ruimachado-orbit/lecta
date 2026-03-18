@@ -23,6 +23,7 @@ export function PresenterView(): JSX.Element {
   useKeyboardShortcuts()
 
   const [activeArtifact, setActiveArtifact] = useState<ArtifactType | null>(null)
+  const [artifactExpanded, setArtifactExpanded] = useState(false)
 
   const currentSlide = slides[currentSlideIndex]
   const hasCode = !!currentSlide?.config.code
@@ -32,17 +33,7 @@ export function PresenterView(): JSX.Element {
   const layout = currentSlide?.config.layout
   const hasAnyArtifact = hasCode || hasVideo || hasWebApp
 
-  // Force dark theme while presenting, restore on exit
-  useEffect(() => {
-    const prevTheme = document.documentElement.getAttribute('data-theme') || 'dark'
-    document.documentElement.setAttribute('data-theme', 'dark')
-    return () => {
-      const t = useUIStore.getState().theme
-      document.documentElement.setAttribute('data-theme', t || prevTheme)
-    }
-  }, [])
-
-  useEffect(() => { setActiveArtifact(null) }, [currentSlideIndex])
+  useEffect(() => { setActiveArtifact(null); setArtifactExpanded(false) }, [currentSlideIndex])
 
   const handleRun = () => {
     if (currentSlide?.codeContent && currentSlide.config.code) {
@@ -54,10 +45,26 @@ export function PresenterView(): JSX.Element {
   const rootPath = presentation?.rootPath
 
   return (
-    <div className="h-screen w-screen flex flex-col" style={{ background: '#0a0a0a' }}>
+    <div className="h-screen w-screen flex flex-col bg-black">
+      {/* macOS traffic-light safe area */}
+      <div className="h-8 flex-shrink-0 bg-black" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties} />
+
       {/* Main area */}
       <div className="flex-1 min-h-0 flex overflow-hidden">
-        {activeArtifact ? (
+        {activeArtifact && artifactExpanded ? (
+          /* Artifact expanded to full width */
+          <div className="flex-1 min-w-0">
+            <ArtifactPanel
+              activeArtifact={activeArtifact}
+              currentSlide={currentSlide}
+              presentation={presentation}
+              isExecuting={isExecuting}
+              isMarkdown={!!isMarkdown}
+              onRun={handleRun}
+              onCancel={cancelCode}
+            />
+          </div>
+        ) : activeArtifact ? (
           <PanelGroup direction="horizontal" className="flex-1 min-w-0">
             <Panel defaultSize={66} minSize={30}>
               <PresenterSlide markdown={slideMarkdown} rootPath={rootPath} layout={layout} />
@@ -81,22 +88,44 @@ export function PresenterView(): JSX.Element {
 
         {/* Artifact sidebar */}
         {hasAnyArtifact && (
-          <div className="flex flex-col items-center py-2 gap-1 w-9 flex-shrink-0" style={{ background: '#111827', borderLeft: '1px solid #1f2937' }}>
+          <div className="flex flex-col items-center py-2 gap-1 w-9 flex-shrink-0 bg-gray-900 border-l border-gray-800">
             {hasCode && (
-              <SidebarBtn active={activeArtifact === 'code'} onClick={() => setActiveArtifact(activeArtifact === 'code' ? null : 'code')} title="Code">{'{ }'}</SidebarBtn>
+              <SidebarBtn active={activeArtifact === 'code'} onClick={() => { setActiveArtifact(activeArtifact === 'code' ? null : 'code'); setArtifactExpanded(false) }} title="Code">{'{ }'}</SidebarBtn>
             )}
             {hasVideo && (
-              <SidebarBtn active={activeArtifact === 'video'} onClick={() => setActiveArtifact(activeArtifact === 'video' ? null : 'video')} title="Video">▶</SidebarBtn>
+              <SidebarBtn active={activeArtifact === 'video'} onClick={() => { setActiveArtifact(activeArtifact === 'video' ? null : 'video'); setArtifactExpanded(false) }} title="Video">▶</SidebarBtn>
             )}
             {hasWebApp && (
-              <SidebarBtn active={activeArtifact === 'webapp'} onClick={() => setActiveArtifact(activeArtifact === 'webapp' ? null : 'webapp')} title="Web">◎</SidebarBtn>
+              <SidebarBtn active={activeArtifact === 'webapp'} onClick={() => { setActiveArtifact(activeArtifact === 'webapp' ? null : 'webapp'); setArtifactExpanded(false) }} title="Web">◎</SidebarBtn>
+            )}
+
+            {/* Expand / collapse artifact panel */}
+            {activeArtifact && (
+              <>
+                <div className="w-5 h-px bg-gray-700" />
+                <SidebarBtn
+                  active={artifactExpanded}
+                  onClick={() => setArtifactExpanded(!artifactExpanded)}
+                  title={artifactExpanded ? 'Split view' : 'Expand artifact'}
+                >
+                  {artifactExpanded ? (
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25" />
+                    </svg>
+                  ) : (
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                    </svg>
+                  )}
+                </SidebarBtn>
+              </>
             )}
           </div>
         )}
       </div>
 
       {/* Bottom bar */}
-      <div className="h-10 bg-gray-900 border-t border-gray-800 flex items-center px-4 gap-3 flex-shrink-0">
+      <div className="h-10 flex items-center px-4 gap-3 flex-shrink-0 bg-gray-900 border-t border-gray-800">
         <button onClick={prevSlide} disabled={currentSlideIndex === 0}
           className="p-1 rounded hover:bg-gray-800 disabled:opacity-30 transition-colors">
           <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -123,76 +152,55 @@ export function PresenterView(): JSX.Element {
   )
 }
 
-/** 16:9 slide canvas — identical pattern to SlidePanel's SlideCanvas */
+/** Fullscreen slide — fills the entire container, no borders */
 function PresenterSlide({ markdown, rootPath, layout }: {
   markdown: string; rootPath?: string; layout?: string
 }): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
-  const [canvasScale, setCanvasScale] = useState(1)
   const [contentScale, setContentScale] = useState(1)
+  const [containerH, setContainerH] = useState(0)
 
-  const SLIDE_W = 1280
-  const SLIDE_H = 720
-  const PAD = 48
-  const CONTENT_H = SLIDE_H - PAD * 2
-
+  // Track container height for content scaling
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
-    const updateScale = () => {
-      const cw = container.clientWidth
-      const ch = container.clientHeight
-      if (cw > 0 && ch > 0) {
-        const margin = 16
-        setCanvasScale(Math.min((cw - margin * 2) / SLIDE_W, (ch - margin * 2) / SLIDE_H))
-      }
-    }
-    updateScale()
-    const ro = new ResizeObserver(updateScale)
+    const update = () => setContainerH(container.clientHeight)
+    update()
+    const ro = new ResizeObserver(update)
     ro.observe(container)
     return () => ro.disconnect()
   }, [])
 
+  const PAD = 48
+  const availH = containerH - PAD * 2
+
+  // Scale content down if it overflows the available height
   useEffect(() => {
     const el = contentRef.current
-    if (!el) return
+    if (!el || availH <= 0) return
     const measure = () => {
       el.style.transform = 'scale(1)'
       el.style.transformOrigin = 'top left'
       const natural = el.scrollHeight
-      setContentScale(natural > CONTENT_H ? Math.max(0.3, CONTENT_H / natural) : 1)
+      setContentScale(natural > availH ? Math.max(0.3, availH / natural) : 1)
     }
     measure()
     const t = setTimeout(measure, 500)
     return () => clearTimeout(t)
-  }, [markdown])
+  }, [markdown, availH])
 
   return (
-    <div ref={containerRef} className="h-full w-full flex items-center justify-center overflow-hidden" style={{ background: '#262626' }}>
-      <div
-        className="relative rounded overflow-hidden"
-        style={{
-          width: SLIDE_W, height: SLIDE_H,
-          transform: `scale(${canvasScale})`,
-          transformOrigin: 'center center',
-          flexShrink: 0,
-          boxShadow: '0 0 0 1px rgba(255,255,255,0.15), 0 4px 24px rgba(0,0,0,0.6), 0 0 80px rgba(0,0,0,0.4)'
-        }}
-      >
-        <div className="absolute inset-0 rounded" style={{ background: '#000' }} />
-        <div className={`absolute inset-0 ${layout === 'blank' ? '' : 'p-12'} overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
-          <div
-            ref={contentRef}
-            style={{
-              width: layout === 'blank' ? SLIDE_W : SLIDE_W - PAD * 2,
-              height: layout === 'blank' ? SLIDE_H : undefined,
-              transform: `scale(${contentScale})`,
-              transformOrigin: 'top left'
-            }}
-          >
-            <SlideRenderer markdown={markdown} rootPath={rootPath} />
-          </div>
+    <div ref={containerRef} className="h-full w-full overflow-hidden bg-black relative">
+      <div className={`absolute inset-0 ${layout === 'blank' ? '' : 'p-12'} overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
+        <div
+          ref={contentRef}
+          style={{
+            transform: `scale(${contentScale})`,
+            transformOrigin: 'top left'
+          }}
+        >
+          <SlideRenderer markdown={markdown} rootPath={rootPath} />
         </div>
       </div>
     </div>

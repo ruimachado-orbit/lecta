@@ -8,8 +8,14 @@ import Editor, { type OnMount } from '@monaco-editor/react'
 export function NotePanel(): JSX.Element {
   const { pages, currentPageIndex, notebook, updateMarkdownContent, savePageContent } = useNotebookStore()
   const currentPage = pages[currentPageIndex]
-  const [mode, setMode] = useState<'visual' | 'markdown' | 'draw'>('visual')
+  const [mode, setModeRaw] = useState<'visual' | 'markdown' | 'draw'>('visual')
   const editorRef = useRef<any>(null)
+
+  // Wrap setMode to auto-reset if layout doesn't support draw
+  const drawableLayouts = ['blank', 'lines', 'grid', undefined]
+  const canDraw = drawableLayouts.includes(currentPage?.config.layout as any)
+  const effectiveMode = (mode === 'draw' && !canDraw) ? 'visual' : mode
+  const setMode = (m: 'visual' | 'markdown' | 'draw') => setModeRaw(m)
   const [showAI, setShowAI] = useState(false)
   const [aiPrompt, setAIPrompt] = useState('')
   const [aiLoading, setAILoading] = useState(false)
@@ -86,17 +92,20 @@ export function NotePanel(): JSX.Element {
         >
           Markdown
         </button>
-        <button
-          onClick={() => setMode('draw')}
-          className={`text-[10px] px-2 py-0.5 rounded transition-colors flex items-center gap-1 ${
-            mode === 'draw' ? 'bg-white text-black' : 'text-gray-500 hover:text-gray-300'
-          }`}
-        >
-          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
-          </svg>
-          Draw
-        </button>
+        {/* Draw only available on blank, lines, grid layouts */}
+        {(!currentPage?.config.layout || currentPage.config.layout === 'blank' || currentPage.config.layout === 'lines' || currentPage.config.layout === 'grid') && (
+          <button
+            onClick={() => setMode('draw')}
+            className={`text-[10px] px-2 py-0.5 rounded transition-colors flex items-center gap-1 ${
+              mode === 'draw' ? 'bg-white text-black' : 'text-gray-500 hover:text-gray-300'
+            }`}
+          >
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
+            </svg>
+            Draw
+          </button>
+        )}
 
         <div className="flex-1" />
 
@@ -150,10 +159,10 @@ export function NotePanel(): JSX.Element {
       )}
 
       {/* Editor area */}
-      <div className={`flex-1 min-h-0 overflow-hidden relative ${mode !== 'markdown' ? layoutClass : ''}`}>
-        {mode === 'visual' ? (
+      <div className={`flex-1 min-h-0 overflow-hidden relative ${effectiveMode !== 'markdown' ? layoutClass : ''}`}>
+        {effectiveMode === 'visual' ? (
           <NoteEditor key={currentPageIndex} pageIndex={currentPageIndex} />
-        ) : mode === 'markdown' ? (
+        ) : effectiveMode === 'markdown' ? (
           <div className="h-full" onBlur={handleEditorBlur}>
             <Editor
               height="100%"

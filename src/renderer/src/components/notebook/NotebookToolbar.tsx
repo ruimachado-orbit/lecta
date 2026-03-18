@@ -200,7 +200,8 @@ export function NotebookToolbar(): JSX.Element {
                             }} />
                           )}
                         </button>
-                      ))
+                        )
+                      })
                     )}
                   </div>
                 )}

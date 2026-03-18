@@ -23,15 +23,11 @@ export function AppShell(): JSX.Element {
   const { isPresenting, showNotes, showArticlePanel, showArtifactDrawer, showRightPane, showSlideMap } = useUIStore()
   const { tabs } = useTabsStore()
   const currentSlide = usePresentationStore((s) => s.slides[s.currentSlideIndex])
+  const currentSlideIndex = usePresentationStore((s) => s.currentSlideIndex)
 
   useKeyboardShortcuts()
   useFileWatcher()
 
-  if (isPresenting) {
-    return <PresenterView />
-  }
-
-  const currentSlideIndex = usePresentationStore((s) => s.currentSlideIndex)
   const hasCode = !!currentSlide?.config.code
   const hasVideo = !!currentSlide?.config.video
   const hasWebApp = !!currentSlide?.config.webapp
@@ -58,6 +54,10 @@ export function AppShell(): JSX.Element {
       setActiveArtifact(null)
     }
   }, [currentSlideIndex, availableArtifacts.join(',')])
+
+  if (isPresenting) {
+    return <PresenterView />
+  }
 
   return (
     <div className="h-screen flex flex-col bg-gray-950">

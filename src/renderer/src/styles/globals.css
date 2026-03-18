@@ -128,6 +128,15 @@ html[data-theme="light"] body {
 
 /* Light mode slide content — needs explicit overrides since
    SlideRenderer uses inline className, not Tailwind variables */
+/* Presenter view — theme-aware */
+.presenter-slide-frame {
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.15), 0 4px 24px rgba(0,0,0,0.6), 0 0 80px rgba(0,0,0,0.4);
+}
+html[data-theme="light"] .presenter-canvas-bg { background: #d4d8dd !important; }
+html[data-theme="light"] .presenter-slide-frame {
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.08), 0 4px 24px rgba(0,0,0,0.12), 0 0 80px rgba(0,0,0,0.06);
+}
+
 html[data-theme="light"] .slide-content h1,
 html[data-theme="light"] .slide-content h2 { color: #0f172a !important; }
 html[data-theme="light"] .slide-content h3 { color: #1e293b !important; }

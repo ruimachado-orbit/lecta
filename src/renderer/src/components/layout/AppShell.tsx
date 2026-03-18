@@ -18,16 +18,12 @@ import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
 import { useFileWatcher } from '../../hooks/useFileWatcher'
 
 export function AppShell(): JSX.Element {
-  const { isPresenting, showNotes, showArticlePanel, showArtifactDrawer, showSlideMap } = useUIStore()
+  const { isPresenting, showNotes, showArticlePanel, showArtifactDrawer, showRightPane, showSlideMap } = useUIStore()
   const { tabs } = useTabsStore()
   const currentSlide = usePresentationStore((s) => s.slides[s.currentSlideIndex])
 
   useKeyboardShortcuts()
   useFileWatcher()
-
-  if (isPresenting) {
-    return <PresenterView />
-  }
 
   const hasCode = !!currentSlide?.config.code
   const hasVideo = !!currentSlide?.config.video
@@ -46,8 +42,8 @@ export function AppShell(): JSX.Element {
             <SlidePanel />
           </Panel>
 
-          {/* Right Pane: Code / Video / Web */}
-          {hasRightPane && (
+          {/* Right Pane: Code / Video / Web — toggled by attachments button */}
+          {hasRightPane && showRightPane && (
             <>
               <PanelResizeHandle className="w-1 bg-gray-800 hover:bg-white transition-colors cursor-col-resize" />
               <Panel defaultSize={showArticlePanel ? 30 : 60} minSize={20}>
@@ -91,6 +87,7 @@ export function AppShell(): JSX.Element {
 
       {/* Slide Map overlay */}
       {showSlideMap && <SlideMap />}
+      {isPresenting && <PresenterView />}
     </div>
   )
 }

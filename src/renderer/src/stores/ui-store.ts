@@ -26,6 +26,7 @@ interface UIState {
   showNavigator: boolean
   showArticlePanel: boolean
   showArtifactDrawer: boolean
+  showRightPane: boolean
   showSlideMap: boolean
   editingSlide: boolean
   editorMode: 'markdown' | 'wysiwyg'
@@ -42,6 +43,7 @@ interface UIState {
   toggleNavigator: () => void
   toggleArticlePanel: () => void
   toggleArtifactDrawer: () => void
+  toggleRightPane: () => void
   toggleSlideMap: () => void
   toggleEditingSlide: () => void
   setEditingSlide: (editing: boolean) => void
@@ -70,11 +72,12 @@ export const useUIStore = create<UIState>((set, get) => ({
   showNavigator: true,
   showArticlePanel: false,
   showArtifactDrawer: false,
+  showRightPane: true,
   showSlideMap: false,
   editingSlide: false,
   editorMode: 'wysiwyg' as const,
   splitRatio: 40,
-  fontSize: 16,
+  fontSize: 12,
   palette: COLOR_PALETTES[0],
   slideGroups: [],
 
@@ -92,6 +95,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   toggleNavigator: () => set((s) => ({ showNavigator: !s.showNavigator })),
   toggleArticlePanel: () => set((s) => ({ showArticlePanel: !s.showArticlePanel })),
   toggleArtifactDrawer: () => set((s) => ({ showArtifactDrawer: !s.showArtifactDrawer })),
+  toggleRightPane: () => set((s) => ({ showRightPane: !s.showRightPane })),
   toggleSlideMap: () => set((s) => ({ showSlideMap: !s.showSlideMap })),
   toggleEditingSlide: () => set((s) => ({ editingSlide: !s.editingSlide })),
   setEditingSlide: (editing) => set({ editingSlide: editing }),

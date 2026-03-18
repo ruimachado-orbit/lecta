@@ -8,7 +8,7 @@ import type { SupportedLanguage } from '../../../../../packages/shared/src/types
 export function Toolbar(): JSX.Element {
   const { presentation, currentSlideIndex, slides, nextSlide, prevSlide, addSlide, addCodeToSlide, addArtifact, addVideo, addWebApp, saveSlideContent, hasUnsavedChanges } =
     usePresentationStore()
-  const { togglePresenting, toggleNotes, showNotes, editingSlide, toggleEditingSlide, theme, setTheme, showArticlePanel, toggleArticlePanel, showArtifactDrawer, toggleArtifactDrawer, toggleSlideMap } = useUIStore()
+  const { togglePresenting, toggleNotes, showNotes, editingSlide, toggleEditingSlide, theme, setTheme, showArticlePanel, toggleArticlePanel, showRightPane, toggleRightPane, toggleSlideMap } = useUIStore()
   const { isExecuting } = useExecutionStore()
   const { activeTabId, closeTab } = useTabsStore()
 
@@ -227,13 +227,13 @@ export function Toolbar(): JSX.Element {
           )}
         </div>
 
-        {/* Toggle Artifact Drawer */}
+        {/* Toggle right pane (code/video/web artifacts) */}
         <button
-          onClick={toggleArtifactDrawer}
+          onClick={toggleRightPane}
           className={`p-1.5 rounded transition-colors ${
-            showArtifactDrawer ? 'bg-white text-black' : 'hover:bg-gray-800 text-gray-400'
+            showRightPane ? 'bg-white text-black' : 'hover:bg-gray-800 text-gray-400'
           }`}
-          title="Toggle attachments panel"
+          title="Toggle artifacts panel"
         >
           <AttachmentsIcon />
         </button>
@@ -284,8 +284,9 @@ export function Toolbar(): JSX.Element {
         {/* Present mode */}
         <button
           onClick={async () => {
+            // Close panels before presenting
+            useUIStore.setState({ showArtifactDrawer: false, showArticlePanel: false, showSlideMap: false, editingSlide: false })
             await window.electronAPI.openAudienceWindow()
-            // Send presentation path to audience window after a short delay for it to initialize
             if (presentation?.rootPath) {
               setTimeout(() => {
                 window.electronAPI.sendPresenterPath(presentation.rootPath)

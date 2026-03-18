@@ -48,9 +48,10 @@ export function PresenterView(): JSX.Element {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-black">
-      {/* Top bar with window controls + nav */}
-      <div className="h-11 bg-gray-900 border-b border-gray-800 flex items-center pl-20 pr-4 gap-3"
+    <div className="fixed inset-4 z-50 flex flex-col bg-black rounded-2xl border border-gray-700 shadow-2xl overflow-hidden"
+         style={{ boxShadow: '0 0 0 1px rgba(255,255,255,0.05), 0 25px 60px rgba(0,0,0,0.7)' }}>
+      {/* Top bar */}
+      <div className="h-10 bg-gray-900 border-b border-gray-800 flex items-center px-4 gap-3 rounded-t-2xl"
            style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
         {/* Navigation */}
         <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>

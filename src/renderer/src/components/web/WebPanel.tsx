@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { usePresentationStore } from '../../stores/presentation-store'
 import type { WebAppConfig } from '../../../../../packages/shared/src/types/presentation'
 
 interface WebPanelProps {
@@ -6,6 +7,7 @@ interface WebPanelProps {
 }
 
 export function WebPanel({ webapp }: WebPanelProps): JSX.Element {
+  const { removeAttachment } = usePresentationStore()
   const [url, setUrl] = useState(webapp.url)
   const [inputUrl, setInputUrl] = useState(webapp.url)
   const webviewRef = useRef<HTMLWebViewElement>(null)
@@ -118,6 +120,15 @@ export function WebPanel({ webapp }: WebPanelProps): JSX.Element {
         {isLoading && (
           <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
         )}
+        <button
+          onClick={() => removeAttachment('webapp')}
+          className="p-1 hover:bg-red-600 text-gray-500 hover:text-white rounded transition-colors"
+          title="Remove web app from slide"
+        >
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+          </svg>
+        </button>
       </div>
 
       {/* Embedded browser via webview (bypasses X-Frame-Options) */}

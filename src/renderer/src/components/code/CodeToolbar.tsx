@@ -10,7 +10,7 @@ const FONT_SIZES = [
 ]
 
 export function CodeToolbar(): JSX.Element {
-  const { slides, currentSlideIndex } = usePresentationStore()
+  const { slides, currentSlideIndex, removeAttachment } = usePresentationStore()
   const { isExecuting, clearOutput } = useExecutionStore()
   const { fontSize, setFontSize } = useUIStore()
   const { runCode, cancelCode } = useCodeExecution()
@@ -109,6 +109,17 @@ export function CodeToolbar(): JSX.Element {
           )}
         </>
       )}
+
+      {/* Remove code from slide */}
+      <button
+        onClick={() => removeAttachment('code')}
+        className="p-1 hover:bg-red-600 text-gray-500 hover:text-white rounded transition-colors"
+        title="Remove code from slide"
+      >
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+        </svg>
+      </button>
     </div>
   )
 }

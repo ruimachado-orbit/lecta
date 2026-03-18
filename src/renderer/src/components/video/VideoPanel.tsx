@@ -1,3 +1,4 @@
+import { usePresentationStore } from '../../stores/presentation-store'
 import type { VideoConfig } from '../../../../../packages/shared/src/types/presentation'
 
 interface VideoPanelProps {
@@ -31,6 +32,7 @@ function getYouTubeEmbedUrl(url: string): string | null {
 }
 
 export function VideoPanel({ video }: VideoPanelProps): JSX.Element {
+  const { removeAttachment } = usePresentationStore()
   const embedUrl = getYouTubeEmbedUrl(video.url)
 
   if (!embedUrl) {
@@ -74,6 +76,15 @@ export function VideoPanel({ video }: VideoPanelProps): JSX.Element {
         >
           Open ↗
         </a>
+        <button
+          onClick={() => removeAttachment('video')}
+          className="p-1 hover:bg-red-600 text-gray-500 hover:text-white rounded transition-colors"
+          title="Remove video from slide"
+        >
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+          </svg>
+        </button>
       </div>
 
       {/* Video embed */}

@@ -43,20 +43,12 @@ export function registerPresenterHandlers(): void {
       return
     }
 
-    // Try to open on a second display if available, otherwise use primary
-    const displays = screen.getAllDisplays()
-    const primaryDisplay = screen.getPrimaryDisplay()
-    const externalDisplay = displays.find((d) => d.id !== primaryDisplay.id)
-    const targetDisplay = externalDisplay || primaryDisplay
-
     audienceWindow = new BrowserWindow({
-      x: targetDisplay.bounds.x,
-      y: targetDisplay.bounds.y,
-      width: targetDisplay.bounds.width,
-      height: targetDisplay.bounds.height,
-      fullscreen: true,
-      frame: false,
+      width: 960,
+      height: 600,
       title: 'Lecta — Presentation',
+      titleBarStyle: 'hiddenInset',
+      trafficLightPosition: { x: 12, y: 8 },
       backgroundColor: '#000000',
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),

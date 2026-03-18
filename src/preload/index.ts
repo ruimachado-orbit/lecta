@@ -34,6 +34,10 @@ const api = {
     ipcRenderer.invoke('fs:rename-slide', rootPath, slideIndex, newId),
   reorderSlide: (rootPath: string, fromIndex: number, toIndex: number): Promise<LoadedPresentation> =>
     ipcRenderer.invoke('fs:reorder-slide', rootPath, fromIndex, toIndex),
+  removeAttachment: (
+    rootPath: string, slideIndex: number, type: 'code' | 'video' | 'webapp' | 'artifact', artifactIndex?: number
+  ): Promise<LoadedPresentation> =>
+    ipcRenderer.invoke('fs:remove-attachment', rootPath, slideIndex, type, artifactIndex),
   writeFile: (filePath: string, content: string): Promise<void> =>
     ipcRenderer.invoke('fs:write-file', filePath, content),
   saveNotes: (rootPath: string, slideIndex: number, content: string): Promise<string> =>

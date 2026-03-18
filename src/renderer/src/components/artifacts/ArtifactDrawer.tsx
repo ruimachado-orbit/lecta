@@ -4,7 +4,7 @@ import { useUIStore } from '../../stores/ui-store'
 import type { ArtifactConfig, SupportedLanguage } from '../../../../../packages/shared/src/types/presentation'
 
 export function ArtifactDrawer(): JSX.Element {
-  const { slides, currentSlideIndex, presentation, addArtifact, addCodeToSlide, addVideo, addWebApp } = usePresentationStore()
+  const { slides, currentSlideIndex, presentation, addArtifact, addCodeToSlide, addVideo, addWebApp, removeAttachment } = usePresentationStore()
   const { toggleArtifactDrawer } = useUIStore()
   const currentSlide = slides[currentSlideIndex]
   const artifacts = currentSlide?.config.artifacts ?? []
@@ -98,20 +98,31 @@ export function ArtifactDrawer(): JSX.Element {
           {/* Artifact list */}
           <div className="border-b border-gray-800 px-2 py-2 flex gap-1 overflow-x-auto flex-shrink-0">
             {artifacts.map((artifact, i) => (
-              <button
-                key={i}
-                onClick={() => setSelectedArtifact(artifact)}
-                className={`flex-shrink-0 px-2.5 py-1.5 text-xs rounded-md transition-colors flex items-center gap-1.5 ${
-                  selectedArtifact === artifact
-                    ? 'bg-white text-black'
-                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-300'
-                }`}
-              >
-                <span className="text-[9px] font-bold">
-                  {getTypeLabel(artifact.path)}
-                </span>
-                <span className="truncate max-w-[80px]">{artifact.label}</span>
-              </button>
+              <div key={i} className="flex-shrink-0 flex items-center group/art">
+                <button
+                  onClick={() => setSelectedArtifact(artifact)}
+                  className={`px-2.5 py-1.5 text-xs rounded-l-md transition-colors flex items-center gap-1.5 ${
+                    selectedArtifact === artifact
+                      ? 'bg-white text-black'
+                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-300'
+                  }`}
+                >
+                  <span className="text-[9px] font-bold">
+                    {getTypeLabel(artifact.path)}
+                  </span>
+                  <span className="truncate max-w-[80px]">{artifact.label}</span>
+                </button>
+                <button
+                  onClick={() => { removeAttachment('artifact', i); setSelectedArtifact(null) }}
+                  className="px-1 py-1.5 rounded-r-md bg-gray-800 text-gray-600 hover:bg-red-600 hover:text-white
+                             transition-colors hidden group-hover/art:block"
+                  title="Remove artifact"
+                >
+                  <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
             ))}
           </div>
 

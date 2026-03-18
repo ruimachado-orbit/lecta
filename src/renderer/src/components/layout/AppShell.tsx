@@ -25,6 +25,10 @@ export function AppShell(): JSX.Element {
   useKeyboardShortcuts()
   useFileWatcher()
 
+  if (isPresenting) {
+    return <PresenterView />
+  }
+
   const hasCode = !!currentSlide?.config.code
   const hasVideo = !!currentSlide?.config.video
   const hasWebApp = !!currentSlide?.config.webapp
@@ -87,7 +91,6 @@ export function AppShell(): JSX.Element {
 
       {/* Slide Map overlay */}
       {showSlideMap && <SlideMap />}
-      {isPresenting && <PresenterView />}
     </div>
   )
 }

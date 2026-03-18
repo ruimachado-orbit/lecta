@@ -178,11 +178,16 @@ export function SlidePanel(): JSX.Element {
 /** 16:9 slide canvas that auto-scales content to fit */
 function SlideCanvas({ markdown, rootPath }: { markdown: string; rootPath?: string }): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [scale, setScale] = useState(1)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const [canvasScale, setCanvasScale] = useState(1)
+  const [contentScale, setContentScale] = useState(1)
 
   const SLIDE_W = 1280
   const SLIDE_H = 720
+  const PAD = 48 // p-12 = 48px each side
+  const CONTENT_H = SLIDE_H - PAD * 2
 
+  // Scale the canvas frame to fit the container
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
@@ -190,11 +195,9 @@ function SlideCanvas({ markdown, rootPath }: { markdown: string; rootPath?: stri
     const updateScale = () => {
       const cw = container.clientWidth
       const ch = container.clientHeight
-      const pad = 16
-      const availW = cw - pad * 2
-      const availH = ch - pad * 2
-      const s = Math.min(availW / SLIDE_W, availH / SLIDE_H)
-      setScale(Math.max(0.05, s))
+      const margin = 16
+      const s = Math.min((cw - margin * 2) / SLIDE_W, (ch - margin * 2) / SLIDE_H)
+      setCanvasScale(Math.max(0.05, s))
     }
 
     updateScale()
@@ -203,14 +206,38 @@ function SlideCanvas({ markdown, rootPath }: { markdown: string; rootPath?: stri
     return () => ro.disconnect()
   }, [])
 
+  // Scale content down if it overflows the slide height
+  useEffect(() => {
+    const el = contentRef.current
+    if (!el) return
+
+    const measure = () => {
+      // Reset scale to measure natural height
+      el.style.transform = 'scale(1)'
+      el.style.transformOrigin = 'top left'
+      const natural = el.scrollHeight
+      if (natural > CONTENT_H) {
+        const s = CONTENT_H / natural
+        setContentScale(Math.max(0.3, s))
+      } else {
+        setContentScale(1)
+      }
+    }
+
+    // Measure after render + images/diagrams load
+    measure()
+    const timer = setTimeout(measure, 500)
+    return () => clearTimeout(timer)
+  }, [markdown])
+
   return (
     <div ref={containerRef} className="h-full w-full flex items-center justify-center bg-neutral-900 overflow-hidden">
       <div
-        className="relative rounded-lg overflow-hidden shadow-2xl"
+        className="relative rounded-lg overflow-hidden"
         style={{
           width: SLIDE_W,
           height: SLIDE_H,
-          transform: `scale(${scale})`,
+          transform: `scale(${canvasScale})`,
           transformOrigin: 'center center',
           flexShrink: 0,
           boxShadow: '0 0 0 1px rgba(255,255,255,0.1), 0 25px 50px -12px rgba(0,0,0,0.5)'
@@ -218,7 +245,16 @@ function SlideCanvas({ markdown, rootPath }: { markdown: string; rootPath?: stri
       >
         <div className="absolute inset-0 bg-black rounded-lg" />
         <div className="absolute inset-0 p-12 overflow-hidden">
-          <SlideRenderer markdown={markdown} rootPath={rootPath} />
+          <div
+            ref={contentRef}
+            style={{
+              width: SLIDE_W - PAD * 2,
+              transform: `scale(${contentScale})`,
+              transformOrigin: 'top left'
+            }}
+          >
+            <SlideRenderer markdown={markdown} rootPath={rootPath} />
+          </div>
         </div>
       </div>
     </div>

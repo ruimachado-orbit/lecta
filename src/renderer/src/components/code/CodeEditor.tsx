@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react'
 import Editor from '@monaco-editor/react'
 import { usePresentationStore } from '../../stores/presentation-store'
+import { useUIStore } from '../../stores/ui-store'
 
 function getMonacoLanguage(language: string): string {
   const mapping: Record<string, string> = {

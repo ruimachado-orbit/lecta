@@ -1,4 +1,17 @@
 import { SlideRenderer } from '../slides/SlideRenderer'
+import { MermaidDiagram } from '../common/MermaidDiagram'
+
+const MERMAID_KEYWORDS = [
+  'sequenceDiagram', 'flowchart', 'graph ', 'graph\n', 'classDiagram',
+  'stateDiagram', 'erDiagram', 'gantt', 'pie', 'gitGraph',
+  'journey', 'mindmap', 'timeline', 'quadrantChart', 'xychart',
+  'sankey', 'block-beta'
+]
+
+function isMermaid(content: string): boolean {
+  const trimmed = content.trim()
+  return MERMAID_KEYWORDS.some((kw) => trimmed.startsWith(kw))
+}
 
 interface MarkdownPreviewProps {
   content: string
@@ -6,26 +19,21 @@ interface MarkdownPreviewProps {
 }
 
 export function MarkdownPreview({ content, rootPath }: MarkdownPreviewProps): JSX.Element {
-  return (
-    <div className="h-full flex flex-col bg-gray-950">
-      {/* Header */}
-      <div className="h-7 bg-gray-900 border-b border-gray-800 flex items-center px-3">
-        <span className="text-[10px] font-medium uppercase tracking-wider text-gray-500">
-          Preview
-        </span>
-        <span className="text-[10px] text-gray-600 ml-2">Live render</span>
+  if (!content.trim()) {
+    return (
+      <div className="text-gray-600 text-xs italic p-4">
+        Start typing to see a live preview...
       </div>
+    )
+  }
 
-      {/* Rendered content */}
-      <div className="flex-1 overflow-y-auto p-4">
-        {content.trim() ? (
-          <SlideRenderer markdown={content} rootPath={rootPath} />
-        ) : (
-          <div className="text-gray-600 text-xs italic">
-            Start typing markdown to see a live preview...
-          </div>
-        )}
+  if (isMermaid(content)) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <MermaidDiagram chart={content.trim()} />
       </div>
-    </div>
-  )
+    )
+  }
+
+  return <SlideRenderer markdown={content} rootPath={rootPath} />
 }

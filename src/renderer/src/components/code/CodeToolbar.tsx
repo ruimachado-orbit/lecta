@@ -1,10 +1,18 @@
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useExecutionStore } from '../../stores/execution-store'
+import { useUIStore } from '../../stores/ui-store'
 import { useCodeExecution } from '../../hooks/useCodeExecution'
+
+const FONT_SIZES = [
+  { label: 'S', value: 12 },
+  { label: 'M', value: 15 },
+  { label: 'L', value: 18 }
+]
 
 export function CodeToolbar(): JSX.Element {
   const { slides, currentSlideIndex } = usePresentationStore()
   const { isExecuting, clearOutput } = useExecutionStore()
+  const { fontSize, setFontSize } = useUIStore()
   const { runCode, cancelCode } = useCodeExecution()
 
   const currentSlide = slides[currentSlideIndex]
@@ -41,6 +49,22 @@ export function CodeToolbar(): JSX.Element {
           {codeConfig.language}
         </span>
       )}
+
+      {/* Font size */}
+      <div className="flex items-center gap-0.5 bg-gray-800 rounded p-0.5">
+        {FONT_SIZES.map((s) => (
+          <button
+            key={s.value}
+            onClick={() => setFontSize(s.value)}
+            className={`px-1.5 py-0.5 text-[9px] font-medium rounded transition-colors ${
+              fontSize === s.value ? 'bg-white text-black' : 'text-gray-500 hover:text-gray-300'
+            }`}
+            title={`Font size: ${s.value}px`}
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
 
       {/* Reset button */}
       <button

@@ -542,7 +542,7 @@ function RecentCard({ deck, onClick }: { deck: RecentDeck; onClick: () => void }
         <span className={`absolute top-2 right-2 text-[8px] px-1.5 py-0.5 rounded-full ${
           isNotebook ? 'bg-gray-800 text-gray-400' : 'bg-gray-800 text-gray-500'
         }`}>
-          {isNotebook ? '📓 Notebook' : '📊 Slides'}
+          {isNotebook ? 'Notebook' : 'Slides'}
         </span>
         {previewLines.length > 0 ? (
           <div className="space-y-1">

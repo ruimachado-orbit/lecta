@@ -186,9 +186,9 @@ export function registerFileSystemHandlers(): void {
 
     const yamlContent = await readFile(configPath, 'utf-8')
 
-    // Check if this is a notebook — if so, throw a specific error so the renderer can handle it
+    // Check if this is a notebook — return a special marker so the renderer can redirect
     if (yamlContent.includes('type: notebook') || yamlContent.includes('type: "notebook"')) {
-      throw new Error('NOTEBOOK:' + folderPath)
+      return { __notebook: true, rootPath: folderPath } as any
     }
 
     const config = parsePresentationYaml(yamlContent, folderPath)

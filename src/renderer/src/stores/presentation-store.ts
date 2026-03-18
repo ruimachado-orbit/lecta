@@ -74,18 +74,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
     try {
       const folderPath = await window.electronAPI.openFolder()
       if (folderPath) {
-        try {
-          await get().loadPresentation(folderPath)
-        } catch (err: any) {
-          // If it's a notebook, load via notebook store
-          if (err?.message?.startsWith('NOTEBOOK:')) {
-            const nbPath = err.message.replace('NOTEBOOK:', '')
-            const { useNotebookStore } = await import('./notebook-store')
-            await useNotebookStore.getState().loadNotebook(nbPath)
-          } else {
-            throw err
-          }
-        }
+        await get().loadPresentation(folderPath)
       }
     } catch (error) {
       set({ error: (error as Error).message })
@@ -95,8 +84,17 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
   loadPresentation: async (folderPath: string) => {
     set({ isLoading: true, error: null })
     try {
-      const loaded: LoadedPresentation = await window.electronAPI.loadPresentation(folderPath)
-      set(applyLoaded(loaded))
+      const loaded: any = await window.electronAPI.loadPresentation(folderPath)
+
+      // Check if this is actually a notebook
+      if (loaded?.__notebook) {
+        set({ isLoading: false, error: null })
+        const { useNotebookStore } = await import('./notebook-store')
+        await useNotebookStore.getState().loadNotebook(loaded.rootPath)
+        return
+      }
+
+      set(applyLoaded(loaded as LoadedPresentation))
 
       // Re-check AI key availability (deck might have its own .env)
       const { useUIStore } = await import('./ui-store')
@@ -132,22 +130,9 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
         if (existing) useTabsStore.setState({ activeTabId: existing.id })
       }
     } catch (error) {
-      const msg = (error as Error).message
-      // Detect notebook redirect
-      if (msg.startsWith('NOTEBOOK:')) {
-        set({ isLoading: false, error: null })
-        const notebookPath = msg.replace('NOTEBOOK:', '')
-        try {
-          const { useNotebookStore } = await import('./notebook-store')
-          await useNotebookStore.getState().loadNotebook(notebookPath)
-        } catch (nbErr) {
-          set({ error: `Failed to load notebook: ${(nbErr as Error).message}` })
-        }
-        return
-      }
       set({
         isLoading: false,
-        error: msg
+        error: (error as Error).message
       })
     }
   },

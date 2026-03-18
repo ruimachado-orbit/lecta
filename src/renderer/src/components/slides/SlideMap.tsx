@@ -1,28 +1,68 @@
 import { usePresentationStore } from '../../stores/presentation-store'
-import { useUIStore } from '../../stores/ui-store'
+import { useUIStore, type SlideGroup } from '../../stores/ui-store'
+import type { LoadedSlide } from '../../../../../packages/shared/src/types/presentation'
 
 export function SlideMap(): JSX.Element {
   const { slides, currentSlideIndex, goToSlide, presentation } = usePresentationStore()
   const { slideGroups, toggleSlideMap } = useUIStore()
 
   // Build group lookup
-  const slideGroupMap = new Map<string, string>()
-  slideGroups.forEach((g) => g.slideIds.forEach((id) => slideGroupMap.set(id, g.name)))
+  const slideToGroup = new Map<string, SlideGroup>()
+  slideGroups.forEach((g) => g.slideIds.forEach((id) => slideToGroup.set(id, g)))
+
+  // Organize slides into sections: groups + ungrouped
+  const groupedSections: { group: SlideGroup | null; slides: { slide: LoadedSlide; globalIndex: number }[] }[] = []
+
+  // Collect grouped slides by group order
+  const usedGroups = new Set<string>()
+  const ungrouped: { slide: LoadedSlide; globalIndex: number }[] = []
+
+  slides.forEach((slide, index) => {
+    const group = slideToGroup.get(slide.config.id)
+    if (group) {
+      if (!usedGroups.has(group.id)) {
+        usedGroups.add(group.id)
+        const groupSlides = slides
+          .map((s, i) => ({ slide: s, globalIndex: i }))
+          .filter((s) => group.slideIds.includes(s.slide.config.id))
+        groupedSections.push({ group, slides: groupSlides })
+      }
+    } else {
+      ungrouped.push({ slide, globalIndex: index })
+    }
+  })
+
+  // Add ungrouped at the end
+  if (ungrouped.length > 0) {
+    groupedSections.push({ group: null, slides: ungrouped })
+  }
+
+  const totalGroups = slideGroups.length
+  const totalSlides = slides.length
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center"
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center"
          onClick={toggleSlideMap}>
-      <div className="bg-gray-900 rounded-xl border border-gray-700 w-[90vw] max-w-5xl max-h-[85vh]
+      <div className="bg-gray-950 rounded-2xl border border-gray-800 w-[92vw] max-w-6xl max-h-[88vh]
                       flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-800">
-          <div>
-            <h2 className="text-gray-200 font-semibold text-sm">{presentation?.title} — Slide Map</h2>
-            <p className="text-gray-500 text-[10px]">{slides.length} slides</p>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-bold text-sm">
+              {presentation?.title?.charAt(0)?.toUpperCase()}
+            </div>
+            <div>
+              <h2 className="text-white font-semibold">{presentation?.title}</h2>
+              <div className="flex items-center gap-3 mt-0.5">
+                <span className="text-gray-500 text-xs">{totalSlides} slides</span>
+                {totalGroups > 0 && <span className="text-gray-600 text-xs">{totalGroups} groups</span>}
+                {presentation?.author && <span className="text-gray-600 text-xs">by {presentation.author}</span>}
+              </div>
+            </div>
           </div>
           <button
             onClick={toggleSlideMap}
-            className="p-1 hover:bg-gray-800 rounded transition-colors text-gray-400 hover:text-white"
+            className="p-2 hover:bg-gray-800 rounded-lg transition-colors text-gray-400 hover:text-white"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -30,96 +70,151 @@ export function SlideMap(): JSX.Element {
           </button>
         </div>
 
-        {/* Map content */}
+        {/* Map */}
         <div className="flex-1 overflow-auto p-6">
-          <div className="flex flex-col items-center gap-3">
-            {/* Title node */}
-            <div className="px-6 py-3 bg-indigo-600 text-white rounded-xl text-sm font-semibold shadow-lg">
-              {presentation?.title}
-            </div>
-            <div className="w-px h-4 bg-gray-700" />
+          <div className="space-y-6 min-w-fit">
+            {groupedSections.map((section, sIdx) => (
+              <div key={section.group?.id ?? 'ungrouped'}>
+                {/* Section header */}
+                <div className="flex items-center gap-2 mb-3">
+                  {section.group ? (
+                    <>
+                      <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                      <span className="text-xs font-semibold text-indigo-400 uppercase tracking-wider">
+                        {section.group.name}
+                      </span>
+                      <span className="text-[10px] text-gray-600">{section.slides.length} slides</span>
+                      <div className="flex-1 h-px bg-gray-800" />
+                    </>
+                  ) : totalGroups > 0 ? (
+                    <>
+                      <div className="w-1.5 h-1.5 rounded-full bg-gray-600" />
+                      <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        Ungrouped
+                      </span>
+                      <span className="text-[10px] text-gray-600">{section.slides.length} slides</span>
+                      <div className="flex-1 h-px bg-gray-800" />
+                    </>
+                  ) : null}
+                </div>
 
-            {/* Slides */}
-            <div className="flex flex-wrap justify-center gap-4 max-w-4xl">
-              {slides.map((slide, index) => {
-                const isActive = index === currentSlideIndex
-                const groupName = slideGroupMap.get(slide.config.id)
-                const hasCode = !!slide.config.code
-                const hasVideo = !!slide.config.video
-                const hasWebApp = !!slide.config.webapp
-                const artifactCount = slide.config.artifacts.length
-                const isAI = slide.markdownContent?.includes('<!-- ai-generated -->')
+                {/* Slides row with connectors */}
+                <div className="flex items-stretch gap-0 overflow-x-auto pb-2">
+                  {section.slides.map((item, i) => {
+                    const { slide, globalIndex } = item
+                    const isActive = globalIndex === currentSlideIndex
+                    const hasCode = !!slide.config.code
+                    const hasVideo = !!slide.config.video
+                    const hasWebApp = !!slide.config.webapp
+                    const artifactCount = slide.config.artifacts.length
+                    const isAI = slide.markdownContent?.includes('<!-- ai-generated -->')
 
-                // Extract first line as preview
-                const firstLine = slide.markdownContent
-                  ?.replace(/<!--.*?-->/g, '')
-                  .replace(/^#+\s*/, '')
-                  .trim()
-                  .split('\n')[0]
-                  ?.slice(0, 40) || slide.config.id
+                    const title = slide.markdownContent
+                      ?.replace(/<!--.*?-->/g, '')
+                      .replace(/^#+\s*/, '')
+                      .trim()
+                      .split('\n')[0]
+                      ?.slice(0, 50) || slide.config.id
 
-                return (
-                  <div key={slide.config.id} className="flex flex-col items-center gap-1">
-                    {/* Connection line */}
-                    {index > 0 && index < slides.length && (
-                      <div className="w-px h-2 bg-gray-700 -mt-1" />
-                    )}
+                    const bodyLines = slide.markdownContent
+                      ?.replace(/<!--.*?-->/g, '')
+                      .trim()
+                      .split('\n')
+                      .filter((l) => l.trim() && !l.startsWith('#'))
+                      .slice(0, 2)
+                      .map((l) => l.replace(/^[-*]\s*/, '').replace(/\*\*/g, '').slice(0, 45))
 
-                    <button
-                      onClick={() => { goToSlide(index); toggleSlideMap() }}
-                      className={`w-36 rounded-lg border-2 p-2.5 text-left transition-all hover:scale-105 ${
-                        isActive
-                          ? 'border-indigo-500 bg-indigo-950/40 shadow-lg shadow-indigo-500/20'
-                          : 'border-gray-700 bg-gray-800 hover:border-gray-600'
-                      }`}
-                    >
-                      {/* Group badge */}
-                      {groupName && (
-                        <span className="text-[8px] px-1.5 py-0.5 bg-gray-700 text-gray-400 rounded-sm mb-1 inline-block">
-                          {groupName}
-                        </span>
-                      )}
+                    return (
+                      <div key={slide.config.id} className="flex items-center">
+                        {/* Connector line */}
+                        {i > 0 && (
+                          <div className="w-6 h-px bg-gray-700 flex-shrink-0" />
+                        )}
 
-                      {/* Slide number */}
-                      <div className="flex items-center gap-1 mb-1">
-                        <span className="text-[10px] font-bold text-gray-400">{index + 1}</span>
-                        {isAI && <span className="text-[8px] text-indigo-400">✦</span>}
+                        {/* Slide card */}
+                        <button
+                          onClick={() => { goToSlide(globalIndex); toggleSlideMap() }}
+                          className={`flex-shrink-0 w-44 rounded-xl border transition-all hover:scale-[1.03] hover:shadow-lg text-left ${
+                            isActive
+                              ? 'border-indigo-500 bg-gray-900 shadow-lg shadow-indigo-500/10 ring-1 ring-indigo-500/30'
+                              : 'border-gray-800 bg-gray-900 hover:border-gray-600'
+                          }`}
+                        >
+                          {/* Card header */}
+                          <div className={`px-3 py-2 rounded-t-xl border-b ${
+                            isActive ? 'bg-indigo-950/50 border-indigo-900/50' : 'bg-gray-800/50 border-gray-800'
+                          }`}>
+                            <div className="flex items-center justify-between">
+                              <span className={`text-[10px] font-bold ${isActive ? 'text-indigo-400' : 'text-gray-500'}`}>
+                                {String(globalIndex + 1).padStart(2, '0')}
+                              </span>
+                              <div className="flex items-center gap-1">
+                                {isAI && <span className="text-[8px] text-indigo-400">✦ AI</span>}
+                              </div>
+                            </div>
+                            <div className="text-[11px] text-white font-medium truncate mt-0.5">
+                              {title}
+                            </div>
+                          </div>
+
+                          {/* Card body */}
+                          <div className="px-3 py-2 space-y-1">
+                            {bodyLines && bodyLines.length > 0 ? (
+                              bodyLines.map((line, li) => (
+                                <div key={li} className="text-[9px] text-gray-500 truncate">
+                                  {line}
+                                </div>
+                              ))
+                            ) : (
+                              <div className="text-[9px] text-gray-600 italic">Empty slide</div>
+                            )}
+                          </div>
+
+                          {/* Card footer — attachments */}
+                          {(hasCode || hasVideo || hasWebApp || artifactCount > 0) && (
+                            <div className="px-3 py-1.5 border-t border-gray-800 flex items-center gap-1 flex-wrap">
+                              {hasCode && (
+                                <span className="text-[7px] px-1.5 py-0.5 bg-emerald-900/30 text-emerald-400 rounded-full font-medium">
+                                  {slide.config.code!.language}
+                                </span>
+                              )}
+                              {hasVideo && (
+                                <span className="text-[7px] px-1.5 py-0.5 bg-red-900/30 text-red-400 rounded-full font-medium">
+                                  video
+                                </span>
+                              )}
+                              {hasWebApp && (
+                                <span className="text-[7px] px-1.5 py-0.5 bg-cyan-900/30 text-cyan-400 rounded-full font-medium">
+                                  web
+                                </span>
+                              )}
+                              {artifactCount > 0 && (
+                                <span className="text-[7px] px-1.5 py-0.5 bg-amber-900/30 text-amber-400 rounded-full font-medium">
+                                  {artifactCount} file{artifactCount > 1 ? 's' : ''}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </button>
                       </div>
-
-                      {/* Title */}
-                      <div className="text-[11px] text-gray-200 font-medium truncate leading-tight">
-                        {firstLine}
-                      </div>
-
-                      {/* Attachments row */}
-                      <div className="flex items-center gap-1 mt-1.5 flex-wrap">
-                        {hasCode && (
-                          <span className="text-[8px] px-1 py-0.5 bg-green-900/40 text-green-400 rounded">
-                            {slide.config.code!.language}
-                          </span>
-                        )}
-                        {hasVideo && (
-                          <span className="text-[8px] px-1 py-0.5 bg-red-900/40 text-red-400 rounded">
-                            video
-                          </span>
-                        )}
-                        {hasWebApp && (
-                          <span className="text-[8px] px-1 py-0.5 bg-cyan-900/40 text-cyan-400 rounded">
-                            web
-                          </span>
-                        )}
-                        {artifactCount > 0 && (
-                          <span className="text-[8px] px-1 py-0.5 bg-amber-900/40 text-amber-400 rounded">
-                            {artifactCount} file{artifactCount > 1 ? 's' : ''}
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-3 border-t border-gray-800 flex items-center justify-between">
+          <div className="flex items-center gap-4 text-[10px] text-gray-600">
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500/50" /> Code</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500/50" /> Video</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-cyan-500/50" /> Web</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500/50" /> Files</span>
+            <span className="flex items-center gap-1"><span className="text-indigo-400">✦</span> AI generated</span>
+          </div>
+          <span className="text-[10px] text-gray-600">Click a slide to navigate</span>
         </div>
       </div>
     </div>

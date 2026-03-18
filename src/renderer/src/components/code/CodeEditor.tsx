@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import Editor from '@monaco-editor/react'
 import { usePresentationStore } from '../../stores/presentation-store'
 
@@ -12,20 +12,44 @@ function getMonacoLanguage(language: string): string {
 }
 
 export function CodeEditor(): JSX.Element {
-  const { slides, currentSlideIndex, updateCodeContent } = usePresentationStore()
+  const { slides, currentSlideIndex, updateCodeContent, saveSlideContent } = usePresentationStore()
   const currentSlide = slides[currentSlideIndex]
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const lastSavedIndex = useRef<number>(currentSlideIndex)
 
   const language = currentSlide?.codeLanguage
     ? getMonacoLanguage(currentSlide.codeLanguage)
     : 'plaintext'
 
+  // Save when switching slides
+  useEffect(() => {
+    if (lastSavedIndex.current !== currentSlideIndex) {
+      saveSlideContent(lastSavedIndex.current)
+      lastSavedIndex.current = currentSlideIndex
+    }
+  }, [currentSlideIndex])
+
+  // Save on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+      saveSlideContent(usePresentationStore.getState().currentSlideIndex)
+    }
+  }, [])
+
   const handleChange = useCallback(
     (value: string | undefined) => {
       if (value !== undefined) {
         updateCodeContent(currentSlideIndex, value)
+
+        // Debounced auto-save (1.5s after last keystroke)
+        if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+        saveTimerRef.current = setTimeout(() => {
+          saveSlideContent(currentSlideIndex)
+        }, 1500)
       }
     },
-    [currentSlideIndex, updateCodeContent]
+    [currentSlideIndex, updateCodeContent, saveSlideContent]
   )
 
   return (

@@ -5,14 +5,14 @@ import { useUIStore } from '../../stores/ui-store'
 export function SlideNavigator(): JSX.Element {
   const { slides, currentSlideIndex, goToSlide, addSlide, deleteSlide, reorderSlide, renameSlide } =
     usePresentationStore()
-  const { slideGroups, addSlideGroup, toggleGroupCollapsed, addSlideToGroup, removeSlideFromGroup } =
+  const { slideGroups, addSlideGroup, removeSlideGroup, toggleGroupCollapsed, addSlideToGroup, removeSlideFromGroup } =
     useUIStore()
 
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [dropTarget, setDropTarget] = useState<number | null>(null)
+  const [dropGroupId, setDropGroupId] = useState<string | null>(null)
   const dragRef = useRef<number | null>(null)
 
-  // Context menu state
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; slideIndex: number } | null>(null)
   const [renaming, setRenaming] = useState<number | null>(null)
   const [renameValue, setRenameValue] = useState('')
@@ -20,8 +20,7 @@ export function SlideNavigator(): JSX.Element {
   const [newGroupName, setNewGroupName] = useState('')
 
   const handleQuickAdd = async () => {
-    const nextNum = slides.length + 1
-    await addSlide(`slide-${nextNum}`)
+    await addSlide(`slide-${slides.length + 1}`)
   }
 
   const handleDelete = async (index: number) => {
@@ -50,53 +49,103 @@ export function SlideNavigator(): JSX.Element {
     setRenaming(null)
   }
 
-  // Drag handlers
+  // Slide drag handlers
   const handleDragStart = (e: React.DragEvent, index: number) => {
     dragRef.current = index
     setDragIndex(index)
     e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', String(index))
   }
-  const handleDragOver = (e: React.DragEvent, index: number) => {
+
+  const handleDragOverSlide = (e: React.DragEvent, index: number) => {
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
     setDropTarget(index)
+    setDropGroupId(null)
   }
-  const handleDrop = async (e: React.DragEvent, toIndex: number) => {
+
+  const handleDropOnSlide = async (e: React.DragEvent, toIndex: number) => {
     e.preventDefault()
     const fromIndex = dragRef.current
-    setDragIndex(null)
-    setDropTarget(null)
-    dragRef.current = null
+    resetDrag()
     if (fromIndex !== null && fromIndex !== toIndex) {
       await reorderSlide(fromIndex, toIndex)
     }
   }
-  const handleDragEnd = () => { setDragIndex(null); setDropTarget(null); dragRef.current = null }
 
-  // Group which slides belong to which group
+  // Group drag handlers — drop a slide onto a group chip
+  const handleDragOverGroup = (e: React.DragEvent, groupId: string) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+    setDropGroupId(groupId)
+    setDropTarget(null)
+  }
+
+  const handleDropOnGroup = (e: React.DragEvent, groupId: string) => {
+    e.preventDefault()
+    const fromIndex = dragRef.current
+    resetDrag()
+    if (fromIndex !== null) {
+      const slideId = slides[fromIndex].config.id
+      // Remove from any other group first
+      slideGroups.forEach((g) => {
+        if (g.slideIds.includes(slideId)) removeSlideFromGroup(g.id, slideId)
+      })
+      addSlideToGroup(groupId, slideId)
+    }
+  }
+
+  const resetDrag = () => {
+    setDragIndex(null)
+    setDropTarget(null)
+    setDropGroupId(null)
+    dragRef.current = null
+  }
+
+  // Group lookup
   const slideGroupMap = new Map<string, string>()
   slideGroups.forEach((g) => g.slideIds.forEach((id) => slideGroupMap.set(id, g.id)))
-
-  // Build ordered list: ungrouped slides + groups
-  const groupedSlideIds = new Set(slideGroups.flatMap((g) => g.slideIds))
 
   return (
     <div className="bg-gray-900 border-t border-gray-800">
       {/* Groups bar */}
       {slideGroups.length > 0 && (
         <div className="flex items-center gap-1 px-4 py-1 border-b border-gray-800 overflow-x-auto">
+          <span className="text-[8px] text-gray-600 mr-1 flex-shrink-0">GROUPS</span>
           {slideGroups.map((group) => (
-            <button
+            <div
               key={group.id}
-              onClick={() => toggleGroupCollapsed(group.id)}
-              className="flex items-center gap-1 px-2 py-0.5 text-[9px] bg-gray-800 text-gray-400
-                         hover:bg-gray-700 rounded transition-colors flex-shrink-0"
+              onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDropGroupId(group.id); setDropTarget(null) }}
+              onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setDropGroupId(group.id) }}
+              onDragLeave={(e) => { e.preventDefault(); setDropGroupId(null) }}
+              onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleDropOnGroup(e, group.id) }}
+              className={`group/chip flex items-center gap-1 px-2 py-1 text-[9px] rounded transition-colors flex-shrink-0 ${
+                dropGroupId === group.id
+                  ? 'bg-indigo-600 text-white ring-2 ring-indigo-400'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+              }`}
             >
-              <span className={`transition-transform ${group.collapsed ? '' : 'rotate-90'}`}>▸</span>
-              {group.name}
-              <span className="text-gray-600">({group.slideIds.length})</span>
-            </button>
+              <span
+                onClick={() => toggleGroupCollapsed(group.id)}
+                className="flex items-center gap-1 cursor-pointer pointer-events-auto"
+                style={dragIndex !== null ? { pointerEvents: 'none' } : {}}
+              >
+                <span className={`transition-transform ${group.collapsed ? '' : 'rotate-90'}`}>▸</span>
+                {group.name}
+                <span className={dropGroupId === group.id ? 'text-indigo-200' : 'text-gray-600'}>({group.slideIds.length})</span>
+              </span>
+              {dragIndex === null && (
+                <span
+                  onClick={() => removeSlideGroup(group.id)}
+                  className="hidden group-hover/chip:inline text-gray-500 hover:text-red-400 ml-0.5 cursor-pointer"
+                  title="Delete group (keeps slides)"
+                >
+                  ×
+                </span>
+              )}
+            </div>
           ))}
+          <span className="text-[8px] text-gray-600 flex-shrink-0 ml-1">← drag slides here</span>
         </div>
       )}
 
@@ -106,48 +155,50 @@ export function SlideNavigator(): JSX.Element {
           const isActive = index === currentSlideIndex
           const isAI = slide.markdownContent?.includes('<!-- ai-generated -->')
           const isDragging = dragIndex === index
-          const isDropTarget = dropTarget === index && dragIndex !== index
+          const isDropTgt = dropTarget === index && dragIndex !== index
           const groupId = slideGroupMap.get(slide.config.id)
           const group = groupId ? slideGroups.find((g) => g.id === groupId) : null
 
-          // Hide slides in collapsed groups
           if (group?.collapsed) return null
 
-          return renaming === index ? (
-            <input
-              key={slide.config.id}
-              type="text"
-              value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleFinishRename(); if (e.key === 'Escape') setRenaming(null) }}
-              onBlur={handleFinishRename}
-              autoFocus
-              className="flex-shrink-0 w-24 h-10 px-2 bg-gray-950 text-gray-300 text-[10px] rounded-md
-                         border-2 border-indigo-500 focus:outline-none"
-            />
-          ) : (
+          if (renaming === index) {
+            return (
+              <input
+                key={slide.config.id}
+                type="text"
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleFinishRename(); if (e.key === 'Escape') setRenaming(null) }}
+                onBlur={handleFinishRename}
+                autoFocus
+                className="flex-shrink-0 w-24 h-10 px-2 bg-gray-950 text-gray-300 text-[10px] rounded-md
+                           border-2 border-indigo-500 focus:outline-none"
+              />
+            )
+          }
+
+          return (
             <div
               key={slide.config.id}
               draggable
               onDragStart={(e) => handleDragStart(e, index)}
-              onDragOver={(e) => handleDragOver(e, index)}
+              onDragOver={(e) => handleDragOverSlide(e, index)}
               onDragLeave={() => setDropTarget(null)}
-              onDrop={(e) => handleDrop(e, index)}
-              onDragEnd={handleDragEnd}
+              onDrop={(e) => handleDropOnSlide(e, index)}
+              onDragEnd={resetDrag}
               onClick={() => goToSlide(index)}
               onContextMenu={(e) => handleContextMenu(e, index)}
               className={`group flex-shrink-0 w-20 h-10 rounded-md border-2 transition-all text-[8px] leading-tight
                           overflow-visible px-1.5 py-1 text-left relative cursor-grab active:cursor-grabbing ${
                 isDragging ? 'opacity-40 border-gray-600'
-                  : isDropTarget ? 'border-indigo-400 bg-indigo-950/30'
-                  : isActive ? 'border-indigo-500 bg-gray-800 text-gray-300'
-                  : 'border-gray-700 bg-gray-900 text-gray-500 hover:border-gray-600 hover:text-gray-400'
+                : isDropTgt ? 'border-indigo-400 bg-indigo-950/30'
+                : isActive ? 'border-indigo-500 bg-gray-800 text-gray-300'
+                : 'border-gray-700 bg-gray-900 text-gray-500 hover:border-gray-600 hover:text-gray-400'
               }`}
-              title={`Slide ${index + 1} — right-click for options`}
+              title={`Slide ${index + 1} — drag to reorder or onto a group`}
             >
-              {/* Group indicator */}
               {group && (
-                <span className="absolute -top-2 left-1 text-[7px] px-1 bg-gray-700 text-gray-400 rounded-sm">
+                <span className="absolute -top-2 left-1 text-[7px] px-1 bg-gray-700 text-gray-400 rounded-sm leading-none">
                   {group.name}
                 </span>
               )}
@@ -202,6 +253,7 @@ export function SlideNavigator(): JSX.Element {
                 if (e.key === 'Enter' && newGroupName.trim()) { addSlideGroup(newGroupName.trim()); setNewGroupName(''); setShowNewGroup(false) }
                 if (e.key === 'Escape') { setShowNewGroup(false); setNewGroupName('') }
               }}
+              onBlur={() => { if (!newGroupName.trim()) setShowNewGroup(false) }}
               placeholder="Group name"
               autoFocus
               className="w-20 px-2 py-1 bg-gray-950 text-gray-300 text-[10px] rounded border border-gray-700
@@ -216,9 +268,6 @@ export function SlideNavigator(): JSX.Element {
                        flex items-center justify-center transition-colors text-[9px] gap-1"
             title="Create slide group"
           >
-            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
-            </svg>
             Group
           </button>
         )}
@@ -238,10 +287,11 @@ export function SlideNavigator(): JSX.Element {
             >
               Rename
             </button>
+
             {slideGroups.length > 0 && (
               <>
                 <div className="border-t border-gray-800 my-1" />
-                <div className="text-[9px] uppercase tracking-wider text-gray-600 px-3 py-0.5">Add to group</div>
+                <div className="text-[9px] uppercase tracking-wider text-gray-600 px-3 py-0.5">Move to group</div>
                 {slideGroups.map((g) => {
                   const slideId = slides[contextMenu.slideIndex].config.id
                   const isInGroup = g.slideIds.includes(slideId)
@@ -249,8 +299,15 @@ export function SlideNavigator(): JSX.Element {
                     <button
                       key={g.id}
                       onClick={() => {
-                        if (isInGroup) removeSlideFromGroup(g.id, slideId)
-                        else addSlideToGroup(g.id, slideId)
+                        if (isInGroup) {
+                          removeSlideFromGroup(g.id, slideId)
+                        } else {
+                          // Remove from any other group first
+                          slideGroups.forEach((og) => {
+                            if (og.slideIds.includes(slideId)) removeSlideFromGroup(og.id, slideId)
+                          })
+                          addSlideToGroup(g.id, slideId)
+                        }
                         setContextMenu(null)
                       }}
                       className="w-full text-left px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-800 transition-colors flex items-center gap-2"
@@ -264,8 +321,24 @@ export function SlideNavigator(): JSX.Element {
                     </button>
                   )
                 })}
+                {/* Remove from group option */}
+                {slideGroupMap.has(slides[contextMenu.slideIndex].config.id) && (
+                  <button
+                    onClick={() => {
+                      const slideId = slides[contextMenu.slideIndex].config.id
+                      slideGroups.forEach((g) => {
+                        if (g.slideIds.includes(slideId)) removeSlideFromGroup(g.id, slideId)
+                      })
+                      setContextMenu(null)
+                    }}
+                    className="w-full text-left px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-800 transition-colors"
+                  >
+                    Remove from group
+                  </button>
+                )}
               </>
             )}
+
             {slides.length > 1 && (
               <>
                 <div className="border-t border-gray-800 my-1" />

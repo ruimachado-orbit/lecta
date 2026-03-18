@@ -7,6 +7,9 @@ interface PresentationState {
   currentSlideIndex: number
   isLoading: boolean
   error: string | null
+  isSaving: boolean
+  lastSavedAt: Date | null
+  hasUnsavedChanges: boolean
 
   // Derived getters
   currentSlide: () => LoadedSlide | null
@@ -52,6 +55,9 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
   currentSlideIndex: 0,
   isLoading: false,
   error: null,
+  isSaving: false,
+  lastSavedAt: null,
+  hasUnsavedChanges: false,
 
   currentSlide: () => {
     const { slides, currentSlideIndex } = get()

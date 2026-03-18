@@ -2,6 +2,15 @@ import Anthropic from '@anthropic-ai/sdk'
 import { loadAnthropicKey, loadAnthropicModel } from './env-loader'
 import { DEFAULT_AI_MODEL } from '../../../packages/shared/src/constants'
 
+const SLIDE_7x7_RULE = `
+CRITICAL — 7×7 RULE: Every slide MUST follow the 7×7 presentation rule:
+- Maximum 7 bullet points / lines of content per slide (excluding the title)
+- Maximum 7 words per bullet point or sentence
+- One heading (#) per slide as the title
+- If content exceeds these limits, split into multiple slides or condense
+- Prefer short, punchy phrases over full sentences
+- Use bold for key terms, not for entire lines`
+
 const SYSTEM_PROMPT = `You are a technical presentation coach helping a developer prepare speaker notes for a live technical talk.
 
 For each slide, generate concise, actionable speaker notes with this structure:
@@ -118,13 +127,11 @@ export class AIService {
       model: this.model,
       max_tokens: 2048,
       system: `You are a technical presentation content generator. Generate markdown content for presentation slides.
-
+${SLIDE_7x7_RULE}
 Rules:
 - Output ONLY valid markdown, no explanations or wrapping
-- Use headings (#, ##, ###), bullet points, bold, italic, code blocks as appropriate
-- Keep content concise and visual — slides should not be walls of text
-- For charts: generate a markdown table representation of the data
-- For diagrams: use a text-based diagram with ASCII art or a clear structured description
+- Use headings (#, ##), bullet points, bold, code blocks as appropriate
+- For diagrams: use a mermaid code block (\`\`\`mermaid)
 - Match the style and tone of the existing presentation`,
       messages: [
         {

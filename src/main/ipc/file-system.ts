@@ -77,7 +77,9 @@ async function savePresentationYaml(presentation: Presentation): Promise<void> {
       slide.artifacts = s.artifacts
       if (s.notes) slide.notes = s.notes
       if (s.transition && s.transition !== 'none') slide.transition = s.transition
+      if (s.layout && s.layout !== 'default') slide.layout = s.layout
       if (s.drawings) slide.drawings = s.drawings
+      if (s.skipped) slide.skipped = true
       return slide
     })
   }

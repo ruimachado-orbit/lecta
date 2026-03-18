@@ -51,6 +51,7 @@ export interface SlideConfig {
   transition?: SlideTransition
   layout?: SlideLayout
   drawings?: string // JSON string of Excalidraw elements
+  skipped?: boolean
 }
 
 export interface CodeBlockConfig {

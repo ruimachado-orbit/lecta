@@ -34,6 +34,7 @@ interface PresentationState {
   addArtifact: () => Promise<void>
   addVideo: (url: string, label?: string) => Promise<void>
   addWebApp: (url: string, label?: string) => Promise<void>
+  toggleSkipSlide: (slideIndex: number) => void
   setSlideTransition: (transition: string) => Promise<void>
   setSlideLayout: (layout: string) => Promise<void>
   removeAttachment: (type: 'code' | 'video' | 'webapp' | 'artifact', artifactIndex?: number) => Promise<void>
@@ -325,6 +326,19 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
     } catch (error) {
       set({ error: (error as Error).message })
     }
+  },
+
+  toggleSkipSlide: (slideIndex: number) => {
+    set((state) => {
+      const slides = [...state.slides]
+      if (slides[slideIndex]) {
+        const config = { ...slides[slideIndex].config, skipped: !slides[slideIndex].config.skipped }
+        slides[slideIndex] = { ...slides[slideIndex], config }
+      }
+      return { slides, hasUnsavedChanges: true }
+    })
+    // Save to disk
+    get().saveSlideContent(slideIndex)
   },
 
   setSlideTransition: async (transition: string) => {

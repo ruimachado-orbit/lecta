@@ -3,7 +3,7 @@ import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore } from '../../stores/ui-store'
 
 export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCount?: number; currentSubSlide?: number }): JSX.Element {
-  const { slides, currentSlideIndex, goToSlide, addSlide, deleteSlide, reorderSlide, renameSlide, setSlideTransition, setSlideLayout } =
+  const { slides, currentSlideIndex, goToSlide, addSlide, deleteSlide, reorderSlide, renameSlide, setSlideTransition, setSlideLayout, toggleSkipSlide } =
     usePresentationStore()
   const { slideGroups, addSlideGroup, removeSlideGroup, toggleGroupCollapsed, addSlideToGroup, removeSlideFromGroup } =
     useUIStore()
@@ -357,13 +357,24 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
                     return (
                       <button
                         key={l.value}
-                        onClick={() => {
-                          goToSlide(idx)
-                          setTimeout(() => {
-                            usePresentationStore.getState().setSlideLayout(l.value)
-                            setContextMenu(null)
-                            setSelectedIndices(new Set())
-                          }, 50)
+                        onClick={async (e) => {
+                          e.stopPropagation()
+                          const { presentation } = usePresentationStore.getState()
+                          if (!presentation) return
+                          try {
+                            const loaded = await window.electronAPI.setSlideLayout(
+                              presentation.rootPath, idx, l.value
+                            )
+                            usePresentationStore.setState({
+                              presentation: loaded.config,
+                              slides: loaded.slides,
+                              currentSlideIndex: idx,
+                              isLoading: false,
+                              error: null
+                            })
+                          } catch (err) {
+                            console.error('setSlideLayout failed:', err)
+                          }
                         }}
                         className={`group/layout rounded-md p-1.5 transition-colors ${
                           current === l.value

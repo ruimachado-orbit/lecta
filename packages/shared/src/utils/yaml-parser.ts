@@ -44,7 +44,8 @@ const SlideConfigSchema = z.object({
     'default', 'center', 'title', 'section', 'two-col', 'two-col-wide-left',
     'two-col-wide-right', 'three-col', 'top-bottom', 'big-number', 'quote', 'blank'
   ]).optional(),
-  drawings: z.string().optional()
+  drawings: z.string().optional(),
+  skipped: z.boolean().optional()
 })
 
 const AIConfigSchema = z.object({

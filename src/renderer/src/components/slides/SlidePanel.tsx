@@ -298,6 +298,10 @@ function SlideCanvas({ markdown, rootPath, transition, layout, slideIndex, drawi
             />
           </div>
         )}
+        {/* Layout guide overlay — shows column dividers when editing */}
+        {layout && layout !== 'default' && layout !== 'blank' && (
+          <LayoutGuide layout={layout} width={SLIDE_W} height={SLIDE_H} pad={PAD} />
+        )}
         {/* Drawing overlay */}
         {typeof slideIndex === 'number' && (
           <DrawingOverlay

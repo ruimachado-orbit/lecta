@@ -77,6 +77,7 @@ async function savePresentationYaml(presentation: Presentation): Promise<void> {
       slide.artifacts = s.artifacts
       if (s.notes) slide.notes = s.notes
       if (s.transition && s.transition !== 'none') slide.transition = s.transition
+      if (s.drawings) slide.drawings = s.drawings
       return slide
     })
   }
@@ -597,6 +598,21 @@ export function registerFileSystemHandlers(): void {
       await autoSave(rootPath)
 
       return slide.notes
+    }
+  )
+
+  // Save slide drawings
+  ipcMain.handle(
+    'fs:save-drawings',
+    async (_event, rootPath: string, slideIndex: number, drawingsJson: string): Promise<void> => {
+      const configPath = join(rootPath, DECK_CONFIG_FILE)
+      const yamlContent = await readFile(configPath, 'utf-8')
+      const config = parsePresentationYaml(yamlContent, rootPath)
+      const slide = config.slides[slideIndex]
+      if (!slide) return
+      slide.drawings = drawingsJson || undefined
+      await savePresentationYaml(config)
+      await autoSave(rootPath)
     }
   )
 

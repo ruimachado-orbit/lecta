@@ -39,7 +39,8 @@ const SlideConfigSchema = z.object({
   webapp: WebAppConfigSchema.optional(),
   artifacts: z.array(ArtifactConfigSchema).default([]),
   notes: z.string().optional(),
-  transition: z.enum(['none', 'left', 'right', 'top', 'bottom']).optional()
+  transition: z.enum(['none', 'left', 'right', 'top', 'bottom']).optional(),
+  drawings: z.string().optional()
 })
 
 const AIConfigSchema = z.object({

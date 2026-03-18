@@ -200,6 +200,50 @@ html[data-theme="light"] .slide-content hr { border-color: #e2e8f0 !important; }
   @apply border border-border px-4 py-2;
 }
 
+/* Multi-column layout */
+.slide-columns {
+  display: flex;
+  gap: 2rem;
+  width: 100%;
+  margin-bottom: 1rem;
+}
+.slide-col {
+  flex: 1;
+  min-width: 0;
+}
+.slide-col > *:first-child {
+  margin-top: 0;
+}
+.slide-col > *:last-child {
+  margin-bottom: 0;
+}
+
+/* Draggable text boxes */
+.slide-textbox {
+  position: absolute;
+  padding: 0.75rem 1rem;
+  border: 1px dashed rgba(255,255,255,0.15);
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: #e2e8f0;
+  z-index: 2;
+}
+.slide-textbox:hover {
+  border-color: rgba(255,255,255,0.3);
+}
+html[data-theme="light"] .slide-textbox {
+  color: #334155;
+  border-color: rgba(0,0,0,0.1);
+}
+html[data-theme="light"] .slide-textbox:hover {
+  border-color: rgba(0,0,0,0.2);
+}
+
+/* Excalidraw integration */
+.excalidraw .layer-ui__wrapper { border: none !important; }
+.excalidraw { --island-bg-color: rgba(23,23,23,0.9) !important; }
+
 /* WYSIWYG TipTap editor styles */
 .wysiwyg-content {
   color: #e2e8f0;

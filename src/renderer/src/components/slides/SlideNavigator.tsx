@@ -209,19 +209,19 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
               onContextMenu={(e) => handleContextMenu(e, index)}
               className={`group flex-shrink-0 w-20 h-10 rounded-md border-2 transition-all text-[8px] leading-tight
                 overflow-visible px-1.5 py-1 text-left relative cursor-grab active:cursor-grabbing ${
-                isDragging ? 'opacity-40 border-gray-600'
+                isDragging ? 'opacity-40 border-gray-500'
                 : isDropTgt ? 'border-gray-400 bg-white/5'
                 : isSelected ? 'border-white bg-white/10 text-gray-200'
-                : isActive ? 'border-white bg-gray-800 text-gray-300'
-                : 'border-gray-700 bg-gray-900 text-gray-500 hover:border-gray-600 hover:text-gray-400'
+                : isActive ? 'border-white bg-gray-800 text-gray-200'
+                : 'border-gray-500 bg-gray-900 text-gray-300 hover:border-gray-400 hover:text-gray-200'
               }`}
               title="Shift+click to multi-select">
-              {group && <span className="absolute -top-2 left-1 text-[7px] px-1 bg-gray-700 text-gray-400 rounded-sm leading-none">{group.name}</span>}
+              {group && <span className="absolute -top-2 left-1 text-[7px] px-1 bg-gray-600 text-gray-200 rounded-sm leading-none">{group.name}</span>}
               {isSelected && selectedIndices.size > 1 && <span className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-white text-black text-[8px] font-bold rounded-full flex items-center justify-center z-10">✓</span>}
               <span className="block truncate font-medium">{index + 1}. {slide.config.id}</span>
               {/* Transition arrow — top right */}
               {slide.config.transition && slide.config.transition !== 'none' && (
-                <span className="absolute top-0.5 right-1 text-[7px] text-gray-400" title={`Transition: from ${slide.config.transition}`}>
+                <span className="absolute top-0.5 right-1 text-[7px] text-gray-300" title={`Transition: from ${slide.config.transition}`}>
                   {slide.config.transition === 'left' ? '←' : slide.config.transition === 'right' ? '→' : slide.config.transition === 'top' ? '↑' : '↓'}
                 </span>
               )}

@@ -35,6 +35,7 @@ export interface SlideConfig {
   artifacts: ArtifactConfig[]
   notes?: string
   transition?: SlideTransition
+  drawings?: string // JSON string of Excalidraw elements
 }
 
 export interface CodeBlockConfig {

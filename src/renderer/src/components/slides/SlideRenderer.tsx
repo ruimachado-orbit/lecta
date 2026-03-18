@@ -27,9 +27,32 @@ function resolveImageSrc(src: string | undefined, rootPath?: string): string {
   return src
 }
 
+/**
+ * Preprocess markdown to convert column syntax and text boxes into HTML.
+ */
+function preprocessColumns(md: string): string {
+  let result = md
+    // Columns
+    .replace(/<!--\s*columns\s*-->/gi, '<div class="slide-columns">')
+    .replace(/<!--\s*col\s*-->/gi, '</div><div class="slide-col">')
+    .replace(/<!--\s*\/columns\s*-->/gi, '</div></div>')
+    .replace(/<div class="slide-columns">/g, '<div class="slide-columns"><div class="slide-col">')
+
+  // Text boxes: <!-- textbox x=N y=N w=N -->content<!-- /textbox -->
+  result = result.replace(
+    /<!--\s*textbox\s+x=(\d+)\s+y=(\d+)(?:\s+w=(\d+))?\s*-->([\s\S]*?)<!--\s*\/textbox\s*-->/gi,
+    (_match, x, y, w, content) => {
+      const width = w ? `width:${w}px;` : 'width:300px;'
+      return `<div class="slide-textbox" style="left:${x}px;top:${y}px;${width}">${content.trim()}</div>`
+    }
+  )
+
+  return result
+}
+
 export function SlideRenderer({ markdown, rootPath }: SlideRendererProps): JSX.Element {
   return (
-    <div className="slide-content max-w-none">
+    <div className="slide-content max-w-none relative">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeRaw]}
@@ -142,7 +165,7 @@ export function SlideRenderer({ markdown, rootPath }: SlideRendererProps): JSX.E
           hr: () => <hr className="border-gray-700 my-8" />
         }}
       >
-        {markdown}
+        {preprocessColumns(markdown)}
       </ReactMarkdown>
     </div>
   )

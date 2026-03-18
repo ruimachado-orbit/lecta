@@ -525,6 +525,20 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
   )
 }
 
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/<[^>]+>/g, '')       // HTML tags
+    .replace(/\*\*(.+?)\*\*/g, '$1') // **bold**
+    .replace(/\*(.+?)\*/g, '$1')   // *italic*
+    .replace(/__(.+?)__/g, '$1')   // __bold__
+    .replace(/_(.+?)_/g, '$1')     // _italic_
+    .replace(/`(.+?)`/g, '$1')     // `code`
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // [link](url)
+    .replace(/^#{1,3}\s/, '')      // headings
+    .replace(/^[-*+]\s/, '')       // bullets
+    .trim()
+}
+
 function RecentCard({ deck, onClick }: { deck: RecentDeck; onClick: () => void }): JSX.Element {
   const previewLines = (deck.firstSlidePreview || '')
     .split('\n').filter((l) => l.trim()).slice(0, 4)
@@ -553,7 +567,7 @@ function RecentCard({ deck, onClick }: { deck: RecentDeck; onClick: () => void }
           {previewLines.length > 0 ? (
             <div className="space-y-1 pl-2">
               {previewLines.map((line, i) => {
-                const text = line.replace(/^#{1,3}\s/, '').replace(/^[-*+]\s/, '').replace(/\*\*/g, '').replace(/<[^>]+>/g, '')
+                const text = stripMarkdown(line)
                 return (
                   <div key={i} className={`truncate ${
                     i === 0 ? 'text-[11px] font-semibold text-gray-200' : 'text-[9px] text-gray-500'
@@ -601,8 +615,8 @@ function RecentCard({ deck, onClick }: { deck: RecentDeck; onClick: () => void }
             {previewLines.map((line, i) => {
               const isH1 = line.startsWith('# ')
               const isH2 = line.startsWith('## ')
-              const isBullet = line.match(/^[-*+] /)
-              const text = line.replace(/^#{1,3}\s/, '').replace(/^[-*+]\s/, '').replace(/\*\*/g, '').replace(/<[^>]+>/g, '')
+              const isBullet = !!line.match(/^[-*+] /)
+              const text = stripMarkdown(line)
               return (
                 <div key={i} className={`truncate ${
                   isH1 ? 'text-[11px] font-bold text-white' :

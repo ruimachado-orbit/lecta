@@ -633,32 +633,16 @@ html[data-theme="light"] .note-layout-blank {
 
 /* Excalidraw integration */
 .excalidraw {
-  --island-bg-color: rgba(23,23,23,0.95) !important;
   --default-bg-color: transparent !important;
   background: transparent !important;
 }
-.excalidraw .layer-ui__wrapper {
-  border: none !important;
-}
-/* Kill welcome screen */
-.excalidraw [class*="welcome"],
-.excalidraw [class*="Welcome"],
-.excalidraw .virgil,
-.excalidraw .welcome-screen-center {
-  display: none !important;
-  height: 0 !important;
-  overflow: hidden !important;
-  pointer-events: none !important;
-}
-/* Make canvas background transparent */
 .excalidraw .excalidraw__canvas,
 .excalidraw canvas {
   background: transparent !important;
 }
-/* Compact the toolbar */
-.excalidraw .Island {
-  border-radius: 8px !important;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.5) !important;
+/* Minimal mode: hide the entire layer-ui (toolbars, menus, etc.), keep only the canvas */
+.excalidraw-minimal .excalidraw .layer-ui__wrapper {
+  display: none !important;
 }
 
 /* WYSIWYG TipTap editor styles */

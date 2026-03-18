@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { useNotebookStore } from '../../stores/notebook-store'
 import { useUIStore } from '../../stores/ui-store'
 import { NoteEditor } from './NoteEditor'
-import { DrawingOverlay } from '../slides/DrawingOverlay'
+import { DrawingOverlay, DrawingToolbar } from '../slides/DrawingOverlay'
 import Editor, { type OnMount } from '@monaco-editor/react'
 
 export function NotePanel(): JSX.Element {
@@ -187,24 +187,27 @@ export function NotePanel(): JSX.Element {
             />
           </div>
         ) : (
-          /* Draw mode — layout background + drawing overlay */
-          <div className="h-full w-full relative">
-            {/* Render note content underneath */}
-            <div className="absolute inset-0 overflow-auto p-12 pointer-events-none opacity-30">
-              <div className="prose prose-invert max-w-none" dangerouslySetInnerHTML={{
-                __html: currentPage.markdownContent
-                  .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-                  .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-                  .replace(/^[-*] (.+)$/gm, '<li>$1</li>')
-                  .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-              }} />
+          /* Draw mode — toolbar left + canvas right */
+          <div className="h-full w-full flex">
+            <DrawingToolbar />
+            <div className="flex-1 min-w-0 relative">
+              {/* Render note content underneath */}
+              <div className="absolute inset-0 overflow-auto p-12 pointer-events-none opacity-30">
+                <div className="prose prose-invert max-w-none" dangerouslySetInnerHTML={{
+                  __html: currentPage.markdownContent
+                    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+                    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+                    .replace(/^[-*] (.+)$/gm, '<li>$1</li>')
+                    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                }} />
+              </div>
+              <DrawingOverlay
+                slideIndex={currentPageIndex}
+                active={true}
+                width={9999}
+                height={9999}
+              />
             </div>
-            <DrawingOverlay
-              slideIndex={currentPageIndex}
-              active={true}
-              width={9999}
-              height={9999}
-            />
           </div>
         )}
       </div>

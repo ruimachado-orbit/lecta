@@ -8,6 +8,7 @@ interface AgendaEntry {
   title: string
   detail: string     // extra info after |
   done: boolean
+  noteId?: string    // linked note id — stored as @noteId in markdown
 }
 
 type ViewMode = 'day' | 'week' | 'month'
@@ -31,9 +32,16 @@ function parseEntries(md: string): { date: string; entries: AgendaEntry[] }[] {
     if (entryMatch && current) {
       const done = entryMatch[1] === 'x'
       const time = entryMatch[2] || ''
-      const rest = entryMatch[3]
+      let rest = entryMatch[3]
+      // Extract @noteId if present
+      let noteId: string | undefined
+      const noteMatch = rest.match(/\s*@(\S+)\s*$/)
+      if (noteMatch) {
+        noteId = noteMatch[1]
+        rest = rest.slice(0, -noteMatch[0].length)
+      }
       const parts = rest.split(' | ')
-      current.entries.push({ time, title: parts[0].trim(), detail: parts.slice(1).join(' | ').trim(), done })
+      current.entries.push({ time, title: parts[0].trim(), detail: parts.slice(1).join(' | ').trim(), done, noteId })
     }
   }
   return days
@@ -47,11 +55,45 @@ function serializeAll(days: { date: string; entries: AgendaEntry[] }[]): string 
       const check = e.done ? 'x' : ' '
       const timePart = e.time ? `${e.time} ` : ''
       const detailPart = e.detail ? ` | ${e.detail}` : ''
-      lines.push(`- [${check}] ${timePart}${e.title}${detailPart}`)
+      const notePart = e.noteId ? ` @${e.noteId}` : ''
+      lines.push(`- [${check}] ${timePart}${e.title}${detailPart}${notePart}`)
     }
     lines.push('')
     return lines.join('\n')
   }).join('\n')
+}
+
+/**
+ * Append an entry to agenda.md from outside the component.
+ * Called by notebook store when a note is created.
+ */
+export async function appendAgendaEntry(
+  rootPath: string,
+  entry: { time: string; title: string; noteId?: string }
+): Promise<void> {
+  const agendaPath = `${rootPath}/agenda.md`
+  let md = ''
+  try {
+    md = await window.electronAPI.readFile(agendaPath)
+  } catch {
+    // File doesn't exist yet
+  }
+  const days = parseEntries(md)
+  const today = new Date().toISOString().slice(0, 10)
+  let todayDay = days.find((d) => d.date === today)
+  if (!todayDay) {
+    todayDay = { date: today, entries: [] }
+    days.push(todayDay)
+  }
+  todayDay.entries.push({
+    time: entry.time,
+    title: entry.title,
+    detail: '',
+    done: false,
+    noteId: entry.noteId
+  })
+  todayDay.entries.sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'))
+  await window.electronAPI.writeFile(agendaPath, serializeAll(days))
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -98,7 +140,14 @@ const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'Ju
 // ── Component ──────────────────────────────────────────────────────
 
 export function AgendaView(): JSX.Element {
-  const { notebook } = useNotebookStore()
+  const { notebook, pages, goToPage, addNote } = useNotebookStore()
+
+  // Navigate to a note by its id
+  const navigateToNote = useCallback((noteId: string) => {
+    const idx = pages.findIndex((p) => p.config.id === noteId)
+    if (idx >= 0) goToPage(idx)
+  }, [pages, goToPage])
+
   const [view, setView] = useState<ViewMode>('day')
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [newEntryDate, setNewEntryDate] = useState<string | null>(null)
@@ -114,14 +163,52 @@ export function AgendaView(): JSX.Element {
     const agendaPath = `${notebook.rootPath}/agenda.md`
     window.electronAPI.readFile(agendaPath)
       .then(setAgendaMd)
-      .catch(() => setAgendaMd('')) // File doesn't exist yet — start empty
+      .catch(() => setAgendaMd(''))
   }, [notebook?.rootPath])
 
-  const allDays = useMemo(() => parseEntries(agendaMd), [agendaMd])
+  // Derive note entries from all pages by their createdAt date
+  const noteEntries = useMemo(() => {
+    const map = new Map<string, AgendaEntry[]>()
+    for (const page of pages) {
+      if (!page.config.createdAt) continue
+      const date = page.config.createdAt.slice(0, 10) // YYYY-MM-DD
+      const time = page.config.createdAt.slice(11, 16) || '' // HH:MM
+      const entry: AgendaEntry = {
+        time,
+        title: page.config.id,
+        detail: page.markdownContent.replace(/<[^>]+>/g, '').replace(/^#+\s*/gm, '').trim().split('\n')[0]?.slice(0, 60) || '',
+        done: false,
+        noteId: page.config.id
+      }
+      if (!map.has(date)) map.set(date, [])
+      map.get(date)!.push(entry)
+    }
+    return map
+  }, [pages])
 
+  const manualDays = useMemo(() => parseEntries(agendaMd), [agendaMd])
+
+  // Merge manual agenda entries with note-derived entries
   const getEntries = useCallback((date: string): AgendaEntry[] => {
-    return allDays.find((d) => d.date === date)?.entries ?? []
-  }, [allDays])
+    const manual = manualDays.find((d) => d.date === date)?.entries ?? []
+    const notes = noteEntries.get(date) ?? []
+    const all = [...manual, ...notes]
+    all.sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'))
+    return all
+  }, [manualDays, noteEntries])
+
+  // Create a note from a time slot
+  const createNoteAtTime = useCallback(async (date: string, time: string, title: string) => {
+    if (!title.trim()) return
+    const noteId = title.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+    await addNote(noteId)
+    // Navigate to the newly created note
+    setTimeout(() => {
+      const { pages: latestPages } = useNotebookStore.getState()
+      const idx = latestPages.findIndex((p) => p.config.id === noteId)
+      if (idx >= 0) goToPage(idx)
+    }, 100)
+  }, [addNote, goToPage])
 
   const updateAndSave = useCallback((newDays: { date: string; entries: AgendaEntry[] }[]) => {
     if (!notebook?.rootPath) return
@@ -235,8 +322,9 @@ export function AgendaView(): JSX.Element {
             newTime={newTime} newTitle={newTitle} newDetail={newDetail}
             onNewTime={setNewTime} onNewTitle={setNewTitle} onNewDetail={setNewDetail}
             onAdd={() => addEntry(selStr)}
-            onAddDirect={(time, title) => addEntryDirect(selStr, time, title)}
+            onCreateNote={(time, title) => createNoteAtTime(selStr, time, title)}
             onCancelAdd={() => setNewEntryDate(null)}
+            onNavigateToNote={navigateToNote}
           />
         )}
         {view === 'week' && (
@@ -270,10 +358,12 @@ export function AgendaView(): JSX.Element {
 
 // ── Day View ────────────────────────────────────────────────────────
 
-function DayView({ date, entries, isToday, onToggle, onDelete, showAdd, onShowAdd, newTime, newTitle, newDetail, onNewTime, onNewTitle, onNewDetail, onAdd, onAddDirect, onCancelAdd }: {
+function DayView({ date, entries, isToday, onToggle, onDelete, showAdd, onShowAdd, newTime, newTitle, newDetail, onNewTime, onNewTitle, onNewDetail, onAdd, onCreateNote, onCancelAdd, onNavigateToNote }: {
   date: string; entries: AgendaEntry[]; isToday: boolean
   onToggle: (i: number) => void; onDelete: (i: number) => void
   showAdd: boolean; onShowAdd: () => void
+  onNavigateToNote?: (noteId: string) => void
+  onCreateNote: (time: string, title: string) => void
   newTime: string; newTitle: string; newDetail: string
   onNewTime: (v: string) => void; onNewTitle: (v: string) => void; onNewDetail: (v: string) => void
   onAdd: () => void; onAddDirect: (time: string, title: string) => void; onCancelAdd: () => void
@@ -291,7 +381,7 @@ function DayView({ date, entries, isToday, onToggle, onDelete, showAdd, onShowAd
   const handleSlotAdd = (h: number) => {
     if (!slotTitle.trim()) return
     const time = `${h.toString().padStart(2, '0')}:00`
-    onAddDirect(time, slotTitle.trim())
+    onCreateNote(time, slotTitle.trim())
     setSlotTitle('')
     setAddingAtHour(null)
   }
@@ -309,7 +399,7 @@ function DayView({ date, entries, isToday, onToggle, onDelete, showAdd, onShowAd
           <div className="text-[9px] text-gray-600 uppercase tracking-wider mb-1.5">All Day</div>
           {allDay.map((e, i) => {
             const realIdx = entries.indexOf(e)
-            return <EntryRow key={i} entry={e} onToggle={() => onToggle(realIdx)} onDelete={() => onDelete(realIdx)} />
+            return <EntryRow key={i} entry={e} onToggle={() => onToggle(realIdx)} onDelete={() => onDelete(realIdx)} onNavigateToNote={onNavigateToNote} />
           })}
         </div>
       )}
@@ -333,7 +423,7 @@ function DayView({ date, entries, isToday, onToggle, onDelete, showAdd, onShowAd
               <div className="flex-1 py-1 min-h-[48px]">
                 {hourEntries.map((e) => {
                   const realIdx = entries.indexOf(e)
-                  return <EntryRow key={realIdx} entry={e} compact onToggle={() => onToggle(realIdx)} onDelete={() => onDelete(realIdx)} />
+                  return <EntryRow key={realIdx} entry={e} compact onToggle={() => onToggle(realIdx)} onDelete={() => onDelete(realIdx)} onNavigateToNote={onNavigateToNote} />
                 })}
 
                 {/* Inline add form for this slot */}
@@ -344,7 +434,7 @@ function DayView({ date, entries, isToday, onToggle, onDelete, showAdd, onShowAd
                       type="text"
                       value={slotTitle}
                       onChange={(e) => setSlotTitle(e.target.value)}
-                      placeholder="New commitment..."
+                      placeholder="Note name..."
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && slotTitle.trim()) handleSlotAdd(h)
                         if (e.key === 'Escape') { setAddingAtHour(null); setSlotTitle('') }
@@ -362,18 +452,17 @@ function DayView({ date, entries, isToday, onToggle, onDelete, showAdd, onShowAd
                     >Esc</button>
                   </div>
                 ) : isHovered && hourEntries.length === 0 ? (
-                  /* Hover hint — click to add */
                   <button
                     onClick={() => startAddAtHour(h)}
                     className="w-full text-left px-2 py-1 text-[10px] text-gray-700 hover:text-indigo-400 transition-colors rounded"
                   >
-                    + Add at {timeStr}
+                    + New note at {timeStr}
                   </button>
                 ) : isHovered && hourEntries.length > 0 ? (
                   <button
                     onClick={() => startAddAtHour(h)}
                     className="text-[9px] text-gray-700 hover:text-indigo-400 px-1 mt-0.5 transition-colors"
-                  >+ Add</button>
+                  >+ New note</button>
                 ) : null}
               </div>
             </div>
@@ -519,8 +608,9 @@ function MonthView({ selectedDate, today, getEntries, onSelectDate }: {
 
 // ── Shared Components ───────────────────────────────────────────────
 
-function EntryRow({ entry, compact, onToggle, onDelete }: {
+function EntryRow({ entry, compact, onToggle, onDelete, onNavigateToNote }: {
   entry: AgendaEntry; compact?: boolean; onToggle: () => void; onDelete: () => void
+  onNavigateToNote?: (noteId: string) => void
 }): JSX.Element {
   return (
     <div className={`group flex items-start gap-2 ${compact ? 'py-0.5' : 'py-1'} hover:bg-gray-900/50 rounded px-1 -mx-1`}>
@@ -538,6 +628,17 @@ function EntryRow({ entry, compact, onToggle, onDelete }: {
         <div className={`text-xs ${entry.done ? 'line-through text-gray-600' : 'text-gray-200'}`}>
           {entry.time && <span className="text-indigo-400 mr-1.5 font-mono text-[10px]">{entry.time}</span>}
           {entry.title}
+          {entry.noteId && onNavigateToNote && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onNavigateToNote(entry.noteId!) }}
+              className="ml-1.5 inline-flex items-center text-indigo-400 hover:text-indigo-300 transition-colors"
+              title={`Go to note: ${entry.noteId}`}
+            >
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+              </svg>
+            </button>
+          )}
         </div>
         {entry.detail && (
           <div className="text-[10px] text-gray-600 mt-0.5">{entry.detail}</div>

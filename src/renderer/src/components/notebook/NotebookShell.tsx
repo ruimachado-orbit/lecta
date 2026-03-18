@@ -47,20 +47,20 @@ export function NotebookShell(): JSX.Element {
   return (
     <div className="h-screen flex flex-col bg-gray-950">
       <TabBar />
-      <NotebookToolbar activeView={activeView} onToggleView={(v) => setActiveView(v)} />
+      <NotebookToolbar showAgenda={activeView === 'agenda'} onToggleAgenda={() => setActiveView(activeView === 'agenda' ? 'notes' : 'agenda')} />
 
       <div className="flex-1 min-h-0 flex flex-col">
-        {activeView === 'agenda' ? (
-          /* Agenda view — full width */
-          <AgendaView />
-        ) : (
         <PanelGroup direction="horizontal" className="flex-1">
           {/* Left Pane: Note Editor */}
-          <Panel defaultSize={hasRightContent && showRightPane ? 66 : 100} minSize={30}>
+          <Panel defaultSize={
+            activeView === 'agenda' && showRightPane && hasRightContent ? 40 :
+            activeView === 'agenda' ? 60 :
+            showRightPane && hasRightContent ? 66 : 100
+          } minSize={25}>
             <NotePanel />
           </Panel>
 
-          {/* Right Pane: Code / Artifacts (optional) */}
+          {/* Right Pane: Code / Artifacts */}
           {showRightPane && hasRightContent && (
             <>
               <PanelResizeHandle className="w-1 bg-gray-800 hover:bg-white transition-colors cursor-col-resize" />
@@ -72,6 +72,16 @@ export function NotebookShell(): JSX.Element {
                     No artifacts for this note
                   </div>
                 )}
+              </Panel>
+            </>
+          )}
+
+          {/* Agenda drawer (right) */}
+          {activeView === 'agenda' && (
+            <>
+              <PanelResizeHandle className="w-1 bg-gray-800 hover:bg-indigo-500 transition-colors cursor-col-resize" />
+              <Panel defaultSize={showRightPane && hasRightContent ? 30 : 40} minSize={20}>
+                <AgendaView />
               </Panel>
             </>
           )}
@@ -133,11 +143,10 @@ export function NotebookShell(): JSX.Element {
             </div>
           )}
         </PanelGroup>
-        )}
       </div>
 
-      {/* Bottom navigator — only in notes view */}
-      {activeView === 'notes' && <NoteNavigator />}
+      {/* Bottom navigator */}
+      <NoteNavigator />
 
       {/* Status bar */}
       <NotebookStatusBar />

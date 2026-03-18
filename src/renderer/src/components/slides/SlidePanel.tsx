@@ -8,7 +8,7 @@ import { WysiwygEditor } from './WysiwygEditor'
 import { AIGeneratePanel, AIImproveBar } from './AISlidePanel'
 import { ArtifactBar } from '../artifacts/ArtifactBar'
 import { useSubSlides } from '../../hooks/useSubSlides'
-import { DrawingOverlay } from './DrawingOverlay'
+import { DrawingOverlay, DrawingToolbar } from './DrawingOverlay'
 import { DraggableElements } from './DraggableElements'
 import Editor, { type OnMount } from '@monaco-editor/react'
 
@@ -96,14 +96,19 @@ export function SlidePanel(): JSX.Element {
       {/* Main content */}
       <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
         {editingSlide && drawingMode ? (
-          /* Drawing mode: full canvas with Excalidraw overlay */
-          <SlideCanvas
-            markdown={currentSlide.markdownContent}
-            rootPath={presentation?.rootPath}
-            layout={currentSlide.config.layout}
-            slideIndex={currentSlideIndex}
-            drawingMode={true}
-          />
+          /* Drawing mode: toolbar left + canvas right */
+          <div className="flex-1 min-h-0 flex">
+            <DrawingToolbar />
+            <div className="flex-1 min-w-0">
+              <SlideCanvas
+                markdown={currentSlide.markdownContent}
+                rootPath={presentation?.rootPath}
+                layout={currentSlide.config.layout}
+                slideIndex={currentSlideIndex}
+                drawingMode={true}
+              />
+            </div>
+          </div>
         ) : editingSlide && editorMode === 'wysiwyg' ? (
           /* WYSIWYG: editor IS the canvas */
           <EditableSlideCanvas slideIndex={currentSlideIndex} breakOffsets={breakOffsets} rootPath={presentation?.rootPath} layout={currentSlide.config.layout} />

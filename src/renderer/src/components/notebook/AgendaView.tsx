@@ -227,10 +227,10 @@ export function AgendaView(): JSX.Element {
   }, [notebook?.rootPath])
 
   const setEntriesForDate = useCallback((date: string, entries: AgendaEntry[]) => {
-    const existing = allDays.filter((d) => d.date !== date)
+    const existing = manualDays.filter((d) => d.date !== date)
     if (entries.length > 0) existing.push({ date, entries })
     updateAndSave(existing)
-  }, [allDays, updateAndSave])
+  }, [manualDays, updateAndSave])
 
   const toggleDone = useCallback((date: string, idx: number) => {
     const entries = [...getEntries(date)]
@@ -372,7 +372,7 @@ function DayView({ date, entries, isToday, onToggle, onDelete, showAdd, onShowAd
   onCreateNote: (time: string, title: string) => void
   newTime: string; newTitle: string; newDetail: string
   onNewTime: (v: string) => void; onNewTitle: (v: string) => void; onNewDetail: (v: string) => void
-  onAdd: () => void; onAddDirect: (time: string, title: string) => void; onCancelAdd: () => void
+  onAdd: () => void; onCancelAdd: () => void
 }): JSX.Element {
   const [addingAtHour, setAddingAtHour] = useState<number | null>(null)
   const [hoveredHour, setHoveredHour] = useState<number | null>(null)
@@ -421,7 +421,7 @@ function DayView({ date, entries, isToday, onToggle, onDelete, showAdd, onShowAd
           return (
             <div
               key={h}
-              className={`flex border-t transition-colors ${isHovered ? 'border-indigo-500/30 bg-indigo-950/10' : 'border-gray-800/50'}`}
+              className={`flex border-t transition-colors ${isHovered ? 'border-gray-200/30 bg-white/5' : 'border-gray-800/50'}`}
               onMouseEnter={() => setHoveredHour(h)}
               onMouseLeave={() => setHoveredHour(null)}
             >
@@ -445,12 +445,12 @@ function DayView({ date, entries, isToday, onToggle, onDelete, showAdd, onShowAd
                         if (e.key === 'Enter' && slotTitle.trim()) handleSlotAdd(h)
                         if (e.key === 'Escape') { setAddingAtHour(null); setSlotTitle('') }
                       }}
-                      className="flex-1 px-2 py-1 bg-gray-900 border border-indigo-500/50 rounded text-xs text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500"
+                      className="flex-1 px-2 py-1 bg-gray-900 border border-gray-200/50 rounded text-xs text-white placeholder-gray-600 focus:outline-none focus:border-gray-200"
                     />
                     <button
                       onClick={() => handleSlotAdd(h)}
                       disabled={!slotTitle.trim()}
-                      className="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-30 text-white text-[9px] rounded font-medium"
+                      className="px-2 py-1 bg-white hover:bg-gray-200 disabled:opacity-30 text-black text-[9px] rounded font-medium"
                     >Add</button>
                     <button
                       onClick={() => { setAddingAtHour(null); setSlotTitle('') }}
@@ -460,14 +460,14 @@ function DayView({ date, entries, isToday, onToggle, onDelete, showAdd, onShowAd
                 ) : isHovered && hourEntries.length === 0 ? (
                   <button
                     onClick={() => startAddAtHour(h)}
-                    className="w-full text-left px-2 py-1 text-[10px] text-gray-700 hover:text-indigo-400 transition-colors rounded"
+                    className="w-full text-left px-2 py-1 text-[10px] text-gray-700 hover:text-white transition-colors rounded"
                   >
                     + New note at {timeStr}
                   </button>
                 ) : isHovered && hourEntries.length > 0 ? (
                   <button
                     onClick={() => startAddAtHour(h)}
-                    className="text-[9px] text-gray-700 hover:text-indigo-400 px-1 mt-0.5 transition-colors"
+                    className="text-[9px] text-gray-700 hover:text-white px-1 mt-0.5 transition-colors"
                   >+ New note</button>
                 ) : null}
               </div>
@@ -483,20 +483,20 @@ function DayView({ date, entries, isToday, onToggle, onDelete, showAdd, onShowAd
         <div className="mt-3 p-3 bg-gray-900 rounded-lg border border-gray-800">
           <div className="flex gap-2">
             <input type="time" value={newTime} onChange={(e) => onNewTime(e.target.value)}
-              className="w-24 px-2 py-1.5 bg-gray-800 border border-gray-700 rounded text-xs text-white focus:border-indigo-500 focus:outline-none" />
+              className="w-24 px-2 py-1.5 bg-gray-800 border border-gray-700 rounded text-xs text-white focus:border-gray-200 focus:outline-none" />
             <input type="text" value={newTitle} onChange={(e) => onNewTitle(e.target.value)}
               placeholder="All-day commitment..."
               autoFocus
               onKeyDown={(e) => { if (e.key === 'Enter') onAdd(); if (e.key === 'Escape') onCancelAdd() }}
-              className="flex-1 px-2 py-1.5 bg-gray-800 border border-gray-700 rounded text-xs text-white placeholder-gray-600 focus:border-indigo-500 focus:outline-none" />
+              className="flex-1 px-2 py-1.5 bg-gray-800 border border-gray-700 rounded text-xs text-white placeholder-gray-600 focus:border-gray-200 focus:outline-none" />
           </div>
           <div className="flex gap-2 mt-2">
             <input type="text" value={newDetail} onChange={(e) => onNewDetail(e.target.value)}
               placeholder="Details (optional)"
               onKeyDown={(e) => { if (e.key === 'Enter') onAdd() }}
-              className="flex-1 px-2 py-1.5 bg-gray-800 border border-gray-700 rounded text-xs text-white placeholder-gray-600 focus:border-indigo-500 focus:outline-none" />
+              className="flex-1 px-2 py-1.5 bg-gray-800 border border-gray-700 rounded text-xs text-white placeholder-gray-600 focus:border-gray-200 focus:outline-none" />
             <button onClick={onAdd} disabled={!newTitle.trim()}
-              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-30 text-white text-[10px] rounded font-medium">Add</button>
+              className="px-3 py-1.5 bg-white hover:bg-gray-200 disabled:opacity-30 text-black text-[10px] rounded font-medium">Add</button>
             <button onClick={onCancelAdd}
               className="px-2 py-1.5 text-gray-500 hover:text-gray-300 text-[10px]">Cancel</button>
           </div>
@@ -534,11 +534,11 @@ function WeekView({ startDate, today, getEntries, onToggle, onDelete, onSelectDa
         return (
           <div key={d} className="bg-gray-950 flex flex-col min-h-0">
             <button onClick={() => onSelectDate(d)}
-              className={`px-2 py-1.5 text-left border-b border-gray-800 hover:bg-gray-900 transition-colors ${isToday ? 'bg-indigo-950/30' : ''}`}>
-              <div className={`text-[9px] uppercase tracking-wider ${isToday ? 'text-indigo-400' : 'text-gray-600'}`}>
+              className={`px-2 py-1.5 text-left border-b border-gray-800 hover:bg-gray-900 transition-colors ${isToday ? 'bg-white/5' : ''}`}>
+              <div className={`text-[9px] uppercase tracking-wider ${isToday ? 'text-white' : 'text-gray-600'}`}>
                 {DAY_NAMES[date.getDay() === 0 ? 6 : date.getDay() - 1]}
               </div>
-              <div className={`text-sm font-medium ${isToday ? 'text-indigo-300' : 'text-gray-300'}`}>
+              <div className={`text-sm font-medium ${isToday ? 'text-gray-300' : 'text-gray-300'}`}>
                 {date.getDate()}
               </div>
             </button>
@@ -587,17 +587,17 @@ function MonthView({ selectedDate, today, getEntries, onSelectDate }: {
           return (
             <button key={i} onClick={() => onSelectDate(dateStr)}
               className={`aspect-square p-1 rounded-md text-left transition-colors relative ${
-                isToday ? 'bg-indigo-950/40 ring-1 ring-indigo-500/30' :
+                isToday ? 'bg-white/5 ring-1 ring-gray-200/30' :
                 isCurrentMonth ? 'hover:bg-gray-900' : 'opacity-30'
               }`}
             >
-              <div className={`text-[10px] font-medium ${isToday ? 'text-indigo-300' : 'text-gray-400'}`}>
+              <div className={`text-[10px] font-medium ${isToday ? 'text-gray-300' : 'text-gray-400'}`}>
                 {d.getDate()}
               </div>
               {entries.length > 0 && (
                 <div className="mt-0.5 space-y-px">
                   {entries.slice(0, 3).map((e, j) => (
-                    <div key={j} className={`h-1 rounded-full ${e.done ? 'bg-gray-700' : 'bg-indigo-500/60'}`} />
+                    <div key={j} className={`h-1 rounded-full ${e.done ? 'bg-gray-700' : 'bg-gray-200/60'}`} />
                   ))}
                   {entries.length > 3 && (
                     <div className="text-[7px] text-gray-600">+{entries.length - 3}</div>
@@ -622,7 +622,7 @@ function EntryRow({ entry, compact, onToggle, onDelete, onNavigateToNote }: {
     <div className={`group flex items-start gap-2 ${compact ? 'py-0.5' : 'py-1'} hover:bg-gray-900/50 rounded px-1 -mx-1`}>
       <button onClick={onToggle}
         className={`mt-0.5 w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
-          entry.done ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-gray-600 hover:border-indigo-500'
+          entry.done ? 'bg-white border-white text-black' : 'border-gray-600 hover:border-gray-200'
         }`}>
         {entry.done && (
           <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
@@ -632,12 +632,12 @@ function EntryRow({ entry, compact, onToggle, onDelete, onNavigateToNote }: {
       </button>
       <div className="flex-1 min-w-0">
         <div className={`text-xs ${entry.done ? 'line-through text-gray-600' : 'text-gray-200'}`}>
-          {entry.time && <span className="text-indigo-400 mr-1.5 font-mono text-[10px]">{entry.time}</span>}
+          {entry.time && <span className="text-white mr-1.5 font-mono text-[10px]">{entry.time}</span>}
           {entry.title}
           {entry.noteId && onNavigateToNote && (
             <button
               onClick={(e) => { e.stopPropagation(); onNavigateToNote(entry.noteId!) }}
-              className="ml-1.5 inline-flex items-center text-indigo-400 hover:text-indigo-300 transition-colors"
+              className="ml-1.5 inline-flex items-center text-white hover:text-gray-300 transition-colors"
               title={`Go to note: ${entry.noteId}`}
             >
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">

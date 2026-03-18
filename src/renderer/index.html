@@ -9,6 +9,10 @@
       if (typeof window.process === 'undefined') window.process = p;
       else Object.assign(window.process, p);
       if (typeof globalThis.process === 'undefined') globalThis.process = window.process;
+      // Excalidraw font asset path — use custom protocol that serves from renderer dir
+      window.EXCALIDRAW_ASSET_PATH = window.location.protocol === 'file:'
+        ? 'lecta-asset://assets/'
+        : '/';
     </script>
   </head>
   <body class="bg-black text-gray-100 overflow-hidden">

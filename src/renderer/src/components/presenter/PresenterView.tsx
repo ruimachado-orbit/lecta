@@ -24,6 +24,21 @@ export function PresenterView(): JSX.Element {
 
   const [activeArtifact, setActiveArtifact] = useState<ArtifactType | null>(null)
   const [artifactExpanded, setArtifactExpanded] = useState(false)
+  const [timer, setTimer] = useState(0)
+  const [timerRunning, setTimerRunning] = useState(true)
+  const timerRef = useRef<ReturnType<typeof setInterval>>()
+
+  useEffect(() => {
+    if (timerRunning) {
+      timerRef.current = setInterval(() => setTimer((t) => t + 1), 1000)
+    }
+    return () => { if (timerRef.current) clearInterval(timerRef.current) }
+  }, [timerRunning])
+
+  const formatTime = (s: number) => {
+    const m = Math.floor(s / 60)
+    return `${m.toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`
+  }
 
   const currentSlide = slides[currentSlideIndex]
   const hasCode = !!currentSlide?.config.code

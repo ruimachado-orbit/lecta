@@ -4,6 +4,22 @@ import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import Color from '@tiptap/extension-color'
 import { TextStyle } from '@tiptap/extension-text-style'
+
+const FontSize = TextStyle.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      fontSize: {
+        default: null,
+        parseHTML: (element) => element.style.fontSize || null,
+        renderHTML: (attributes) => {
+          if (!attributes.fontSize) return {}
+          return { style: `font-size: ${attributes.fontSize}` }
+        },
+      },
+    }
+  },
+})
 import Highlight from '@tiptap/extension-highlight'
 import Underline from '@tiptap/extension-underline'
 import { ResizableImage } from '../../extensions/resizable-image'
@@ -299,7 +315,7 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
         heading: { levels: [1, 2, 3] }
       }),
       ResizableImage.configure({ inline: false }),
-      TextStyle,
+      FontSize,
       Color,
       Highlight.configure({ multicolor: true }),
       Underline,
@@ -413,9 +429,12 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
   const [showTextColor, setShowTextColor] = useState(false)
   const [showHighlight, setShowHighlight] = useState(false)
 
+  const [showFontSize, setShowFontSize] = useState(false)
+
   const closeAllPickers = () => {
     setShowEmojiPicker(false)
     setShowShapePicker(false)
+    setShowFontSize(false)
     setShowTextColor(false)
     setShowHighlight(false)
   }
@@ -440,6 +459,43 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
           active={editor.isActive('heading', { level: 3 })}
           onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
         >H3</WBtn>
+        {/* Font size picker */}
+        <div className="relative">
+          <WBtn onClick={() => { closeAllPickers(); setShowFontSize(!showFontSize) }}>
+            <span className="text-[9px] flex items-center gap-0.5">
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 7.5 7.5 3m0 0L12 7.5M7.5 3v13.5m13.5-3L16.5 18m0 0L12 13.5m4.5 4.5V6" />
+              </svg>
+            </span>
+          </WBtn>
+          {showFontSize && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setShowFontSize(false)} />
+              <div className="absolute left-0 top-full mt-1 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-1 w-24">
+                {[
+                  { label: 'Small', size: '0.75em' },
+                  { label: 'Normal', size: '' },
+                  { label: 'Large', size: '1.25em' },
+                  { label: 'XL', size: '1.5em' },
+                  { label: '2XL', size: '2em' },
+                  { label: '3XL', size: '3em' },
+                ].map((f) => (
+                  <button key={f.label} onClick={() => {
+                    if (f.size) {
+                      editor.chain().focus().setMark('textStyle', { fontSize: f.size }).run()
+                    } else {
+                      editor.chain().focus().unsetMark('textStyle').run()
+                    }
+                    setShowFontSize(false)
+                  }}
+                    className="w-full text-left px-2 py-1 text-[10px] text-gray-300 hover:bg-gray-800 rounded transition-colors"
+                    style={{ fontSize: f.size || undefined }}
+                  >{f.label}</button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
         <Sep />
         <WBtn
           active={editor.isActive('bold')}

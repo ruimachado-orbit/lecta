@@ -42,13 +42,6 @@ export function DrawingOverlay({ slideIndex, active, width, height }: DrawingOve
     if (active && !ExcalidrawMod) {
       setLoadError('')
 
-      // Set asset path for Excalidraw fonts
-      // In Electron file:// mode, we need the actual directory URL of the renderer
-      if (!(window as any).EXCALIDRAW_ASSET_PATH) {
-        const base = new URL('.', document.baseURI).href
-        ;(window as any).EXCALIDRAW_ASSET_PATH = base
-      }
-
       let timedOut = false
       const timeout = setTimeout(() => {
         timedOut = true

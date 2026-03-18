@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
-import Image from '@tiptap/extension-image'
 import Placeholder from '@tiptap/extension-placeholder'
+import { ResizableImage } from '../../extensions/resizable-image'
 import TurndownService from 'turndown'
 import { usePresentationStore } from '../../stores/presentation-store'
 
@@ -12,9 +12,27 @@ const turndown = new TurndownService({
   codeBlockStyle: 'fenced'
 })
 
+// Custom rule to preserve image width in markdown
+turndown.addRule('image-with-width', {
+  filter: (node) => node.nodeName === 'IMG',
+  replacement: (_content, node) => {
+    const el = node as HTMLImageElement
+    let src = el.getAttribute('src') || ''
+    const alt = el.getAttribute('alt') || ''
+    // Strip lecta-file:// prefix for storage
+    src = src.replace(/^lecta-file:\/\//, '')
+    return `![${alt}](${src})`
+  }
+})
+
 // Convert markdown to simple HTML for TipTap
-function markdownToHtml(md: string): string {
+function markdownToHtml(md: string, rootPath?: string): string {
   return md
+    // Images first (before paragraph wrapping)
+    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_m, alt, src) => {
+      const resolved = resolveImageSrc(src, rootPath)
+      return `<img alt="${alt}" src="${resolved}" />`
+    })
     .replace(/^### (.+)$/gm, '<h3>$1</h3>')
     .replace(/^## (.+)$/gm, '<h2>$1</h2>')
     .replace(/^# (.+)$/gm, '<h1>$1</h1>')
@@ -23,14 +41,21 @@ function markdownToHtml(md: string): string {
     .replace(/`(.+?)`/g, '<code>$1</code>')
     .replace(/^- (.+)$/gm, '<li>$1</li>')
     .replace(/(<li>.*<\/li>\n?)+/g, (match) => `<ul>${match}</ul>`)
-    .replace(/^(?!<[h|u|l|o|p|b])(.*\S.*)$/gm, '<p>$1</p>')
+    .replace(/^(?!<[h|u|l|o|p|b|i])(.*\S.*)$/gm, '<p>$1</p>')
     .replace(/\n{2,}/g, '')
-    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img alt="$1" src="$2" />')
 }
 
 interface WysiwygEditorProps {
   slideIndex: number
   breakOffsets?: number[]
+}
+
+function resolveImageSrc(src: string, rootPath?: string): string {
+  if (!src) return ''
+  if (src.startsWith('http') || src.startsWith('data:') || src.startsWith('lecta-file://')) return src
+  if (src.startsWith('file://')) return src.replace('file://', 'lecta-file://')
+  if (rootPath) return `lecta-file://${rootPath}/${decodeURIComponent(src)}`
+  return src
 }
 
 export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorProps): JSX.Element {
@@ -78,12 +103,12 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
       StarterKit.configure({
         heading: { levels: [1, 2, 3] }
       }),
-      Image.configure({ inline: false }),
+      ResizableImage.configure({ inline: false }),
       Placeholder.configure({
         placeholder: 'Start typing your slide content...'
       })
     ],
-    content: slide ? markdownToHtml(slide.markdownContent.replace(/<!--.*?-->/gs, '')) : '',
+    content: slide ? markdownToHtml(slide.markdownContent.replace(/<!--.*?-->/gs, ''), presentation?.rootPath) : '',
     editorProps: {
       attributes: {
         class: 'wysiwyg-content outline-none min-h-full'
@@ -104,7 +129,7 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
   useEffect(() => {
     if (!editor || !slide) return
     const currentHtml = editor.getHTML()
-    const newHtml = markdownToHtml(slide.markdownContent.replace(/<!--.*?-->/gs, ''))
+    const newHtml = markdownToHtml(slide.markdownContent.replace(/<!--.*?-->/gs, ''), presentation?.rootPath)
     // Only update if content actually changed (avoid cursor jumping)
     if (turndown.turndown(currentHtml) !== slide.markdownContent) {
       isInternalUpdate.current = true

@@ -64,7 +64,7 @@ export function SpeakerNotes(): JSX.Element {
             Speaker Notes
           </span>
           {notes && (
-            <span className="text-[9px] px-1.5 py-0.5 bg-indigo-600/20 text-indigo-400 rounded">
+            <span className="text-[9px] px-1.5 py-0.5 bg-white/10 text-white rounded">
               AI Generated
             </span>
           )}
@@ -99,8 +99,8 @@ export function SpeakerNotes(): JSX.Element {
               <button
                 onClick={handleGenerate}
                 disabled={isGenerating}
-                className="px-2 py-0.5 text-[10px] bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-800
-                           text-white rounded transition-colors flex items-center gap-1"
+                className="px-2 py-0.5 text-[10px] bg-white hover:bg-gray-200 disabled:bg-gray-700 disabled:text-gray-400
+                           text-black rounded transition-colors flex items-center gap-1"
               >
                 {isGenerating ? (
                   <>
@@ -126,7 +126,7 @@ export function SpeakerNotes(): JSX.Element {
             value={editContent}
             onChange={(e) => setEditContent(e.target.value)}
             className="w-full h-full bg-gray-950 text-gray-300 text-sm rounded-lg p-3 resize-none
-                       border border-gray-700 focus:border-indigo-500 focus:outline-none font-mono"
+                       border border-gray-700 focus:border-white focus:outline-none font-mono"
           />
         ) : displayContent ? (
           <div className="prose prose-sm prose-invert max-w-none text-gray-300 text-sm leading-relaxed">

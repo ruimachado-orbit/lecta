@@ -30,7 +30,7 @@ export function CodePanel(): JSX.Element {
         </Panel>
 
         {/* Resize handle */}
-        <PanelResizeHandle className="h-1 bg-gray-800 hover:bg-indigo-500 transition-colors cursor-row-resize" />
+        <PanelResizeHandle className="h-1 bg-gray-800 hover:bg-white transition-colors cursor-row-resize" />
 
         {/* Output — rendered markdown or execution output */}
         <Panel defaultSize={isMarkdown ? 50 : 35} minSize={10}>

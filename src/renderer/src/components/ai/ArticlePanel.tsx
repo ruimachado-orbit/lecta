@@ -83,7 +83,7 @@ export function ArticlePanel(): JSX.Element {
               </button>
               <button
                 onClick={handleSaveAsFile}
-                className="px-2 py-0.5 text-[10px] bg-indigo-600 hover:bg-indigo-500 text-white rounded transition-colors"
+                className="px-2 py-0.5 text-[10px] bg-white hover:bg-gray-200 text-black rounded transition-colors"
               >
                 Save Takeaway
               </button>
@@ -116,14 +116,14 @@ export function ArticlePanel(): JSX.Element {
             onChange={(e) => setRules(e.target.value)}
             placeholder={`Optional — guide the article generation:\n• Target audience (e.g. "senior engineers familiar with React")\n• Tone (e.g. "casual blog post" or "formal whitepaper")\n• Length (e.g. "keep it under 1500 words")\n• Focus areas (e.g. "emphasize the architecture decisions")\n• Anything else...`}
             className="w-full h-28 bg-gray-900 text-gray-300 text-sm rounded-lg p-3 resize-none
-                       border border-gray-800 focus:border-indigo-500 focus:outline-none
+                       border border-gray-800 focus:border-white focus:outline-none
                        placeholder-gray-600"
           />
           <button
             onClick={handleGenerate}
             disabled={isGenerating || !presentation}
-            className="mt-2 w-full py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-800 disabled:opacity-50
-                       text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+            className="mt-2 w-full py-2 bg-white hover:bg-gray-200 disabled:bg-gray-700 disabled:text-gray-400 disabled:opacity-50
+                       text-black text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
           >
             {isGenerating ? (
               <>
@@ -145,10 +145,10 @@ export function ArticlePanel(): JSX.Element {
         {articleContent ? (
           <div className="prose prose-invert prose-sm max-w-none
                           prose-headings:text-gray-200 prose-p:text-gray-300 prose-p:leading-relaxed
-                          prose-a:text-indigo-400 prose-strong:text-gray-200
-                          prose-code:text-indigo-300 prose-code:bg-gray-900 prose-code:px-1 prose-code:rounded
+                          prose-a:text-white prose-strong:text-gray-200
+                          prose-code:text-gray-300 prose-code:bg-gray-900 prose-code:px-1 prose-code:rounded
                           prose-pre:bg-gray-900 prose-pre:border prose-pre:border-gray-800
-                          prose-blockquote:border-indigo-500 prose-blockquote:text-gray-400">
+                          prose-blockquote:border-white prose-blockquote:text-gray-400">
             <ReactMarkdown>{articleContent}</ReactMarkdown>
           </div>
         ) : !isGenerating ? (

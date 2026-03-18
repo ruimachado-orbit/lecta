@@ -97,7 +97,7 @@ export function AIGeneratePanel(): JSX.Element {
         disabled={isGenerating}
         rows={2}
         className="w-full px-3 py-2 bg-gray-950 text-sm text-gray-300 rounded-lg border border-gray-700
-                   focus:border-indigo-500 focus:outline-none placeholder-gray-600 resize-none disabled:opacity-50"
+                   focus:border-white focus:outline-none placeholder-gray-600 resize-none disabled:opacity-50"
       />
 
       <div className="flex items-center gap-3">
@@ -107,7 +107,7 @@ export function AIGeneratePanel(): JSX.Element {
             value={count}
             onChange={(e) => setCount(Number(e.target.value))}
             className="bg-gray-950 text-gray-300 text-xs rounded border border-gray-700 px-2 py-1
-                       focus:border-indigo-500 focus:outline-none"
+                       focus:border-white focus:outline-none"
           >
             {[1, 3, 5, 8, 10, 15, 20].map((n) => (
               <option key={n} value={n}>{n}</option>
@@ -132,8 +132,8 @@ export function AIGeneratePanel(): JSX.Element {
         <button
           onClick={handleGenerate}
           disabled={!prompt.trim() || isGenerating}
-          className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40
-                     text-white text-xs font-medium rounded-lg transition-colors flex items-center gap-1.5"
+          className="px-4 py-1.5 bg-white hover:bg-gray-200 disabled:opacity-40
+                     text-black text-xs font-medium rounded-lg transition-colors flex items-center gap-1.5"
         >
           {isGenerating ? (
             <>
@@ -195,8 +195,8 @@ export function AIImproveBar(): JSX.Element {
   }
 
   return (
-    <div className="bg-indigo-950/30 border-t border-indigo-900/50 px-4 py-2 flex items-center gap-2">
-      <span className="text-indigo-400 text-[10px] flex-shrink-0" title="This slide was AI-generated">✦ AI</span>
+    <div className="bg-white/5 border-t border-gray-700 px-4 py-2 flex items-center gap-2">
+      <span className="text-white text-[10px] flex-shrink-0" title="This slide was AI-generated">✦ AI</span>
       <input
         type="text"
         value={prompt}
@@ -211,8 +211,8 @@ export function AIImproveBar(): JSX.Element {
         <button
           onClick={handleImprove}
           disabled={isImproving}
-          className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40
-                     text-white text-[10px] font-medium rounded transition-colors flex items-center gap-1"
+          className="px-3 py-1 bg-white hover:bg-gray-200 disabled:opacity-40
+                     text-black text-[10px] font-medium rounded transition-colors flex items-center gap-1"
         >
           {isImproving ? <><Spinner /> Improving...</> : 'Improve'}
         </button>
@@ -223,7 +223,7 @@ export function AIImproveBar(): JSX.Element {
 
 function SparklesIcon(): JSX.Element {
   return (
-    <svg className="w-4 h-4 text-indigo-400" fill="currentColor" viewBox="0 0 24 24">
+    <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
       <path d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z" />
     </svg>
   )

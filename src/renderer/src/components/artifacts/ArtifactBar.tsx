@@ -38,7 +38,7 @@ export function ArtifactBar({ artifacts }: ArtifactBarProps): JSX.Element {
                        text-gray-300 text-xs rounded-md transition-colors border border-gray-700
                        hover:border-gray-600"
           >
-            <span className="text-[9px] font-bold text-indigo-400">
+            <span className="text-[9px] font-bold text-white">
               {getIcon(artifact.path)}
             </span>
             {artifact.label}

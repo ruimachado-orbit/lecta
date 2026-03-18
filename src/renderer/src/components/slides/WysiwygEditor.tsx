@@ -154,7 +154,7 @@ function WBtn({ children, onClick, active }: { children: React.ReactNode; onClic
     <button
       onClick={onClick}
       className={`px-2 py-1 rounded text-[11px] transition-colors ${
-        active ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+        active ? 'bg-white text-black' : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
       }`}
     >
       {children}

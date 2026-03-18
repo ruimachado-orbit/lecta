@@ -28,7 +28,7 @@ export function WebPanel({ webapp }: WebPanelProps): JSX.Element {
           onChange={(e) => setInputUrl(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleNavigate()}
           className="flex-1 px-2 py-1 bg-gray-950 text-gray-300 text-xs font-mono rounded
-                     border border-gray-700 focus:border-indigo-500 focus:outline-none truncate"
+                     border border-gray-700 focus:border-white focus:outline-none truncate"
         />
         <button
           onClick={handleNavigate}

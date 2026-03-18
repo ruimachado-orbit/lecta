@@ -48,7 +48,7 @@ export function VideoPanel({ video }: VideoPanelProps): JSX.Element {
               href={video.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-indigo-400 underline hover:text-indigo-300"
+              className="text-white underline hover:text-gray-300"
             >
               Open in browser
             </a>

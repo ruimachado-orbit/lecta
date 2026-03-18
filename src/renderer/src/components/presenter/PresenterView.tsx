@@ -74,7 +74,7 @@ export function PresenterView(): JSX.Element {
               {/* Code + Output (if slide has code) */}
               {hasCode && (
                 <>
-                  <PanelResizeHandle className="h-1 bg-gray-800 hover:bg-indigo-500 transition-colors mx-2" />
+                  <PanelResizeHandle className="h-1 bg-gray-800 hover:bg-white transition-colors mx-2" />
                   <Panel defaultSize={45} minSize={15}>
                     <div className="h-full flex flex-col m-2 mt-0 border border-gray-800 rounded-lg overflow-hidden">
                       <div className="h-7 bg-gray-900 flex items-center px-3 gap-2">
@@ -98,7 +98,7 @@ export function PresenterView(): JSX.Element {
                         <Panel defaultSize={60} minSize={20}>
                           <CodeEditor />
                         </Panel>
-                        <PanelResizeHandle className="h-1 bg-gray-800 hover:bg-indigo-500" />
+                        <PanelResizeHandle className="h-1 bg-gray-800 hover:bg-white" />
                         <Panel defaultSize={40} minSize={10}>
                           <ExecutionOutput />
                         </Panel>
@@ -110,7 +110,7 @@ export function PresenterView(): JSX.Element {
             </PanelGroup>
           </Panel>
 
-          <PanelResizeHandle className="w-1 bg-gray-800 hover:bg-indigo-500 transition-colors" />
+          <PanelResizeHandle className="w-1 bg-gray-800 hover:bg-white transition-colors" />
 
           {/* Right: Speaker notes + next slide preview */}
           <Panel defaultSize={35} minSize={20}>

@@ -80,7 +80,7 @@ export function SlideMap(): JSX.Element {
                   {section.group ? (
                     <>
                       <div className="w-1.5 h-1.5 rounded-full bg-white" />
-                      <span className="text-xs font-semibold text-indigo-400 uppercase tracking-wider">
+                      <span className="text-xs font-semibold text-white uppercase tracking-wider">
                         {section.group.name}
                       </span>
                       <span className="text-[10px] text-gray-600">{section.slides.length} slides</span>
@@ -134,22 +134,22 @@ export function SlideMap(): JSX.Element {
                         {/* Slide card */}
                         <button
                           onClick={() => { goToSlide(globalIndex); toggleSlideMap() }}
-                          className={`flex-shrink-0 w-44 rounded-xl border transition-all hover:scale-[1.03] hover:shadow-lg text-left ${
+                          className={`flex-shrink-0 w-44 rounded-xl border transition-colors text-left ${
                             isActive
-                              ? 'border-indigo-500 bg-gray-900 shadow-lg shadow-indigo-500/10 ring-1 ring-indigo-500/30'
-                              : 'border-gray-800 bg-gray-900 hover:border-gray-600'
+                              ? 'border-white bg-gray-900 shadow-md shadow-white/10 ring-1 ring-white/30'
+                              : 'border-gray-800 bg-gray-900 hover:border-gray-500 hover:bg-gray-800'
                           }`}
                         >
                           {/* Card header */}
                           <div className={`px-3 py-2 rounded-t-xl border-b ${
-                            isActive ? 'bg-indigo-950/50 border-indigo-900/50' : 'bg-gray-800/50 border-gray-800'
+                            isActive ? 'bg-white/5 border-gray-700' : 'bg-gray-800/50 border-gray-800'
                           }`}>
                             <div className="flex items-center justify-between">
-                              <span className={`text-[10px] font-bold ${isActive ? 'text-indigo-400' : 'text-gray-500'}`}>
+                              <span className={`text-[10px] font-bold ${isActive ? 'text-white' : 'text-gray-500'}`}>
                                 {String(globalIndex + 1).padStart(2, '0')}
                               </span>
                               <div className="flex items-center gap-1">
-                                {isAI && <span className="text-[8px] text-indigo-400">✦ AI</span>}
+                                {isAI && <span className="text-[8px] text-white">✦ AI</span>}
                               </div>
                             </div>
                             <div className="text-[11px] text-white font-medium truncate mt-0.5">
@@ -212,7 +212,7 @@ export function SlideMap(): JSX.Element {
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500/50" /> Video</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-cyan-500/50" /> Web</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500/50" /> Files</span>
-            <span className="flex items-center gap-1"><span className="text-indigo-400">✦</span> AI generated</span>
+            <span className="flex items-center gap-1"><span className="text-white">✦</span> AI generated</span>
           </div>
           <span className="text-[10px] text-gray-600">Click a slide to navigate</span>
         </div>

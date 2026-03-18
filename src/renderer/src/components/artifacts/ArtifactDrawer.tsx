@@ -103,7 +103,7 @@ export function ArtifactDrawer(): JSX.Element {
                 onClick={() => setSelectedArtifact(artifact)}
                 className={`flex-shrink-0 px-2.5 py-1.5 text-xs rounded-md transition-colors flex items-center gap-1.5 ${
                   selectedArtifact === artifact
-                    ? 'bg-indigo-600 text-white'
+                    ? 'bg-white text-black'
                     : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-300'
                 }`}
               >
@@ -199,7 +199,7 @@ function ArtifactPreview({ artifact, fullPath }: { artifact: ArtifactConfig; ful
             <span className="text-gray-500 text-sm">{artifact.label}.pdf</span>
             <button
               onClick={() => window.electronAPI.openInSystemApp(fullPath)}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs rounded-lg transition-colors"
+              className="px-4 py-2 bg-white hover:bg-gray-200 text-black text-xs rounded-lg transition-colors"
             >
               Open PDF
             </button>
@@ -255,7 +255,7 @@ function AddMenu({
           <select
             onChange={(e) => { if (e.target.value) onAddCode(e.target.value as SupportedLanguage) }}
             defaultValue=""
-            className="w-full px-2 py-1.5 bg-gray-950 text-gray-300 text-xs rounded border border-gray-700 focus:border-indigo-500 focus:outline-none"
+            className="w-full px-2 py-1.5 bg-gray-950 text-gray-300 text-xs rounded border border-gray-700 focus:border-white focus:outline-none"
           >
             <option value="" disabled>Select language...</option>
             {(['javascript', 'python', 'sql', 'typescript', 'bash', 'go', 'rust', 'java', 'ruby'] as SupportedLanguage[]).map((lang) => (
@@ -276,7 +276,7 @@ function AddMenu({
               onChange={(e) => onVideoUrlChange(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') onAddVideo() }}
               placeholder="YouTube URL..."
-              className="flex-1 px-2 py-1.5 bg-gray-950 text-gray-300 text-xs rounded border border-gray-700 focus:border-indigo-500 focus:outline-none"
+              className="flex-1 px-2 py-1.5 bg-gray-950 text-gray-300 text-xs rounded border border-gray-700 focus:border-white focus:outline-none"
             />
             <button
               onClick={onAddVideo}
@@ -300,12 +300,12 @@ function AddMenu({
               onChange={(e) => onWebAppUrlChange(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') onAddWebApp() }}
               placeholder="https://localhost:3000"
-              className="flex-1 px-2 py-1.5 bg-gray-950 text-gray-300 text-xs rounded border border-gray-700 focus:border-indigo-500 focus:outline-none"
+              className="flex-1 px-2 py-1.5 bg-gray-950 text-gray-300 text-xs rounded border border-gray-700 focus:border-white focus:outline-none"
             />
             <button
               onClick={onAddWebApp}
               disabled={!webAppUrl.trim()}
-              className="px-2 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-[10px] rounded transition-colors"
+              className="px-2 py-1.5 bg-white hover:bg-gray-200 disabled:opacity-40 text-black text-[10px] rounded transition-colors"
             >
               Add
             </button>

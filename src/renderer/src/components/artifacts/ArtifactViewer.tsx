@@ -85,7 +85,7 @@ export function ArtifactViewer({ artifact, fullPath, onClose }: ArtifactViewerPr
               <p className="mb-4">PDF preview</p>
               <button
                 onClick={() => window.electronAPI.openInSystemApp(fullPath)}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors"
+                className="px-4 py-2 bg-white hover:bg-gray-200 text-black rounded-lg transition-colors"
               >
                 Open PDF in System Viewer
               </button>
@@ -103,7 +103,7 @@ export function ArtifactViewer({ artifact, fullPath, onClose }: ArtifactViewerPr
               <p className="mb-4">Cannot preview this file type</p>
               <button
                 onClick={() => window.electronAPI.openInSystemApp(fullPath)}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors"
+                className="px-4 py-2 bg-white hover:bg-gray-200 text-black rounded-lg transition-colors"
               >
                 Open in System App
               </button>

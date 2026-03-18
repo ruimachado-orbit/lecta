@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore } from '../../stores/ui-store'
 
@@ -40,13 +40,23 @@ export function SlideNavigator(): JSX.Element {
     setContextMenu(null)
   }
 
+  const renamingInFlight = useRef(false)
+  const renameInputRef = useCallback((node: HTMLInputElement | null) => {
+    if (node) node.focus()
+  }, [])
   const handleFinishRename = async () => {
-    if (renaming === null) return
+    if (renaming === null || renamingInFlight.current) return
+    const index = renaming
     const trimmed = renameValue.trim().replace(/\s+/g, '-').toLowerCase()
-    if (trimmed && trimmed !== slides[renaming].config.id) {
-      await renameSlide(renaming, trimmed)
-    }
     setRenaming(null)
+    if (trimmed && trimmed !== slides[index].config.id) {
+      renamingInFlight.current = true
+      try {
+        await renameSlide(index, trimmed)
+      } finally {
+        renamingInFlight.current = false
+      }
+    }
   }
 
   // Slide drag handlers
@@ -164,13 +174,13 @@ export function SlideNavigator(): JSX.Element {
           if (renaming === index) {
             return (
               <input
-                key={slide.config.id}
+                key={`rename-${index}`}
+                ref={renameInputRef}
                 type="text"
                 value={renameValue}
                 onChange={(e) => setRenameValue(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleFinishRename(); if (e.key === 'Escape') setRenaming(null) }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.currentTarget.blur() } else if (e.key === 'Escape') { setRenaming(null) } }}
                 onBlur={handleFinishRename}
-                autoFocus
                 className="flex-shrink-0 w-24 h-10 px-2 bg-gray-950 text-gray-300 text-[10px] rounded-md
                            border-2 border-indigo-500 focus:outline-none"
               />

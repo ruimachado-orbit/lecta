@@ -188,6 +188,10 @@ const api = {
     ipcRenderer.invoke('nb:set-layout', rootPath, noteId, layout),
   renameNote: (rootPath: string, noteId: string, newId: string): Promise<any> =>
     ipcRenderer.invoke('nb:rename-note', rootPath, noteId, newId),
+  archiveNote: (rootPath: string, noteId: string): Promise<any> =>
+    ipcRenderer.invoke('nb:archive-note', rootPath, noteId),
+  unarchiveNote: (rootPath: string, noteId: string): Promise<any> =>
+    ipcRenderer.invoke('nb:unarchive-note', rootPath, noteId),
   saveNoteContent: (rootPath: string, contentPath: string, content: string): Promise<void> =>
     ipcRenderer.invoke('nb:save-content', rootPath, contentPath, content),
 

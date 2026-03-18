@@ -7,6 +7,7 @@ interface RecentDeck {
   path: string
   title: string
   date: string
+  type?: 'presentation' | 'notebook'
   slideCount?: number
   firstSlidePreview?: string
   artifacts?: string[]
@@ -131,57 +132,35 @@ export function HomeScreen(): JSX.Element {
           </div>
 
           {showCreate && (
-            <div className="bg-gray-900 rounded-xl border border-gray-700 p-4 space-y-3">
-              {/* Type selector */}
-              <div className="flex gap-1 bg-gray-800 rounded-lg p-0.5">
-                <button
-                  onClick={() => setCreateType('presentation')}
-                  className={`flex-1 py-1.5 text-xs rounded-md transition-colors ${
-                    createType === 'presentation' ? 'bg-white text-black' : 'text-gray-400 hover:text-gray-200'
-                  }`}
-                >
-                  Presentation
-                </button>
-                <button
-                  onClick={() => setCreateType('notebook')}
-                  className={`flex-1 py-1.5 text-xs rounded-md transition-colors ${
-                    createType === 'notebook' ? 'bg-white text-black' : 'text-gray-400 hover:text-gray-200'
-                  }`}
-                >
-                  Notebook
+            <div className="space-y-2">
+              {/* Type toggle — inline pills */}
+              <div className="flex gap-1 justify-center">
+                <button onClick={() => setCreateType('presentation')}
+                  className={`px-3 py-1 text-[11px] rounded-full transition-colors ${
+                    createType === 'presentation' ? 'bg-white text-black' : 'text-gray-500 hover:text-gray-300'
+                  }`}>Presentation</button>
+                <button onClick={() => setCreateType('notebook')}
+                  className={`px-3 py-1 text-[11px] rounded-full transition-colors ${
+                    createType === 'notebook' ? 'bg-white text-black' : 'text-gray-500 hover:text-gray-300'
+                  }`}>Notebook</button>
+              </div>
+              {/* Inline input + create */}
+              <div className="flex gap-2">
+                <input type="text" value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleCreateLecta(); if (e.key === 'Escape') { setShowCreate(false); setNewName('') } }}
+                  placeholder={createType === 'notebook' ? 'Notebook name' : 'Presentation name'}
+                  autoFocus
+                  className="flex-1 px-3 py-2 bg-gray-900 text-white text-sm rounded-full border border-gray-700
+                             focus:border-white focus:outline-none placeholder-gray-600" />
+                <button onClick={handleCreateLecta} disabled={!newName.trim()}
+                  className="px-4 py-2 bg-white hover:bg-gray-200 disabled:opacity-30
+                             text-black text-sm font-medium rounded-full transition-colors">
+                  Create
                 </button>
               </div>
-              <label className="text-sm text-gray-400 block">
-                {createType === 'notebook' ? 'Notebook name' : 'Presentation name'}
-              </label>
-              <input
-                type="text"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleCreateLecta()}
-                placeholder={createType === 'notebook' ? 'My Notes' : 'My Awesome Talk'}
-                autoFocus
-                className="w-full px-4 py-3 bg-gray-950 text-white rounded-lg border border-gray-700
-                           focus:border-white focus:outline-none text-base placeholder-gray-600"
-              />
-              <button
-                onClick={handleCreateLecta}
-                disabled={!newName.trim()}
-                className="w-full py-2.5 px-4 bg-white hover:bg-gray-200 disabled:bg-gray-700 disabled:text-gray-400 disabled:opacity-50
-                           text-black font-medium rounded-lg transition-colors text-sm"
-              >
-                Create
-              </button>
-              <button
-                onClick={() => { setShowCreate(false); setNewName(''); setCreateError(null) }}
-                className="w-full py-1.5 text-gray-500 hover:text-gray-300 text-xs transition-colors"
-              >
-                Cancel
-              </button>
               {createError && (
-                <div className="bg-gray-800 border border-gray-700 text-gray-300 rounded-lg px-4 py-3 text-sm">
-                  {createError}
-                </div>
+                <p className="text-red-400 text-xs text-center">{createError}</p>
               )}
             </div>
           )}
@@ -193,12 +172,65 @@ export function HomeScreen(): JSX.Element {
           )}
         </div>
 
-        {/* Recent Presentations */}
-        {recentDecks.length > 0 && (
+        {/* Recent items — split by type */}
+        {recentDecks.length > 0 && (() => {
+          const presentations = recentDecks.filter((d) => d.type !== 'notebook')
+          const notebooks = recentDecks.filter((d) => d.type === 'notebook')
+
+          const handleOpenRecent = async (deck: RecentDeck) => {
+            if (deck.type === 'notebook') {
+              await loadNotebook(deck.path)
+            } else {
+              try {
+                await loadPresentation(deck.path)
+              } catch (err: any) {
+                // If it's a notebook disguised as presentation, load as notebook
+                if (err?.message?.startsWith('NOTEBOOK:')) {
+                  await loadNotebook(err.message.replace('NOTEBOOK:', ''))
+                }
+              }
+            }
+          }
+
+          return (
+            <>
+              {/* Recent Notebooks */}
+              {notebooks.length > 0 && (
+                <div className="mt-10">
+                  <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
+                    </svg>
+                    Recent Notebooks
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    {notebooks.map((deck) => (
+                      <RecentCard key={deck.path} deck={deck} onClick={() => handleOpenRecent(deck)} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Recent Presentations */}
+              {presentations.length > 0 && (
+                <div className="mt-10">
+                  <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider mb-4">
+                    Recent Presentations
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    {presentations.map((deck) => (
+                      <RecentCard key={deck.path} deck={deck} onClick={() => handleOpenRecent(deck)} />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )
+        })()}
+
+        {/* LEGACY — remove the old inline map below; replaced by RecentCard component */}
+        {false && recentDecks.length > 0 && (
           <div className="mt-10">
-            <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider mb-4">
-              Recent Presentations
-            </h3>
             <div className="grid grid-cols-2 gap-3">
               {recentDecks.map((deck) => {
                 // Parse the first slide preview into mini-rendered lines
@@ -490,6 +522,75 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
         </div>
       </div>
     </div>
+  )
+}
+
+function RecentCard({ deck, onClick }: { deck: RecentDeck; onClick: () => void }): JSX.Element {
+  const previewLines = (deck.firstSlidePreview || '')
+    .split('\n').filter((l) => l.trim()).slice(0, 4)
+
+  const isNotebook = deck.type === 'notebook'
+
+  return (
+    <button
+      onClick={onClick}
+      className="group text-left rounded-xl border border-gray-800 bg-gray-900 hover:border-gray-600
+                 hover:bg-gray-800 transition-all overflow-hidden"
+    >
+      <div className="h-28 bg-black p-3 border-b border-gray-800 overflow-hidden relative">
+        {/* Type badge */}
+        <span className={`absolute top-2 right-2 text-[8px] px-1.5 py-0.5 rounded-full ${
+          isNotebook ? 'bg-gray-800 text-gray-400' : 'bg-gray-800 text-gray-500'
+        }`}>
+          {isNotebook ? '📓 Notebook' : '📊 Slides'}
+        </span>
+        {previewLines.length > 0 ? (
+          <div className="space-y-1">
+            {previewLines.map((line, i) => {
+              const isH1 = line.startsWith('# ')
+              const isH2 = line.startsWith('## ')
+              const isBullet = line.match(/^[-*+] /)
+              const text = line.replace(/^#{1,3}\s/, '').replace(/^[-*+]\s/, '').replace(/\*\*/g, '').replace(/<[^>]+>/g, '')
+              return (
+                <div key={i} className={`truncate ${
+                  isH1 ? 'text-[11px] font-bold text-white' :
+                  isH2 ? 'text-[10px] font-semibold text-gray-300' :
+                  isBullet ? 'text-[8px] text-gray-500 pl-2' :
+                  'text-[8px] text-gray-500'
+                }`}>
+                  {isBullet && <span className="mr-1">•</span>}
+                  {text}
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="h-full flex items-center justify-center">
+            <span className="text-gray-700 text-2xl font-bold">{deck.title.charAt(0).toUpperCase()}</span>
+          </div>
+        )}
+      </div>
+      <div className="p-3">
+        <div className="text-sm text-gray-200 font-medium truncate group-hover:text-white">{deck.title}</div>
+        <div className="flex items-center gap-2 mt-1.5">
+          {deck.artifacts?.map((a) => (
+            <span key={a} className="text-[8px] text-gray-500">
+              {a === 'code' ? '{ }' : a === 'video' ? '▶' : a === 'webapp' ? '◎' : '📎'}
+            </span>
+          ))}
+          {deck.slideCount && (
+            <span className="text-[10px] text-gray-600">
+              {deck.slideCount} {isNotebook ? 'notes' : 'slides'}
+            </span>
+          )}
+          {deck.date && (
+            <span className="text-[10px] text-gray-600">
+              {new Date(deck.date).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })}
+            </span>
+          )}
+        </div>
+      </div>
+    </button>
   )
 }
 

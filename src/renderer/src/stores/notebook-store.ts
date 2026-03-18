@@ -27,6 +27,8 @@ interface NotebookState {
   deleteNote: () => Promise<void>
   renameNote: (noteId: string, newId: string) => Promise<void>
   setNoteLayout: (layout: NoteLayout) => Promise<void>
+  archiveNote: () => Promise<void>
+  unarchiveNote: (noteId: string) => Promise<void>
   reset: () => void
 }
 
@@ -192,6 +194,37 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
         notebook.rootPath,
         page.config.id,
         layout
+      )
+      set(applyLoaded(loaded, currentPageIndex))
+    } catch (error) {
+      set({ error: (error as Error).message })
+    }
+  },
+
+  archiveNote: async () => {
+    const { notebook, pages, currentPageIndex } = get()
+    if (!notebook) return
+    const page = pages[currentPageIndex]
+    if (!page) return
+    try {
+      const loaded: LoadedNotebook = await window.electronAPI.archiveNote(
+        notebook.rootPath,
+        page.config.id
+      )
+      const newIndex = Math.min(currentPageIndex, loaded.pages.length - 1)
+      set(applyLoaded(loaded, newIndex))
+    } catch (error) {
+      set({ error: (error as Error).message })
+    }
+  },
+
+  unarchiveNote: async (noteId: string) => {
+    const { notebook, currentPageIndex } = get()
+    if (!notebook) return
+    try {
+      const loaded: LoadedNotebook = await window.electronAPI.unarchiveNote(
+        notebook.rootPath,
+        noteId
       )
       set(applyLoaded(loaded, currentPageIndex))
     } catch (error) {

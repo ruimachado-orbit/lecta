@@ -106,7 +106,7 @@ export function SlidePanel(): JSX.Element {
           />
         ) : editingSlide && editorMode === 'wysiwyg' ? (
           /* WYSIWYG: editor IS the canvas */
-          <EditableSlideCanvas slideIndex={currentSlideIndex} breakOffsets={breakOffsets} rootPath={presentation?.rootPath} />
+          <EditableSlideCanvas slideIndex={currentSlideIndex} breakOffsets={breakOffsets} rootPath={presentation?.rootPath} layout={currentSlide.config.layout} />
         ) : editingSlide && editorMode === 'markdown' ? (
           /* Markdown: split view — canvas top, editor bottom */
           <>
@@ -298,9 +298,9 @@ function SlideCanvas({ markdown, rootPath, transition, layout, slideIndex, drawi
             />
           </div>
         )}
-        {/* Layout guide overlay — shows column dividers when editing */}
+        {/* Layout label (preview mode — no lines) */}
         {layout && layout !== 'default' && layout !== 'blank' && (
-          <LayoutGuide layout={layout} width={SLIDE_W} height={SLIDE_H} pad={PAD} />
+          <LayoutGuide layout={layout} width={SLIDE_W} height={SLIDE_H} pad={PAD} showLines={false} />
         )}
         {/* Drawing overlay */}
         {typeof slideIndex === 'number' && (
@@ -317,14 +317,15 @@ function SlideCanvas({ markdown, rootPath, transition, layout, slideIndex, drawi
 }
 
 /** Editable slide canvas — WYSIWYG editor rendered inside the scaled 16:9 frame */
-function EditableSlideCanvas({ slideIndex, breakOffsets, rootPath }: {
-  slideIndex: number; breakOffsets?: number[]; rootPath?: string
+function EditableSlideCanvas({ slideIndex, breakOffsets, rootPath, layout }: {
+  slideIndex: number; breakOffsets?: number[]; rootPath?: string; layout?: string
 }): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
   const [canvasScale, setCanvasScale] = useState(1)
 
   const SLIDE_W = 1280
   const SLIDE_H = 720
+  const PAD = 48
 
   useEffect(() => {
     const container = containerRef.current
@@ -356,17 +357,21 @@ function EditableSlideCanvas({ slideIndex, breakOffsets, rootPath }: {
         }}
       >
         <div className="absolute inset-0 bg-black rounded" />
-        <div className="absolute inset-0 overflow-hidden">
+        <div className={`absolute inset-0 overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
           <WysiwygEditor slideIndex={slideIndex} breakOffsets={breakOffsets} />
         </div>
+        {/* Layout guide overlay */}
+        {layout && layout !== 'default' && layout !== 'blank' && (
+          <LayoutGuide layout={layout} width={SLIDE_W} height={SLIDE_H} pad={PAD} />
+        )}
       </div>
     </div>
   )
 }
 
 /** Visual guide overlay showing column dividers and layout name */
-function LayoutGuide({ layout, width, height, pad }: {
-  layout: string; width: number; height: number; pad: number
+function LayoutGuide({ layout, width, height, pad, showLines = true }: {
+  layout: string; width: number; height: number; pad: number; showLines?: boolean
 }): JSX.Element {
   const LAYOUT_LABELS: Record<string, string> = {
     'center': 'Center', 'title': 'Title', 'section': 'Section',
@@ -388,21 +393,21 @@ function LayoutGuide({ layout, width, height, pad }: {
 
   return (
     <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 5 }}>
-      <div className="absolute top-2 right-2 px-2 py-0.5 rounded bg-indigo-600/80 text-white text-[10px] font-medium">
+      <div className={`absolute top-2 right-2 rounded bg-indigo-600/80 text-white font-medium ${showLines ? 'px-2 py-0.5 text-[10px]' : 'px-1.5 py-px text-[8px] opacity-70'}`}>
         {LAYOUT_LABELS[layout] || layout}
       </div>
-      {dividers.x?.map((frac, i) => (
+      {showLines && dividers.x?.map((frac, i) => (
         <div
           key={`v${i}`}
-          className="absolute top-0 bottom-0 border-l border-dashed border-indigo-400/30"
-          style={{ left: pad + contentW * frac }}
+          className="absolute border-l border-dashed border-indigo-400/30"
+          style={{ left: pad + contentW * frac, top: pad, bottom: pad }}
         />
       ))}
-      {dividers.y?.map((frac, i) => (
+      {showLines && dividers.y?.map((frac, i) => (
         <div
           key={`h${i}`}
-          className="absolute left-0 right-0 border-t border-dashed border-indigo-400/30"
-          style={{ top: pad + contentH * frac }}
+          className="absolute border-t border-dashed border-indigo-400/30"
+          style={{ top: pad + contentH * frac, left: pad, right: pad }}
         />
       ))}
     </div>

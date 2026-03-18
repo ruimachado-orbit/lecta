@@ -29,6 +29,7 @@ const BaseNoteConfigSchema = z.object({
   content: z.string(),
   layout: NoteLayoutSchema.optional(),
   createdAt: z.string().default(() => new Date().toISOString()),
+  archivedAt: z.string().optional(),
   artifacts: z.array(ArtifactConfigSchema).default([]),
   code: CodeBlockConfigSchema.optional()
 })

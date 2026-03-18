@@ -121,9 +121,22 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
         if (existing) useTabsStore.setState({ activeTabId: existing.id })
       }
     } catch (error) {
+      const msg = (error as Error).message
+      // Detect notebook redirect
+      if (msg.startsWith('NOTEBOOK:')) {
+        set({ isLoading: false, error: null })
+        const notebookPath = msg.replace('NOTEBOOK:', '')
+        try {
+          const { useNotebookStore } = await import('./notebook-store')
+          await useNotebookStore.getState().loadNotebook(notebookPath)
+        } catch (nbErr) {
+          set({ error: `Failed to load notebook: ${(nbErr as Error).message}` })
+        }
+        return
+      }
       set({
         isLoading: false,
-        error: (error as Error).message
+        error: msg
       })
     }
   },

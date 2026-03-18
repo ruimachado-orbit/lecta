@@ -28,9 +28,10 @@ interface RecentDeck {
   path: string
   title: string
   date: string
+  type?: 'presentation' | 'notebook'
   slideCount: number
-  firstSlidePreview: string // first few lines of markdown
-  artifacts: string[] // e.g. ['code', 'video', 'webapp', 'files']
+  firstSlidePreview: string
+  artifacts: string[]
 }
 
 let recentDecks: RecentDeck[] = []
@@ -38,6 +39,16 @@ let recentDecks: RecentDeck[] = []
 async function getSettingsPath(): Promise<string> {
   const { app } = await import('electron')
   return join(app.getPath('userData'), 'settings.json')
+}
+
+/** Add an item to the recent decks list (used by both presentation and notebook loaders) */
+export async function addRecentItem(item: {
+  path: string; title: string; type?: 'presentation' | 'notebook'
+  slideCount: number; firstSlidePreview: string; artifacts: string[]
+}): Promise<void> {
+  const entry: RecentDeck = { ...item, date: new Date().toISOString() }
+  recentDecks = [entry, ...recentDecks.filter((d) => d.path !== item.path)].slice(0, 20)
+  await persistRecentDecks()
 }
 
 async function persistRecentDecks(): Promise<void> {
@@ -174,6 +185,12 @@ export function registerFileSystemHandlers(): void {
     }
 
     const yamlContent = await readFile(configPath, 'utf-8')
+
+    // Check if this is a notebook — if so, throw a specific error so the renderer can handle it
+    if (yamlContent.includes('type: notebook') || yamlContent.includes('type: "notebook"')) {
+      throw new Error('NOTEBOOK:' + folderPath)
+    }
+
     const config = parsePresentationYaml(yamlContent, folderPath)
 
     // Load all slide content

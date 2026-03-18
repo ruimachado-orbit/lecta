@@ -191,8 +191,6 @@ export function Toolbar(): JSX.Element {
         {/* Present mode */}
         <button
           onClick={async () => {
-            // Force dark theme for presenter mode
-            document.documentElement.setAttribute('data-theme', 'dark')
             useUIStore.setState({ showArtifactDrawer: false, showArticlePanel: false, showSlideMap: false, showRightPane: false, showNotes: false, editingSlide: false })
             await window.electronAPI.openAudienceWindow()
             if (presentation?.rootPath) {

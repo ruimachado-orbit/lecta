@@ -6,6 +6,7 @@ import { parseNotebookYaml } from '../../../packages/shared/src/utils/notebook-p
 import { resolveRelativePath } from '../../../packages/shared/src/utils/path-resolver'
 import { DECK_CONFIG_FILE } from '../../../packages/shared/src/constants'
 import { autoSave } from '../services/lecta-file'
+import { addRecentItem } from './file-system'
 import type {
   LoadedNote,
   LoadedNotebook,
@@ -25,6 +26,7 @@ async function saveNotebookYaml(notebook: Notebook): Promise<void> {
       createdAt: n.createdAt
     }
     if (n.layout) note.layout = n.layout
+    if (n.archivedAt) note.archivedAt = n.archivedAt
     if (n.code) note.code = n.code
     note.artifacts = n.artifacts
     if (n.children && n.children.length > 0) {
@@ -113,6 +115,21 @@ export function registerNotebookHandlers(): void {
     const yamlContent = await readFile(configPath, 'utf-8')
     const config = parseNotebookYaml(yamlContent, folderPath)
     const pages = await loadAllNotes(config)
+
+    // Track in recent items
+    const firstPage = pages[0]
+    const preview = firstPage?.markdownContent
+      ?.replace(/<!--.*?-->/gs, '').replace(/<[^>]+>/g, '')
+      .trim().split('\n').filter((l: string) => l.trim()).slice(0, 5).join('\n') || ''
+    await addRecentItem({
+      path: folderPath,
+      title: config.title,
+      type: 'notebook',
+      slideCount: pages.length,
+      firstSlidePreview: preview.slice(0, 200),
+      artifacts: []
+    })
+
     return { config, pages }
   })
 
@@ -260,6 +277,64 @@ export function registerNotebookHandlers(): void {
       }
 
       rename(config.pages)
+      await saveNotebookYaml(config)
+
+      const reloaded = await readFile(configPath, 'utf-8')
+      const reloadedConfig = parseNotebookYaml(reloaded, rootPath)
+      const pages = await loadAllNotes(reloadedConfig)
+      return { config: reloadedConfig, pages }
+    }
+  )
+
+  // Archive a note (set archivedAt timestamp)
+  ipcMain.handle(
+    'nb:archive-note',
+    async (_event, rootPath: string, noteId: string): Promise<LoadedNotebook> => {
+      const configPath = join(rootPath, DECK_CONFIG_FILE)
+      const yamlContent = await readFile(configPath, 'utf-8')
+      const config = parseNotebookYaml(yamlContent, rootPath)
+
+      function archiveNote(notes: NoteConfig[]): boolean {
+        for (const note of notes) {
+          if (note.id === noteId) {
+            note.archivedAt = new Date().toISOString()
+            return true
+          }
+          if (note.children && archiveNote(note.children)) return true
+        }
+        return false
+      }
+
+      archiveNote(config.pages)
+      await saveNotebookYaml(config)
+
+      const reloaded = await readFile(configPath, 'utf-8')
+      const reloadedConfig = parseNotebookYaml(reloaded, rootPath)
+      const pages = await loadAllNotes(reloadedConfig)
+      return { config: reloadedConfig, pages }
+    }
+  )
+
+  // Unarchive a note (remove archivedAt)
+  ipcMain.handle(
+    'nb:unarchive-note',
+    async (_event, rootPath: string, noteId: string): Promise<LoadedNotebook> => {
+      const configPath = join(rootPath, DECK_CONFIG_FILE)
+      const yamlContent = await readFile(configPath, 'utf-8')
+      const config = parseNotebookYaml(yamlContent, rootPath)
+
+      function unarchive(notes: NoteConfig[]): boolean {
+        for (const note of notes) {
+          if (note.id === noteId) {
+            delete note.archivedAt
+            return true
+          }
+          if (note.children && unarchive(note.children)) return true
+        }
+        return false
+      }
+
+      unarchive(config.pages)
       await saveNotebookYaml(config)
 
       const reloaded = await readFile(configPath, 'utf-8')

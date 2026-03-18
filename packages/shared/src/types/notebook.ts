@@ -7,6 +7,7 @@ export interface NoteConfig {
   content: string // relative path to .md file
   layout?: NoteLayout
   createdAt: string // ISO 8601
+  archivedAt?: string // ISO 8601 — if set, note is archived
   artifacts: ArtifactConfig[]
   code?: CodeBlockConfig
   children?: NoteConfig[] // subnotes (recursive tree)

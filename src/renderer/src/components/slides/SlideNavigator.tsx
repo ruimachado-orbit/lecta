@@ -149,6 +149,7 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
         {slides.map((slide, index) => {
           const isActive = index === currentSlideIndex
           const isSelected = selectedIndices.has(index)
+          const isSkipped = !!slide.config.skipped
           const isDragging = dragIndex === index
           const isDropTgt = dropTarget === index && dragIndex !== index
           const groupId = slideGroupMap.get(slide.config.id)
@@ -211,6 +212,7 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
                 overflow-visible px-1.5 py-1 text-left relative cursor-grab active:cursor-grabbing ${
                 isDragging ? 'opacity-40 border-gray-500'
                 : isDropTgt ? 'border-gray-400 bg-white/5'
+                : isSkipped ? 'opacity-40 border-gray-600 border-dashed bg-gray-900 text-gray-500'
                 : isSelected ? 'border-white bg-white/10 text-gray-200'
                 : isActive ? 'border-white bg-gray-800 text-gray-200'
                 : 'border-gray-500 bg-gray-900 text-gray-300 hover:border-gray-400 hover:text-gray-200'
@@ -357,24 +359,29 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
                     return (
                       <button
                         key={l.value}
-                        onClick={async (e) => {
+                        onClick={(e) => {
                           e.stopPropagation()
-                          const { presentation } = usePresentationStore.getState()
-                          if (!presentation) return
-                          try {
-                            const loaded = await window.electronAPI.setSlideLayout(
-                              presentation.rootPath, idx, l.value
+                          // Optimistic update — apply layout immediately in state
+                          const state = usePresentationStore.getState()
+                          if (!state.presentation) return
+                          const updatedSlides = state.slides.map((s, i) =>
+                            i === idx ? { ...s, config: { ...s.config, layout: l.value === 'default' ? undefined : l.value as any } } : s
+                          )
+                          const updatedPresentation = {
+                            ...state.presentation,
+                            slides: state.presentation.slides.map((s, i) =>
+                              i === idx ? { ...s, layout: l.value === 'default' ? undefined : l.value as any } : s
                             )
-                            usePresentationStore.setState({
-                              presentation: loaded.config,
-                              slides: loaded.slides,
-                              currentSlideIndex: idx,
-                              isLoading: false,
-                              error: null
-                            })
-                          } catch (err) {
-                            console.error('setSlideLayout failed:', err)
                           }
+                          usePresentationStore.setState({
+                            presentation: updatedPresentation,
+                            slides: updatedSlides,
+                            currentSlideIndex: idx
+                          })
+                          // Persist to disk in background
+                          window.electronAPI.setSlideLayout(
+                            state.presentation.rootPath, idx, l.value
+                          ).catch((err) => console.error('setSlideLayout save failed:', err))
                         }}
                         className={`group/layout rounded-md p-1.5 transition-colors ${
                           current === l.value
@@ -397,6 +404,14 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
             {selectedIndices.size < slides.length && (
               <>
                 <div className="border-t border-gray-800 my-1" />
+                {/* Skip slide */}
+                <button onClick={() => {
+                  Array.from(selectedIndices).forEach((idx) => toggleSkipSlide(idx))
+                  setContextMenu(null); setSelectedIndices(new Set())
+                }}
+                  className="w-full text-left px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-800 transition-colors">
+                  {Array.from(selectedIndices).every((idx) => slides[idx]?.config.skipped) ? 'Unskip' : 'Skip'} {selectedIndices.size > 1 ? `${selectedIndices.size} slides` : 'slide'}
+                </button>
                 <button onClick={handleDeleteSelected}
                   className="w-full text-left px-3 py-1.5 text-xs text-red-400 hover:bg-gray-800 transition-colors">
                   Delete {selectedIndices.size > 1 ? `${selectedIndices.size} slides` : 'slide'}

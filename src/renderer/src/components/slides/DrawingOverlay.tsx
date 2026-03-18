@@ -31,10 +31,30 @@ export function DrawingOverlay({ slideIndex, active, width, height }: DrawingOve
     }, 1000)
   }, [presentation, slideIndex])
 
-  // Lazy load Excalidraw
+  const [loadError, setLoadError] = useState<string>('')
+
+  // Lazy load Excalidraw with timeout
   useEffect(() => {
     if (active && !ExcalidrawMod) {
-      import('@excalidraw/excalidraw').then(setExcalidrawMod)
+      setLoadError('')
+      let timedOut = false
+      const timeout = setTimeout(() => {
+        timedOut = true
+        setLoadError('Drawing tools took too long to load. Try toggling Draw mode off and on.')
+      }, 10000)
+
+      import('@excalidraw/excalidraw')
+        .then((mod) => {
+          clearTimeout(timeout)
+          if (!timedOut) setExcalidrawMod(mod)
+        })
+        .catch((err) => {
+          clearTimeout(timeout)
+          console.error('Failed to load Excalidraw:', err)
+          setLoadError(err?.message || 'Failed to load drawing tools')
+        })
+
+      return () => clearTimeout(timeout)
     }
   }, [active])
 
@@ -99,8 +119,15 @@ export function DrawingOverlay({ slideIndex, active, width, height }: DrawingOve
 
   if (active) {
     return (
-      <div className="absolute inset-0 z-20 flex items-center justify-center text-gray-500 text-sm">
-        Loading drawing tools...
+      <div className="absolute inset-0 z-20 flex items-center justify-center text-sm">
+        {loadError ? (
+          <div className="text-center">
+            <p className="text-red-400 mb-2">Failed to load drawing tools</p>
+            <p className="text-gray-600 text-xs max-w-xs">{loadError}</p>
+          </div>
+        ) : (
+          <span className="text-gray-500 animate-pulse">Loading drawing tools...</span>
+        )}
       </div>
     )
   }

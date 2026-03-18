@@ -363,3 +363,48 @@ function EditableSlideCanvas({ slideIndex, breakOffsets, rootPath }: {
     </div>
   )
 }
+
+/** Visual guide overlay showing column dividers and layout name */
+function LayoutGuide({ layout, width, height, pad }: {
+  layout: string; width: number; height: number; pad: number
+}): JSX.Element {
+  const LAYOUT_LABELS: Record<string, string> = {
+    'center': 'Center', 'title': 'Title', 'section': 'Section',
+    'two-col': '2 Columns', 'two-col-wide-left': 'Wide Left', 'two-col-wide-right': 'Wide Right',
+    'three-col': '3 Columns', 'top-bottom': 'Top / Bottom',
+    'big-number': 'Big Number', 'quote': 'Quote',
+  }
+
+  const dividers: { x?: number[]; y?: number[] } = {
+    'two-col': { x: [0.5] },
+    'two-col-wide-left': { x: [0.6] },
+    'two-col-wide-right': { x: [0.4] },
+    'three-col': { x: [0.333, 0.666] },
+    'top-bottom': { y: [0.5] },
+  }[layout] ?? {}
+
+  const contentW = width - pad * 2
+  const contentH = height - pad * 2
+
+  return (
+    <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 5 }}>
+      <div className="absolute top-2 right-2 px-2 py-0.5 rounded bg-indigo-600/80 text-white text-[10px] font-medium">
+        {LAYOUT_LABELS[layout] || layout}
+      </div>
+      {dividers.x?.map((frac, i) => (
+        <div
+          key={`v${i}`}
+          className="absolute top-0 bottom-0 border-l border-dashed border-indigo-400/30"
+          style={{ left: pad + contentW * frac }}
+        />
+      ))}
+      {dividers.y?.map((frac, i) => (
+        <div
+          key={`h${i}`}
+          className="absolute left-0 right-0 border-t border-dashed border-indigo-400/30"
+          style={{ top: pad + contentH * frac }}
+        />
+      ))}
+    </div>
+  )
+}

@@ -29,6 +29,10 @@ export default defineConfig({
         { find: '@renderer', replacement: resolve(__dirname, 'src/renderer/src') }
       ]
     },
-    plugins: [react()]
+    plugins: [react()],
+    define: {
+      'process.env.NODE_ENV': JSON.stringify('production'),
+      'process.env.IS_PREACT': JSON.stringify('')
+    }
   }
 })

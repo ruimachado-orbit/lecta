@@ -1,12 +1,15 @@
 import { useEffect } from 'react'
 import { usePresentationStore } from './stores/presentation-store'
+import { useNotebookStore } from './stores/notebook-store'
 import { useUIStore, COLOR_PALETTES } from './stores/ui-store'
 import { AppShell } from './components/layout/AppShell'
 import { HomeScreen } from './components/layout/HomeScreen'
 import { AudienceView } from './components/presenter/AudienceView'
+import { NotebookShell } from './components/notebook/NotebookShell'
 
 export default function App(): JSX.Element {
   const presentation = usePresentationStore((s) => s.presentation)
+  const notebook = useNotebookStore((s) => s.notebook)
   const { setTheme, setPalette, setFontSize, checkAiEnabled } = useUIStore()
 
   // Load persisted settings on app start
@@ -31,6 +34,10 @@ export default function App(): JSX.Element {
     document.documentElement.setAttribute('data-theme', 'dark')
     document.body.style.background = '#000'
     return <AudienceView />
+  }
+
+  if (notebook) {
+    return <NotebookShell />
   }
 
   if (presentation) {

@@ -5,6 +5,7 @@ import { registerArtifactHandlers } from './artifacts'
 import { registerPresenterHandlers } from './presenter'
 import { registerSettingsHandlers } from './settings'
 import { registerExportHandlers } from './export-pdf'
+import { registerNotebookHandlers } from './notebook-fs'
 
 export function registerAllIpcHandlers(): void {
   registerFileSystemHandlers()
@@ -14,4 +15,5 @@ export function registerAllIpcHandlers(): void {
   registerPresenterHandlers()
   registerSettingsHandlers()
   registerExportHandlers()
+  registerNotebookHandlers()
 }

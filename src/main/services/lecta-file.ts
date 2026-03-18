@@ -87,36 +87,60 @@ export async function saveLectaFile(workspaceDir: string, lectaFilePath: string)
  * Create a new .lecta file with starter content.
  * Returns the workspace directory path.
  */
-export async function createLectaFile(lectaFilePath: string, title: string): Promise<string> {
+export async function createLectaFile(lectaFilePath: string, title: string, docType: 'presentation' | 'notebook' = 'presentation'): Promise<string> {
   const workspaceDir = getWorkspaceDir(lectaFilePath)
-  await mkdir(join(workspaceDir, 'slides'), { recursive: true })
-  await mkdir(join(workspaceDir, 'code'), { recursive: true })
 
-  // Write starter slide
-  await writeFile(
-    join(workspaceDir, 'slides', '01-welcome.md'),
-    `# ${title}\n\nWelcome to your new presentation!\n`,
-    'utf-8'
-  )
+  if (docType === 'notebook') {
+    await mkdir(join(workspaceDir, 'pages'), { recursive: true })
 
-  // Write lecta.yaml
-  const yaml = [
-    `title: "${title}"`,
-    `author: ""`,
-    `theme: "dark"`,
-    ``,
-    `slides:`,
-    `  - id: welcome`,
-    `    content: slides/01-welcome.md`,
-    `    artifacts: []`,
-    ``
-  ].join('\n')
+    await writeFile(
+      join(workspaceDir, 'pages', 'first-note.md'),
+      `# ${title}\n\n`,
+      'utf-8'
+    )
 
-  await writeFile(join(workspaceDir, 'lecta.yaml'), yaml, 'utf-8')
+    const yaml = [
+      `type: notebook`,
+      `title: "${title}"`,
+      `author: ""`,
+      `theme: "dark"`,
+      `defaultLayout: lines`,
+      ``,
+      `pages:`,
+      `  - id: first-note`,
+      `    content: pages/first-note.md`,
+      `    createdAt: "${new Date().toISOString()}"`,
+      `    artifacts: []`,
+      ``
+    ].join('\n')
 
-  // Pack into .lecta file
+    await writeFile(join(workspaceDir, 'lecta.yaml'), yaml, 'utf-8')
+  } else {
+    await mkdir(join(workspaceDir, 'slides'), { recursive: true })
+    await mkdir(join(workspaceDir, 'code'), { recursive: true })
+
+    await writeFile(
+      join(workspaceDir, 'slides', '01-welcome.md'),
+      `# ${title}\n\nWelcome to your new presentation!\n`,
+      'utf-8'
+    )
+
+    const yaml = [
+      `title: "${title}"`,
+      `author: ""`,
+      `theme: "dark"`,
+      ``,
+      `slides:`,
+      `  - id: welcome`,
+      `    content: slides/01-welcome.md`,
+      `    artifacts: []`,
+      ``
+    ].join('\n')
+
+    await writeFile(join(workspaceDir, 'lecta.yaml'), yaml, 'utf-8')
+  }
+
   await saveLectaFile(workspaceDir, lectaFilePath)
-
   return workspaceDir
 }
 

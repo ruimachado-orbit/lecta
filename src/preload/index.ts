@@ -14,8 +14,8 @@ const api = {
     ipcRenderer.invoke('fs:get-recent-decks'),
   createPresentation: (name: string): Promise<string | null> =>
     ipcRenderer.invoke('fs:create-presentation', name),
-  createLectaFile: (name: string): Promise<string | null> =>
-    ipcRenderer.invoke('fs:create-lecta-file', name),
+  createLectaFile: (name: string, docType?: string): Promise<string | null> =>
+    ipcRenderer.invoke('fs:create-lecta-file', name, docType),
   saveLecta: (rootPath: string): Promise<void> =>
     ipcRenderer.invoke('fs:save-lecta', rootPath),
   addSlide: (rootPath: string, slideId: string, afterIndex: number): Promise<LoadedPresentation> =>
@@ -174,6 +174,22 @@ const api = {
     ipcRenderer.invoke('settings:get'),
   setAppSettings: (settings: Record<string, unknown>): Promise<void> =>
     ipcRenderer.invoke('settings:set', settings),
+
+  // Notebook
+  loadNotebook: (folderPath: string): Promise<any> =>
+    ipcRenderer.invoke('nb:load', folderPath),
+  addNote: (rootPath: string, noteId: string, afterIndex: number): Promise<any> =>
+    ipcRenderer.invoke('nb:add-note', rootPath, noteId, afterIndex),
+  addSubnote: (rootPath: string, parentId: string, noteId: string): Promise<any> =>
+    ipcRenderer.invoke('nb:add-subnote', rootPath, parentId, noteId),
+  deleteNote: (rootPath: string, noteId: string): Promise<any> =>
+    ipcRenderer.invoke('nb:delete-note', rootPath, noteId),
+  setNoteLayout: (rootPath: string, noteId: string, layout: string): Promise<any> =>
+    ipcRenderer.invoke('nb:set-layout', rootPath, noteId, layout),
+  renameNote: (rootPath: string, noteId: string, newId: string): Promise<any> =>
+    ipcRenderer.invoke('nb:rename-note', rootPath, noteId, newId),
+  saveNoteContent: (rootPath: string, contentPath: string, content: string): Promise<void> =>
+    ipcRenderer.invoke('nb:save-content', rootPath, contentPath, content),
 
   // Remove listeners
   removeAllListeners: (channel: string): void => {

@@ -1,0 +1,211 @@
+import { create } from 'zustand'
+import type { LoadedNotebook, LoadedNote, Notebook, NoteLayout } from '../../../../packages/shared/src/types/notebook'
+
+interface NotebookState {
+  notebook: Notebook | null
+  pages: LoadedNote[] // flat DFS order with depth
+  currentPageIndex: number
+  isLoading: boolean
+  error: string | null
+  isSaving: boolean
+  lastSavedAt: Date | null
+  hasUnsavedChanges: boolean
+
+  // Derived
+  currentPage: () => LoadedNote | null
+  totalPages: () => number
+
+  // Actions
+  loadNotebook: (folderPath: string) => Promise<void>
+  goToPage: (index: number) => void
+  nextPage: () => void
+  prevPage: () => void
+  updateMarkdownContent: (pageIndex: number, content: string) => void
+  savePageContent: (pageIndex: number) => Promise<void>
+  addNote: (noteId: string) => Promise<void>
+  addSubnote: (noteId: string) => Promise<void>
+  deleteNote: () => Promise<void>
+  renameNote: (noteId: string, newId: string) => Promise<void>
+  setNoteLayout: (layout: NoteLayout) => Promise<void>
+  reset: () => void
+}
+
+function applyLoaded(loaded: LoadedNotebook, goToIndex?: number) {
+  return {
+    notebook: loaded.config,
+    pages: loaded.pages,
+    currentPageIndex: goToIndex ?? 0,
+    isLoading: false,
+    error: null
+  }
+}
+
+export const useNotebookStore = create<NotebookState>((set, get) => ({
+  notebook: null,
+  pages: [],
+  currentPageIndex: 0,
+  isLoading: false,
+  error: null,
+  isSaving: false,
+  lastSavedAt: null,
+  hasUnsavedChanges: false,
+
+  currentPage: () => {
+    const { pages, currentPageIndex } = get()
+    return pages[currentPageIndex] ?? null
+  },
+
+  totalPages: () => get().pages.length,
+
+  loadNotebook: async (folderPath: string) => {
+    set({ isLoading: true, error: null })
+    try {
+      const loaded: LoadedNotebook = await window.electronAPI.loadNotebook(folderPath)
+      set(applyLoaded(loaded))
+    } catch (error) {
+      set({ isLoading: false, error: (error as Error).message })
+    }
+  },
+
+  goToPage: (index: number) => {
+    const { pages } = get()
+    if (index >= 0 && index < pages.length) {
+      set({ currentPageIndex: index })
+    }
+  },
+
+  nextPage: () => {
+    const { currentPageIndex, pages } = get()
+    if (currentPageIndex < pages.length - 1) {
+      set({ currentPageIndex: currentPageIndex + 1 })
+    }
+  },
+
+  prevPage: () => {
+    const { currentPageIndex } = get()
+    if (currentPageIndex > 0) {
+      set({ currentPageIndex: currentPageIndex - 1 })
+    }
+  },
+
+  updateMarkdownContent: (pageIndex: number, content: string) => {
+    set((state) => {
+      const pages = [...state.pages]
+      if (pages[pageIndex]) {
+        pages[pageIndex] = { ...pages[pageIndex], markdownContent: content }
+      }
+      return { pages, hasUnsavedChanges: true }
+    })
+  },
+
+  savePageContent: async (pageIndex: number) => {
+    const { notebook, pages } = get()
+    if (!notebook) return
+    const page = pages[pageIndex]
+    if (!page) return
+
+    set({ isSaving: true })
+    try {
+      await window.electronAPI.saveNoteContent(
+        notebook.rootPath,
+        page.config.content,
+        page.markdownContent
+      )
+      set({ isSaving: false, lastSavedAt: new Date(), hasUnsavedChanges: false })
+    } catch {
+      set({ isSaving: false })
+    }
+  },
+
+  addNote: async (noteId: string) => {
+    const { notebook, currentPageIndex } = get()
+    if (!notebook) return
+    try {
+      const loaded: LoadedNotebook = await window.electronAPI.addNote(
+        notebook.rootPath,
+        noteId,
+        currentPageIndex
+      )
+      set(applyLoaded(loaded, currentPageIndex + 1))
+    } catch (error) {
+      set({ error: (error as Error).message })
+    }
+  },
+
+  addSubnote: async (noteId: string) => {
+    const { notebook, pages, currentPageIndex } = get()
+    if (!notebook) return
+    const currentPage = pages[currentPageIndex]
+    if (!currentPage) return
+    try {
+      const loaded: LoadedNotebook = await window.electronAPI.addSubnote(
+        notebook.rootPath,
+        currentPage.config.id,
+        noteId
+      )
+      // Go to the new subnote (it'll be right after current in DFS order)
+      set(applyLoaded(loaded, currentPageIndex + 1))
+    } catch (error) {
+      set({ error: (error as Error).message })
+    }
+  },
+
+  deleteNote: async () => {
+    const { notebook, pages, currentPageIndex } = get()
+    if (!notebook || pages.length <= 1) return
+    const currentPage = pages[currentPageIndex]
+    if (!currentPage) return
+    try {
+      const loaded: LoadedNotebook = await window.electronAPI.deleteNote(
+        notebook.rootPath,
+        currentPage.config.id
+      )
+      const newIndex = Math.min(currentPageIndex, loaded.pages.length - 1)
+      set(applyLoaded(loaded, newIndex))
+    } catch (error) {
+      set({ error: (error as Error).message })
+    }
+  },
+
+  renameNote: async (noteId: string, newId: string) => {
+    const { notebook, currentPageIndex } = get()
+    if (!notebook) return
+    try {
+      const loaded: LoadedNotebook = await window.electronAPI.renameNote(
+        notebook.rootPath,
+        noteId,
+        newId
+      )
+      set(applyLoaded(loaded, currentPageIndex))
+    } catch (error) {
+      set({ error: (error as Error).message })
+    }
+  },
+
+  setNoteLayout: async (layout: NoteLayout) => {
+    const { notebook, pages, currentPageIndex } = get()
+    if (!notebook) return
+    const page = pages[currentPageIndex]
+    if (!page) return
+    try {
+      const loaded: LoadedNotebook = await window.electronAPI.setNoteLayout(
+        notebook.rootPath,
+        page.config.id,
+        layout
+      )
+      set(applyLoaded(loaded, currentPageIndex))
+    } catch (error) {
+      set({ error: (error as Error).message })
+    }
+  },
+
+  reset: () => {
+    set({
+      notebook: null,
+      pages: [],
+      currentPageIndex: 0,
+      isLoading: false,
+      error: null
+    })
+  }
+}))

@@ -140,12 +140,13 @@ export function registerFileSystemHandlers(): void {
     return selected
   })
 
-  // Create a new .lecta file
-  ipcMain.handle('fs:create-lecta-file', async (_event, name: string): Promise<string | null> => {
+  // Create a new .lecta file (presentation or notebook)
+  ipcMain.handle('fs:create-lecta-file', async (_event, name: string, docType?: string): Promise<string | null> => {
+    const isNotebook = docType === 'notebook'
     const result = await dialog.showSaveDialog({
-      title: 'Create New Presentation',
+      title: isNotebook ? 'Create New Notebook' : 'Create New Presentation',
       defaultPath: `${name}.lecta`,
-      filters: [{ name: 'Lecta Presentation', extensions: ['lecta'] }]
+      filters: [{ name: 'Lecta File', extensions: ['lecta'] }]
     })
 
     if (result.canceled || !result.filePath) {
@@ -153,7 +154,7 @@ export function registerFileSystemHandlers(): void {
     }
 
     const lectaFilePath = result.filePath
-    const workspaceDir = await createLectaFile(lectaFilePath, name)
+    const workspaceDir = await createLectaFile(lectaFilePath, name, isNotebook ? 'notebook' : 'presentation')
     registerWorkspace(workspaceDir, lectaFilePath)
     return workspaceDir
   })

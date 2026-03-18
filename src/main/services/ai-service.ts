@@ -184,18 +184,15 @@ Rules:
     const response = await client.messages.create({
       model: this.model,
       max_tokens: 2048,
-      system: `You are a professional presentation designer. Your job is to take slide markdown and improve its visual formatting and structure without changing the content.
-
+      system: `You are a professional presentation designer. Reformat slide content to be clean and professional.
+${SLIDE_7x7_RULE}
 Rules:
-- Output ONLY the reformatted markdown, nothing else
-- DO NOT change, rewrite, remove, or add any words, sentences, or information
-- DO NOT remove content the author wrote — every piece of text must be preserved
-- Only restructure: convert flat text into bullet points, add headings for sections, apply proper hierarchy
-- Only restyle: add **bold** for emphasis on key terms, use line breaks for visual breathing room
-- Convert inline data comparisons into markdown tables if they would be clearer as a table
-- Wrap technical terms or inline code in backticks
-- Use consistent formatting (heading levels, bullet style) throughout
-- If the slide is already well-formatted, return it unchanged`,
+- Output ONLY the improved markdown, nothing else
+- Preserve meaning but condense to fit the 7×7 rule
+- Add **bold** for key terms, proper heading hierarchy
+- Convert comparisons into small markdown tables
+- Wrap technical terms in backticks
+- If content is too long, ruthlessly condense — prefer clarity over completeness`,
       messages: [
         {
           role: 'user',
@@ -229,17 +226,15 @@ Rules:
       model: this.model,
       max_tokens: 4096 * 2,
       system: `You are a technical presentation generator. Generate slide content as a JSON array.
-
+${SLIDE_7x7_RULE}
 Rules:
 - Output ONLY a valid JSON array, no markdown wrapping, no explanation
 - Each element: { "id": "kebab-case-id", "markdown": "# Title\\n\\ncontent..." }
 - Generate exactly ${count} slides
-- Each slide should have a clear heading (#) and concise content
-- Content should flow logically from slide to slide
-- Use markdown: headings, bullets, bold, code blocks, tables as needed
-- Keep each slide focused on one key point
-- If existing slides are provided, continue from where they left off — don't repeat
-- If artifact context is provided, create slides that explain/discuss that content`,
+- Each slide: one # heading + max 7 short bullet points
+- Content flows logically, no repetition
+- For diagrams: use mermaid code blocks in markdown
+- If existing slides provided, continue from where they left off`,
       messages: [
         {
           role: 'user',
@@ -276,12 +271,12 @@ Rules:
       model: this.model,
       max_tokens: 2048,
       system: `You are a presentation slide editor. Improve a slide based on the user's instructions.
-
+${SLIDE_7x7_RULE}
 Rules:
 - Output ONLY the improved markdown, nothing else
 - Apply the user's requested changes
-- Maintain consistent style with the rest of the deck
-- Keep it concise and presentation-ready`,
+- Enforce the 7×7 rule — condense if needed
+- For diagrams: use mermaid code blocks`,
       messages: [
         {
           role: 'user',

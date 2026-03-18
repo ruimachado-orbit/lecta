@@ -1,6 +1,7 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
+import { MermaidDiagram } from '../common/MermaidDiagram'
 
 interface SlideRendererProps {
   markdown: string
@@ -66,6 +67,11 @@ export function SlideRenderer({ markdown, rootPath }: SlideRendererProps): JSX.E
           ),
           code: ({ className, children, ...props }) => {
             const isInline = !className
+            // Render mermaid diagrams
+            if (className?.includes('language-mermaid')) {
+              const chart = String(children).replace(/\n$/, '')
+              return <MermaidDiagram chart={chart} />
+            }
             if (isInline) {
               return (
                 <code className="bg-gray-800 px-2 py-0.5 rounded text-indigo-300 font-mono text-base">
@@ -79,11 +85,18 @@ export function SlideRenderer({ markdown, rootPath }: SlideRendererProps): JSX.E
               </code>
             )
           },
-          pre: ({ children }) => (
-            <pre className="bg-gray-900 rounded-lg p-4 mb-4 overflow-x-auto text-sm">
-              {children}
-            </pre>
-          ),
+          pre: ({ children }) => {
+            // If the child is a mermaid diagram, don't wrap in pre
+            const child = children as any
+            if (child?.props?.className?.includes('language-mermaid')) {
+              return <>{children}</>
+            }
+            return (
+              <pre className="bg-gray-900 rounded-lg p-4 mb-4 overflow-x-auto text-sm">
+                {children}
+              </pre>
+            )
+          },
           blockquote: ({ children }) => (
             <blockquote className="border-l-4 border-indigo-500 pl-4 italic text-gray-400 mb-4">
               {children}

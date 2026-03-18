@@ -122,7 +122,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
       if (slides[slideIndex]) {
         slides[slideIndex] = { ...slides[slideIndex], codeContent: content }
       }
-      return { slides }
+      return { slides, hasUnsavedChanges: true }
     })
   },
 
@@ -132,7 +132,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
       if (slides[slideIndex]) {
         slides[slideIndex] = { ...slides[slideIndex], markdownContent: content }
       }
-      return { slides }
+      return { slides, hasUnsavedChanges: true }
     })
   },
 
@@ -142,12 +142,19 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
     const slide = slides[slideIndex]
     if (!slide) return
 
-    const mdPath = `${presentation.rootPath}/${slide.config.content}`
-    await window.electronAPI.writeFile(mdPath, slide.markdownContent)
+    set({ isSaving: true })
+    try {
+      const mdPath = `${presentation.rootPath}/${slide.config.content}`
+      await window.electronAPI.writeFile(mdPath, slide.markdownContent)
 
-    if (slide.config.code && slide.codeContent !== null) {
-      const codePath = `${presentation.rootPath}/${slide.config.code.file}`
-      await window.electronAPI.writeFile(codePath, slide.codeContent)
+      if (slide.config.code && slide.codeContent !== null) {
+        const codePath = `${presentation.rootPath}/${slide.config.code.file}`
+        await window.electronAPI.writeFile(codePath, slide.codeContent)
+      }
+
+      set({ isSaving: false, lastSavedAt: new Date(), hasUnsavedChanges: false })
+    } catch {
+      set({ isSaving: false })
     }
   },
 

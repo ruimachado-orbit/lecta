@@ -9,6 +9,7 @@ export function WebPanel({ webapp }: WebPanelProps): JSX.Element {
   const [url, setUrl] = useState(webapp.url)
   const [inputUrl, setInputUrl] = useState(webapp.url)
   const webviewRef = useRef<HTMLWebViewElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   const handleNavigate = () => {
@@ -39,6 +40,36 @@ export function WebPanel({ webapp }: WebPanelProps): JSX.Element {
       wv.removeEventListener('did-stop-loading', onStopLoad)
       wv.removeEventListener('did-navigate', onNavigate)
       wv.removeEventListener('did-navigate-in-page', onNavigate)
+    }
+  }, [url])
+
+  // Auto-zoom webview content to fit the panel width
+  useEffect(() => {
+    const wv = webviewRef.current as any
+    const container = containerRef.current
+    if (!wv || !container) return
+
+    const DESKTOP_WIDTH = 1440
+
+    const updateZoom = () => {
+      const panelWidth = container.clientWidth
+      if (panelWidth > 0 && wv.setZoomFactor) {
+        const factor = Math.min(1, panelWidth / DESKTOP_WIDTH)
+        wv.setZoomFactor(factor)
+      }
+    }
+
+    // Set zoom after the page loads
+    const onReady = () => updateZoom()
+    wv.addEventListener('dom-ready', onReady)
+
+    // Re-zoom when panel resizes
+    const ro = new ResizeObserver(updateZoom)
+    ro.observe(container)
+
+    return () => {
+      wv.removeEventListener('dom-ready', onReady)
+      ro.disconnect()
     }
   }, [url])
 
@@ -90,11 +121,12 @@ export function WebPanel({ webapp }: WebPanelProps): JSX.Element {
       </div>
 
       {/* Embedded browser via webview (bypasses X-Frame-Options) */}
-      <div className="flex-1 relative">
+      <div className="flex-1 relative" ref={containerRef}>
         <webview
           ref={webviewRef as any}
           src={url}
-          className="w-full h-full"
+          className="absolute inset-0"
+          style={{ width: '100%', height: '100%' }}
           // @ts-ignore - Electron webview attributes
           allowpopups="true"
         />

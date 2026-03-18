@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+out/
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Electron packaging
+release/
+
+# Cache
+.lecta/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Credentials (safety net)
+*.pem
+*.key
+credentials.json

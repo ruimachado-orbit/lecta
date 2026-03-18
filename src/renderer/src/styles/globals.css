@@ -1,0 +1,118 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand: #6366f1;
+  --color-brand-light: #818cf8;
+  --color-brand-dark: #4f46e5;
+  --color-surface: #0f172a;
+  --color-surface-light: #1e293b;
+  --color-surface-lighter: #334155;
+  --color-border: #334155;
+  --color-border-light: #475569;
+}
+
+/* Presentation-quality slide styling */
+.slide-content h1 {
+  @apply text-4xl font-bold mb-6 text-white;
+}
+
+.slide-content h2 {
+  @apply text-3xl font-semibold mb-4 text-white;
+}
+
+.slide-content h3 {
+  @apply text-2xl font-medium mb-3 text-gray-200;
+}
+
+.slide-content p {
+  @apply text-xl leading-relaxed mb-4 text-gray-300;
+}
+
+.slide-content ul,
+.slide-content ol {
+  @apply text-lg leading-relaxed mb-4 ml-6 text-gray-300;
+}
+
+.slide-content li {
+  @apply mb-2;
+}
+
+.slide-content ul li {
+  @apply list-disc;
+}
+
+.slide-content ol li {
+  @apply list-decimal;
+}
+
+.slide-content code {
+  @apply bg-surface-lighter px-2 py-0.5 rounded text-brand-light font-mono text-base;
+}
+
+.slide-content pre {
+  @apply bg-gray-900 rounded-lg p-4 mb-4 overflow-x-auto;
+}
+
+.slide-content pre code {
+  @apply bg-transparent p-0;
+}
+
+.slide-content blockquote {
+  @apply border-l-4 border-brand pl-4 italic text-gray-400 mb-4;
+}
+
+.slide-content img {
+  @apply max-w-full h-auto rounded-lg;
+}
+
+.slide-content a {
+  @apply text-brand-light underline hover:text-brand;
+}
+
+.slide-content table {
+  @apply w-full border-collapse mb-4;
+}
+
+.slide-content th {
+  @apply bg-surface-lighter border border-border px-4 py-2 text-left font-semibold;
+}
+
+.slide-content td {
+  @apply border border-border px-4 py-2;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-surface-lighter rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-border-light;
+}
+
+/* Resizable panel handle */
+[data-panel-group-direction="horizontal"] > [data-resize-handle] {
+  @apply w-1 bg-border hover:bg-brand transition-colors;
+}
+
+/* Execution output terminal */
+.terminal-output {
+  @apply font-mono text-sm leading-relaxed whitespace-pre-wrap;
+}
+
+.terminal-output .stdout {
+  @apply text-gray-300;
+}
+
+.terminal-output .stderr {
+  @apply text-red-400;
+}

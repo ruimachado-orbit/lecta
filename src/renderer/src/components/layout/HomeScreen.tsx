@@ -60,8 +60,8 @@ export function HomeScreen(): JSX.Element {
           <button
             onClick={openFolder}
             disabled={isLoading}
-            className="w-full py-4 px-6 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-800
-                       text-white font-medium rounded-xl transition-colors text-lg
+            className="w-full py-4 px-6 bg-white hover:bg-gray-200 disabled:bg-gray-700 disabled:text-gray-400
+                       text-black font-medium rounded-xl transition-colors text-lg
                        flex items-center justify-center gap-3"
           >
             {isLoading ? (
@@ -101,14 +101,14 @@ export function HomeScreen(): JSX.Element {
                 placeholder="My Awesome Talk"
                 autoFocus
                 className="w-full px-4 py-3 bg-gray-950 text-white rounded-lg border border-gray-700
-                           focus:border-indigo-500 focus:outline-none text-base placeholder-gray-600"
+                           focus:border-white focus:outline-none text-base placeholder-gray-600"
               />
               <div className="flex gap-2">
                 <button
                   onClick={handleCreateLecta}
                   disabled={!newName.trim()}
-                  className="flex-1 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-800 disabled:opacity-50
-                             text-white font-medium rounded-lg transition-colors text-sm"
+                  className="flex-1 py-2.5 px-4 bg-white hover:bg-gray-200 disabled:bg-gray-700 disabled:text-gray-400 disabled:opacity-50
+                             text-black font-medium rounded-lg transition-colors text-sm"
                 >
                   Save as .lecta
                 </button>

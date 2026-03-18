@@ -85,7 +85,7 @@ export function WysiwygEditor({ slideIndex }: WysiwygEditorProps): JSX.Element {
     const relativePath = await window.electronAPI.uploadImage(presentation.rootPath)
     if (relativePath) {
       const encoded = relativePath.split('/').map(encodeURIComponent).join('/')
-      const fullSrc = `file://${presentation.rootPath}/${relativePath}`
+      const fullSrc = `lecta-file://${presentation.rootPath}/${relativePath}`
       editor.chain().focus().setImage({ src: fullSrc, alt: 'image' }).run()
     }
   }

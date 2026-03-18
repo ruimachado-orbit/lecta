@@ -48,7 +48,7 @@ export function SlideMap(): JSX.Element {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
           <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-bold text-sm">
+            <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-black font-bold text-sm">
               {presentation?.title?.charAt(0)?.toUpperCase()}
             </div>
             <div>
@@ -79,7 +79,7 @@ export function SlideMap(): JSX.Element {
                 <div className="flex items-center gap-2 mb-3">
                   {section.group ? (
                     <>
-                      <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                      <div className="w-1.5 h-1.5 rounded-full bg-white" />
                       <span className="text-xs font-semibold text-indigo-400 uppercase tracking-wider">
                         {section.group.name}
                       </span>

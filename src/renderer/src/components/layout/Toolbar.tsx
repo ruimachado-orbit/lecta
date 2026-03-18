@@ -104,7 +104,7 @@ export function Toolbar(): JSX.Element {
             toggleEditingSlide()
           }}
           className={`p-1.5 rounded transition-colors ${
-            editingSlide ? 'bg-indigo-600 text-white' : 'hover:bg-gray-800 text-gray-400'
+            editingSlide ? 'bg-white text-black' : 'hover:bg-gray-800 text-gray-400'
           }`}
           title={editingSlide ? 'Switch to preview (save)' : 'Edit slide content'}
         >
@@ -116,7 +116,7 @@ export function Toolbar(): JSX.Element {
           <button
             onClick={() => { closeAllDropdowns(); setShowAddMenu(!showAddMenu) }}
             className={`p-1.5 rounded transition-colors ${
-              showAddMenu ? 'bg-indigo-600 text-white' : 'hover:bg-gray-800 text-gray-400 hover:text-gray-200'
+              showAddMenu ? 'bg-white text-black' : 'hover:bg-gray-800 text-gray-400 hover:text-gray-200'
             }`}
             title="Add to this slide"
           >
@@ -132,7 +132,7 @@ export function Toolbar(): JSX.Element {
                     onChange={(e) => { if (e.target.value) { handleAddCode(e.target.value as SupportedLanguage); setShowAddMenu(false) } }}
                     defaultValue=""
                     className="w-full px-2 py-1.5 bg-gray-950 text-gray-300 text-xs rounded border border-gray-700
-                               focus:border-indigo-500 focus:outline-none"
+                               focus:border-white focus:outline-none"
                   >
                     <option value="" disabled>Select language...</option>
                     {(['markdown', 'javascript', 'python', 'sql', 'typescript', 'bash', 'go', 'rust', 'java', 'ruby'] as SupportedLanguage[]).map((lang) => (
@@ -154,7 +154,7 @@ export function Toolbar(): JSX.Element {
                       onKeyDown={(e) => { if (e.key === 'Enter') { handleAddVideo(); setShowAddMenu(false) } }}
                       placeholder="YouTube URL..."
                       className="flex-1 px-2 py-1.5 bg-gray-950 text-gray-300 text-xs rounded border border-gray-700
-                                 focus:border-indigo-500 focus:outline-none"
+                                 focus:border-white focus:outline-none"
                     />
                     <button
                       onClick={() => { handleAddVideo(); setShowAddMenu(false) }}
@@ -180,13 +180,13 @@ export function Toolbar(): JSX.Element {
                       onKeyDown={(e) => { if (e.key === 'Enter') { handleAddWebApp(); setShowAddMenu(false) } }}
                       placeholder="https://localhost:3000"
                       className="flex-1 px-2 py-1.5 bg-gray-950 text-gray-300 text-xs rounded border border-gray-700
-                                 focus:border-indigo-500 focus:outline-none"
+                                 focus:border-white focus:outline-none"
                     />
                     <button
                       onClick={() => { handleAddWebApp(); setShowAddMenu(false) }}
                       disabled={!webAppUrl.trim()}
-                      className="px-2 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40
-                                 text-white text-[10px] rounded transition-colors"
+                      className="px-2 py-1.5 bg-white hover:bg-gray-200 disabled:opacity-40
+                                 text-black text-[10px] rounded transition-colors"
                     >
                       Add
                     </button>
@@ -210,7 +210,7 @@ export function Toolbar(): JSX.Element {
         <button
           onClick={toggleArtifactDrawer}
           className={`p-1.5 rounded transition-colors ${
-            showArtifactDrawer ? 'bg-indigo-600 text-white' : 'hover:bg-gray-800 text-gray-400'
+            showArtifactDrawer ? 'bg-white text-black' : 'hover:bg-gray-800 text-gray-400'
           }`}
           title="Toggle attachments panel"
         >
@@ -242,7 +242,7 @@ export function Toolbar(): JSX.Element {
         <button
           onClick={toggleNotes}
           className={`p-1.5 rounded transition-colors ${
-            showNotes ? 'bg-indigo-600 text-white' : 'hover:bg-gray-800 text-gray-400'
+            showNotes ? 'bg-white text-black' : 'hover:bg-gray-800 text-gray-400'
           }`}
           title="Toggle speaker notes (N)"
         >
@@ -253,7 +253,7 @@ export function Toolbar(): JSX.Element {
         <button
           onClick={toggleArticlePanel}
           className={`p-1.5 rounded transition-colors ${
-            showArticlePanel ? 'bg-indigo-600 text-white' : 'hover:bg-gray-800 text-gray-400'
+            showArticlePanel ? 'bg-white text-black' : 'hover:bg-gray-800 text-gray-400'
           }`}
           title="Generate article from presentation"
         >
@@ -263,7 +263,7 @@ export function Toolbar(): JSX.Element {
         {/* Present mode */}
         <button
           onClick={togglePresenting}
-          className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium
+          className="px-3 py-1.5 bg-white hover:bg-gray-200 text-black text-sm font-medium
                      rounded-lg transition-colors flex items-center gap-1.5"
           title="Start presentation (F5)"
         >

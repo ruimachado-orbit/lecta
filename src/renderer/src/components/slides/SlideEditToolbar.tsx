@@ -203,8 +203,8 @@ function AIPromptBar({
         <button
           onClick={handleGenerate}
           disabled={isGenerating}
-          className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50
-                     text-white text-[11px] font-medium rounded-md transition-colors
+          className="px-3 py-1 bg-white hover:bg-gray-200 disabled:opacity-50
+                     text-black text-[11px] font-medium rounded-md transition-colors
                      flex items-center gap-1.5"
         >
           {isGenerating ? (
@@ -241,7 +241,7 @@ function Btn({
       disabled={disabled}
       className={`px-1.5 py-0.5 rounded text-[11px] transition-colors disabled:opacity-40 ${
         accent
-          ? 'bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/40'
+          ? 'bg-white/10 text-gray-300 hover:bg-white/20'
           : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
       }`}
     >
@@ -265,7 +265,7 @@ function Spinner(): JSX.Element {
 
 function SparklesIcon(): JSX.Element {
   return (
-    <svg className="w-4 h-4 text-indigo-400 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+    <svg className="w-4 h-4 text-white flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
       <path d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z" />
     </svg>
   )

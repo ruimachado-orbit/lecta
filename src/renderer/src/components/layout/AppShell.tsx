@@ -49,7 +49,7 @@ export function AppShell(): JSX.Element {
           {/* Right Pane: Code / Video / Web */}
           {hasRightPane && (
             <>
-              <PanelResizeHandle className="w-1 bg-gray-800 hover:bg-indigo-500 transition-colors cursor-col-resize" />
+              <PanelResizeHandle className="w-1 bg-gray-800 hover:bg-white transition-colors cursor-col-resize" />
               <Panel defaultSize={showArticlePanel ? 30 : 60} minSize={20}>
                 {hasCode ? (
                   <CodePanel />
@@ -65,7 +65,7 @@ export function AppShell(): JSX.Element {
           {/* Artifact Drawer */}
           {showArtifactDrawer && (
             <>
-              <PanelResizeHandle className="w-1 bg-gray-800 hover:bg-indigo-500 transition-colors cursor-col-resize" />
+              <PanelResizeHandle className="w-1 bg-gray-800 hover:bg-white transition-colors cursor-col-resize" />
               <Panel defaultSize={30} minSize={20}>
                 <ArtifactDrawer />
               </Panel>
@@ -75,7 +75,7 @@ export function AppShell(): JSX.Element {
           {/* Article Panel */}
           {showArticlePanel && (
             <>
-              <PanelResizeHandle className="w-1 bg-gray-800 hover:bg-indigo-500 transition-colors cursor-col-resize" />
+              <PanelResizeHandle className="w-1 bg-gray-800 hover:bg-white transition-colors cursor-col-resize" />
               <Panel defaultSize={hasRightPane ? 30 : 60} minSize={25}>
                 <ArticlePanel />
               </Panel>

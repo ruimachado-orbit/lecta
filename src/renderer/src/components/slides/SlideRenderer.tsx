@@ -11,15 +11,18 @@ interface SlideRendererProps {
 function resolveImageSrc(src: string | undefined, rootPath?: string): string {
   if (!src) return ''
   // Already absolute URL or data URI
-  if (src.startsWith('http://') || src.startsWith('https://') || src.startsWith('data:') || src.startsWith('file://')) {
+  if (src.startsWith('http://') || src.startsWith('https://') || src.startsWith('data:') || src.startsWith('lecta-file://')) {
     return src
   }
-  // Local file — resolve relative to workspace root
+  // Convert file:// to lecta-file://
+  if (src.startsWith('file://')) {
+    return src.replace('file://', 'lecta-file://')
+  }
+  // Local file — resolve relative to workspace root using custom protocol
   if (rootPath) {
-    // Decode first in case path is already encoded, then re-encode each segment
     const decoded = decodeURIComponent(src)
     const fullPath = `${rootPath}/${decoded}`
-    return `file://${fullPath.split('/').map(encodeURIComponent).join('/')}`
+    return `lecta-file://${fullPath}`
   }
   return src
 }
@@ -74,7 +77,7 @@ export function SlideRenderer({ markdown, rootPath }: SlideRendererProps): JSX.E
             }
             if (isInline) {
               return (
-                <code className="bg-gray-800 px-2 py-0.5 rounded text-indigo-300 font-mono text-base">
+                <code className="bg-gray-800 px-2 py-0.5 rounded text-gray-300 font-mono text-base">
                   {children}
                 </code>
               )
@@ -102,14 +105,14 @@ export function SlideRenderer({ markdown, rootPath }: SlideRendererProps): JSX.E
             )
           },
           blockquote: ({ children }) => (
-            <blockquote className="border-l-4 border-indigo-500 pl-4 italic text-gray-400 mb-4">
+            <blockquote className="border-l-4 border-white pl-4 italic text-gray-400 mb-4">
               {children}
             </blockquote>
           ),
           a: ({ href, children }) => (
             <a
               href={href}
-              className="text-indigo-400 underline hover:text-indigo-300"
+              className="text-white underline hover:text-gray-300"
               target="_blank"
               rel="noopener noreferrer"
             >

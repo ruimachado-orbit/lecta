@@ -131,7 +131,7 @@ export function SlideNavigator(): JSX.Element {
               onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleDropOnGroup(e, group.id) }}
               className={`group/chip flex items-center gap-1 px-2 py-1 text-[9px] rounded transition-colors flex-shrink-0 ${
                 dropGroupId === group.id
-                  ? 'bg-indigo-600 text-white ring-2 ring-indigo-400'
+                  ? 'bg-white text-black ring-2 ring-white'
                   : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
               }`}
             >
@@ -142,7 +142,7 @@ export function SlideNavigator(): JSX.Element {
               >
                 <span className={`transition-transform ${group.collapsed ? '' : 'rotate-90'}`}>▸</span>
                 {group.name}
-                <span className={dropGroupId === group.id ? 'text-indigo-200' : 'text-gray-600'}>({group.slideIds.length})</span>
+                <span className={dropGroupId === group.id ? 'text-gray-300' : 'text-gray-600'}>({group.slideIds.length})</span>
               </span>
               {dragIndex === null && (
                 <span
@@ -182,7 +182,7 @@ export function SlideNavigator(): JSX.Element {
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.currentTarget.blur() } else if (e.key === 'Escape') { setRenaming(null) } }}
                 onBlur={handleFinishRename}
                 className="flex-shrink-0 w-24 h-10 px-2 bg-gray-950 text-gray-300 text-[10px] rounded-md
-                           border-2 border-indigo-500 focus:outline-none"
+                           border-2 border-white focus:outline-none"
               />
             )
           }
@@ -201,8 +201,8 @@ export function SlideNavigator(): JSX.Element {
               className={`group flex-shrink-0 w-20 h-10 rounded-md border-2 transition-all text-[8px] leading-tight
                           overflow-visible px-1.5 py-1 text-left relative cursor-grab active:cursor-grabbing ${
                 isDragging ? 'opacity-40 border-gray-600'
-                : isDropTgt ? 'border-indigo-400 bg-indigo-950/30'
-                : isActive ? 'border-indigo-500 bg-gray-800 text-gray-300'
+                : isDropTgt ? 'border-gray-400 bg-white/5'
+                : isActive ? 'border-white bg-gray-800 text-gray-300'
                 : 'border-gray-700 bg-gray-900 text-gray-500 hover:border-gray-600 hover:text-gray-400'
               }`}
               title={`Slide ${index + 1} — drag to reorder or onto a group`}
@@ -216,12 +216,12 @@ export function SlideNavigator(): JSX.Element {
                 {index + 1}. {slide.config.id}
               </span>
               {slide.config.code && (
-                <span className="block truncate text-indigo-400/60 mt-0.5">
+                <span className="block truncate text-white/60 mt-0.5">
                   {slide.config.code.language}
                 </span>
               )}
               {isAI && (
-                <span className="absolute top-0.5 right-0.5 text-[7px] text-indigo-400 group-hover:hidden">✦</span>
+                <span className="absolute top-0.5 right-0.5 text-[7px] text-white group-hover:hidden">✦</span>
               )}
               {slides.length > 1 && (
                 <button
@@ -243,7 +243,7 @@ export function SlideNavigator(): JSX.Element {
         <button
           onClick={handleQuickAdd}
           className="flex-shrink-0 w-10 h-10 rounded-md border-2 border-dashed border-gray-700
-                     hover:border-indigo-500 hover:text-indigo-400 text-gray-600
+                     hover:border-white hover:text-white text-gray-600
                      flex items-center justify-center transition-colors"
           title="Add slide"
         >
@@ -267,14 +267,14 @@ export function SlideNavigator(): JSX.Element {
               placeholder="Group name"
               autoFocus
               className="w-20 px-2 py-1 bg-gray-950 text-gray-300 text-[10px] rounded border border-gray-700
-                         focus:border-indigo-500 focus:outline-none"
+                         focus:border-white focus:outline-none"
             />
           </div>
         ) : (
           <button
             onClick={() => setShowNewGroup(true)}
             className="flex-shrink-0 h-10 px-2 rounded-md border-2 border-dashed border-gray-700
-                       hover:border-indigo-500 hover:text-indigo-400 text-gray-600
+                       hover:border-white hover:text-white text-gray-600
                        flex items-center justify-center transition-colors text-[9px] gap-1"
             title="Create slide group"
           >
@@ -323,7 +323,7 @@ export function SlideNavigator(): JSX.Element {
                       className="w-full text-left px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-800 transition-colors flex items-center gap-2"
                     >
                       <span className={`w-3 h-3 rounded border flex items-center justify-center text-[8px] ${
-                        isInGroup ? 'bg-indigo-600 border-indigo-500 text-white' : 'border-gray-600'
+                        isInGroup ? 'bg-white border-white text-black' : 'border-gray-600'
                       }`}>
                         {isInGroup ? '✓' : ''}
                       </span>

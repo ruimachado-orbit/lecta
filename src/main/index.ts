@@ -1,6 +1,7 @@
 import { config as dotenvConfig } from 'dotenv'
-import { app, BrowserWindow, nativeImage, session, shell } from 'electron'
+import { app, BrowserWindow, net, nativeImage, protocol, session, shell } from 'electron'
 import { join } from 'path'
+import { readFile } from 'fs/promises'
 import { registerAllIpcHandlers } from './ipc/register'
 
 // Load .env from project root (for ANTHROPIC_API_KEY, etc.)
@@ -11,6 +12,11 @@ app.name = 'Lecta'
 if (process.platform === 'darwin') {
   app.setName('Lecta')
 }
+
+// Register custom protocol for serving local files (works in both dev and production)
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'lecta-file', privileges: { standard: false, secure: true, supportFetchAPI: true, stream: true } }
+])
 
 let mainWindow: BrowserWindow | null = null
 
@@ -62,7 +68,7 @@ function createWindow(): void {
             ` worker-src 'self' blob:;` +
             ` child-src 'self' blob:;` +
             ` frame-src 'self' blob: https: http://localhost:* http://127.0.0.1:*;` +
-            ` img-src 'self' data: blob: https: file:;` +
+            ` img-src 'self' data: blob: https: file: lecta-file:;` +
             ` font-src 'self' data: https://cdn.jsdelivr.net;`
         ]
       }
@@ -88,6 +94,26 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   app.setAppUserModelId('com.lecta.app')
+
+  // Handle lecta-file:// protocol — serves local files to the renderer
+  // URL format: lecta-file:///absolute/path/to/file.png
+  protocol.handle('lecta-file', async (request) => {
+    const filePath = decodeURIComponent(request.url.replace('lecta-file://', ''))
+    try {
+      const data = await readFile(filePath)
+      const ext = filePath.split('.').pop()?.toLowerCase() || ''
+      const mimeMap: Record<string, string> = {
+        png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
+        svg: 'image/svg+xml', webp: 'image/webp', bmp: 'image/bmp',
+        pdf: 'application/pdf', mp4: 'video/mp4', webm: 'video/webm'
+      }
+      return new Response(data, {
+        headers: { 'Content-Type': mimeMap[ext] || 'application/octet-stream' }
+      })
+    } catch {
+      return new Response('Not found', { status: 404 })
+    }
+  })
 
   registerAllIpcHandlers()
   createWindow()

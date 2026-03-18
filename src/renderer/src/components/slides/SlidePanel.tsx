@@ -51,7 +51,7 @@ export function SlidePanel(): JSX.Element {
             <button
               onClick={() => setEditorMode('wysiwyg')}
               className={`text-[10px] px-2 py-0.5 rounded transition-colors ${
-                editorMode === 'wysiwyg' ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:text-gray-300'
+                editorMode === 'wysiwyg' ? 'bg-white text-black' : 'text-gray-500 hover:text-gray-300'
               }`}
             >
               Visual
@@ -59,7 +59,7 @@ export function SlidePanel(): JSX.Element {
             <button
               onClick={() => setEditorMode('markdown')}
               className={`text-[10px] px-2 py-0.5 rounded transition-colors ${
-                editorMode === 'markdown' ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:text-gray-300'
+                editorMode === 'markdown' ? 'bg-white text-black' : 'text-gray-500 hover:text-gray-300'
               }`}
             >
               Markdown
@@ -127,7 +127,7 @@ export function SlidePanel(): JSX.Element {
           <button
             onClick={() => setShowAIGenerate(!showAIGenerate)}
             className={`flex-shrink-0 w-12 border-l border-gray-800 flex items-center justify-center transition-colors ${
-              showAIGenerate ? 'bg-indigo-600 text-white' : 'bg-gray-900 text-gray-500 hover:text-indigo-400'
+              showAIGenerate ? 'bg-white text-black' : 'bg-gray-900 text-gray-500 hover:text-white'
             }`}
             title="AI slide generator"
           >

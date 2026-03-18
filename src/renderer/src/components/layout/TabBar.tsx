@@ -26,7 +26,7 @@ export function TabBar(): JSX.Element {
             className={`group flex items-center gap-1.5 px-3 h-full text-[11px] cursor-pointer border-r border-gray-800
                         transition-colors max-w-[180px] ${
               isActive
-                ? 'bg-gray-950 text-gray-200 border-b-2 border-b-indigo-500'
+                ? 'bg-gray-950 text-gray-200 border-b-2 border-b-white'
                 : 'text-gray-500 hover:bg-gray-800 hover:text-gray-300'
             }`}
           >

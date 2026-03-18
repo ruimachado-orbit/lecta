@@ -8,14 +8,8 @@ export interface ColorPalette {
 }
 
 export const COLOR_PALETTES: ColorPalette[] = [
-  { name: 'Indigo', accent: '#6366f1', accentLight: '#818cf8', accentDark: '#4f46e5' },
-  { name: 'Blue', accent: '#3b82f6', accentLight: '#60a5fa', accentDark: '#2563eb' },
-  { name: 'Emerald', accent: '#10b981', accentLight: '#34d399', accentDark: '#059669' },
-  { name: 'Rose', accent: '#f43f5e', accentLight: '#fb7185', accentDark: '#e11d48' },
-  { name: 'Amber', accent: '#f59e0b', accentLight: '#fbbf24', accentDark: '#d97706' },
-  { name: 'Purple', accent: '#a855f7', accentLight: '#c084fc', accentDark: '#9333ea' },
-  { name: 'Cyan', accent: '#06b6d4', accentLight: '#22d3ee', accentDark: '#0891b2' },
-  { name: 'Orange', accent: '#f97316', accentLight: '#fb923c', accentDark: '#ea580c' },
+  { name: 'White', accent: '#ffffff', accentLight: '#e5e5e5', accentDark: '#d4d4d4' },
+  { name: 'Silver', accent: '#a3a3a3', accentLight: '#d4d4d4', accentDark: '#737373' },
 ]
 
 export interface SlideGroup {

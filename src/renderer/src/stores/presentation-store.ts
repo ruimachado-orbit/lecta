@@ -74,7 +74,18 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
     try {
       const folderPath = await window.electronAPI.openFolder()
       if (folderPath) {
-        await get().loadPresentation(folderPath)
+        try {
+          await get().loadPresentation(folderPath)
+        } catch (err: any) {
+          // If it's a notebook, load via notebook store
+          if (err?.message?.startsWith('NOTEBOOK:')) {
+            const nbPath = err.message.replace('NOTEBOOK:', '')
+            const { useNotebookStore } = await import('./notebook-store')
+            await useNotebookStore.getState().loadNotebook(nbPath)
+          } else {
+            throw err
+          }
+        }
       }
     } catch (error) {
       set({ error: (error as Error).message })

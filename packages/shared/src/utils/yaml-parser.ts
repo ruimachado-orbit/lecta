@@ -21,10 +21,22 @@ const CodeBlockConfigSchema = z.object({
   args: z.array(z.string()).optional()
 })
 
+const VideoConfigSchema = z.object({
+  url: z.string(),
+  label: z.string().optional()
+})
+
+const WebAppConfigSchema = z.object({
+  url: z.string(),
+  label: z.string().optional()
+})
+
 const SlideConfigSchema = z.object({
   id: z.string(),
   content: z.string(),
   code: CodeBlockConfigSchema.optional(),
+  video: VideoConfigSchema.optional(),
+  webapp: WebAppConfigSchema.optional(),
   artifacts: z.array(ArtifactConfigSchema).default([]),
   notes: z.string().optional()
 })

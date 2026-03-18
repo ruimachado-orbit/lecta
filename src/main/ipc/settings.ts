@@ -14,7 +14,7 @@ async function loadSettings(): Promise<Record<string, unknown>> {
   } catch {
     cachedSettings = {
       theme: 'dark',
-      aiModel: 'claude-sonnet-4-5-20250514',
+      aiModel: 'claude-sonnet-4-6-20250410',
       executionTimeout: 30000,
       nativeExecutionEnabled: false,
       fontSize: 16,

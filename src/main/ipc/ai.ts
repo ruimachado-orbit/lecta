@@ -10,6 +10,10 @@ function getAIService(): AIService {
   return aiService
 }
 
+export function setAIDeckPath(deckPath: string): void {
+  getAIService().setDeckPath(deckPath)
+}
+
 export function registerAiHandlers(): void {
   ipcMain.handle(
     'ai:generate-notes',
@@ -50,6 +54,72 @@ export function registerAiHandlers(): void {
 
       // Signal completion
       window?.webContents.send(responseChannel, '[DONE]')
+    }
+  )
+
+  ipcMain.handle(
+    'ai:generate-slide-content',
+    async (
+      _event,
+      prompt: string,
+      deckTitle: string,
+      existingContent: string
+    ): Promise<string> => {
+      const service = getAIService()
+      return service.generateSlideContent(prompt, deckTitle, existingContent)
+    }
+  )
+
+  ipcMain.handle(
+    'ai:generate-chart',
+    async (
+      _event,
+      prompt: string,
+      deckTitle: string
+    ): Promise<string> => {
+      const service = getAIService()
+      return service.generateSvgChart(prompt, deckTitle)
+    }
+  )
+
+  ipcMain.handle(
+    'ai:beautify-slide',
+    async (
+      _event,
+      slideContent: string,
+      deckTitle: string
+    ): Promise<string> => {
+      const service = getAIService()
+      return service.beautifySlide(slideContent, deckTitle)
+    }
+  )
+
+  ipcMain.handle(
+    'ai:generate-bulk-slides',
+    async (
+      _event,
+      prompt: string,
+      deckTitle: string,
+      existingSlides: string[],
+      count: number,
+      artifactContext?: string
+    ): Promise<{ id: string; markdown: string }[]> => {
+      const service = getAIService()
+      return service.generateBulkSlides(prompt, deckTitle, existingSlides, count, artifactContext)
+    }
+  )
+
+  ipcMain.handle(
+    'ai:improve-slide',
+    async (
+      _event,
+      slideContent: string,
+      deckTitle: string,
+      userPrompt: string,
+      artifactContext?: string
+    ): Promise<string> => {
+      const service = getAIService()
+      return service.improveSlide(slideContent, deckTitle, userPrompt, artifactContext)
     }
   )
 }

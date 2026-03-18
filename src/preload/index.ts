@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { ExecutionResult } from '../../packages/shared/src/types/execution'
-import type { Presentation } from '../../packages/shared/src/types/presentation'
+import type { Presentation, LoadedPresentation, SupportedLanguage } from '../../packages/shared/src/types/presentation'
 
 const api = {
   // File system
@@ -12,6 +12,32 @@ const api = {
     ipcRenderer.invoke('fs:read-file', filePath),
   getRecentDecks: (): Promise<string[]> =>
     ipcRenderer.invoke('fs:get-recent-decks'),
+  createPresentation: (name: string): Promise<string | null> =>
+    ipcRenderer.invoke('fs:create-presentation', name),
+  createLectaFile: (name: string): Promise<string | null> =>
+    ipcRenderer.invoke('fs:create-lecta-file', name),
+  saveLecta: (rootPath: string): Promise<void> =>
+    ipcRenderer.invoke('fs:save-lecta', rootPath),
+  addSlide: (rootPath: string, slideId: string, afterIndex: number): Promise<LoadedPresentation> =>
+    ipcRenderer.invoke('fs:add-slide', rootPath, slideId, afterIndex),
+  addCodeToSlide: (rootPath: string, slideIndex: number, language: SupportedLanguage): Promise<LoadedPresentation> =>
+    ipcRenderer.invoke('fs:add-code-to-slide', rootPath, slideIndex, language),
+  addArtifact: (rootPath: string, slideIndex: number): Promise<LoadedPresentation | null> =>
+    ipcRenderer.invoke('fs:add-artifact', rootPath, slideIndex),
+  addBulkSlides: (
+    rootPath: string, slides: { id: string; markdown: string }[], afterIndex: number
+  ): Promise<LoadedPresentation> =>
+    ipcRenderer.invoke('fs:add-bulk-slides', rootPath, slides, afterIndex),
+  deleteSlide: (rootPath: string, slideIndex: number): Promise<LoadedPresentation> =>
+    ipcRenderer.invoke('fs:delete-slide', rootPath, slideIndex),
+  writeFile: (filePath: string, content: string): Promise<void> =>
+    ipcRenderer.invoke('fs:write-file', filePath, content),
+  uploadImage: (rootPath: string): Promise<string | null> =>
+    ipcRenderer.invoke('fs:upload-image', rootPath),
+  addVideo: (rootPath: string, slideIndex: number, url: string, label?: string): Promise<LoadedPresentation> =>
+    ipcRenderer.invoke('fs:add-video', rootPath, slideIndex, url, label),
+  addWebApp: (rootPath: string, slideIndex: number, url: string, label?: string): Promise<LoadedPresentation> =>
+    ipcRenderer.invoke('fs:add-webapp', rootPath, slideIndex, url, label),
 
   // Code execution
   executeNative: (
@@ -42,6 +68,21 @@ const api = {
     ipcRenderer.on(channel, (_event, chunk: string) => callback(chunk))
     ipcRenderer.invoke('ai:stream-notes', slideContent, codeContent, deckTitle, slideIndex, channel)
   },
+
+  generateSlideContent: (prompt: string, deckTitle: string, existingContent: string): Promise<string> =>
+    ipcRenderer.invoke('ai:generate-slide-content', prompt, deckTitle, existingContent),
+  generateChart: (prompt: string, deckTitle: string): Promise<string> =>
+    ipcRenderer.invoke('ai:generate-chart', prompt, deckTitle),
+  beautifySlide: (slideContent: string, deckTitle: string): Promise<string> =>
+    ipcRenderer.invoke('ai:beautify-slide', slideContent, deckTitle),
+  generateBulkSlides: (
+    prompt: string, deckTitle: string, existingSlides: string[], count: number, artifactContext?: string
+  ): Promise<{ id: string; markdown: string }[]> =>
+    ipcRenderer.invoke('ai:generate-bulk-slides', prompt, deckTitle, existingSlides, count, artifactContext),
+  improveSlide: (
+    slideContent: string, deckTitle: string, userPrompt: string, artifactContext?: string
+  ): Promise<string> =>
+    ipcRenderer.invoke('ai:improve-slide', slideContent, deckTitle, userPrompt, artifactContext),
 
   // File watcher
   onFileChanged: (callback: (filePath: string, content: string) => void): void => {

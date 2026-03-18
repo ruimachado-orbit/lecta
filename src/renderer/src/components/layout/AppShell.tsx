@@ -1,9 +1,10 @@
-import { useEffect } from 'react'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import { Toolbar } from './Toolbar'
 import { StatusBar } from './StatusBar'
 import { SlidePanel } from '../slides/SlidePanel'
 import { CodePanel } from '../code/CodePanel'
+import { VideoPanel } from '../video/VideoPanel'
+import { WebPanel } from '../web/WebPanel'
 import { SpeakerNotes } from '../ai/SpeakerNotes'
 import { PresenterView } from '../presenter/PresenterView'
 import { usePresentationStore } from '../../stores/presentation-store'
@@ -23,6 +24,9 @@ export function AppShell(): JSX.Element {
   }
 
   const hasCode = !!currentSlide?.config.code
+  const hasVideo = !!currentSlide?.config.video
+  const hasWebApp = !!currentSlide?.config.webapp
+  const hasRightPane = hasCode || hasVideo || hasWebApp
 
   return (
     <div className="h-screen flex flex-col bg-gray-950">
@@ -31,16 +35,22 @@ export function AppShell(): JSX.Element {
       <div className="flex-1 min-h-0 flex flex-col">
         <PanelGroup direction="horizontal" className="flex-1">
           {/* Left Pane: Slides */}
-          <Panel defaultSize={hasCode ? 40 : 100} minSize={25}>
+          <Panel defaultSize={hasRightPane ? 40 : 100} minSize={25}>
             <SlidePanel />
           </Panel>
 
-          {/* Right Pane: Code + Output */}
-          {hasCode && (
+          {/* Right Pane: Code or Video */}
+          {hasRightPane && (
             <>
               <PanelResizeHandle className="w-1 bg-gray-800 hover:bg-indigo-500 transition-colors cursor-col-resize" />
               <Panel defaultSize={60} minSize={30}>
-                <CodePanel />
+                {hasCode ? (
+                  <CodePanel />
+                ) : hasVideo ? (
+                  <VideoPanel video={currentSlide!.config.video!} />
+                ) : hasWebApp ? (
+                  <WebPanel webapp={currentSlide!.config.webapp!} />
+                ) : null}
               </Panel>
             </>
           )}

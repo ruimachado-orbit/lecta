@@ -101,4 +101,184 @@ export class AIService {
       }
     }
   }
+
+  async generateSlideContent(
+    prompt: string,
+    deckTitle: string,
+    existingContent: string
+  ): Promise<string> {
+    const client = await this.getClient()
+
+    const response = await client.messages.create({
+      model: this.model,
+      max_tokens: 2048,
+      system: `You are a technical presentation content generator. Generate markdown content for presentation slides.
+
+Rules:
+- Output ONLY valid markdown, no explanations or wrapping
+- Use headings (#, ##, ###), bullet points, bold, italic, code blocks as appropriate
+- Keep content concise and visual — slides should not be walls of text
+- For charts: generate a markdown table representation of the data
+- For diagrams: use a text-based diagram with ASCII art or a clear structured description
+- Match the style and tone of the existing presentation`,
+      messages: [
+        {
+          role: 'user',
+          content: `Deck: "${deckTitle}"\n\nExisting slide content:\n${existingContent}\n\nRequest: ${prompt}`
+        }
+      ]
+    })
+
+    const textBlock = response.content.find((block) => block.type === 'text')
+    return textBlock?.text ?? ''
+  }
+
+  async generateSvgChart(
+    prompt: string,
+    deckTitle: string
+  ): Promise<string> {
+    const client = await this.getClient()
+
+    const response = await client.messages.create({
+      model: this.model,
+      max_tokens: 4096,
+      system: `You are an SVG chart/diagram generator for technical presentations.
+
+Rules:
+- Output ONLY a valid SVG element, nothing else — no markdown, no explanation, no wrapping
+- Use a dark theme: background transparent, text #e2e8f0, lines/fills using indigo (#818cf8, #6366f1), green (#4ade80), amber (#fbbf24), red (#f87171)
+- SVG width should be 600, height 400
+- Include clear labels, axes, and legends where appropriate
+- Supported chart types: bar, line, pie, flow diagram, architecture diagram, timeline
+- Make it clean and readable for a presentation`,
+      messages: [
+        {
+          role: 'user',
+          content: `Deck: "${deckTitle}"\n\nGenerate an SVG chart/diagram: ${prompt}`
+        }
+      ]
+    })
+
+    const textBlock = response.content.find((block) => block.type === 'text')
+    return textBlock?.text ?? ''
+  }
+
+  async beautifySlide(
+    slideContent: string,
+    deckTitle: string
+  ): Promise<string> {
+    const client = await this.getClient()
+
+    const response = await client.messages.create({
+      model: this.model,
+      max_tokens: 2048,
+      system: `You are a professional presentation designer. Your job is to take rough slide markdown and transform it into polished, professional-quality presentation content.
+
+Rules:
+- Output ONLY the improved markdown, nothing else
+- Improve structure: use clear headings, concise bullet points, proper hierarchy
+- Improve readability: shorten verbose text, use bold for emphasis, add line breaks
+- Improve visual balance: ensure content isn't too dense or too sparse
+- Add markdown formatting: tables where data is compared, code blocks for technical terms
+- Keep the same meaning and information — just make it look professional
+- Use consistent formatting throughout
+- Remove filler words and redundancy
+- If content is already good, make only minor improvements`,
+      messages: [
+        {
+          role: 'user',
+          content: `Deck: "${deckTitle}"\n\nSlide content to beautify:\n\n${slideContent}`
+        }
+      ]
+    })
+
+    const textBlock = response.content.find((block) => block.type === 'text')
+    return textBlock?.text ?? ''
+  }
+
+  async generateBulkSlides(
+    prompt: string,
+    deckTitle: string,
+    existingSlides: string[],
+    count: number,
+    artifactContext?: string
+  ): Promise<{ id: string; markdown: string }[]> {
+    const client = await this.getClient()
+
+    const existingContext = existingSlides.length > 0
+      ? `\n\nExisting slides in this deck:\n${existingSlides.map((s, i) => `--- Slide ${i + 1} ---\n${s}`).join('\n\n')}`
+      : ''
+
+    const artifactInfo = artifactContext
+      ? `\n\nArtifact/resource context to incorporate:\n${artifactContext}`
+      : ''
+
+    const response = await client.messages.create({
+      model: this.model,
+      max_tokens: 4096 * 2,
+      system: `You are a technical presentation generator. Generate slide content as a JSON array.
+
+Rules:
+- Output ONLY a valid JSON array, no markdown wrapping, no explanation
+- Each element: { "id": "kebab-case-id", "markdown": "# Title\\n\\ncontent..." }
+- Generate exactly ${count} slides
+- Each slide should have a clear heading (#) and concise content
+- Content should flow logically from slide to slide
+- Use markdown: headings, bullets, bold, code blocks, tables as needed
+- Keep each slide focused on one key point
+- If existing slides are provided, continue from where they left off — don't repeat
+- If artifact context is provided, create slides that explain/discuss that content`,
+      messages: [
+        {
+          role: 'user',
+          content: `Deck: "${deckTitle}"\nGenerate ${count} slides.${existingContext}${artifactInfo}\n\nTopic/instructions: ${prompt}`
+        }
+      ]
+    })
+
+    const textBlock = response.content.find((block) => block.type === 'text')
+    const raw = textBlock?.text ?? '[]'
+
+    try {
+      // Extract JSON from potential markdown wrapping
+      const jsonMatch = raw.match(/\[[\s\S]*\]/)
+      return JSON.parse(jsonMatch?.[0] ?? '[]')
+    } catch {
+      return [{ id: 'generated', markdown: raw }]
+    }
+  }
+
+  async improveSlide(
+    slideContent: string,
+    deckTitle: string,
+    userPrompt: string,
+    artifactContext?: string
+  ): Promise<string> {
+    const client = await this.getClient()
+
+    const artifactInfo = artifactContext
+      ? `\n\nArtifact context:\n${artifactContext}`
+      : ''
+
+    const response = await client.messages.create({
+      model: this.model,
+      max_tokens: 2048,
+      system: `You are a presentation slide editor. Improve a slide based on the user's instructions.
+
+Rules:
+- Output ONLY the improved markdown, nothing else
+- Apply the user's requested changes
+- Maintain consistent style with the rest of the deck
+- Keep it concise and presentation-ready`,
+      messages: [
+        {
+          role: 'user',
+          content: `Deck: "${deckTitle}"\n\nCurrent slide:\n${slideContent}${artifactInfo}\n\nImprove this slide: ${userPrompt}`
+        }
+      ]
+    })
+
+    const textBlock = response.content.find((block) => block.type === 'text')
+    return textBlock?.text ?? ''
+  }
 }

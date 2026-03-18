@@ -1,6 +1,10 @@
-import { app, BrowserWindow, shell } from 'electron'
+import { config as dotenvConfig } from 'dotenv'
+import { app, BrowserWindow, session, shell } from 'electron'
 import { join } from 'path'
 import { registerAllIpcHandlers } from './ipc/register'
+
+// Load .env from project root (for ANTHROPIC_API_KEY, etc.)
+dotenvConfig()
 
 let mainWindow: BrowserWindow | null = null
 
@@ -22,6 +26,28 @@ function createWindow(): void {
     }
   })
 
+  // Set CSP via session headers — works reliably in both dev and production
+  const isDev = !!process.env['ELECTRON_RENDERER_URL']
+  const devConnect = isDev ? ' ws://localhost:* http://localhost:*' : ''
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          `default-src 'self';` +
+            ` script-src 'self' 'unsafe-eval' blob: https://cdn.jsdelivr.net https://unpkg.com https://esm.sh https://www.youtube.com https://s.ytimg.com;` +
+            ` style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net;` +
+            ` connect-src 'self' https://cdn.jsdelivr.net https://unpkg.com https://esm.sh https://api.anthropic.com${devConnect};` +
+            ` worker-src 'self' blob:;` +
+            ` child-src 'self' blob:;` +
+            ` frame-src 'self' blob: https: http://localhost:* http://127.0.0.1:*;` +
+            ` img-src 'self' data: blob: https: file:;` +
+            ` font-src 'self' data: https://cdn.jsdelivr.net;`
+        ]
+      }
+    })
+  })
+
   mainWindow.on('ready-to-show', () => {
     mainWindow?.show()
   })
@@ -32,8 +58,8 @@ function createWindow(): void {
   })
 
   // In dev mode, electron-vite sets ELECTRON_RENDERER_URL
-  if (process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+  if (isDev) {
+    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL']!)
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }

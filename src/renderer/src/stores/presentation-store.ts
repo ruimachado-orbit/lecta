@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { LoadedPresentation, LoadedSlide, Presentation } from '../../../../packages/shared/src/types/presentation'
+import type { LoadedPresentation, LoadedSlide, Presentation, SupportedLanguage } from '../../../../packages/shared/src/types/presentation'
 
 interface PresentationState {
   presentation: Presentation | null
@@ -19,9 +19,29 @@ interface PresentationState {
   nextSlide: () => void
   prevSlide: () => void
   updateCodeContent: (slideIndex: number, content: string) => void
+  updateMarkdownContent: (slideIndex: number, content: string) => void
+  saveSlideContent: (slideIndex: number) => Promise<void>
   updateNotesContent: (slideIndex: number, content: string) => void
   handleFileChanged: (filePath: string, content: string) => void
   reset: () => void
+
+  // Editing actions
+  addSlide: (slideId: string) => Promise<void>
+  addCodeToSlide: (language: SupportedLanguage) => Promise<void>
+  addArtifact: () => Promise<void>
+  addVideo: (url: string, label?: string) => Promise<void>
+  addWebApp: (url: string, label?: string) => Promise<void>
+  deleteSlide: (slideIndex: number) => Promise<void>
+}
+
+function applyLoaded(loaded: LoadedPresentation, goToIndex?: number) {
+  return {
+    presentation: loaded.config,
+    slides: loaded.slides,
+    currentSlideIndex: goToIndex ?? 0,
+    isLoading: false,
+    error: null
+  }
 }
 
 export const usePresentationStore = create<PresentationState>((set, get) => ({
@@ -53,12 +73,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
     set({ isLoading: true, error: null })
     try {
       const loaded: LoadedPresentation = await window.electronAPI.loadPresentation(folderPath)
-      set({
-        presentation: loaded.config,
-        slides: loaded.slides,
-        currentSlideIndex: 0,
-        isLoading: false
-      })
+      set(applyLoaded(loaded))
     } catch (error) {
       set({
         isLoading: false,
@@ -103,6 +118,31 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
     })
   },
 
+  updateMarkdownContent: (slideIndex: number, content: string) => {
+    set((state) => {
+      const slides = [...state.slides]
+      if (slides[slideIndex]) {
+        slides[slideIndex] = { ...slides[slideIndex], markdownContent: content }
+      }
+      return { slides }
+    })
+  },
+
+  saveSlideContent: async (slideIndex: number) => {
+    const { presentation, slides } = get()
+    if (!presentation) return
+    const slide = slides[slideIndex]
+    if (!slide) return
+
+    const mdPath = `${presentation.rootPath}/${slide.config.content}`
+    await window.electronAPI.writeFile(mdPath, slide.markdownContent)
+
+    if (slide.config.code && slide.codeContent !== null) {
+      const codePath = `${presentation.rootPath}/${slide.config.code.file}`
+      await window.electronAPI.writeFile(codePath, slide.codeContent)
+    }
+  },
+
   updateNotesContent: (slideIndex: number, content: string) => {
     set((state) => {
       const slides = [...state.slides]
@@ -130,6 +170,99 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
 
       return { slides }
     })
+  },
+
+  addSlide: async (slideId: string) => {
+    const { presentation, currentSlideIndex } = get()
+    if (!presentation) return
+    try {
+      const loaded = await window.electronAPI.addSlide(
+        presentation.rootPath,
+        slideId,
+        currentSlideIndex
+      )
+      set(applyLoaded(loaded, currentSlideIndex + 1))
+    } catch (error) {
+      set({ error: (error as Error).message })
+    }
+  },
+
+  addCodeToSlide: async (language: SupportedLanguage) => {
+    const { presentation, currentSlideIndex } = get()
+    if (!presentation) return
+    try {
+      const loaded = await window.electronAPI.addCodeToSlide(
+        presentation.rootPath,
+        currentSlideIndex,
+        language
+      )
+      set(applyLoaded(loaded, currentSlideIndex))
+    } catch (error) {
+      set({ error: (error as Error).message })
+    }
+  },
+
+  addArtifact: async () => {
+    const { presentation, currentSlideIndex } = get()
+    if (!presentation) return
+    try {
+      const loaded = await window.electronAPI.addArtifact(
+        presentation.rootPath,
+        currentSlideIndex
+      )
+      if (loaded) {
+        set(applyLoaded(loaded, currentSlideIndex))
+      }
+    } catch (error) {
+      set({ error: (error as Error).message })
+    }
+  },
+
+  addVideo: async (url: string, label?: string) => {
+    const { presentation, currentSlideIndex } = get()
+    if (!presentation) return
+    try {
+      const loaded = await window.electronAPI.addVideo(
+        presentation.rootPath,
+        currentSlideIndex,
+        url,
+        label
+      )
+      set(applyLoaded(loaded, currentSlideIndex))
+    } catch (error) {
+      set({ error: (error as Error).message })
+    }
+  },
+
+  addWebApp: async (url: string, label?: string) => {
+    const { presentation, currentSlideIndex } = get()
+    if (!presentation) return
+    try {
+      const loaded = await window.electronAPI.addWebApp(
+        presentation.rootPath,
+        currentSlideIndex,
+        url,
+        label
+      )
+      set(applyLoaded(loaded, currentSlideIndex))
+    } catch (error) {
+      set({ error: (error as Error).message })
+    }
+  },
+
+  deleteSlide: async (slideIndex: number) => {
+    const { presentation, slides, currentSlideIndex } = get()
+    if (!presentation || slides.length <= 1) return
+    try {
+      const loaded = await window.electronAPI.deleteSlide(
+        presentation.rootPath,
+        slideIndex
+      )
+      const newIndex = Math.min(currentSlideIndex, loaded.slides.length - 1)
+      set(applyLoaded(loaded, newIndex))
+    } catch (error) {
+      set({ error: (error as Error).message })
+    }
   },
 
   reset: () => {

@@ -8,7 +8,7 @@ export function CodePanel(): JSX.Element {
   const { slides, currentSlideIndex } = usePresentationStore()
   const currentSlide = slides[currentSlideIndex]
 
-  if (!currentSlide?.config.code || !currentSlide.codeContent) {
+  if (!currentSlide?.config.code || currentSlide.codeContent === null) {
     return (
       <div className="h-full flex items-center justify-center text-gray-600 bg-gray-950">
         No code for this slide

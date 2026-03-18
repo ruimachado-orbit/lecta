@@ -63,7 +63,7 @@ export function PresenterView(): JSX.Element {
             <div className="h-full flex flex-col overflow-hidden">
               <div className="flex-1 overflow-y-auto p-10">
                 {currentSlide && (
-                  <SlideRenderer markdown={currentSlide.markdownContent} />
+                  <SlideRenderer markdown={currentSlide.markdownContent} rootPath={presentation?.rootPath} />
                 )}
               </div>
               {currentSlide && currentSlide.config.artifacts.length > 0 && (

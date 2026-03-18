@@ -4,9 +4,23 @@ import rehypeRaw from 'rehype-raw'
 
 interface SlideRendererProps {
   markdown: string
+  rootPath?: string
 }
 
-export function SlideRenderer({ markdown }: SlideRendererProps): JSX.Element {
+function resolveImageSrc(src: string | undefined, rootPath?: string): string {
+  if (!src) return ''
+  // Already absolute URL or data URI
+  if (src.startsWith('http://') || src.startsWith('https://') || src.startsWith('data:')) {
+    return src
+  }
+  // Local file — resolve relative to workspace root
+  if (rootPath) {
+    return `file://${rootPath}/${src}`
+  }
+  return src
+}
+
+export function SlideRenderer({ markdown, rootPath }: SlideRendererProps): JSX.Element {
   return (
     <div className="slide-content max-w-none">
       <ReactMarkdown
@@ -84,7 +98,7 @@ export function SlideRenderer({ markdown }: SlideRendererProps): JSX.Element {
           ),
           img: ({ src, alt }) => (
             <img
-              src={src}
+              src={resolveImageSrc(src, rootPath)}
               alt={alt}
               className="max-w-full h-auto rounded-lg my-4"
             />

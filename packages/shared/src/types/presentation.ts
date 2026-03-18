@@ -7,10 +7,22 @@ export interface Presentation {
   ai?: AIConfig
 }
 
+export interface VideoConfig {
+  url: string
+  label?: string
+}
+
+export interface WebAppConfig {
+  url: string
+  label?: string
+}
+
 export interface SlideConfig {
   id: string
   content: string
   code?: CodeBlockConfig
+  video?: VideoConfig
+  webapp?: WebAppConfig
   artifacts: ArtifactConfig[]
   notes?: string
 }

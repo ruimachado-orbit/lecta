@@ -40,7 +40,7 @@ export const SUPPORTED_ARTIFACT_TYPES = {
   document: ['.doc', '.docx', '.txt', '.md']
 } as const
 
-export const DEFAULT_AI_MODEL = 'claude-sonnet-4-5-20250514'
+export const DEFAULT_AI_MODEL = 'claude-sonnet-4-6-20250410'
 
 export const APP_CONFIG_DIR = '.lecta'
 export const DECK_CONFIG_FILE = 'lecta.yaml'

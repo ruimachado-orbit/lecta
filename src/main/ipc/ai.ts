@@ -132,6 +132,14 @@ export function registerAiHandlers(): void {
   )
 
   ipcMain.handle(
+    'ai:generate-code',
+    async (_event, prompt: string, language: string, existingCode: string, deckTitle: string): Promise<string> => {
+      const service = getAIService()
+      return service.generateCode(prompt, language, existingCode, deckTitle)
+    }
+  )
+
+  ipcMain.handle(
     'ai:generate-inline-text',
     async (
       _event,

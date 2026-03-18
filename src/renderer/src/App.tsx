@@ -7,10 +7,11 @@ import { AudienceView } from './components/presenter/AudienceView'
 
 export default function App(): JSX.Element {
   const presentation = usePresentationStore((s) => s.presentation)
-  const { setTheme, setPalette, setFontSize } = useUIStore()
+  const { setTheme, setPalette, setFontSize, checkAiEnabled } = useUIStore()
 
   // Load persisted settings on app start
   useEffect(() => {
+    checkAiEnabled()
     window.electronAPI.getAppSettings().then((settings) => {
       if (settings.theme === 'light' || settings.theme === 'dark') {
         setTheme(settings.theme)

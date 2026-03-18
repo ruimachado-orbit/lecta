@@ -85,6 +85,8 @@ const api = {
     ipcRenderer.invoke('ai:stream-notes', slideContent, codeContent, deckTitle, slideIndex, channel)
   },
 
+  generateCode: (prompt: string, language: string, existingCode: string, deckTitle: string): Promise<string> =>
+    ipcRenderer.invoke('ai:generate-code', prompt, language, existingCode, deckTitle),
   generateSlideContent: (prompt: string, deckTitle: string, existingContent: string): Promise<string> =>
     ipcRenderer.invoke('ai:generate-slide-content', prompt, deckTitle, existingContent),
   generateChart: (prompt: string, deckTitle: string): Promise<string> =>

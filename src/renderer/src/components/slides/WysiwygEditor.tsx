@@ -546,6 +546,21 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
           </svg>
         </WBtn>
         <WBtn onClick={() => editor.chain().focus().setHorizontalRule().run()}>—</WBtn>
+        <WBtn title="2 columns" onClick={() => {
+          editor.chain().focus().insertContent(
+            '<p><!-- columns --></p><p>Left column</p><p><!-- col --></p><p>Right column</p><p><!-- /columns --></p>'
+          ).run()
+        }}>▥</WBtn>
+        <WBtn title="3 columns" onClick={() => {
+          editor.chain().focus().insertContent(
+            '<p><!-- columns --></p><p>Col 1</p><p><!-- col --></p><p>Col 2</p><p><!-- col --></p><p>Col 3</p><p><!-- /columns --></p>'
+          ).run()
+        }}>▦</WBtn>
+        <WBtn title="Text box" onClick={() => {
+          editor.chain().focus().insertContent(
+            '<p><!-- textbox x=100 y=400 w=300 -->Your text<!-- /textbox --></p>'
+          ).run()
+        }}>T▢</WBtn>
         <Sep />
         {/* Shapes picker */}
         <div className="relative">

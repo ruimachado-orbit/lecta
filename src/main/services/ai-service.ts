@@ -295,6 +295,40 @@ Rules:
     return textBlock?.text ?? ''
   }
 
+  async generateCode(
+    prompt: string,
+    language: string,
+    existingCode: string,
+    deckTitle: string
+  ): Promise<string> {
+    const client = await this.getClient()
+
+    const response = await client.messages.create({
+      model: this.model,
+      max_tokens: 2048,
+      system: `You are an expert ${language} programmer. Generate code for a presentation demo.
+
+Rules:
+- Output ONLY valid ${language} code, no markdown wrapping, no explanation
+- Code should be clean, well-commented, and demonstrate the concept clearly
+- If existing code is provided, extend or improve it based on the prompt
+- Keep it concise — this runs in a live presentation
+- Include print/console output so results are visible when executed`,
+      messages: [
+        {
+          role: 'user',
+          content: `Deck: "${deckTitle}"\nLanguage: ${language}\n${existingCode ? `\nExisting code:\n${existingCode}\n` : ''}\nGenerate code: ${prompt}`
+        }
+      ]
+    })
+
+    const textBlock = response.content.find((block) => block.type === 'text')
+    let code = textBlock?.text ?? ''
+    // Strip markdown code fences if AI wrapped them
+    code = code.replace(/^```\w*\n/, '').replace(/\n```$/, '')
+    return code
+  }
+
   async generateInlineText(
     prompt: string,
     slideContent: string,

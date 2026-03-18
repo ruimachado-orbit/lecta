@@ -183,8 +183,9 @@ export function SlidePanel(): JSX.Element {
 }
 
 /** 16:9 slide canvas that auto-scales content to fit */
-function SlideCanvas({ markdown, rootPath, transition, slideIndex, drawingMode }: {
+function SlideCanvas({ markdown, rootPath, transition, slideIndex, drawingMode, editable, onUpdateMarkdown }: {
   markdown: string; rootPath?: string; transition?: string; slideIndex?: number; drawingMode?: boolean
+  editable?: boolean; onUpdateMarkdown?: (md: string) => void
 }): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)

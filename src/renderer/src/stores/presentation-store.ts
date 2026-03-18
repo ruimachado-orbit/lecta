@@ -85,8 +85,11 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
       const loaded: LoadedPresentation = await window.electronAPI.loadPresentation(folderPath)
       set(applyLoaded(loaded))
 
-      // Load groups from presentation config into UI store
+      // Re-check AI key availability (deck might have its own .env)
       const { useUIStore } = await import('./ui-store')
+      useUIStore.getState().checkAiEnabled()
+
+      // Load groups from presentation config into UI store
       if (loaded.config.groups && loaded.config.groups.length > 0) {
         useUIStore.getState().loadGroupsFromPresentation(loaded.config.groups)
       } else {

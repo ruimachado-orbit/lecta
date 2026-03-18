@@ -27,22 +27,64 @@ turndown.addRule('image-with-width', {
 
 // Convert markdown to simple HTML for TipTap
 function markdownToHtml(md: string, rootPath?: string): string {
-  return md
-    // Images first (before paragraph wrapping)
-    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_m, alt, src) => {
-      const resolved = resolveImageSrc(src, rootPath)
-      return `<img alt="${alt}" src="${resolved}" />`
-    })
-    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+  const lines = md.split('\n')
+  const html: string[] = []
+  let inList = false
+
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i]
+
+    // Skip blank lines (don't create empty elements)
+    if (!line.trim()) {
+      // If in a list and next line is also a list item, continue the list
+      const nextNonEmpty = lines.slice(i + 1).find((l) => l.trim())
+      if (inList && nextNonEmpty && nextNonEmpty.match(/^[-*+] /)) continue
+      if (inList) { html.push('</ul>'); inList = false }
+      continue
+    }
+
+    // Images
+    const imgMatch = line.match(/^!\[([^\]]*)\]\(([^)]+)\)$/)
+    if (imgMatch) {
+      if (inList) { html.push('</ul>'); inList = false }
+      const resolved = resolveImageSrc(imgMatch[2], rootPath)
+      html.push(`<img alt="${imgMatch[1]}" src="${resolved}" />`)
+      continue
+    }
+
+    // Headings
+    const h3 = line.match(/^### (.+)$/)
+    if (h3) { if (inList) { html.push('</ul>'); inList = false }; html.push(`<h3>${processInline(h3[1])}</h3>`); continue }
+    const h2 = line.match(/^## (.+)$/)
+    if (h2) { if (inList) { html.push('</ul>'); inList = false }; html.push(`<h2>${processInline(h2[1])}</h2>`); continue }
+    const h1 = line.match(/^# (.+)$/)
+    if (h1) { if (inList) { html.push('</ul>'); inList = false }; html.push(`<h1>${processInline(h1[1])}</h1>`); continue }
+
+    // Horizontal rule
+    if (line.match(/^---+$/)) { if (inList) { html.push('</ul>'); inList = false }; html.push('<hr>'); continue }
+
+    // List items (-, *, +)
+    const li = line.match(/^[-*+] (.+)$/)
+    if (li) {
+      if (!inList) { html.push('<ul>'); inList = true }
+      html.push(`<li>${processInline(li[1])}</li>`)
+      continue
+    }
+
+    // Paragraph
+    if (inList) { html.push('</ul>'); inList = false }
+    html.push(`<p>${processInline(line)}</p>`)
+  }
+
+  if (inList) html.push('</ul>')
+  return html.join('')
+}
+
+function processInline(text: string): string {
+  return text
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
     .replace(/`(.+?)`/g, '<code>$1</code>')
-    .replace(/^- (.+)$/gm, '<li>$1</li>')
-    .replace(/(<li>.*<\/li>\n?)+/g, (match) => `<ul>${match}</ul>`)
-    .replace(/^(?!<[h|u|l|o|p|b|i])(.*\S.*)$/gm, '<p>$1</p>')
-    .replace(/\n{2,}/g, '')
 }
 
 interface WysiwygEditorProps {

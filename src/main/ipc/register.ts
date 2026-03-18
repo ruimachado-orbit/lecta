@@ -4,6 +4,7 @@ import { registerAiHandlers } from './ai'
 import { registerArtifactHandlers } from './artifacts'
 import { registerPresenterHandlers } from './presenter'
 import { registerSettingsHandlers } from './settings'
+import { registerExportHandlers } from './export-pdf'
 
 export function registerAllIpcHandlers(): void {
   registerFileSystemHandlers()
@@ -12,4 +13,5 @@ export function registerAllIpcHandlers(): void {
   registerArtifactHandlers()
   registerPresenterHandlers()
   registerSettingsHandlers()
+  registerExportHandlers()
 }

@@ -186,10 +186,22 @@ export function Toolbar(): JSX.Element {
           <ArticleIcon />
         </button>
 
+        {/* Export PDF */}
+        <button
+          onClick={async () => {
+            if (!presentation) return
+            const htmls = slides.map((s) => markdownToSlideHtml(s.markdownContent))
+            await window.electronAPI.exportPdf(presentation.rootPath, htmls, presentation.title)
+          }}
+          className="p-1.5 rounded hover:bg-gray-800 text-gray-400 hover:text-gray-200 transition-colors"
+          title="Export as PDF"
+        >
+          <PdfIcon />
+        </button>
+
         {/* Present mode */}
         <button
           onClick={async () => {
-            // Close panels before presenting
             useUIStore.setState({ showArtifactDrawer: false, showArticlePanel: false, showSlideMap: false, editingSlide: false })
             await window.electronAPI.openAudienceWindow()
             if (presentation?.rootPath) {

@@ -109,6 +109,10 @@ const api = {
     ipcRenderer.invoke('ai:stream-article', deckTitle, author, slidesContent, rules, channel)
   },
 
+  // Export
+  exportPdf: (rootPath: string, slideHtmls: string[], title: string): Promise<string | null> =>
+    ipcRenderer.invoke('export:pdf', rootPath, slideHtmls, title),
+
   // Presenter sync listener (for audience/presenter windows)
   onPresenterSync: (callback: (slideIndex: number) => void): void => {
     ipcRenderer.on('presenter:sync-slide', (_event, slideIndex: number) => callback(slideIndex))

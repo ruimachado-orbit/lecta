@@ -7,6 +7,10 @@ import { registerAllIpcHandlers } from './ipc/register'
 // Load .env from project root (for ANTHROPIC_API_KEY, etc.)
 dotenvConfig()
 
+// Suppress harmless Chromium GPU warnings
+app.commandLine.appendSwitch('disable-gpu-shader-disk-cache')
+app.commandLine.appendSwitch('ignore-gpu-blocklist')
+
 // Set app name so dock/taskbar shows "Lecta" instead of "Electron"
 app.name = 'Lecta'
 if (process.platform === 'darwin') {

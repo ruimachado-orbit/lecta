@@ -35,6 +35,7 @@ interface UIState {
   fontSize: number
   palette: ColorPalette
   slideGroups: SlideGroup[]
+  aiEnabled: boolean
 
   // Actions
   setTheme: (theme: 'dark' | 'light') => void
@@ -58,6 +59,7 @@ interface UIState {
   toggleGroupCollapsed: (groupId: string) => void
   addSlideToGroup: (groupId: string, slideId: string) => void
   removeSlideFromGroup: (groupId: string, slideId: string) => void
+  checkAiEnabled: () => Promise<void>
   loadGroupsFromPresentation: (groups: { id: string; name: string; slideIds: string[] }[]) => void
 }
 
@@ -96,6 +98,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   fontSize: 12,
   palette: COLOR_PALETTES[0],
   slideGroups: [],
+  aiEnabled: false,
 
   setTheme: (theme) => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -156,5 +159,13 @@ export const useUIStore = create<UIState>((set, get) => ({
     set({
       slideGroups: groups.map((g) => ({ ...g, collapsed: false }))
     })
+  },
+  checkAiEnabled: async () => {
+    try {
+      const enabled = await window.electronAPI.hasApiKey()
+      set({ aiEnabled: enabled })
+    } catch {
+      set({ aiEnabled: false })
+    }
   }
 }))

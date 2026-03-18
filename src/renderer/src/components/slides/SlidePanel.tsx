@@ -58,47 +58,51 @@ export function SlidePanel(): JSX.Element {
         <>
           <div className="h-7 bg-gray-900 border-b border-gray-800 flex items-center px-3 gap-2">
             <button
-              onClick={() => setEditorMode('wysiwyg')}
+              onClick={() => { setEditorMode('wysiwyg'); setDrawingMode(false) }}
               className={`text-[10px] px-2 py-0.5 rounded transition-colors ${
-                editorMode === 'wysiwyg' ? 'bg-white text-black' : 'text-gray-500 hover:text-gray-300'
+                editorMode === 'wysiwyg' && !drawingMode ? 'bg-white text-black' : 'text-gray-500 hover:text-gray-300'
               }`}
             >
               Visual
             </button>
             <button
-              onClick={() => setEditorMode('markdown')}
+              onClick={() => { setEditorMode('markdown'); setDrawingMode(false) }}
               className={`text-[10px] px-2 py-0.5 rounded transition-colors ${
-                editorMode === 'markdown' ? 'bg-white text-black' : 'text-gray-500 hover:text-gray-300'
+                editorMode === 'markdown' && !drawingMode ? 'bg-white text-black' : 'text-gray-500 hover:text-gray-300'
               }`}
             >
               Markdown
             </button>
+            <button
+              onClick={() => setDrawingMode(!drawingMode)}
+              className={`text-[10px] px-2 py-0.5 rounded transition-colors flex items-center gap-1 ${
+                drawingMode ? 'bg-white text-black' : 'text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
+              </svg>
+              Draw
+            </button>
           </div>
-          {editorMode === 'markdown' && <SlideEditToolbar editorRef={editorRef} />}
+          {editorMode === 'markdown' && !drawingMode && <SlideEditToolbar editorRef={editorRef} />}
         </>
       )}
 
-      {/* Draw toggle + AI improve bar */}
-      {!editingSlide && (
-        <div className="flex items-center">
-          <div className="flex-1"><AIImproveBar /></div>
-          <button
-            onClick={() => setDrawingMode(!drawingMode)}
-            className={`px-2 py-1 text-[10px] mr-2 rounded transition-colors ${
-              drawingMode ? 'bg-white text-black' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
-            }`}
-            title={drawingMode ? 'Exit drawing mode' : 'Draw on slide'}
-          >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
-            </svg>
-          </button>
-        </div>
-      )}
+      {/* AI improve bar (preview mode only) */}
+      {!editingSlide && <AIImproveBar />}
 
       {/* Main content */}
       <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-        {editingSlide && editorMode === 'wysiwyg' ? (
+        {editingSlide && drawingMode ? (
+          /* Drawing mode: full canvas with Excalidraw overlay */
+          <SlideCanvas
+            markdown={currentSlide.markdownContent}
+            rootPath={presentation?.rootPath}
+            slideIndex={currentSlideIndex}
+            drawingMode={true}
+          />
+        ) : editingSlide && editorMode === 'wysiwyg' ? (
           /* WYSIWYG: editor IS the canvas */
           <EditableSlideCanvas slideIndex={currentSlideIndex} breakOffsets={breakOffsets} rootPath={presentation?.rootPath} />
         ) : editingSlide && editorMode === 'markdown' ? (

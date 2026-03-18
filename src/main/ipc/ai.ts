@@ -124,6 +124,27 @@ export function registerAiHandlers(): void {
   )
 
   ipcMain.handle(
+    'ai:has-api-key',
+    async (): Promise<boolean> => {
+      const service = getAIService()
+      return service.hasApiKey()
+    }
+  )
+
+  ipcMain.handle(
+    'ai:generate-inline-text',
+    async (
+      _event,
+      prompt: string,
+      slideContent: string,
+      deckTitle: string
+    ): Promise<string> => {
+      const service = getAIService()
+      return service.generateInlineText(prompt, slideContent, deckTitle)
+    }
+  )
+
+  ipcMain.handle(
     'ai:stream-article',
     async (
       _event,

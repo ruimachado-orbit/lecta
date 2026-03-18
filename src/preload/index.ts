@@ -99,6 +99,10 @@ const api = {
     slideContent: string, deckTitle: string, userPrompt: string, artifactContext?: string
   ): Promise<string> =>
     ipcRenderer.invoke('ai:improve-slide', slideContent, deckTitle, userPrompt, artifactContext),
+  hasApiKey: (): Promise<boolean> =>
+    ipcRenderer.invoke('ai:has-api-key'),
+  generateInlineText: (prompt: string, slideContent: string, deckTitle: string): Promise<string> =>
+    ipcRenderer.invoke('ai:generate-inline-text', prompt, slideContent, deckTitle),
   streamArticle: (
     deckTitle: string,
     author: string,

@@ -295,6 +295,46 @@ Rules:
     return textBlock?.text ?? ''
   }
 
+  async generateInlineText(
+    prompt: string,
+    slideContent: string,
+    deckTitle: string
+  ): Promise<string> {
+    const client = await this.getClient()
+
+    const response = await client.messages.create({
+      model: this.model,
+      max_tokens: 256,
+      system: `You are a concise writing assistant for presentation slides. Generate a short sentence or phrase based on the user's prompt.
+
+Rules:
+- Output ONLY the generated text, nothing else — no quotes, no explanation, no markdown formatting
+- Maximum 300 characters
+- Match the tone and context of the existing slide content
+- Be direct and punchy — this is for a presentation, not an essay
+- Never wrap in quotes or add prefixes like "Here is..."`,
+      messages: [
+        {
+          role: 'user',
+          content: `Deck: "${deckTitle}"\n\nCurrent slide content:\n${slideContent}\n\nGenerate text for: ${prompt}`
+        }
+      ]
+    })
+
+    const textBlock = response.content.find((block) => block.type === 'text')
+    const text = textBlock?.text ?? ''
+    return text.slice(0, 300)
+  }
+
+  async hasApiKey(): Promise<boolean> {
+    try {
+      const apiKey = await loadAnthropicKey(currentDeckPath ?? undefined)
+      return !!apiKey
+    } catch {
+      return false
+    }
+  }
+
   async streamArticle(
     deckTitle: string,
     author: string,

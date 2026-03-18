@@ -87,7 +87,7 @@ function createWindow(): void {
             ` child-src 'self' blob:;` +
             ` frame-src 'self' blob: https: http://localhost:* http://127.0.0.1:*;` +
             ` img-src 'self' data: blob: https: file: lecta-file: lecta-asset:;` +
-            ` font-src 'self' data: file: blob: lecta-asset: https://cdn.jsdelivr.net;`
+            ` font-src 'self' data: file: blob: lecta-asset: https://cdn.jsdelivr.net https://unpkg.com;`
         ]
       }
     })

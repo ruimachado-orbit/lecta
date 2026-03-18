@@ -328,10 +328,20 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
       attributes: {
         class: 'wysiwyg-content outline-none min-h-full'
       },
-      handleKeyDown: (_view, event) => {
+      handleKeyDown: (view, event) => {
         // Block Enter when content overflows slide height
         if (event.key === 'Enter' && checkOverflow()) {
           return true // prevent
+        }
+        // Tab to indent list items, Shift+Tab to outdent
+        if (event.key === 'Tab') {
+          if (event.shiftKey) {
+            editor?.chain().liftListItem('listItem').run()
+          } else {
+            editor?.chain().sinkListItem('listItem').run()
+          }
+          event.preventDefault()
+          return true
         }
         return false
       }

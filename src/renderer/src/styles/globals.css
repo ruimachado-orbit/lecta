@@ -631,19 +631,6 @@ html[data-theme="light"] .note-layout-blank {
   opacity: 1;
 }
 
-/* Excalidraw integration */
-.excalidraw {
-  --default-bg-color: transparent !important;
-  background: transparent !important;
-}
-.excalidraw .excalidraw__canvas,
-.excalidraw canvas {
-  background: transparent !important;
-}
-/* Minimal mode: hide the entire layer-ui (toolbars, menus, etc.), keep only the canvas */
-.excalidraw-minimal .excalidraw .layer-ui__wrapper {
-  display: none !important;
-}
 
 /* WYSIWYG TipTap editor styles */
 .wysiwyg-content {
@@ -673,12 +660,25 @@ html[data-theme="light"] .note-layout-blank {
   float: left;
   height: 0;
 }
+/* Selection highlight */
+.wysiwyg-content ::selection {
+  background: rgba(99, 102, 241, 0.3);
+  color: inherit;
+}
+html[data-theme="light"] .wysiwyg-content ::selection {
+  background: rgba(99, 102, 241, 0.2);
+  color: inherit;
+}
 html[data-theme="light"] .wysiwyg-content { color: #334155; }
 html[data-theme="light"] .wysiwyg-content h1,
 html[data-theme="light"] .wysiwyg-content h2 { color: #0f172a; }
 html[data-theme="light"] .wysiwyg-content h3 { color: #1e293b; }
+html[data-theme="light"] .wysiwyg-content ul,
+html[data-theme="light"] .wysiwyg-content ol,
+html[data-theme="light"] .wysiwyg-content li { color: #334155; }
 html[data-theme="light"] .wysiwyg-content code { background: #e2e8f0; }
 html[data-theme="light"] .wysiwyg-content pre { background: #f1f5f9; }
+html[data-theme="light"] .wysiwyg-content blockquote { border-color: #334155; color: #64748b; }
 
 /* Scrollbar styling */
 ::-webkit-scrollbar {

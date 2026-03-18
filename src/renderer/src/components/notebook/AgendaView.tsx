@@ -99,7 +99,7 @@ export async function appendAgendaEntry(
 // ── Helpers ─────────────────────────────────────────────────────────
 
 function fmt(d: Date): string {
-  return d.toISOString().slice(0, 10)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 function addDays(d: Date, n: number): Date {
@@ -173,14 +173,22 @@ export function AgendaView(): JSX.Element {
       for (const page of (pages || [])) {
         const created = page?.config?.createdAt
         if (!created || created.length < 10) continue
-        const date = created.slice(0, 10)
-        const time = created.length >= 16 ? created.slice(11, 16) : ''
-        const preview = (page.markdownContent || '').replace(/<[^>]+>/g, '').replace(/^#+\s*/gm, '').trim().split('\n')[0]?.slice(0, 60) || ''
+        // Use local date instead of UTC to match calendar
+        const d = new Date(created)
+        const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+        const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+        // Extract title from content (first heading or first line)
+        const noteTitle = (page.markdownContent || '')
+          .replace(/<[^>]+>/g, '')
+          .replace(/^#+\s*/, '')
+          .trim()
+          .split('\n')[0]
+          ?.slice(0, 60) || page.config.id
         const entry: AgendaEntry = {
           time,
-          title: page.config.id,
-          detail: preview,
-          done: false,
+          title: noteTitle,
+          detail: page.config.id,
+          done: !!page.config.archivedAt,
           noteId: page.config.id
         }
         if (!map.has(date)) map.set(date, [])

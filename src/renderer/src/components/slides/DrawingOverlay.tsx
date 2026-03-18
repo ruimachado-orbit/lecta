@@ -8,214 +8,240 @@ interface DrawingOverlayProps {
   height: number
 }
 
-// Shared ref so the toolbar can access the Excalidraw API
-let sharedApiRef: any = null
-export function getExcalidrawApi() { return sharedApiRef }
+interface DrawPoint { x: number; y: number }
+interface DrawElement {
+  type: 'freedraw' | 'line' | 'arrow' | 'rect' | 'ellipse'
+  points: DrawPoint[]
+  color: string
+  width: number
+}
 
 export function DrawingOverlay({ slideIndex, active, width, height }: DrawingOverlayProps): JSX.Element {
   const { slides, presentation } = usePresentationStore()
   const slide = slides[slideIndex]
-  const [staticSvg, setStaticSvg] = useState<string>('')
-  const [ExcalidrawMod, setExcalidrawMod] = useState<any>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>()
-  const apiRef = useRef<any>(null)
 
-  const getElements = useCallback((): any[] => {
-    if (!slide?.config.drawings) return []
-    try { return JSON.parse(slide.config.drawings) } catch { return [] }
-  }, [slide?.config.drawings])
+  const [elements, setElements] = useState<DrawElement[]>([])
+  const [drawing, setDrawing] = useState(false)
+  const [currentElement, setCurrentElement] = useState<DrawElement | null>(null)
 
-  const handleChange = useCallback((elements: readonly any[]) => {
+  // Load saved drawings
+  useEffect(() => {
+    if (!slide?.config.drawings) { setElements([]); return }
+    try {
+      const parsed = JSON.parse(slide.config.drawings)
+      if (Array.isArray(parsed)) setElements(parsed)
+    } catch { setElements([]) }
+  }, [slide?.config.drawings, slideIndex])
+
+  // Listen for clear event from toolbar
+  useEffect(() => {
+    const handleClear = () => {
+      setElements([])
+      setCurrentElement(null)
+      saveDrawings([])
+    }
+    window.addEventListener('drawing-clear', handleClear)
+    return () => window.removeEventListener('drawing-clear', handleClear)
+  }, [saveDrawings])
+
+  // Render all elements to canvas
+  const render = useCallback(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+    const toDraw = currentElement ? [...elements, currentElement] : elements
+    for (const el of toDraw) {
+      ctx.strokeStyle = el.color
+      ctx.lineWidth = el.width
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+
+      if (el.type === 'freedraw' || el.type === 'line') {
+        if (el.points.length < 2) continue
+        ctx.beginPath()
+        ctx.moveTo(el.points[0].x, el.points[0].y)
+        for (let i = 1; i < el.points.length; i++) {
+          ctx.lineTo(el.points[i].x, el.points[i].y)
+        }
+        ctx.stroke()
+        if (el.type === 'line' && el.points.length >= 2) {
+          // just a line, already drawn
+        }
+      } else if (el.type === 'arrow') {
+        if (el.points.length < 2) continue
+        const start = el.points[0]
+        const end = el.points[el.points.length - 1]
+        ctx.beginPath()
+        ctx.moveTo(start.x, start.y)
+        ctx.lineTo(end.x, end.y)
+        ctx.stroke()
+        // Arrowhead
+        const angle = Math.atan2(end.y - start.y, end.x - start.x)
+        const headLen = 10 + el.width * 2
+        ctx.beginPath()
+        ctx.moveTo(end.x, end.y)
+        ctx.lineTo(end.x - headLen * Math.cos(angle - 0.4), end.y - headLen * Math.sin(angle - 0.4))
+        ctx.moveTo(end.x, end.y)
+        ctx.lineTo(end.x - headLen * Math.cos(angle + 0.4), end.y - headLen * Math.sin(angle + 0.4))
+        ctx.stroke()
+      } else if (el.type === 'rect') {
+        if (el.points.length < 2) continue
+        const [p1, p2] = [el.points[0], el.points[el.points.length - 1]]
+        ctx.strokeRect(p1.x, p1.y, p2.x - p1.x, p2.y - p1.y)
+      } else if (el.type === 'ellipse') {
+        if (el.points.length < 2) continue
+        const [p1, p2] = [el.points[0], el.points[el.points.length - 1]]
+        const cx = (p1.x + p2.x) / 2
+        const cy = (p1.y + p2.y) / 2
+        const rx = Math.abs(p2.x - p1.x) / 2
+        const ry = Math.abs(p2.y - p1.y) / 2
+        ctx.beginPath()
+        ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2)
+        ctx.stroke()
+      }
+    }
+  }, [elements, currentElement])
+
+  useEffect(() => { render() }, [render])
+
+  // Save to disk
+  const saveDrawings = useCallback((els: DrawElement[]) => {
     if (!presentation) return
-    const nonDeleted = elements.filter((e: any) => !e.isDeleted)
-    const json = nonDeleted.length > 0 ? JSON.stringify(nonDeleted) : ''
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     saveTimerRef.current = setTimeout(() => {
+      const json = els.length > 0 ? JSON.stringify(els) : ''
       window.electronAPI.saveDrawings(presentation.rootPath, slideIndex, json)
     }, 1000)
   }, [presentation, slideIndex])
 
-  const [loadError, setLoadError] = useState<string>('')
+  const getPos = (e: React.MouseEvent): DrawPoint => {
+    const rect = canvasRef.current?.getBoundingClientRect()
+    if (!rect) return { x: 0, y: 0 }
+    const scaleX = (canvasRef.current?.width || width) / rect.width
+    const scaleY = (canvasRef.current?.height || height) / rect.height
+    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY }
+  }
 
-  // Lazy load Excalidraw with timeout
-  useEffect(() => {
-    if (active && !ExcalidrawMod) {
-      setLoadError('')
+  const tool = drawingToolState.tool
+  const color = drawingToolState.color
+  const strokeWidth = drawingToolState.strokeWidth
 
-      let timedOut = false
-      const timeout = setTimeout(() => {
-        timedOut = true
-        setLoadError('Drawing tools took too long to load. Try toggling Draw mode off and on.')
-      }, 10000)
-
-      import('@excalidraw/excalidraw')
-        .then((mod) => {
-          clearTimeout(timeout)
-          if (!timedOut) setExcalidrawMod(mod)
-        })
-        .catch((err) => {
-          clearTimeout(timeout)
-          console.error('Failed to load Excalidraw:', err)
-          setLoadError(err?.message || 'Failed to load drawing tools')
-        })
-
-      return () => clearTimeout(timeout)
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!active) return
+    const pos = getPos(e)
+    const el: DrawElement = {
+      type: tool === 'eraser' ? 'freedraw' : tool,
+      points: [pos],
+      color: tool === 'eraser' ? 'rgba(0,0,0,0)' : color,
+      width: tool === 'eraser' ? 20 : strokeWidth,
     }
-  }, [active])
-
-  // Clear shared ref when deactivated
-  useEffect(() => {
-    if (!active) { sharedApiRef = null }
-  }, [active])
-
-  // Generate static SVG for passive mode
-  useEffect(() => {
-    if (active) return
-    const elements = getElements()
-    if (elements.length === 0) { setStaticSvg(''); return }
-
-    import('@excalidraw/excalidraw').then((mod) => {
-      mod.exportToSvg({
-        elements,
-        appState: {
-          exportWithDarkMode: true,
-          exportBackground: false,
-          viewBackgroundColor: 'transparent'
-        } as any,
-        files: {} as any
-      }).then((svg: SVGSVGElement) => {
-        svg.setAttribute('width', '100%')
-        svg.setAttribute('height', '100%')
-        setStaticSvg(svg.outerHTML)
-      }).catch(() => setStaticSvg(''))
-    })
-  }, [active, slide?.config.drawings])
-
-  if (active && ExcalidrawMod) {
-    const { Excalidraw } = ExcalidrawMod
-
-    return (
-      <div className="absolute inset-0 z-20 excalidraw-minimal" style={{ width, height }}>
-        <Excalidraw
-          excalidrawAPI={(api: any) => { apiRef.current = api; sharedApiRef = api }}
-          initialData={{
-            elements: getElements(),
-            appState: {
-              viewBackgroundColor: 'transparent',
-              theme: 'dark',
-              showWelcomeScreen: false,
-              currentItemStrokeColor: '#ffffff',
-              currentItemBackgroundColor: 'transparent',
-              currentItemFillStyle: 'solid',
-              currentItemStrokeWidth: 2,
-              currentItemRoughness: 0,
-            }
-          }}
-          onChange={handleChange as any}
-          UIOptions={{
-            canvasActions: {
-              saveToActiveFile: false,
-              loadScene: false,
-              export: false,
-              toggleTheme: false,
-              clearCanvas: false,
-            },
-            tools: { image: false },
-          }}
-        />
-      </div>
-    )
+    setCurrentElement(el)
+    setDrawing(true)
   }
 
-  if (active) {
-    return (
-      <div className="absolute inset-0 z-20 flex items-center justify-center text-sm">
-        {loadError ? (
-          <div className="text-center">
-            <p className="text-red-400 mb-2">Failed to load drawing tools</p>
-            <p className="text-gray-600 text-xs max-w-xs">{loadError}</p>
-          </div>
-        ) : (
-          <span className="text-gray-500 animate-pulse">Loading drawing tools...</span>
-        )}
-      </div>
-    )
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!drawing || !currentElement) return
+    const pos = getPos(e)
+
+    if (tool === 'freedraw' || tool === 'eraser') {
+      setCurrentElement({ ...currentElement, points: [...currentElement.points, pos] })
+    } else {
+      // For shapes, only keep start and current point
+      setCurrentElement({ ...currentElement, points: [currentElement.points[0], pos] })
+    }
   }
 
-  if (!staticSvg) return <></>
+  const handleMouseUp = () => {
+    if (!drawing || !currentElement) return
+    setDrawing(false)
+
+    if (tool === 'eraser') {
+      // Erase: remove elements whose points are near the eraser path
+      const eraserPath = currentElement.points
+      const newElements = elements.filter((el) => {
+        return !el.points.some((p) =>
+          eraserPath.some((ep) => Math.hypot(p.x - ep.x, p.y - ep.y) < 15)
+        )
+      })
+      setElements(newElements)
+      saveDrawings(newElements)
+    } else if (currentElement.points.length >= 2) {
+      const newElements = [...elements, currentElement]
+      setElements(newElements)
+      saveDrawings(newElements)
+    }
+    setCurrentElement(null)
+  }
+
+  if (!active) {
+    // Passive mode: just render saved drawings
+    if (elements.length === 0) return <></>
+    return (
+      <canvas
+        ref={canvasRef}
+        width={width}
+        height={height}
+        className="absolute inset-0 pointer-events-none z-10"
+        style={{ width: '100%', height: '100%' }}
+      />
+    )
+  }
 
   return (
-    <div
-      className="absolute inset-0 pointer-events-none z-10"
-      dangerouslySetInnerHTML={{ __html: staticSvg }}
-      style={{ width, height }}
+    <canvas
+      ref={canvasRef}
+      width={width}
+      height={height}
+      className="absolute inset-0 z-20"
+      style={{ width: '100%', height: '100%', cursor: tool === 'eraser' ? 'crosshair' : 'crosshair' }}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
     />
   )
 }
 
-/** Minimal vertical toolbar for drawing mode — rendered outside the slide canvas */
-export function DrawingToolbar(): JSX.Element {
-  const [activeTool, setActiveTool] = useState('freedraw')
-  const [strokeWidth, setStrokeWidth] = useState(2)
-  const [strokeColor, setStrokeColor] = useState('#ffffff')
+// Shared mutable state for the toolbar to communicate with the overlay
+export const drawingToolState = {
+  tool: 'freedraw' as DrawElement['type'] | 'eraser',
+  color: '#ffffff',
+  strokeWidth: 2,
+}
 
-  const tools: { id: string; label: string; icon: JSX.Element }[] = [
-    { id: 'selection', label: 'Select', icon: <CursorIcon /> },
+/** Minimal vertical toolbar for drawing mode */
+export function DrawingToolbar(): JSX.Element {
+  const [, forceUpdate] = useState(0)
+  const rerender = () => forceUpdate((n) => n + 1)
+
+  const activeTool = drawingToolState.tool
+  const strokeWidth = drawingToolState.strokeWidth
+  const strokeColor = drawingToolState.color
+
+  const tools: { id: typeof drawingToolState.tool; label: string; icon: JSX.Element }[] = [
     { id: 'freedraw', label: 'Pen', icon: <PenIcon /> },
     { id: 'line', label: 'Line', icon: <LineIcon /> },
     { id: 'arrow', label: 'Arrow', icon: <ArrowIcon /> },
-    { id: 'rectangle', label: 'Rectangle', icon: <RectIcon /> },
+    { id: 'rect', label: 'Rectangle', icon: <RectIcon /> },
     { id: 'ellipse', label: 'Circle', icon: <CircleIcon /> },
-    { id: 'text', label: 'Text', icon: <TextIcon /> },
     { id: 'eraser', label: 'Eraser', icon: <EraserIcon /> },
   ]
 
   const colors = ['#ffffff', '#ef4444', '#3b82f6', '#22c55e', '#eab308', '#a855f7']
-
   const widths = [1, 2, 4]
-
-  const selectTool = (id: string) => {
-    setActiveTool(id)
-    const api = getExcalidrawApi()
-    if (api) {
-      api.setActiveTool({ type: id })
-    }
-  }
-
-  const selectColor = (color: string) => {
-    setStrokeColor(color)
-    const api = getExcalidrawApi()
-    if (api) {
-      api.updateScene({
-        appState: { currentItemStrokeColor: color }
-      })
-    }
-  }
-
-  const selectWidth = (w: number) => {
-    setStrokeWidth(w)
-    const api = getExcalidrawApi()
-    if (api) {
-      api.updateScene({
-        appState: { currentItemStrokeWidth: w }
-      })
-    }
-  }
-
-  const clearAll = () => {
-    const api = getExcalidrawApi()
-    if (api) {
-      api.resetScene()
-    }
-  }
 
   return (
     <div className="flex flex-col items-center py-2 gap-0.5 w-8 flex-shrink-0 bg-gray-900 border-r border-gray-800">
-      {/* Tools */}
       {tools.map((t) => (
         <button
           key={t.id}
-          onClick={() => selectTool(t.id)}
+          onClick={() => { drawingToolState.tool = t.id; rerender() }}
           className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
             activeTool === t.id ? 'bg-white text-black' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
           }`}
@@ -225,14 +251,12 @@ export function DrawingToolbar(): JSX.Element {
         </button>
       ))}
 
-      {/* Separator */}
       <div className="w-4 h-px bg-gray-700 my-1" />
 
-      {/* Stroke width */}
       {widths.map((w) => (
         <button
           key={w}
-          onClick={() => selectWidth(w)}
+          onClick={() => { drawingToolState.strokeWidth = w; rerender() }}
           className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
             strokeWidth === w ? 'bg-white/20' : 'hover:bg-gray-800'
           }`}
@@ -242,14 +266,12 @@ export function DrawingToolbar(): JSX.Element {
         </button>
       ))}
 
-      {/* Separator */}
       <div className="w-4 h-px bg-gray-700 my-1" />
 
-      {/* Colors */}
       {colors.map((c) => (
         <button
           key={c}
-          onClick={() => selectColor(c)}
+          onClick={() => { drawingToolState.color = c; rerender() }}
           className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
             strokeColor === c ? 'ring-1 ring-white ring-offset-1 ring-offset-gray-900' : 'hover:bg-gray-800'
           }`}
@@ -259,12 +281,15 @@ export function DrawingToolbar(): JSX.Element {
         </button>
       ))}
 
-      {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Clear */}
       <button
-        onClick={clearAll}
+        onClick={() => {
+          drawingToolState.tool = 'freedraw'
+          rerender()
+          // Clear is handled by dispatching a custom event
+          window.dispatchEvent(new CustomEvent('drawing-clear'))
+        }}
         className="w-6 h-6 rounded flex items-center justify-center text-gray-600 hover:text-red-400 hover:bg-gray-800 transition-colors"
         title="Clear all"
       >
@@ -274,10 +299,6 @@ export function DrawingToolbar(): JSX.Element {
   )
 }
 
-/* ── Minimal SVG icons (3.5×3.5) ── */
-function CursorIcon() {
-  return <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M15.042 21.672 13.684 16.6m0 0-2.51 2.225.569-9.47 5.227 7.917-3.286-.672ZM12 2.25V4.5m5.834.166-1.591 1.591M20.25 10.5H18M7.757 14.743l-1.59 1.59M6 10.5H3.75m4.007-4.243-1.59-1.59" /></svg>
-}
 function PenIcon() {
   return <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" /></svg>
 }
@@ -292,9 +313,6 @@ function RectIcon() {
 }
 function CircleIcon() {
   return <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><circle cx="12" cy="12" r="9" /></svg>
-}
-function TextIcon() {
-  return <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M6 4h12M12 4v16m-4 0h8" /></svg>
 }
 function EraserIcon() {
   return <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m15.228 7.8-7.2 7.2a2 2 0 0 0 0 2.828l1.172 1.172h5.656l4.372-4.372a2 2 0 0 0 0-2.828L15.228 7.8Z" /><path strokeLinecap="round" d="M20 20H9.2" /></svg>

@@ -41,10 +41,12 @@ function groupPagesByDate(pages: { config: { createdAt: string } }[]): [string, 
 }
 
 export function NoteNavigator(): JSX.Element {
-  const { pages, currentPageIndex, goToPage, addNote, addSubnote, deleteNote, setNoteLayout } = useNotebookStore()
+  const { pages, currentPageIndex, goToPage, addNote, addSubnote, deleteNote, setNoteLayout, renameNote } = useNotebookStore()
 
   // Context menu
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; pageIndex: number } | null>(null)
+  const [renaming, setRenaming] = useState<{ pageIndex: number; value: string } | null>(null)
+  const renameInputRef = useCallback((node: HTMLInputElement | null) => { if (node) node.focus() }, [])
 
   const handleContextMenu = (e: React.MouseEvent, pageIndex: number) => {
     e.preventDefault()
@@ -141,6 +143,32 @@ export function NoteNavigator(): JSX.Element {
                   style={{ marginLeft: depth > 0 ? `${depth * 4}px` : undefined }}
                 >
                   {pageIndex > indices[0] && <div className="w-1 flex-shrink-0" />}
+                  {renaming?.pageIndex === pageIndex ? (
+                    <input
+                      ref={renameInputRef}
+                      type="text"
+                      value={renaming.value}
+                      onChange={(e) => setRenaming({ ...renaming, value: e.target.value })}
+                      onKeyDown={async (e) => {
+                        if (e.key === 'Enter') {
+                          const trimmed = renaming.value.trim().replace(/\s+/g, '-').toLowerCase()
+                          if (trimmed && trimmed !== page.config.id) {
+                            await renameNote(page.config.id, trimmed)
+                          }
+                          setRenaming(null)
+                        }
+                        if (e.key === 'Escape') setRenaming(null)
+                      }}
+                      onBlur={async () => {
+                        const trimmed = renaming.value.trim().replace(/\s+/g, '-').toLowerCase()
+                        if (trimmed && trimmed !== page.config.id) {
+                          await renameNote(page.config.id, trimmed)
+                        }
+                        setRenaming(null)
+                      }}
+                      className="flex-shrink-0 w-24 h-10 px-2 bg-gray-950 text-gray-300 text-[10px] rounded-md border-2 border-white focus:outline-none"
+                    />
+                  ) : (
                   <button
                     onClick={() => {
                       if (isParentWithChildren && pageIndex === currentPageIndex) {
@@ -174,6 +202,7 @@ export function NoteNavigator(): JSX.Element {
                       </span>
                     )}
                   </button>
+                  )}
                 </div>
               )
             })}
@@ -209,6 +238,23 @@ export function NoteNavigator(): JSX.Element {
             <div className="px-3 py-1 text-[9px] text-gray-500 uppercase tracking-wider">
               {pages[contextMenu.pageIndex]?.config.id}
             </div>
+
+            {/* Rename */}
+            <button
+              onClick={() => {
+                const noteId = pages[contextMenu.pageIndex]?.config.id
+                if (noteId) {
+                  setRenaming({ pageIndex: contextMenu.pageIndex, value: noteId })
+                  setContextMenu(null)
+                }
+              }}
+              className="w-full text-left px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-800 transition-colors flex items-center gap-2"
+            >
+              <svg className="w-3 h-3 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
+              </svg>
+              Rename
+            </button>
 
             {/* Layout picker */}
             <div className="border-t border-gray-800 my-1" />

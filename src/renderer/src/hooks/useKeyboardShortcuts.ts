@@ -39,9 +39,15 @@ export function useKeyboardShortcuts(): void {
           setPresenting(false)
           window.electronAPI.closeAudienceWindow()
           break
-        case 'n':
         case 'N':
-          if (!e.metaKey && !e.ctrlKey) {
+          if (e.shiftKey && !e.metaKey && !e.ctrlKey) {
+            e.preventDefault()
+            const { addSlide, slides } = usePresentationStore.getState()
+            addSlide(`slide-${slides.length + 1}`)
+          }
+          break
+        case 'S':
+          if (e.shiftKey && !e.metaKey && !e.ctrlKey) {
             e.preventDefault()
             toggleNotes()
           }

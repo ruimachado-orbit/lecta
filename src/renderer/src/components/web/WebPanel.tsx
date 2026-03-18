@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import type { WebAppConfig } from '../../../../../packages/shared/src/types/presentation'
 
 interface WebPanelProps {
@@ -8,6 +8,8 @@ interface WebPanelProps {
 export function WebPanel({ webapp }: WebPanelProps): JSX.Element {
   const [url, setUrl] = useState(webapp.url)
   const [inputUrl, setInputUrl] = useState(webapp.url)
+  const webviewRef = useRef<HTMLWebViewElement>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
   const handleNavigate = () => {
     let target = inputUrl.trim()
@@ -15,7 +17,30 @@ export function WebPanel({ webapp }: WebPanelProps): JSX.Element {
       target = `https://${target}`
     }
     setUrl(target)
+    setInputUrl(target)
   }
+
+  // Sync webview events
+  useEffect(() => {
+    const wv = webviewRef.current
+    if (!wv) return
+
+    const onStartLoad = () => setIsLoading(true)
+    const onStopLoad = () => setIsLoading(false)
+    const onNavigate = (e: any) => setInputUrl(e.url)
+
+    wv.addEventListener('did-start-loading', onStartLoad)
+    wv.addEventListener('did-stop-loading', onStopLoad)
+    wv.addEventListener('did-navigate', onNavigate)
+    wv.addEventListener('did-navigate-in-page', onNavigate)
+
+    return () => {
+      wv.removeEventListener('did-start-loading', onStartLoad)
+      wv.removeEventListener('did-stop-loading', onStopLoad)
+      wv.removeEventListener('did-navigate', onNavigate)
+      wv.removeEventListener('did-navigate-in-page', onNavigate)
+    }
+  }, [url])
 
   return (
     <div className="h-full flex flex-col bg-gray-950">
@@ -37,11 +62,18 @@ export function WebPanel({ webapp }: WebPanelProps): JSX.Element {
           Go
         </button>
         <button
-          onClick={() => setUrl(url + '')}
+          onClick={() => webviewRef.current?.reload()}
           className="p-1 hover:bg-gray-800 text-gray-400 hover:text-gray-200 rounded transition-colors"
           title="Reload"
         >
           <RefreshIcon />
+        </button>
+        <button
+          onClick={() => webviewRef.current?.goBack()}
+          className="p-1 hover:bg-gray-800 text-gray-400 hover:text-gray-200 rounded transition-colors"
+          title="Back"
+        >
+          <BackIcon />
         </button>
         <a
           href={url}
@@ -52,24 +84,19 @@ export function WebPanel({ webapp }: WebPanelProps): JSX.Element {
         >
           <ExternalIcon />
         </a>
+        {isLoading && (
+          <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+        )}
       </div>
 
-      {/* Label bar */}
-      {webapp.label && (
-        <div className="h-6 bg-gray-900/50 border-b border-gray-800 flex items-center px-3">
-          <span className="text-[10px] text-gray-500 truncate">{webapp.label}</span>
-        </div>
-      )}
-
-      {/* Embedded browser */}
-      <div className="flex-1 bg-white">
-        <iframe
-          key={url}
+      {/* Embedded browser via webview (bypasses X-Frame-Options) */}
+      <div className="flex-1 relative">
+        <webview
+          ref={webviewRef as any}
           src={url}
-          className="w-full h-full border-0"
-          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
-          allow="clipboard-read; clipboard-write"
-          title={webapp.label || 'Web App'}
+          className="w-full h-full"
+          // @ts-ignore - Electron webview attributes
+          allowpopups="true"
         />
       </div>
     </div>
@@ -88,6 +115,14 @@ function RefreshIcon(): JSX.Element {
   return (
     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
+    </svg>
+  )
+}
+
+function BackIcon(): JSX.Element {
+  return (
+    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
     </svg>
   )
 }

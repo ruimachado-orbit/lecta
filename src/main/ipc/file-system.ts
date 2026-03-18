@@ -26,28 +26,21 @@ import type {
 
 let recentDecks: string[] = []
 
-async function loadRecentDecks(): Promise<void> {
-  try {
-    const settings = await ipcMain.handle('settings:get', async () => {}) as Record<string, unknown> | null
-    if (settings && Array.isArray(settings.recentDecks)) {
-      recentDecks = settings.recentDecks as string[]
-    }
-  } catch {
-    // Settings not loaded yet, use empty array
-  }
+async function getSettingsPath(): Promise<string> {
+  const { app } = await import('electron')
+  return join(app.getPath('userData'), 'settings.json')
 }
 
 async function persistRecentDecks(): Promise<void> {
   try {
-    // Use direct file I/O to avoid IPC circular issues
-    const { app } = await import('electron')
-    const settingsPath = join(app.getPath('userData'), 'settings.json')
+    const settingsPath = await getSettingsPath()
     let settings: Record<string, unknown> = {}
     try {
       const content = await readFile(settingsPath, 'utf-8')
       settings = JSON.parse(content)
     } catch { /* fresh settings */ }
     settings.recentDecks = recentDecks
+    const { app } = await import('electron')
     await mkdir(app.getPath('userData'), { recursive: true })
     await writeFile(settingsPath, JSON.stringify(settings, null, 2))
   } catch {
@@ -613,6 +606,18 @@ export function registerFileSystemHandlers(): void {
   )
 
   ipcMain.handle('fs:get-recent-decks', async (): Promise<string[]> => {
+    if (recentDecks.length === 0) {
+      // Load from persisted settings on first access
+      try {
+        const { app } = await import('electron')
+        const settingsPath = join(app.getPath('userData'), 'settings.json')
+        const content = await readFile(settingsPath, 'utf-8')
+        const settings = JSON.parse(content)
+        if (Array.isArray(settings.recentDecks)) {
+          recentDecks = settings.recentDecks
+        }
+      } catch { /* no saved recents */ }
+    }
     return recentDecks
   })
 }

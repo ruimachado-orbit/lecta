@@ -75,7 +75,7 @@ export function CodeToolbar(): JSX.Element {
           ) : (
             <button
               onClick={handleRun}
-              className="px-3 py-1 bg-white hover:bg-gray-200 text-white text-xs font-medium
+              className="px-3 py-1 bg-green-600 hover:bg-green-500 text-white text-xs font-medium
                          rounded transition-colors flex items-center gap-1.5"
               title="Run code (Cmd+Enter)"
             >

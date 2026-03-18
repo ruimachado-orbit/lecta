@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
 import { usePresentationStore } from '../../stores/presentation-store'
+import { useUIStore, COLOR_PALETTES } from '../../stores/ui-store'
 
 export function HomeScreen(): JSX.Element {
   const { openFolder, loadPresentation, isLoading, error } = usePresentationStore()
   const [recentDecks, setRecentDecks] = useState<string[]>([])
   const [showCreate, setShowCreate] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const [newName, setNewName] = useState('')
   const [createError, setCreateError] = useState<string | null>(null)
 
@@ -42,8 +44,12 @@ export function HomeScreen(): JSX.Element {
     }
   }
 
+  if (showSettings) {
+    return <SettingsPanel onBack={() => setShowSettings(false)} />
+  }
+
   return (
-    <div className="h-screen flex items-center justify-center bg-gray-950" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
+    <div className="h-screen flex items-center justify-center bg-gray-950 relative" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
       <div className="max-w-lg w-full px-8" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         {/* Logo / Title */}
         <div className="text-center mb-12">
@@ -149,20 +155,235 @@ export function HomeScreen(): JSX.Element {
               Recent
             </h3>
             <div className="space-y-1">
-              {recentDecks.map((deckPath) => (
-                <button
-                  key={deckPath}
-                  onClick={() => loadPresentation(deckPath)}
-                  className="w-full text-left px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-800
-                             hover:text-white transition-colors text-sm truncate"
-                >
-                  {deckPath.split('/').pop()}
-                  <span className="text-gray-600 ml-2">{deckPath}</span>
-                </button>
-              ))}
+              {recentDecks.map((deckPath) => {
+                const folderName = deckPath.split('/').pop() || deckPath
+                const displayName = folderName
+                  .replace(/^lecta-workspace-/, '')
+                  .replace(/-[A-Za-z0-9]{6,}$/, '')
+                  .replace(/-/g, ' ')
+                return (
+                  <button
+                    key={deckPath}
+                    onClick={() => loadPresentation(deckPath)}
+                    className="w-full text-left px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-800
+                               hover:text-white transition-colors text-sm flex items-center gap-3"
+                  >
+                    <svg className="w-4 h-4 text-gray-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                    </svg>
+                    <span className="truncate">{displayName}</span>
+                  </button>
+                )
+              })}
             </div>
           </div>
         )}
+      </div>
+
+      {/* Settings gear — bottom left */}
+      <button
+        onClick={() => setShowSettings(true)}
+        className="absolute bottom-6 left-6 p-2 rounded-lg text-gray-600 hover:text-gray-300 hover:bg-gray-800 transition-colors"
+        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+        title="Settings"
+      >
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+        </svg>
+      </button>
+    </div>
+  )
+}
+
+function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
+  const { theme, setTheme, palette, setPalette, fontSize, setFontSize } = useUIStore()
+  const [apiKey, setApiKey] = useState('')
+  const [aiModel, setAiModel] = useState('')
+  const [nativeExec, setNativeExec] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  // Load settings from disk on mount
+  useEffect(() => {
+    window.electronAPI.getAppSettings().then((settings) => {
+      setApiKey((settings.anthropicApiKey as string) || '')
+      setAiModel((settings.aiModel as string) || 'claude-sonnet-4-20250514')
+      setNativeExec((settings.nativeExecutionEnabled as boolean) || false)
+      // Sync UI store from persisted settings
+      if (settings.theme === 'light' || settings.theme === 'dark') {
+        setTheme(settings.theme)
+      }
+      if (typeof settings.fontSize === 'number') {
+        setFontSize(settings.fontSize)
+      }
+    })
+  }, [])
+
+  const handleSave = async () => {
+    await window.electronAPI.setAppSettings({
+      theme,
+      anthropicApiKey: apiKey,
+      aiModel,
+      nativeExecutionEnabled: nativeExec,
+      fontSize,
+      palette: palette.name
+    })
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  return (
+    <div className="h-screen bg-gray-950 flex flex-col" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
+      {/* Header */}
+      <div className="flex items-center gap-3 px-6 pt-12 pb-6" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+        <button
+          onClick={onBack}
+          className="p-1.5 rounded hover:bg-gray-800 text-gray-400 hover:text-white transition-colors"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+          </svg>
+        </button>
+        <h2 className="text-lg font-medium text-white">Settings</h2>
+      </div>
+
+      {/* Settings content */}
+      <div className="flex-1 overflow-y-auto px-6 pb-8" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+        <div className="max-w-lg mx-auto space-y-8">
+
+          {/* Appearance */}
+          <section>
+            <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-4">Appearance</h3>
+            <div className="space-y-4">
+              {/* Theme */}
+              <div className="flex items-center justify-between">
+                <label className="text-sm text-gray-300">Theme</label>
+                <div className="flex gap-1 bg-gray-900 rounded-lg p-0.5 border border-gray-800">
+                  <button
+                    onClick={() => setTheme('dark')}
+                    className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
+                      theme === 'dark' ? 'bg-white text-black' : 'text-gray-400 hover:text-gray-200'
+                    }`}
+                  >
+                    Dark
+                  </button>
+                  <button
+                    onClick={() => setTheme('light')}
+                    className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
+                      theme === 'light' ? 'bg-white text-black' : 'text-gray-400 hover:text-gray-200'
+                    }`}
+                  >
+                    Light
+                  </button>
+                </div>
+              </div>
+
+              {/* Accent color */}
+              <div className="flex items-center justify-between">
+                <label className="text-sm text-gray-300">Accent</label>
+                <div className="flex gap-2">
+                  {COLOR_PALETTES.map((p) => (
+                    <button
+                      key={p.name}
+                      onClick={() => setPalette(p)}
+                      className={`w-7 h-7 rounded-full border-2 transition-colors ${
+                        palette.name === p.name ? 'border-white' : 'border-gray-700 hover:border-gray-500'
+                      }`}
+                      style={{ backgroundColor: p.accent }}
+                      title={p.name}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Font size */}
+              <div className="flex items-center justify-between">
+                <label className="text-sm text-gray-300">Editor font size</label>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setFontSize(Math.max(12, fontSize - 1))}
+                    className="w-7 h-7 rounded bg-gray-800 hover:bg-gray-700 text-gray-400 text-sm flex items-center justify-center"
+                  >
+                    -
+                  </button>
+                  <span className="text-sm text-gray-300 w-6 text-center">{fontSize}</span>
+                  <button
+                    onClick={() => setFontSize(Math.min(24, fontSize + 1))}
+                    className="w-7 h-7 rounded bg-gray-800 hover:bg-gray-700 text-gray-400 text-sm flex items-center justify-center"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* AI */}
+          <section>
+            <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-4">AI</h3>
+            <div className="space-y-4">
+              {/* API Key */}
+              <div>
+                <label className="text-sm text-gray-300 block mb-1.5">Anthropic API Key</label>
+                <input
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder="sk-ant-..."
+                  className="w-full px-3 py-2 bg-gray-900 text-gray-300 text-sm rounded-lg border border-gray-700
+                             focus:border-white focus:outline-none placeholder-gray-600"
+                />
+                <p className="text-[10px] text-gray-600 mt-1">Can also be set per-deck via a .env file</p>
+              </div>
+
+              {/* Model */}
+              <div>
+                <label className="text-sm text-gray-300 block mb-1.5">Model</label>
+                <select
+                  value={aiModel}
+                  onChange={(e) => setAiModel(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-900 text-gray-300 text-sm rounded-lg border border-gray-700
+                             focus:border-white focus:outline-none"
+                >
+                  <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
+                  <option value="claude-opus-4-20250514">Claude Opus 4</option>
+                  <option value="claude-haiku-4-20250414">Claude Haiku 4</option>
+                </select>
+              </div>
+            </div>
+          </section>
+
+          {/* Execution */}
+          <section>
+            <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-4">Code Execution</h3>
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="text-sm text-gray-300 block">Native execution</label>
+                <p className="text-[10px] text-gray-600">Run code with system interpreters (Node, Python, etc.)</p>
+              </div>
+              <button
+                onClick={() => setNativeExec(!nativeExec)}
+                className={`w-10 h-6 rounded-full transition-colors relative ${
+                  nativeExec ? 'bg-white' : 'bg-gray-700'
+                }`}
+              >
+                <div className={`w-4 h-4 rounded-full transition-transform absolute top-1 ${
+                  nativeExec ? 'translate-x-5 bg-black' : 'translate-x-1 bg-gray-400'
+                }`} />
+              </button>
+            </div>
+          </section>
+
+          {/* Save */}
+          <div className="pt-4 border-t border-gray-800">
+            <button
+              onClick={handleSave}
+              className="w-full py-2.5 bg-white hover:bg-gray-200 text-black font-medium rounded-lg transition-colors text-sm"
+            >
+              {saved ? 'Saved!' : 'Save Settings'}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )

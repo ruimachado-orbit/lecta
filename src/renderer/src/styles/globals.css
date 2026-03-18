@@ -167,32 +167,6 @@ html[data-theme="light"] .slide-content hr { border-color: #e2e8f0 !important; }
   @apply border border-border px-4 py-2;
 }
 
-/* Slide height limit indicator */
-.slide-preview-area {
-  position: relative;
-}
-
-.slide-limit-line {
-  position: absolute;
-  left: 1rem;
-  right: 1rem;
-  /* Approximate 16:9 content height relative to typical panel */
-  top: 520px;
-  border-bottom: 2px dashed rgba(239, 68, 68, 0.15);
-  pointer-events: none;
-  z-index: 5;
-}
-
-.slide-limit-line::after {
-  content: 'SLIDE LIMIT';
-  position: absolute;
-  right: 0;
-  top: -14px;
-  font-size: 8px;
-  letter-spacing: 0.1em;
-  color: rgba(239, 68, 68, 0.25);
-}
-
 /* WYSIWYG TipTap editor styles */
 .wysiwyg-content {
   color: #e2e8f0;

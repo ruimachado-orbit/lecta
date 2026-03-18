@@ -142,8 +142,7 @@ export function WysiwygEditor({ slideIndex }: WysiwygEditorProps): JSX.Element {
       </div>
 
       {/* Editor */}
-      <div className="flex-1 overflow-y-auto p-6 relative slide-preview-area">
-        <div className="slide-limit-line" />
+      <div className="flex-1 overflow-y-auto p-6 relative">
         <EditorContent editor={editor} />
       </div>
     </div>

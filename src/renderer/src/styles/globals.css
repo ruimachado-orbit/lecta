@@ -510,16 +510,68 @@ html[data-theme="light"] .slide-textbox:hover {
     0deg,
     transparent,
     transparent 31px,
-    rgba(255,255,255,0.05) 31px,
-    rgba(255,255,255,0.05) 32px
+    rgba(255,255,255,0.08) 31px,
+    rgba(255,255,255,0.08) 32px
   );
-  background-position: 0 8px;
+}
+/* Force editor text to sit centered between ruled lines */
+.note-layout-lines .ProseMirror {
+  padding-top: 4px !important;
+}
+.note-layout-lines .ProseMirror p,
+.note-layout-lines .ProseMirror li {
+  line-height: 32px !important;
+  min-height: 32px !important;
+  margin-bottom: 0 !important;
+  margin-top: 0 !important;
+}
+.note-layout-lines .ProseMirror h1 {
+  line-height: 32px !important;
+  min-height: 64px !important;
+  display: flex !important;
+  align-items: center !important;
+  margin-bottom: 0 !important;
+  margin-top: 0 !important;
+}
+.note-layout-lines .ProseMirror h2 {
+  line-height: 32px !important;
+  min-height: 32px !important;
+  display: flex !important;
+  align-items: center !important;
+  margin-bottom: 0 !important;
+  margin-top: 0 !important;
+}
+.note-layout-lines .ProseMirror h3 {
+  line-height: 32px !important;
+  min-height: 32px !important;
+  display: flex !important;
+  align-items: center !important;
+  margin-bottom: 0 !important;
+  margin-top: 0 !important;
+}
+.note-layout-lines .ProseMirror ul,
+.note-layout-lines .ProseMirror ol {
+  margin-bottom: 0 !important;
+  margin-top: 0 !important;
 }
 
 .note-layout-grid {
   background-image:
-    repeating-linear-gradient(0deg, transparent, transparent 31px, rgba(255,255,255,0.05) 31px, rgba(255,255,255,0.05) 32px),
-    repeating-linear-gradient(90deg, transparent, transparent 31px, rgba(255,255,255,0.05) 31px, rgba(255,255,255,0.05) 32px);
+    repeating-linear-gradient(0deg, transparent, transparent 31px, rgba(255,255,255,0.06) 31px, rgba(255,255,255,0.06) 32px),
+    repeating-linear-gradient(90deg, transparent, transparent 31px, rgba(255,255,255,0.06) 31px, rgba(255,255,255,0.06) 32px);
+}
+.note-layout-grid .ProseMirror {
+  padding-top: 4px !important;
+}
+.note-layout-grid .ProseMirror p,
+.note-layout-grid .ProseMirror li,
+.note-layout-grid .ProseMirror h1,
+.note-layout-grid .ProseMirror h2,
+.note-layout-grid .ProseMirror h3 {
+  line-height: 32px !important;
+  min-height: 32px !important;
+  margin-bottom: 0 !important;
+  margin-top: 0 !important;
 }
 
 .note-layout-agenda {
@@ -535,21 +587,26 @@ html[data-theme="light"] .slide-textbox:hover {
 }
 
 .note-layout-blank {
-  /* no background pattern */
+  background-image: none !important;
+  background: transparent !important;
 }
 
 /* Light mode notebook layouts */
 html[data-theme="light"] .note-layout-lines {
-  background-image: repeating-linear-gradient(0deg, transparent, transparent 31px, rgba(0,0,0,0.06) 31px, rgba(0,0,0,0.06) 32px);
+  background-image: repeating-linear-gradient(0deg, transparent, transparent 31px, rgba(0,0,0,0.08) 31px, rgba(0,0,0,0.08) 32px);
 }
 html[data-theme="light"] .note-layout-grid {
   background-image:
-    repeating-linear-gradient(0deg, transparent, transparent 31px, rgba(0,0,0,0.06) 31px, rgba(0,0,0,0.06) 32px),
-    repeating-linear-gradient(90deg, transparent, transparent 31px, rgba(0,0,0,0.06) 31px, rgba(0,0,0,0.06) 32px);
+    repeating-linear-gradient(0deg, transparent, transparent 31px, rgba(0,0,0,0.08) 31px, rgba(0,0,0,0.08) 32px),
+    repeating-linear-gradient(90deg, transparent, transparent 31px, rgba(0,0,0,0.08) 31px, rgba(0,0,0,0.08) 32px);
 }
 html[data-theme="light"] .note-layout-agenda {
   background-image: repeating-linear-gradient(0deg, transparent, transparent 79px, rgba(0,0,0,0.07) 79px, rgba(0,0,0,0.07) 80px);
   border-left-color: rgba(0,0,0,0.1);
+}
+html[data-theme="light"] .note-layout-blank {
+  background-image: none !important;
+  background: transparent !important;
 }
 
 /* Strikethrough button hover effect for notebook */

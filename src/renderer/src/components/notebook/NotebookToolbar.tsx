@@ -41,6 +41,8 @@ export function NotebookToolbar(): JSX.Element {
     if (activeTabId) {
       closeTab(activeTabId)
     }
+    // Always reset notebook store to return to HomeScreen
+    useNotebookStore.getState().reset()
   }
 
   return (

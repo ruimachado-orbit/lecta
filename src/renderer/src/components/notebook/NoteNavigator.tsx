@@ -15,15 +15,29 @@ function formatDate(iso: string): string {
   return `${months[d.getMonth()]} ${d.getDate()}`
 }
 
-function groupPagesByDate(pages: { config: { createdAt: string } }[]): Map<string, number[]> {
-  const groups = new Map<string, number[]>()
+function isToday(iso: string): boolean {
+  const d = new Date(iso)
+  const now = new Date()
+  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate()
+}
+
+function groupPagesByDate(pages: { config: { createdAt: string } }[]): [string, number[], boolean][] {
+  const groups = new Map<string, { indices: number[]; isToday: boolean }>()
   pages.forEach((page, index) => {
     const dateKey = formatDate(page.config.createdAt)
-    const existing = groups.get(dateKey) || []
-    existing.push(index)
+    const existing = groups.get(dateKey) || { indices: [], isToday: false }
+    existing.indices.push(index)
+    if (isToday(page.config.createdAt)) existing.isToday = true
     groups.set(dateKey, existing)
   })
-  return groups
+  // Sort: today first, then most recent
+  const entries = Array.from(groups.entries()).map(([k, v]) => [k, v.indices, v.isToday] as [string, number[], boolean])
+  entries.sort((a, b) => {
+    if (a[2] && !b[2]) return -1
+    if (!a[2] && b[2]) return 1
+    return 0
+  })
+  return entries
 }
 
 export function NoteNavigator(): JSX.Element {
@@ -68,27 +82,57 @@ export function NoteNavigator(): JSX.Element {
     }, 50)
   }
 
-  // Group pages by date
+  // Group pages by date — today first
   const dateGroups = groupPagesByDate(pages)
+
+  // Track collapsed parent notes
+  const [collapsedParents, setCollapsedParents] = useState<Set<number>>(new Set())
+  const toggleCollapse = (idx: number) => {
+    setCollapsedParents((prev) => {
+      const next = new Set(prev)
+      if (next.has(idx)) next.delete(idx); else next.add(idx)
+      return next
+    })
+  }
+
+  // Determine which pages have children (subnotes directly after them)
+  const hasChildren = (pageIndex: number): boolean => {
+    const page = pages[pageIndex]
+    if (!page) return false
+    const nextPage = pages[pageIndex + 1]
+    return !!nextPage && nextPage.depth > page.depth
+  }
 
   return (
     <div className="bg-gray-900 border-t border-gray-800">
       <div className="h-16 flex items-center px-4 overflow-x-auto gap-0">
-        {Array.from(dateGroups.entries()).map(([dateLabel, indices], groupIdx) => (
+        {dateGroups.map(([dateLabel, indices, todayFlag], groupIdx) => (
           <div key={dateLabel} className="flex items-center flex-shrink-0">
             {/* Date group divider */}
             {groupIdx > 0 && <div className="w-px h-8 bg-gray-700 mx-2 flex-shrink-0" />}
             <div className="flex flex-col items-center mr-2 flex-shrink-0">
-              <span className="text-[8px] text-gray-600 uppercase tracking-wider leading-none">{dateLabel}</span>
+              <span className={`text-[8px] uppercase tracking-wider leading-none ${todayFlag ? 'text-white font-bold' : 'text-gray-600'}`}>
+                {todayFlag ? 'Today' : dateLabel}
+              </span>
               <span className="text-[7px] text-gray-700 mt-0.5">{indices.length}</span>
             </div>
 
-            {/* Note chips in this date group */}
+            {/* Note chips */}
             {indices.map((pageIndex) => {
               const page = pages[pageIndex]
               const isActive = pageIndex === currentPageIndex
               const depth = page.depth
               const isSubnote = depth > 0
+              const isParentWithChildren = hasChildren(pageIndex)
+              const isCollapsed = collapsedParents.has(pageIndex)
+
+              // Hide subnotes if their parent is collapsed
+              if (isSubnote) {
+                // Find parent: walk backwards to find the first page with lower depth
+                let parentIdx = pageIndex - 1
+                while (parentIdx >= 0 && pages[parentIdx].depth >= depth) parentIdx--
+                if (parentIdx >= 0 && collapsedParents.has(parentIdx)) return null
+              }
 
               return (
                 <div
@@ -98,9 +142,15 @@ export function NoteNavigator(): JSX.Element {
                 >
                   {pageIndex > indices[0] && <div className="w-1 flex-shrink-0" />}
                   <button
-                    onClick={() => goToPage(pageIndex)}
+                    onClick={() => {
+                      if (isParentWithChildren && pageIndex === currentPageIndex) {
+                        toggleCollapse(pageIndex)
+                      } else {
+                        goToPage(pageIndex)
+                      }
+                    }}
                     onContextMenu={(e) => handleContextMenu(e, pageIndex)}
-                    className={`flex-shrink-0 rounded-md border-2 transition-all text-left px-2 py-1 ${
+                    className={`flex-shrink-0 rounded-md border-2 transition-all text-left px-2 py-1 relative ${
                       isSubnote ? 'h-8 w-16' : 'h-10 w-20'
                     } ${
                       isActive
@@ -110,9 +160,15 @@ export function NoteNavigator(): JSX.Element {
                     title={page.config.id}
                   >
                     <span className={`block truncate font-medium ${isSubnote ? 'text-[7px]' : 'text-[8px]'}`}>
-                      {page.config.id}
+                      {page.markdownContent?.replace(/<[^>]+>/g, '').replace(/^#+\s*/, '').trim().split('\n')[0]?.slice(0, 30) || page.config.id}
                     </span>
-                    {!isSubnote && page.config.layout && (
+                    {/* Collapse/expand indicator for parents with children */}
+                    {isParentWithChildren && (
+                      <span className="absolute top-0.5 right-1 text-[7px] text-gray-500">
+                        {isCollapsed ? '+' : '−'}
+                      </span>
+                    )}
+                    {!isSubnote && !isParentWithChildren && page.config.layout && (
                       <span className="block text-[6px] text-gray-600 mt-0.5">
                         {page.config.layout}
                       </span>

@@ -195,26 +195,26 @@ export function NoteEditor({ pageIndex }: NoteEditorProps): JSX.Element {
 
   const editorRef = useRef<ReturnType<typeof useEditor>>(null)
 
-  const resetStrikeTimer = useCallback(() => {
-    setStrikeButton(null)
-    if (strikeTimerRef.current) clearTimeout(strikeTimerRef.current)
-    strikeTimerRef.current = setTimeout(() => {
-      if (!editorContainerRef.current) return
-      const sel = window.getSelection()
-      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return
-      const range = sel.getRangeAt(0)
-      const rect = range.getBoundingClientRect()
-      const containerRect = editorContainerRef.current.getBoundingClientRect()
-      setStrikeButton({
-        top: rect.top - containerRect.top + editorContainerRef.current.scrollTop - 28,
-        left: rect.left - containerRect.left + rect.width / 2
-      })
-    }, 2000)
+  const updateStrikeButton = useCallback(() => {
+    if (!editorContainerRef.current) { setStrikeButton(null); return }
+    const sel = window.getSelection()
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) { setStrikeButton(null); return }
+    const range = sel.getRangeAt(0)
+    const rect = range.getBoundingClientRect()
+    if (rect.width === 0) { setStrikeButton(null); return }
+    const containerRect = editorContainerRef.current.getBoundingClientRect()
+    setStrikeButton({
+      top: rect.top - containerRect.top + editorContainerRef.current.scrollTop - 36,
+      left: rect.left - containerRect.left + rect.width / 2
+    })
   }, [])
 
+  // Listen for mouseup to show strike button on selection
   useEffect(() => {
-    return () => { if (strikeTimerRef.current) clearTimeout(strikeTimerRef.current) }
-  }, [])
+    const handleMouseUp = () => setTimeout(updateStrikeButton, 10)
+    document.addEventListener('mouseup', handleMouseUp)
+    return () => document.removeEventListener('mouseup', handleMouseUp)
+  }, [updateStrikeButton])
 
   const editor = useEditor({
     extensions: [
@@ -243,13 +243,13 @@ export function NoteEditor({ pageIndex }: NoteEditorProps): JSX.Element {
       const md = turndown.turndown(html)
       updateMarkdownContent(pageIndex, md)
 
-      resetStrikeTimer()
+      updateStrikeButton()
 
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
       saveTimerRef.current = setTimeout(() => savePageContent(pageIndex), 1500)
     },
     onSelectionUpdate: () => {
-      resetStrikeTimer()
+      updateStrikeButton()
     }
   })
 
@@ -501,17 +501,38 @@ export function NoteEditor({ pageIndex }: NoteEditorProps): JSX.Element {
         <EditorContent editor={editor} />
         {/* Strikethrough button — appears after hovering 2s over selected text */}
         {strikeButton && (
-          <button
-            onClick={() => {
-              editor.chain().focus().toggleStrike().run()
-              setStrikeButton(null)
-            }}
-            className="absolute z-20 flex items-center gap-1 px-2 py-1 rounded-md bg-gray-800 hover:bg-gray-700 text-gray-300 text-[10px] font-medium shadow-lg transition-all animate-fade-in border border-gray-700"
+          <div
+            className="absolute z-20 flex items-center gap-0.5 px-1 py-0.5 rounded-full bg-black/90 shadow-xl animate-fade-in border border-gray-700"
             style={{ top: strikeButton.top, left: strikeButton.left, transform: 'translateX(-50%)' }}
-            title="Strikethrough"
           >
-            <span className="line-through">S</span>
-          </button>
+            <button
+              onClick={() => { editor.chain().focus().toggleStrike().run(); setStrikeButton(null) }}
+              className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] transition-colors ${
+                editor.isActive('strike') ? 'bg-white text-black' : 'text-gray-300 hover:bg-gray-700'
+              }`}
+              title="Strikethrough"
+            >
+              <span className="line-through">S</span>
+            </button>
+            <button
+              onClick={() => { editor.chain().focus().toggleBold().run(); setStrikeButton(null) }}
+              className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] transition-colors ${
+                editor.isActive('bold') ? 'bg-white text-black' : 'text-gray-300 hover:bg-gray-700'
+              }`}
+              title="Bold"
+            >
+              <b>B</b>
+            </button>
+            <button
+              onClick={() => { editor.chain().focus().toggleItalic().run(); setStrikeButton(null) }}
+              className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] transition-colors ${
+                editor.isActive('italic') ? 'bg-white text-black' : 'text-gray-300 hover:bg-gray-700'
+              }`}
+              title="Italic"
+            >
+              <i>I</i>
+            </button>
+          </div>
         )}
       </div>
     </div>

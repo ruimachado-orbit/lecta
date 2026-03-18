@@ -283,7 +283,17 @@ export function Toolbar(): JSX.Element {
 
         {/* Present mode */}
         <button
-          onClick={togglePresenting}
+          onClick={async () => {
+            await window.electronAPI.openAudienceWindow()
+            // Send presentation path to audience window after a short delay for it to initialize
+            if (presentation?.rootPath) {
+              setTimeout(() => {
+                window.electronAPI.sendPresenterPath(presentation.rootPath)
+                window.electronAPI.syncPresenterSlide(currentSlideIndex)
+              }, 1000)
+            }
+            togglePresenting()
+          }}
           className="px-3 py-1.5 bg-white hover:bg-gray-200 text-black text-sm font-medium
                      rounded-lg transition-colors flex items-center gap-1.5"
           title="Start presentation (F5)"

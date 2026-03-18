@@ -37,6 +37,7 @@ export function useKeyboardShortcuts(): void {
         case 'Escape':
           e.preventDefault()
           setPresenting(false)
+          window.electronAPI.closeAudienceWindow()
           break
         case 'n':
         case 'N':

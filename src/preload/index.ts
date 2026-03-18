@@ -40,6 +40,8 @@ const api = {
     ipcRenderer.invoke('fs:save-groups', rootPath, groups),
   setSlideTransition: (rootPath: string, slideIndex: number, transition: string): Promise<LoadedPresentation> =>
     ipcRenderer.invoke('fs:set-transition', rootPath, slideIndex, transition),
+  setSlideLayout: (rootPath: string, slideIndex: number, layout: string): Promise<LoadedPresentation> =>
+    ipcRenderer.invoke('fs:set-layout', rootPath, slideIndex, layout),
   removeAttachment: (
     rootPath: string, slideIndex: number, type: 'code' | 'video' | 'webapp' | 'artifact', artifactIndex?: number
   ): Promise<LoadedPresentation> =>

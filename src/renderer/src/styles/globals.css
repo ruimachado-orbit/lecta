@@ -258,22 +258,15 @@ html[data-theme="light"] .slide-textbox:hover {
 .excalidraw .layer-ui__wrapper {
   border: none !important;
 }
-/* Kill welcome screen by every possible selector */
-.excalidraw .welcome-screen-center,
-.excalidraw .welcome-screen-menu-hints,
-.excalidraw [class*="WelcomeScreen"],
-.excalidraw [class*="welcome-screen"],
-.excalidraw [class*="welcomeScreen"],
-.excalidraw .layer-ui__wrapper > div:first-child > div[style*="position: absolute"][style*="pointer-events"] {
+/* Kill welcome screen */
+.excalidraw [class*="welcome"],
+.excalidraw [class*="Welcome"],
+.excalidraw .virgil,
+.excalidraw .welcome-screen-center {
   display: none !important;
-  visibility: hidden !important;
-  opacity: 0 !important;
   height: 0 !important;
   overflow: hidden !important;
-}
-/* Also hide via the lock SVG itself — it's the only large SVG in the welcome area */
-.excalidraw .layer-ui__wrapper svg[viewBox="0 0 24 24"] {
-  display: none !important;
+  pointer-events: none !important;
 }
 /* Make canvas background transparent */
 .excalidraw .excalidraw__canvas,

@@ -35,6 +35,7 @@ interface PresentationState {
   addVideo: (url: string, label?: string) => Promise<void>
   addWebApp: (url: string, label?: string) => Promise<void>
   setSlideTransition: (transition: string) => Promise<void>
+  setSlideLayout: (layout: string) => Promise<void>
   removeAttachment: (type: 'code' | 'video' | 'webapp' | 'artifact', artifactIndex?: number) => Promise<void>
   renameSlide: (slideIndex: number, newId: string) => Promise<void>
   deleteSlide: (slideIndex: number) => Promise<void>
@@ -334,6 +335,21 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
         presentation.rootPath,
         currentSlideIndex,
         transition
+      )
+      set(applyLoaded(loaded, currentSlideIndex))
+    } catch (error) {
+      set({ error: (error as Error).message })
+    }
+  },
+
+  setSlideLayout: async (layout: string) => {
+    const { presentation, currentSlideIndex } = get()
+    if (!presentation) return
+    try {
+      const loaded = await window.electronAPI.setSlideLayout(
+        presentation.rootPath,
+        currentSlideIndex,
+        layout
       )
       set(applyLoaded(loaded, currentSlideIndex))
     } catch (error) {

@@ -649,6 +649,28 @@ export function registerFileSystemHandlers(): void {
     }
   )
 
+  // Set slide layout
+  ipcMain.handle(
+    'fs:set-layout',
+    async (_event, rootPath: string, slideIndex: number, layout: string): Promise<LoadedPresentation> => {
+      const configPath = join(rootPath, DECK_CONFIG_FILE)
+      const yamlContent = await readFile(configPath, 'utf-8')
+      const config = parsePresentationYaml(yamlContent, rootPath)
+
+      const slide = config.slides[slideIndex]
+      if (!slide) throw new Error(`Slide at index ${slideIndex} not found`)
+
+      slide.layout = layout as any
+      if (layout === 'default') delete (slide as any).layout
+      await savePresentationYaml(config)
+
+      const reloaded = await readFile(configPath, 'utf-8')
+      const reloadedConfig = parsePresentationYaml(reloaded, rootPath)
+      const slides = await loadAllSlides(reloadedConfig, rootPath)
+      return { config: reloadedConfig, slides }
+    }
+  )
+
   // Remove an attachment (code, video, webapp, or file artifact) from a slide
   ipcMain.handle(
     'fs:remove-attachment',

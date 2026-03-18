@@ -1,18 +1,5 @@
-import { useEffect, useCallback, useState, lazy, Suspense } from 'react'
+import { useEffect, useCallback, useState, useRef } from 'react'
 import { usePresentationStore } from '../../stores/presentation-store'
-
-const ExcalidrawWrapper = lazy(async () => {
-  const mod = await import('@excalidraw/excalidraw')
-  // Return a wrapper component that hides the welcome screen
-  const Comp = (props: any) => {
-    return (
-      <mod.Excalidraw {...props}>
-        {/* Pass empty children to replace the default welcome screen */}
-      </mod.Excalidraw>
-    )
-  }
-  return { default: Comp }
-})
 
 interface DrawingOverlayProps {
   slideIndex: number
@@ -25,7 +12,9 @@ export function DrawingOverlay({ slideIndex, active, width, height }: DrawingOve
   const { slides, presentation } = usePresentationStore()
   const slide = slides[slideIndex]
   const [staticSvg, setStaticSvg] = useState<string>('')
-  let saveTimer: ReturnType<typeof setTimeout> | null = null
+  const [ExcalidrawMod, setExcalidrawMod] = useState<any>(null)
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const apiRef = useRef<any>(null)
 
   const getElements = useCallback((): any[] => {
     if (!slide?.config.drawings) return []
@@ -36,11 +25,18 @@ export function DrawingOverlay({ slideIndex, active, width, height }: DrawingOve
     if (!presentation) return
     const nonDeleted = elements.filter((e: any) => !e.isDeleted)
     const json = nonDeleted.length > 0 ? JSON.stringify(nonDeleted) : ''
-    if (saveTimer) clearTimeout(saveTimer)
-    saveTimer = setTimeout(() => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(() => {
       window.electronAPI.saveDrawings(presentation.rootPath, slideIndex, json)
     }, 1000)
   }, [presentation, slideIndex])
+
+  // Lazy load Excalidraw
+  useEffect(() => {
+    if (active && !ExcalidrawMod) {
+      import('@excalidraw/excalidraw').then(setExcalidrawMod)
+    }
+  }, [active])
 
   // Generate static SVG for passive mode
   useEffect(() => {
@@ -65,38 +61,46 @@ export function DrawingOverlay({ slideIndex, active, width, height }: DrawingOve
     })
   }, [active, slide?.config.drawings])
 
-  if (active) {
+  if (active && ExcalidrawMod) {
+    const { Excalidraw } = ExcalidrawMod
+
     return (
       <div className="absolute inset-0 z-20" style={{ width, height }}>
-        <Suspense fallback={<div className="flex items-center justify-center h-full text-gray-500 text-sm">Loading drawing tools...</div>}>
-          <ExcalidrawWrapper
-            initialData={{
-              elements: getElements(),
-              appState: {
-                viewBackgroundColor: 'transparent',
-                theme: 'dark' as const,
-                showWelcomeScreen: false,
-                currentItemStrokeColor: '#ffffff',
-                currentItemBackgroundColor: 'transparent',
-                currentItemFillStyle: 'solid',
-                currentItemStrokeWidth: 2,
-                currentItemRoughness: 0,
-              } as any
-            }}
-            onChange={handleChange as any}
-            UIOptions={{
-              canvasActions: {
-                saveToActiveFile: false,
-                loadScene: false,
-                export: false,
-                toggleTheme: false,
-                clearCanvas: true
-              } as any,
-              tools: { image: false } as any,
-              welcomeScreen: false
-            }}
-          />
-        </Suspense>
+        <Excalidraw
+          excalidrawAPI={(api: any) => { apiRef.current = api }}
+          initialData={{
+            elements: getElements(),
+            appState: {
+              viewBackgroundColor: 'transparent',
+              theme: 'dark',
+              currentItemStrokeColor: '#ffffff',
+              currentItemBackgroundColor: 'transparent',
+              currentItemFillStyle: 'solid',
+              currentItemStrokeWidth: 2,
+              currentItemRoughness: 0,
+            }
+          }}
+          onChange={handleChange as any}
+          UIOptions={{
+            canvasActions: {
+              saveToActiveFile: false,
+              loadScene: false,
+              export: false,
+              toggleTheme: false,
+              clearCanvas: true,
+            }
+          }}
+        >
+          {/* Empty children to suppress welcome screen */}
+        </Excalidraw>
+      </div>
+    )
+  }
+
+  if (active) {
+    return (
+      <div className="absolute inset-0 z-20 flex items-center justify-center text-gray-500 text-sm">
+        Loading drawing tools...
       </div>
     )
   }

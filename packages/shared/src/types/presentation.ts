@@ -26,6 +26,20 @@ export interface WebAppConfig {
 
 export type SlideTransition = 'none' | 'left' | 'right' | 'top' | 'bottom'
 
+export type SlideLayout =
+  | 'default'          // Standard top-down flow
+  | 'center'           // Everything centered vertically + horizontally
+  | 'title'            // Big centered title with subtitle below
+  | 'section'          // Section break — bold heading, accent bar
+  | 'two-col'          // Two equal columns
+  | 'two-col-wide-left'  // 60/40 left-heavy columns
+  | 'two-col-wide-right' // 40/60 right-heavy columns
+  | 'three-col'        // Three equal columns
+  | 'top-bottom'       // Content split top and bottom
+  | 'big-number'       // Large stat/number with context below
+  | 'quote'            // Blockquote-style centered quote
+  | 'blank'            // No padding, full canvas
+
 export interface SlideConfig {
   id: string
   content: string
@@ -35,6 +49,7 @@ export interface SlideConfig {
   artifacts: ArtifactConfig[]
   notes?: string
   transition?: SlideTransition
+  layout?: SlideLayout
   drawings?: string // JSON string of Excalidraw elements
 }
 

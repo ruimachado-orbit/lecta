@@ -9,6 +9,7 @@ import { AIGeneratePanel, AIImproveBar } from './AISlidePanel'
 import { ArtifactBar } from '../artifacts/ArtifactBar'
 import { useSubSlides } from '../../hooks/useSubSlides'
 import { DrawingOverlay } from './DrawingOverlay'
+import { DraggableElements } from './DraggableElements'
 import Editor, { type OnMount } from '@monaco-editor/react'
 
 export function SlidePanel(): JSX.Element {
@@ -138,6 +139,11 @@ export function SlidePanel(): JSX.Element {
             transition={currentSlide.config.transition}
             slideIndex={currentSlideIndex}
             drawingMode={drawingMode}
+            editable={true}
+            onUpdateMarkdown={(md) => {
+              updateMarkdownContent(currentSlideIndex, md)
+              saveSlideContent(currentSlideIndex)
+            }}
           />
         )}
       </div>
@@ -278,6 +284,17 @@ function SlideCanvas({ markdown, rootPath, transition, slideIndex, drawingMode, 
             <SlideRenderer markdown={markdown} rootPath={rootPath} />
           </div>
         </div>
+        {/* Draggable elements overlay (text boxes) */}
+        {editable && onUpdateMarkdown && (
+          <div className="absolute inset-0 p-12" style={{ zIndex: 10 }}>
+            <DraggableElements
+              markdown={markdown}
+              canvasScale={canvasScale}
+              onUpdateMarkdown={onUpdateMarkdown}
+              editable={true}
+            />
+          </div>
+        )}
         {/* Drawing overlay */}
         {typeof slideIndex === 'number' && (
           <DrawingOverlay

@@ -40,6 +40,10 @@ const SlideConfigSchema = z.object({
   artifacts: z.array(ArtifactConfigSchema).default([]),
   notes: z.string().optional(),
   transition: z.enum(['none', 'left', 'right', 'top', 'bottom']).optional(),
+  layout: z.enum([
+    'default', 'center', 'title', 'section', 'two-col', 'two-col-wide-left',
+    'two-col-wide-right', 'three-col', 'top-bottom', 'big-number', 'quote', 'blank'
+  ]).optional(),
   drawings: z.string().optional()
 })
 

@@ -28,6 +28,11 @@ export const useTabsStore = create<TabsState>((set, get) => ({
   openInNewTab: async (folderPath: string) => {
     const presentationStore = usePresentationStore.getState()
 
+    // Flush pending content to disk before switching
+    if (presentationStore.hasUnsavedChanges && presentationStore.presentation) {
+      await presentationStore.saveSlideContent(presentationStore.currentSlideIndex)
+    }
+
     // Save current tab state before switching
     get().syncCurrentTab()
 
@@ -84,6 +89,12 @@ export const useTabsStore = create<TabsState>((set, get) => ({
   switchTab: (tabId: string) => {
     const { tabs, activeTabId } = get()
     if (tabId === activeTabId) return
+
+    // Flush pending content to disk before switching
+    const presState = usePresentationStore.getState()
+    if (presState.hasUnsavedChanges && presState.presentation) {
+      presState.saveSlideContent(presState.currentSlideIndex)
+    }
 
     // Save current state to the current tab
     get().syncCurrentTab()

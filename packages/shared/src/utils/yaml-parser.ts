@@ -38,7 +38,8 @@ const SlideConfigSchema = z.object({
   video: VideoConfigSchema.optional(),
   webapp: WebAppConfigSchema.optional(),
   artifacts: z.array(ArtifactConfigSchema).default([]),
-  notes: z.string().optional()
+  notes: z.string().optional(),
+  transition: z.enum(['none', 'left', 'right', 'top', 'bottom']).optional()
 })
 
 const AIConfigSchema = z.object({
@@ -47,12 +48,19 @@ const AIConfigSchema = z.object({
   context: z.enum(['slide', 'code', 'slide+code']).optional()
 })
 
+const SlideGroupConfigSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  slideIds: z.array(z.string())
+})
+
 const PresentationSchema = z.object({
   title: z.string(),
   author: z.string(),
   theme: z.string().default('dark'),
   slides: z.array(SlideConfigSchema),
-  ai: AIConfigSchema.optional()
+  ai: AIConfigSchema.optional(),
+  groups: z.array(SlideGroupConfigSchema).optional()
 })
 
 export function parsePresentationYaml(yamlContent: string, rootPath: string): Presentation {

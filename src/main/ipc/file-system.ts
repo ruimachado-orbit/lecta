@@ -67,10 +67,12 @@ async function savePresentationYaml(presentation: Presentation): Promise<void> {
       if (s.webapp) slide.webapp = s.webapp
       slide.artifacts = s.artifacts
       if (s.notes) slide.notes = s.notes
+      if (s.transition && s.transition !== 'none') slide.transition = s.transition
       return slide
     })
   }
   if (presentation.ai) toSerialize.ai = presentation.ai
+  if (presentation.groups && presentation.groups.length > 0) toSerialize.groups = presentation.groups
 
   await writeFile(configPath, stringifyYaml(toSerialize, { lineWidth: 120 }), 'utf-8')
 
@@ -562,6 +564,39 @@ export function registerFileSystemHandlers(): void {
       await autoSave(rootPath)
 
       return slide.notes
+    }
+  )
+
+  // Save slide groups
+  ipcMain.handle(
+    'fs:save-groups',
+    async (_event, rootPath: string, groups: { id: string; name: string; slideIds: string[] }[]): Promise<void> => {
+      const configPath = join(rootPath, DECK_CONFIG_FILE)
+      const yamlContent = await readFile(configPath, 'utf-8')
+      const config = parsePresentationYaml(yamlContent, rootPath)
+      config.groups = groups
+      await savePresentationYaml(config)
+    }
+  )
+
+  // Set slide transition direction
+  ipcMain.handle(
+    'fs:set-transition',
+    async (_event, rootPath: string, slideIndex: number, transition: string): Promise<LoadedPresentation> => {
+      const configPath = join(rootPath, DECK_CONFIG_FILE)
+      const yamlContent = await readFile(configPath, 'utf-8')
+      const config = parsePresentationYaml(yamlContent, rootPath)
+
+      const slide = config.slides[slideIndex]
+      if (!slide) throw new Error(`Slide at index ${slideIndex} not found`)
+
+      slide.transition = transition as any
+      await savePresentationYaml(config)
+
+      const reloaded = await readFile(configPath, 'utf-8')
+      const reloadedConfig = parsePresentationYaml(reloaded, rootPath)
+      const slides = await loadAllSlides(reloadedConfig, rootPath)
+      return { config: reloadedConfig, slides }
     }
   )
 

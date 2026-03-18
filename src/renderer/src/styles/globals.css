@@ -47,6 +47,39 @@
 }
 
 /* ============================================================
+   SLIDE TRANSITION ANIMATIONS
+   ============================================================ */
+.slide-transition-left.slide-enter {
+  animation: slide-from-left 0.4s ease-out;
+}
+.slide-transition-right.slide-enter {
+  animation: slide-from-right 0.4s ease-out;
+}
+.slide-transition-top.slide-enter {
+  animation: slide-from-top 0.4s ease-out;
+}
+.slide-transition-bottom.slide-enter {
+  animation: slide-from-bottom 0.4s ease-out;
+}
+
+@keyframes slide-from-left {
+  from { transform: translateX(-100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes slide-from-right {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes slide-from-top {
+  from { transform: translateY(-100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes slide-from-bottom {
+  from { transform: translateY(100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* ============================================================
    LIGHT MODE — remap Tailwind's gray scale via CSS variables
    This is the most reliable approach: override the actual
    oklch color variables that Tailwind generates.

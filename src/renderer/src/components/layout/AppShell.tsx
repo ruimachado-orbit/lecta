@@ -9,6 +9,7 @@ import { WebPanel } from '../web/WebPanel'
 import { SpeakerNotes } from '../ai/SpeakerNotes'
 import { ArticlePanel } from '../ai/ArticlePanel'
 import { ArtifactDrawer } from '../artifacts/ArtifactDrawer'
+import { ArtifactSidebarHeader } from '../artifacts/ArtifactSidebar'
 import { SlideMap } from '../slides/SlideMap'
 import { TabBar } from './TabBar'
 import { PresenterView } from '../presenter/PresenterView'
@@ -70,43 +71,43 @@ export function AppShell(): JSX.Element {
             <SlidePanel />
           </Panel>
 
-          {/* Artifact switcher + right pane */}
-          {hasRightPane && showRightPane && (
+          {/* Right Pane: Artifact sidebar header + content */}
+          {showRightPane && (hasRightPane || true) && (
             <>
-              {/* Vertical artifact tab bar */}
-              <div className="flex flex-col items-center py-2 gap-1 bg-gray-900 border-x border-gray-800 w-8">
-                {availableArtifacts.map((type) => (
-                  <button
-                    key={type}
-                    onClick={() => setActiveArtifact(type)}
-                    className={`w-6 h-6 rounded flex items-center justify-center text-[8px] transition-colors ${
-                      activeArtifact === type
-                        ? 'bg-white text-black'
-                        : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
-                    }`}
-                    title={artifactLabel(type)}
-                  >
-                    {artifactIcon(type)}
-                  </button>
-                ))}
-              </div>
               <PanelResizeHandle className="w-1 bg-gray-800 hover:bg-white transition-colors cursor-col-resize" />
               <Panel defaultSize={showArticlePanel ? 30 : 60} minSize={20}>
-                {activeArtifact === 'code' && hasCode && (
-                  <CodePanel key={currentSlideIndex} />
-                )}
-                {activeArtifact === 'video' && hasVideo && (
-                  <VideoPanel key={currentSlideIndex} video={currentSlide!.config.video!} />
-                )}
-                {activeArtifact === 'webapp' && hasWebApp && (
-                  <WebPanel key={currentSlideIndex} webapp={currentSlide!.config.webapp!} />
-                )}
-                {activeArtifact === 'files' && hasFiles && (
-                  <ArtifactDrawer />
-                )}
+                {activeArtifact === 'code' && hasCode && <CodePanel key={currentSlideIndex} />}
+                {activeArtifact === 'video' && hasVideo && <VideoPanel key={currentSlideIndex} video={currentSlide!.config.video!} />}
+                {activeArtifact === 'webapp' && hasWebApp && <WebPanel key={currentSlideIndex} webapp={currentSlide!.config.webapp!} />}
+                {activeArtifact === 'files' && hasFiles && <ArtifactDrawer />}
               </Panel>
             </>
           )}
+
+          {/* Vertical icon strip — artifact type toggles */}
+          <div className="flex flex-col items-center py-2 gap-1 w-7 flex-shrink-0">
+            {availableArtifacts.map((type) => (
+              <button
+                key={type}
+                onClick={() => {
+                  if (activeArtifact === type && showRightPane) {
+                    useUIStore.setState({ showRightPane: false })
+                  } else {
+                    setActiveArtifact(type)
+                    useUIStore.setState({ showRightPane: true })
+                  }
+                }}
+                className={`w-6 h-6 rounded flex items-center justify-center text-[8px] transition-colors ${
+                  activeArtifact === type && showRightPane
+                    ? 'bg-white text-black'
+                    : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
+                }`}
+                title={artifactLabel(type)}
+              >
+                {artifactIcon(type)}
+              </button>
+            ))}
+          </div>
 
           {/* Artifact Drawer */}
           {showArtifactDrawer && (
@@ -137,6 +138,40 @@ export function AppShell(): JSX.Element {
 
       {/* Slide Map overlay */}
       {showSlideMap && <SlideMap />}
+    </div>
+  )
+}
+
+function TransitionPicker(): JSX.Element {
+  const currentSlide = usePresentationStore((s) => s.slides[s.currentSlideIndex])
+  const { setSlideTransition } = usePresentationStore()
+  const current = currentSlide?.config.transition || 'none'
+
+  const directions: { value: string; label: string; arrow: string }[] = [
+    { value: 'none', label: 'No transition', arrow: '·' },
+    { value: 'left', label: 'From left', arrow: '←' },
+    { value: 'right', label: 'From right', arrow: '→' },
+    { value: 'top', label: 'From top', arrow: '↑' },
+    { value: 'bottom', label: 'From bottom', arrow: '↓' }
+  ]
+
+  return (
+    <div className="flex flex-col items-center gap-0.5">
+      <span className="text-[6px] text-gray-600 uppercase tracking-wider mb-0.5">Trans</span>
+      {directions.map((d) => (
+        <button
+          key={d.value}
+          onClick={() => setSlideTransition(d.value)}
+          className={`w-6 h-5 rounded flex items-center justify-center text-[10px] transition-colors ${
+            current === d.value
+              ? 'bg-white text-black'
+              : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
+          }`}
+          title={d.label}
+        >
+          {d.arrow}
+        </button>
+      ))}
     </div>
   )
 }

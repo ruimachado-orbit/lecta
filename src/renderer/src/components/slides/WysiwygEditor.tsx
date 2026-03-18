@@ -50,6 +50,12 @@ interface WysiwygEditorProps {
   breakOffsets?: number[]
 }
 
+// Content height inside the 1280x720 slide with p-12 padding
+const SLIDE_CONTENT_HEIGHT = 720 - 48 * 2 // 624px
+// Scale factor: editor content is wider than the 1184px slide content area,
+// so we approximate a ratio for the different text sizes
+const EDITOR_TO_SLIDE_RATIO = 0.85
+
 function resolveImageSrc(src: string, rootPath?: string): string {
   if (!src) return ''
   if (src.startsWith('http') || src.startsWith('data:') || src.startsWith('lecta-file://')) return src
@@ -66,37 +72,41 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
   const editorContainerRef = useRef<HTMLDivElement>(null)
   const [breakPositions, setBreakPositions] = useState<number[]>([])
 
-  // Compute visual Y positions for sub-slide break lines
-  useEffect(() => {
-    if (breakOffsets.length === 0 || !editorContainerRef.current) {
-      setBreakPositions([])
-      return
-    }
-
-    // Walk the ProseMirror content children, accumulate text length,
-    // and record offsetTop when we cross a break offset
+  // Compute visual Y positions for sub-slide break lines by measuring ProseMirror blocks
+  const computeBreaks = useCallback(() => {
+    if (!editorContainerRef.current) { setBreakPositions([]); return }
     const contentEl = editorContainerRef.current.querySelector('.ProseMirror')
     if (!contentEl) { setBreakPositions([]); return }
 
-    const positions: number[] = []
-    let charCount = 0
-    let breakIdx = 0
     const children = Array.from(contentEl.children) as HTMLElement[]
+    if (children.length === 0) { setBreakPositions([]); return }
+
+    const positions: number[] = []
+    let accumulatedSlideHeight = 0
+    const contentTop = children[0]?.offsetTop ?? 0
 
     for (const child of children) {
-      if (breakIdx >= breakOffsets.length) break
-      const text = child.textContent || ''
-      // +1 for the newline between blocks
-      charCount += text.length + 1
+      // Approximate how much slide height this block takes up
+      const blockHeight = child.offsetHeight * EDITOR_TO_SLIDE_RATIO
 
-      if (charCount >= breakOffsets[breakIdx]) {
-        positions.push(child.offsetTop + child.offsetHeight)
-        breakIdx++
+      if (accumulatedSlideHeight + blockHeight > SLIDE_CONTENT_HEIGHT && accumulatedSlideHeight > 0) {
+        // This block would overflow — mark a break before it
+        positions.push(child.offsetTop - contentTop)
+        accumulatedSlideHeight = blockHeight
+      } else {
+        accumulatedSlideHeight += blockHeight
       }
     }
 
     setBreakPositions(positions)
-  }, [breakOffsets, slide?.markdownContent])
+  }, [slide?.markdownContent])
+
+  useEffect(() => {
+    computeBreaks()
+    // Recompute after a short delay for async content (images etc.)
+    const timer = setTimeout(computeBreaks, 300)
+    return () => clearTimeout(timer)
+  }, [computeBreaks])
 
   const editor = useEditor({
     extensions: [
@@ -211,8 +221,8 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
             className="absolute left-0 right-0 pointer-events-none"
             style={{ top: top + 24 }} // +24 for p-6 padding
           >
-            <div className="mx-4 border-t-2 border-dashed border-gray-700 relative">
-              <span className="absolute right-0 -top-4 text-[9px] text-gray-600 uppercase tracking-wider">
+            <div className="mx-2 border-t-2 border-dashed border-gray-500 relative">
+              <span className="absolute right-0 -top-4 text-[9px] text-gray-400 bg-gray-950 px-1 uppercase tracking-wider">
                 Sub-slide {i + 2}
               </span>
             </div>

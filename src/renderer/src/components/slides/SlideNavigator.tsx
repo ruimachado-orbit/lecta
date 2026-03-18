@@ -145,7 +145,7 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
         </div>
       )}
 
-      <div className="h-16 flex items-center px-4 gap-2 overflow-x-auto">
+      <div className="h-16 flex items-center px-4 overflow-x-auto">
         {slides.map((slide, index) => {
           const isActive = index === currentSlideIndex
           const isSelected = selectedIndices.has(index)
@@ -153,7 +153,34 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
           const isDropTgt = dropTarget === index && dragIndex !== index
           const groupId = slideGroupMap.get(slide.config.id)
           const group = groupId ? slideGroups.find((g) => g.id === groupId) : null
-          if (group?.collapsed) return null
+
+          // Collapsed group: show a group chip for the first slide, hide the rest
+          if (group?.collapsed) {
+            const isFirstInGroup = group.slideIds[0] === slide.config.id
+            if (!isFirstInGroup) return null
+            return (
+              <div key={`grp-${group.id}`} className="flex items-center flex-shrink-0">
+                {index > 0 && <div className="w-2 flex-shrink-0" />}
+                <button
+                  onClick={() => toggleGroupCollapsed(group.id)}
+                  className="flex-shrink-0 h-10 px-3 rounded-md border-2 border-dashed border-gray-600
+                             bg-gray-900 text-gray-400 hover:border-gray-500 hover:text-gray-300
+                             transition-colors text-[9px] flex items-center gap-1.5"
+                  title={`${group.name} — ${group.slideIds.length} slides (click to expand)`}
+                >
+                  <span>▸</span>
+                  <span className="font-medium">{group.name}</span>
+                  <span className="text-gray-600">{group.slideIds.length}</span>
+                </button>
+              </div>
+            )
+          }
+
+          // Check if previous visible slide is in the same group
+          const prevSlide = slides[index - 1]
+          const prevGroupId = prevSlide ? slideGroupMap.get(prevSlide.config.id) : null
+          const prevGroup = prevGroupId ? slideGroups.find((g) => g.id === prevGroupId) : null
+          const sameGroupAsPrev = groupId && prevGroupId === groupId && !prevGroup?.collapsed
 
           if (renaming === index) {
             return <input key={`ren-${index}`} ref={renameInputRef} type="text" value={renameValue}
@@ -164,7 +191,15 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
           }
 
           return (
-            <div key={slide.config.id} draggable
+            <div key={slide.config.id} className="flex items-center flex-shrink-0">
+              {/* Group connector line */}
+              {sameGroupAsPrev && (
+                <div className="w-3 h-px bg-gray-600 flex-shrink-0" />
+              )}
+              {!sameGroupAsPrev && index > 0 && (
+                <div className="w-2 flex-shrink-0" />
+              )}
+            <div draggable
               onDragStart={(e) => handleDragStart(e, index)}
               onDragOver={(e) => handleDragOverSlide(e, index)}
               onDragLeave={() => setDropTarget(null)}
@@ -198,6 +233,7 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
                 </button>
               )}
             </div>
+            </div>
           )
         })}
 
@@ -220,7 +256,11 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
       {contextMenu && selectedIndices.size > 0 && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => { setContextMenu(null); setSelectedIndices(new Set()); setShowNewGroupInMenu(false) }} />
-          <div className="fixed z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl py-1 w-52" style={{ left: contextMenu.x, top: contextMenu.y }}>
+          <div className="fixed z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl py-1 w-52"
+            style={{
+              left: Math.min(contextMenu.x, window.innerWidth - 220),
+              top: contextMenu.y > window.innerHeight - 300 ? contextMenu.y - 250 : contextMenu.y
+            }}>
             <div className="px-3 py-1 text-[9px] text-gray-500 uppercase tracking-wider">
               {selectedIndices.size} slide{selectedIndices.size > 1 ? 's' : ''} selected
             </div>

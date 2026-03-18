@@ -126,9 +126,16 @@ export function SlideMap(): JSX.Element {
 
                     return (
                       <div key={slide.config.id} className="flex items-center">
-                        {/* Connector line */}
+                        {/* Connector line with transition indicator */}
                         {i > 0 && (
-                          <div className="w-6 h-px bg-gray-700 flex-shrink-0" />
+                          <div className="w-8 flex-shrink-0 flex items-center justify-center relative">
+                            <div className="w-full h-px bg-gray-700" />
+                            {slide.config.transition && slide.config.transition !== 'none' && (
+                              <span className="absolute text-[8px] text-gray-400 bg-gray-950 px-0.5" title={`Appears from ${slide.config.transition}`}>
+                                {slide.config.transition === 'left' ? '←' : slide.config.transition === 'right' ? '→' : slide.config.transition === 'top' ? '↑' : '↓'}
+                              </span>
+                            )}
+                          </div>
                         )}
 
                         {/* Slide card */}

@@ -34,6 +34,10 @@ const api = {
     ipcRenderer.invoke('fs:rename-slide', rootPath, slideIndex, newId),
   reorderSlide: (rootPath: string, fromIndex: number, toIndex: number): Promise<LoadedPresentation> =>
     ipcRenderer.invoke('fs:reorder-slide', rootPath, fromIndex, toIndex),
+  saveGroups: (rootPath: string, groups: { id: string; name: string; slideIds: string[] }[]): Promise<void> =>
+    ipcRenderer.invoke('fs:save-groups', rootPath, groups),
+  setSlideTransition: (rootPath: string, slideIndex: number, transition: string): Promise<LoadedPresentation> =>
+    ipcRenderer.invoke('fs:set-transition', rootPath, slideIndex, transition),
   removeAttachment: (
     rootPath: string, slideIndex: number, type: 'code' | 'video' | 'webapp' | 'artifact', artifactIndex?: number
   ): Promise<LoadedPresentation> =>

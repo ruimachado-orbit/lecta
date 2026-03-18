@@ -8,7 +8,7 @@ import type { SupportedLanguage } from '../../../../../packages/shared/src/types
 export function Toolbar(): JSX.Element {
   const { presentation, currentSlideIndex, slides, nextSlide, prevSlide, addSlide, addCodeToSlide, addArtifact, addVideo, addWebApp, saveSlideContent, hasUnsavedChanges } =
     usePresentationStore()
-  const { togglePresenting, toggleNotes, showNotes, editingSlide, toggleEditingSlide, theme, setTheme, showArticlePanel, toggleArticlePanel, showRightPane, toggleRightPane, toggleSlideMap } = useUIStore()
+  const { togglePresenting, toggleNotes, showNotes, editingSlide, toggleEditingSlide, theme, setTheme, showArticlePanel, toggleArticlePanel, showRightPane, toggleRightPane, toggleSlideMap, showAIGenerate, toggleAIGenerate } = useUIStore()
   const { isExecuting } = useExecutionStore()
   const { activeTabId, closeTab } = useTabsStore()
 
@@ -132,110 +132,15 @@ export function Toolbar(): JSX.Element {
           Editor
         </button>
 
-        {/* Add menu — unified dropdown for all artifact types */}
-        <div className="relative">
-          <button
-            onClick={() => { closeAllDropdowns(); setShowAddMenu(!showAddMenu) }}
-            className={`p-1.5 rounded transition-colors ${
-              showAddMenu ? 'bg-white text-black' : 'hover:bg-gray-800 text-gray-400 hover:text-gray-200'
-            }`}
-            title="Add to this slide"
-          >
-            <PlusSlideIcon />
-          </button>
-          {showAddMenu && (
-            <div className="absolute right-0 top-full mt-2 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl w-56 overflow-hidden">
-              {/* Code */}
-              {!hasCode && (
-                <div className="px-2 pt-2 pb-1">
-                  <div className="text-[9px] uppercase tracking-wider text-gray-500 px-1 pb-1">Code</div>
-                  <select
-                    onChange={(e) => { if (e.target.value) { handleAddCode(e.target.value as SupportedLanguage); setShowAddMenu(false) } }}
-                    defaultValue=""
-                    className="w-full px-2 py-1.5 bg-gray-950 text-gray-300 text-xs rounded border border-gray-700
-                               focus:border-white focus:outline-none"
-                  >
-                    <option value="" disabled>Select language...</option>
-                    {(['markdown', 'javascript', 'python', 'sql', 'typescript', 'bash', 'go', 'rust', 'java', 'ruby'] as SupportedLanguage[]).map((lang) => (
-                      <option key={lang} value={lang} className="capitalize">{lang}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {/* Video */}
-              {!hasVideo && (
-                <div className="px-2 pt-2 pb-1 border-t border-gray-800">
-                  <div className="text-[9px] uppercase tracking-wider text-gray-500 px-1 pb-1">Video</div>
-                  <div className="flex gap-1">
-                    <input
-                      type="text"
-                      value={videoUrl}
-                      onChange={(e) => setVideoUrl(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') { handleAddVideo(); setShowAddMenu(false) } }}
-                      placeholder="YouTube URL..."
-                      className="flex-1 px-2 py-1.5 bg-gray-950 text-gray-300 text-xs rounded border border-gray-700
-                                 focus:border-white focus:outline-none"
-                    />
-                    <button
-                      onClick={() => { handleAddVideo(); setShowAddMenu(false) }}
-                      disabled={!videoUrl.trim()}
-                      className="px-2 py-1.5 bg-gray-300 hover:bg-gray-400 disabled:opacity-40
-                                 text-white text-[10px] rounded transition-colors"
-                    >
-                      Add
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Web App */}
-              {!hasWebApp && (
-                <div className="px-2 pt-2 pb-1 border-t border-gray-800">
-                  <div className="text-[9px] uppercase tracking-wider text-gray-500 px-1 pb-1">Web App</div>
-                  <div className="flex gap-1">
-                    <input
-                      type="text"
-                      value={webAppUrl}
-                      onChange={(e) => setWebAppUrl(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') { handleAddWebApp(); setShowAddMenu(false) } }}
-                      placeholder="https://localhost:3000"
-                      className="flex-1 px-2 py-1.5 bg-gray-950 text-gray-300 text-xs rounded border border-gray-700
-                                 focus:border-white focus:outline-none"
-                    />
-                    <button
-                      onClick={() => { handleAddWebApp(); setShowAddMenu(false) }}
-                      disabled={!webAppUrl.trim()}
-                      className="px-2 py-1.5 bg-white hover:bg-gray-200 disabled:opacity-40
-                                 text-black text-[10px] rounded transition-colors"
-                    >
-                      Add
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* File */}
-              <button
-                onClick={() => { addArtifact(); setShowAddMenu(false) }}
-                className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-gray-300 hover:bg-gray-800 transition-colors border-t border-gray-800"
-              >
-                <PaperclipIcon />
-                Upload file
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Toggle right pane (code/video/web artifacts) */}
+        {/* AI slide generator */}
         <button
-          onClick={toggleRightPane}
+          onClick={toggleAIGenerate}
           className={`p-1.5 rounded transition-colors ${
-            showRightPane ? 'bg-white text-black' : 'hover:bg-gray-800 text-gray-400'
+            showAIGenerate ? 'bg-white text-black' : 'hover:bg-gray-800 text-gray-400'
           }`}
-          title="Toggle artifacts panel"
+          title="AI slide generator"
         >
-          <AttachmentsIcon />
+          <SparklesIcon />
         </button>
 
         {/* Separator */}
@@ -367,6 +272,14 @@ function PaperclipIcon(): JSX.Element {
   return (
     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
+    </svg>
+  )
+}
+
+function SparklesIcon(): JSX.Element {
+  return (
+    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z" />
     </svg>
   )
 }

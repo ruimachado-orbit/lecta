@@ -1,3 +1,9 @@
+export interface SlideGroupConfig {
+  id: string
+  name: string
+  slideIds: string[]
+}
+
 export interface Presentation {
   title: string
   author: string
@@ -5,6 +11,7 @@ export interface Presentation {
   slides: SlideConfig[]
   rootPath: string
   ai?: AIConfig
+  groups?: SlideGroupConfig[]
 }
 
 export interface VideoConfig {
@@ -17,6 +24,8 @@ export interface WebAppConfig {
   label?: string
 }
 
+export type SlideTransition = 'none' | 'left' | 'right' | 'top' | 'bottom'
+
 export interface SlideConfig {
   id: string
   content: string
@@ -25,6 +34,7 @@ export interface SlideConfig {
   webapp?: WebAppConfig
   artifacts: ArtifactConfig[]
   notes?: string
+  transition?: SlideTransition
 }
 
 export interface CodeBlockConfig {

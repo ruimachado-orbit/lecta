@@ -86,7 +86,7 @@ function createWindow(): void {
             ` child-src 'self' blob:;` +
             ` frame-src 'self' blob: https: http://localhost:* http://127.0.0.1:*;` +
             ` img-src 'self' data: blob: https: file: lecta-file:;` +
-            ` font-src 'self' data: https://cdn.jsdelivr.net;`
+            ` font-src 'self' data: file: blob: https://cdn.jsdelivr.net;`
         ]
       }
     })

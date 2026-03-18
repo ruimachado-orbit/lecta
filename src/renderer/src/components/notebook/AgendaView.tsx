@@ -169,19 +169,25 @@ export function AgendaView(): JSX.Element {
   // Derive note entries from all pages by their createdAt date
   const noteEntries = useMemo(() => {
     const map = new Map<string, AgendaEntry[]>()
-    for (const page of pages) {
-      if (!page.config.createdAt) continue
-      const date = page.config.createdAt.slice(0, 10) // YYYY-MM-DD
-      const time = page.config.createdAt.slice(11, 16) || '' // HH:MM
-      const entry: AgendaEntry = {
-        time,
-        title: page.config.id,
-        detail: page.markdownContent.replace(/<[^>]+>/g, '').replace(/^#+\s*/gm, '').trim().split('\n')[0]?.slice(0, 60) || '',
-        done: false,
-        noteId: page.config.id
+    try {
+      for (const page of (pages || [])) {
+        const created = page?.config?.createdAt
+        if (!created || created.length < 10) continue
+        const date = created.slice(0, 10)
+        const time = created.length >= 16 ? created.slice(11, 16) : ''
+        const preview = (page.markdownContent || '').replace(/<[^>]+>/g, '').replace(/^#+\s*/gm, '').trim().split('\n')[0]?.slice(0, 60) || ''
+        const entry: AgendaEntry = {
+          time,
+          title: page.config.id,
+          detail: preview,
+          done: false,
+          noteId: page.config.id
+        }
+        if (!map.has(date)) map.set(date, [])
+        map.get(date)!.push(entry)
       }
-      if (!map.has(date)) map.set(date, [])
-      map.get(date)!.push(entry)
+    } catch (err) {
+      console.error('AgendaView: error deriving note entries', err)
     }
     return map
   }, [pages])

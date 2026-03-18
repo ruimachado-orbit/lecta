@@ -46,8 +46,43 @@ export function PresenterView(): JSX.Element {
 
   return (
     <div className="h-screen w-screen flex flex-col bg-black">
-      {/* macOS traffic-light safe area */}
-      <div className="h-8 flex-shrink-0 bg-black" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties} />
+      {/* Top bar — spans full width for consistent background */}
+      <div className="h-10 flex-shrink-0 bg-gray-900 border-b border-gray-800 flex items-center px-20 gap-3"
+           style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
+        <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+          <button onClick={prevSlide} disabled={currentSlideIndex === 0}
+            className="p-1 rounded hover:bg-gray-800 disabled:opacity-30 transition-colors">
+            <svg className="w-3.5 h-3.5 text-gray-300" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+            </svg>
+          </button>
+          <span className="text-white text-xs font-mono font-semibold min-w-[40px] text-center">
+            {currentSlideIndex + 1}/{slides.length}
+          </span>
+          <button onClick={nextSlide} disabled={currentSlideIndex === slides.length - 1}
+            className="p-1 rounded hover:bg-gray-800 disabled:opacity-30 transition-colors">
+            <svg className="w-3.5 h-3.5 text-gray-300" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+            </svg>
+          </button>
+        </div>
+        <span className="text-gray-500 text-xs truncate flex-1">{presentation?.title}</span>
+        <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+          <button onClick={() => setTimerRunning(!timerRunning)}
+            className="text-xs font-mono px-2 py-0.5 rounded bg-gray-800 text-gray-300">
+            {formatTime(timer)}
+          </button>
+          <button onClick={() => {
+            setPresenting(false)
+            window.electronAPI.closeAudienceWindow()
+            const t = useUIStore.getState().theme
+            document.documentElement.setAttribute('data-theme', t)
+          }}
+            className="px-3 py-1 text-xs bg-red-500 hover:bg-red-400 text-white rounded font-medium">
+            End
+          </button>
+        </div>
+      </div>
 
       {/* Main area */}
       <div className="flex-1 min-h-0 flex overflow-hidden">

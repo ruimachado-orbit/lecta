@@ -49,100 +49,67 @@ export function NotebookShell(): JSX.Element {
       <TabBar />
       <NotebookToolbar showAgenda={activeView === 'agenda'} onToggleAgenda={() => setActiveView(activeView === 'agenda' ? 'notes' : 'agenda')} />
 
-      <div className="flex-1 min-h-0 flex flex-col">
-        <PanelGroup direction="horizontal" className="flex-1">
-          {/* Left Pane: Note Editor */}
-          <Panel defaultSize={
-            activeView === 'agenda' && showRightPane && hasRightContent ? 40 :
-            activeView === 'agenda' ? 60 :
-            showRightPane && hasRightContent ? 66 : 100
-          } minSize={25}>
-            <NotePanel />
-          </Panel>
+      <div className="flex-1 min-h-0 flex">
+        {/* Notes + artifacts panel group */}
+        <div className="flex-1 min-w-0">
+          <PanelGroup direction="horizontal" className="h-full">
+            <Panel defaultSize={showRightPane && hasRightContent ? 66 : 100} minSize={30}>
+              <NotePanel />
+            </Panel>
 
-          {/* Right Pane: Code / Artifacts */}
-          {showRightPane && hasRightContent && (
-            <>
-              <PanelResizeHandle className="w-1 bg-gray-800 hover:bg-white transition-colors cursor-col-resize" />
-              <Panel defaultSize={34} minSize={15}>
-                {rightPaneContent === 'code' && hasCode && <CodePanel key={currentPageIndex} />}
-                {rightPaneContent === 'files' && hasFiles && <ArtifactDrawer />}
-                {!hasCode && !hasFiles && (
-                  <div className="h-full flex items-center justify-center text-gray-600 bg-gray-950 text-sm">
-                    No artifacts for this note
-                  </div>
-                )}
-              </Panel>
-            </>
-          )}
-
-          {/* Agenda drawer (right) */}
-          {activeView === 'agenda' && (
-            <>
-              <PanelResizeHandle className="w-1 bg-gray-800 hover:bg-indigo-500 transition-colors cursor-col-resize" />
-              <Panel defaultSize={showRightPane && hasRightContent ? 30 : 40} minSize={20}>
-                <AgendaView />
-              </Panel>
-            </>
-          )}
+            {showRightPane && hasRightContent && (
+              <>
+                <PanelResizeHandle className="w-1 bg-gray-800 hover:bg-white transition-colors cursor-col-resize" />
+                <Panel defaultSize={34} minSize={15}>
+                  {rightPaneContent === 'code' && hasCode && <CodePanel key={currentPageIndex} />}
+                  {rightPaneContent === 'files' && hasFiles && <ArtifactDrawer />}
+                  {!hasCode && !hasFiles && (
+                    <div className="h-full flex items-center justify-center text-gray-600 bg-gray-950 text-sm">
+                      No artifacts for this note
+                    </div>
+                  )}
+                </Panel>
+              </>
+            )}
 
           {/* Vertical toggle strip for right pane */}
-          {hasRightContent && (
-            <div className="flex flex-col items-center py-2 gap-1 w-7 flex-shrink-0">
-              {hasCode && (
-                <button
-                  onClick={() => {
-                    setRightPaneContent('code')
-                    useUIStore.setState({ showRightPane: true })
-                  }}
-                  className={`w-6 h-6 rounded flex items-center justify-center text-[8px] transition-colors ${
-                    rightPaneContent === 'code' && showRightPane
-                      ? 'text-white font-bold'
-                      : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
-                  }`}
-                  title="Code editor"
-                >
-                  {'{ }'}
-                </button>
-              )}
-              {hasFiles && (
-                <button
-                  onClick={() => {
-                    setRightPaneContent('files')
-                    useUIStore.setState({ showRightPane: true })
-                  }}
-                  className={`w-6 h-6 rounded flex items-center justify-center text-[8px] transition-colors ${
-                    rightPaneContent === 'files' && showRightPane
-                      ? 'text-white font-bold'
-                      : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
-                  }`}
-                  title="File artifacts"
-                >
-                  {'\u{1F4CE}'}
-                </button>
-              )}
-
-              {(hasCode || hasFiles) && (
-                <>
-                  <div className="w-4 h-px bg-gray-600" />
-                  <button
-                    onClick={() => useUIStore.setState({ showRightPane: !showRightPane })}
-                    className="w-6 h-6 rounded flex items-center justify-center text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-colors"
-                    title={showRightPane ? 'Collapse panel' : 'Expand panel'}
-                  >
-                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                      {showRightPane ? (
-                        <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-                      ) : (
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
-                      )}
-                    </svg>
-                  </button>
-                </>
-              )}
-            </div>
-          )}
         </PanelGroup>
+        </div>
+
+        {/* Vertical artifact toggle strip */}
+        {hasRightContent && (
+          <div className="flex flex-col items-center py-2 gap-1 w-7 flex-shrink-0 border-l border-gray-800">
+            {hasCode && (
+              <button onClick={() => { setRightPaneContent('code'); useUIStore.setState({ showRightPane: true }) }}
+                className={`w-6 h-6 rounded flex items-center justify-center text-[8px] transition-colors ${
+                  rightPaneContent === 'code' && showRightPane ? 'text-white font-bold' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
+                }`} title="Code editor">{'{ }'}</button>
+            )}
+            {hasFiles && (
+              <button onClick={() => { setRightPaneContent('files'); useUIStore.setState({ showRightPane: true }) }}
+                className={`w-6 h-6 rounded flex items-center justify-center text-[8px] transition-colors ${
+                  rightPaneContent === 'files' && showRightPane ? 'text-white font-bold' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
+                }`} title="File artifacts">{'\u{1F4CE}'}</button>
+            )}
+            <div className="w-4 h-px bg-gray-600" />
+            <button onClick={() => useUIStore.setState({ showRightPane: !showRightPane })}
+              className="w-6 h-6 rounded flex items-center justify-center text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-colors"
+              title={showRightPane ? 'Collapse panel' : 'Expand panel'}>
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                {showRightPane
+                  ? <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                  : <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />}
+              </svg>
+            </button>
+          </div>
+        )}
+
+        {/* Agenda drawer — outside PanelGroup, plain flex */}
+        {activeView === 'agenda' && (
+          <div className="flex-shrink-0 border-l border-gray-800" style={{ width: '35%', minWidth: 280 }}>
+            <AgendaView />
+          </div>
+        )}
       </div>
 
       {/* Bottom navigator */}

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { usePresentationStore } from '../../stores/presentation-store'
+import { SpotlightContainer, SpotlightToggle } from '../common/Spotlight'
 import type { WebAppConfig } from '../../../../../packages/shared/src/types/presentation'
 
 interface WebPanelProps {
@@ -13,6 +14,7 @@ export function WebPanel({ webapp }: WebPanelProps): JSX.Element {
   const webviewRef = useRef<HTMLWebViewElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [spotlightEnabled, setSpotlightEnabled] = useState(true)
 
   const handleNavigate = () => {
     let target = inputUrl.trim()
@@ -120,6 +122,7 @@ export function WebPanel({ webapp }: WebPanelProps): JSX.Element {
         {isLoading && (
           <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
         )}
+        <SpotlightToggle enabled={spotlightEnabled} onToggle={() => setSpotlightEnabled(!spotlightEnabled)} />
         <button
           onClick={() => removeAttachment('webapp')}
           className="p-1 hover:bg-red-600 text-gray-500 hover:text-white rounded transition-colors"
@@ -133,14 +136,16 @@ export function WebPanel({ webapp }: WebPanelProps): JSX.Element {
 
       {/* Embedded browser via webview (bypasses X-Frame-Options) */}
       <div className="flex-1 relative" ref={containerRef}>
-        <webview
-          ref={webviewRef as any}
-          src={url}
-          className="absolute inset-0"
-          style={{ width: '100%', height: '100%' }}
-          // @ts-ignore - Electron webview attributes
-          allowpopups="true"
-        />
+        <SpotlightContainer enabled={spotlightEnabled}>
+          <webview
+            ref={webviewRef as any}
+            src={url}
+            className="absolute inset-0"
+            style={{ width: '100%', height: '100%' }}
+            // @ts-ignore - Electron webview attributes
+            allowpopups="true"
+          />
+        </SpotlightContainer>
       </div>
     </div>
   )

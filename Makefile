@@ -1,4 +1,4 @@
-.PHONY: dev setup install clean build package lint format
+.PHONY: dev setup install clean build package dmg lint format
 
 # 🚀 Full setup + launch (first time or any time)
 dev: setup
@@ -22,6 +22,9 @@ build:
 # Package as distributable (macOS DMG, etc.)
 package: build
 	cd "$(CURDIR)" && pnpm package
+
+dmg: build
+	cd "$(CURDIR)" && pnpm package:mac
 
 package-mac: build
 	cd "$(CURDIR)" && pnpm package:mac

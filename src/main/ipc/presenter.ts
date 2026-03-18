@@ -3,6 +3,8 @@ import { join } from 'path'
 
 let presenterWindow: BrowserWindow | null = null
 let audienceWindow: BrowserWindow | null = null
+let pendingPresenterPath: string | null = null
+let pendingSlideIndex: number = 0
 
 export function registerPresenterHandlers(): void {
   ipcMain.handle('presenter:open', async () => {
@@ -66,6 +68,18 @@ export function registerPresenterHandlers(): void {
       })
     }
 
+    // When audience window finishes loading, send the pending path and slide
+    audienceWindow.webContents.on('did-finish-load', () => {
+      if (pendingPresenterPath && audienceWindow && !audienceWindow.isDestroyed()) {
+        audienceWindow.webContents.send('presenter:load-path', pendingPresenterPath)
+        setTimeout(() => {
+          if (audienceWindow && !audienceWindow.isDestroyed()) {
+            audienceWindow.webContents.send('presenter:sync-slide', pendingSlideIndex)
+          }
+        }, 300)
+      }
+    })
+
     audienceWindow.on('closed', () => {
       audienceWindow = null
     })
@@ -78,14 +92,16 @@ export function registerPresenterHandlers(): void {
     }
   })
 
-  // Send presentation path to audience window so it can load it
+  // Store and forward presentation path to audience window
   ipcMain.on('presenter:send-path', (_event, rootPath: string) => {
+    pendingPresenterPath = rootPath
     if (audienceWindow && !audienceWindow.isDestroyed()) {
       audienceWindow.webContents.send('presenter:load-path', rootPath)
     }
   })
 
   ipcMain.on('presenter:sync-slide', (_event, slideIndex: number) => {
+    pendingSlideIndex = slideIndex
     if (presenterWindow && !presenterWindow.isDestroyed()) {
       presenterWindow.webContents.send('presenter:sync-slide', slideIndex)
     }

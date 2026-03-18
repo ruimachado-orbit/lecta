@@ -183,8 +183,14 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
               title="Shift+click to multi-select">
               {group && <span className="absolute -top-2 left-1 text-[7px] px-1 bg-gray-700 text-gray-400 rounded-sm leading-none">{group.name}</span>}
               {isSelected && selectedIndices.size > 1 && <span className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-white text-black text-[8px] font-bold rounded-full flex items-center justify-center z-10">✓</span>}
-              <span className="block truncate font-medium">{index + 1}. {slide.config.id}</span>
-              {slide.config.code && <span className="block truncate text-white/60 mt-0.5">{slide.config.code.language}</span>}
+              {/* Artifact icons */}
+              <div className="absolute top-0.5 left-0.5 flex gap-px">
+                {slide.config.code && <ArtifactDot title="Code" icon="code" />}
+                {slide.config.video && <ArtifactDot title="Video" icon="video" />}
+                {slide.config.webapp && <ArtifactDot title="Web" icon="web" />}
+                {slide.config.artifacts.length > 0 && <ArtifactDot title={`${slide.config.artifacts.length} file(s)`} icon="file" />}
+              </div>
+              <span className="block truncate font-medium mt-1.5">{index + 1}. {slide.config.id}</span>
               {slides.length > 1 && !isSelected && (
                 <button onClick={(e) => { e.stopPropagation(); deleteSlide(index) }}
                   className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 hover:bg-red-400 text-white rounded-full hidden group-hover:flex items-center justify-center z-10">
@@ -262,5 +268,22 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
         </>
       )}
     </div>
+  )
+}
+
+function ArtifactDot({ title, icon }: { title: string; icon: 'code' | 'video' | 'web' | 'file' }): JSX.Element {
+  const icons: Record<string, string> = {
+    code: '{ }',
+    video: '▶',
+    web: '◎',
+    file: '📎'
+  }
+  return (
+    <span
+      className="w-3 h-3 rounded-sm bg-gray-700 text-gray-400 flex items-center justify-center text-[5px] leading-none"
+      title={title}
+    >
+      {icons[icon]}
+    </span>
   )
 }

@@ -29,6 +29,7 @@ export function AppShell(): JSX.Element {
     return <PresenterView />
   }
 
+  const currentSlideIndex = usePresentationStore((s) => s.currentSlideIndex)
   const hasCode = !!currentSlide?.config.code
   const hasVideo = !!currentSlide?.config.video
   const hasWebApp = !!currentSlide?.config.webapp
@@ -52,11 +53,11 @@ export function AppShell(): JSX.Element {
               <PanelResizeHandle className="w-1 bg-gray-800 hover:bg-white transition-colors cursor-col-resize" />
               <Panel defaultSize={showArticlePanel ? 30 : 60} minSize={20}>
                 {hasCode ? (
-                  <CodePanel />
+                  <CodePanel key={currentSlideIndex} />
                 ) : hasVideo ? (
-                  <VideoPanel video={currentSlide!.config.video!} />
+                  <VideoPanel key={currentSlideIndex} video={currentSlide!.config.video!} />
                 ) : hasWebApp ? (
-                  <WebPanel webapp={currentSlide!.config.webapp!} />
+                  <WebPanel key={currentSlideIndex} webapp={currentSlide!.config.webapp!} />
                 ) : null}
               </Panel>
             </>

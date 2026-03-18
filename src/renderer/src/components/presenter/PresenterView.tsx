@@ -49,13 +49,11 @@ export function PresenterView(): JSX.Element {
 
   // Open audience window on mount, close on unmount
   useEffect(() => {
-    window.electronAPI.openAudienceWindow()
     if (presentation) {
       window.electronAPI.sendPresenterPath(presentation.rootPath)
     }
-    return () => {
-      window.electronAPI.closeAudienceWindow()
-    }
+    window.electronAPI.openAudienceWindow()
+    return () => { window.electronAPI.closeAudienceWindow() }
   }, [])
 
   // Sync slide index to audience window

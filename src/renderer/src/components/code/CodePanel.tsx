@@ -5,11 +5,13 @@ import { CodeEditor } from './CodeEditor'
 import { CodeToolbar } from './CodeToolbar'
 import { ExecutionOutput } from './ExecutionOutput'
 import { MarkdownPreview } from './MarkdownPreview'
+import { SpotlightContainer, SpotlightToggle } from '../common/Spotlight'
 
 export function CodePanel(): JSX.Element {
   const { slides, currentSlideIndex } = usePresentationStore()
   const currentSlide = slides[currentSlideIndex]
   const [expanded, setExpanded] = useState<'none' | 'output'>('none')
+  const [spotlightEnabled, setSpotlightEnabled] = useState(false)
 
   if (!currentSlide?.config.code || currentSlide.codeContent === null) {
     return (
@@ -51,32 +53,38 @@ export function CodePanel(): JSX.Element {
 
   return (
     <div className="h-full flex flex-col bg-gray-950">
-      <CodeToolbar />
+      <div className="flex items-center">
+        <div className="flex-1"><CodeToolbar /></div>
+        <div className="h-10 bg-gray-900 border-b border-gray-800 flex items-center pr-2">
+          <SpotlightToggle enabled={spotlightEnabled} onToggle={() => setSpotlightEnabled(!spotlightEnabled)} />
+        </div>
+      </div>
 
-      <PanelGroup direction="vertical" className="flex-1">
-        {/* Code Editor */}
-        <Panel defaultSize={isMarkdown ? 50 : 65} minSize={20}>
-          <CodeEditor />
-        </Panel>
+      <SpotlightContainer enabled={spotlightEnabled}>
+        <PanelGroup direction="vertical" className="flex-1">
+          {/* Code Editor */}
+          <Panel defaultSize={isMarkdown ? 50 : 65} minSize={20}>
+            <CodeEditor />
+          </Panel>
 
-        <PanelResizeHandle className="h-1 bg-gray-800 hover:bg-white transition-colors cursor-row-resize" />
+          <PanelResizeHandle className="h-1 bg-gray-800 hover:bg-white transition-colors cursor-row-resize" />
 
-        {/* Output / Preview with expand button */}
-        <Panel defaultSize={isMarkdown ? 50 : 35} minSize={10}>
-          <div className="h-full flex flex-col">
-            {/* Inject expand button into the output header */}
-            {isMarkdown ? (
-              <MarkdownPreviewWithExpand
-                content={currentSlide.codeContent ?? ''}
-                rootPath={rootPath}
-                onExpand={() => setExpanded('output')}
-              />
-            ) : (
-              <ExecutionOutputWithExpand onExpand={() => setExpanded('output')} />
-            )}
-          </div>
-        </Panel>
-      </PanelGroup>
+          {/* Output / Preview with expand button */}
+          <Panel defaultSize={isMarkdown ? 50 : 35} minSize={10}>
+            <div className="h-full flex flex-col">
+              {isMarkdown ? (
+                <MarkdownPreviewWithExpand
+                  content={currentSlide.codeContent ?? ''}
+                  rootPath={rootPath}
+                  onExpand={() => setExpanded('output')}
+                />
+              ) : (
+                <ExecutionOutputWithExpand onExpand={() => setExpanded('output')} />
+              )}
+            </div>
+          </Panel>
+        </PanelGroup>
+      </SpotlightContainer>
     </div>
   )
 }

@@ -82,8 +82,23 @@ export const useUIStore = create<UIState>((set, get) => ({
     document.documentElement.setAttribute('data-theme', theme)
     set({ theme })
   },
-  togglePresenting: () => set((s) => ({ isPresenting: !s.isPresenting })),
-  setPresenting: (presenting) => set({ isPresenting: presenting }),
+  togglePresenting: () => {
+    const next = !get().isPresenting
+    if (next) {
+      document.documentElement.requestFullscreen?.().catch(() => {})
+    } else {
+      document.exitFullscreen?.().catch(() => {})
+    }
+    set({ isPresenting: next })
+  },
+  setPresenting: (presenting) => {
+    if (presenting) {
+      document.documentElement.requestFullscreen?.().catch(() => {})
+    } else {
+      document.exitFullscreen?.().catch(() => {})
+    }
+    set({ isPresenting: presenting })
+  },
   toggleNotes: () => set((s) => ({ showNotes: !s.showNotes })),
   toggleNavigator: () => set((s) => ({ showNavigator: !s.showNavigator })),
   toggleArticlePanel: () => set((s) => ({ showArticlePanel: !s.showArticlePanel })),

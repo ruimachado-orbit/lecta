@@ -205,8 +205,8 @@ export function PresenterView(): JSX.Element {
 
           <button
             onClick={() => setPresenting(false)}
-            className="px-3 py-1.5 text-xs bg-gray-300 hover:bg-gray-400 text-white rounded-lg transition-colors font-medium"
-            title="Exit (Esc)"
+            className="px-3 py-1.5 text-xs bg-red-500 hover:bg-red-400 text-white rounded-lg transition-colors font-medium"
+            title="Exit presentation (Esc)"
           >
             End
           </button>

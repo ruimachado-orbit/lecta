@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Image from '@tiptap/extension-image'
@@ -30,13 +30,48 @@ function markdownToHtml(md: string): string {
 
 interface WysiwygEditorProps {
   slideIndex: number
+  breakOffsets?: number[]
 }
 
-export function WysiwygEditor({ slideIndex }: WysiwygEditorProps): JSX.Element {
+export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorProps): JSX.Element {
   const { slides, updateMarkdownContent, saveSlideContent, presentation } = usePresentationStore()
   const slide = slides[slideIndex]
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const isInternalUpdate = useRef(false)
+  const editorContainerRef = useRef<HTMLDivElement>(null)
+  const [breakPositions, setBreakPositions] = useState<number[]>([])
+
+  // Compute visual Y positions for sub-slide break lines
+  useEffect(() => {
+    if (breakOffsets.length === 0 || !editorContainerRef.current) {
+      setBreakPositions([])
+      return
+    }
+
+    // Walk the ProseMirror content children, accumulate text length,
+    // and record offsetTop when we cross a break offset
+    const contentEl = editorContainerRef.current.querySelector('.ProseMirror')
+    if (!contentEl) { setBreakPositions([]); return }
+
+    const positions: number[] = []
+    let charCount = 0
+    let breakIdx = 0
+    const children = Array.from(contentEl.children) as HTMLElement[]
+
+    for (const child of children) {
+      if (breakIdx >= breakOffsets.length) break
+      const text = child.textContent || ''
+      // +1 for the newline between blocks
+      charCount += text.length + 1
+
+      if (charCount >= breakOffsets[breakIdx]) {
+        positions.push(child.offsetTop + child.offsetHeight)
+        breakIdx++
+      }
+    }
+
+    setBreakPositions(positions)
+  }, [breakOffsets, slide?.markdownContent])
 
   const editor = useEditor({
     extensions: [
@@ -142,8 +177,22 @@ export function WysiwygEditor({ slideIndex }: WysiwygEditorProps): JSX.Element {
       </div>
 
       {/* Editor */}
-      <div className="flex-1 overflow-y-auto p-6 relative">
+      <div className="flex-1 overflow-y-auto p-6 relative" ref={editorContainerRef}>
         <EditorContent editor={editor} />
+        {/* Sub-slide break dividers */}
+        {breakPositions.map((top, i) => (
+          <div
+            key={i}
+            className="absolute left-0 right-0 pointer-events-none"
+            style={{ top: top + 24 }} // +24 for p-6 padding
+          >
+            <div className="mx-4 border-t-2 border-dashed border-gray-700 relative">
+              <span className="absolute right-0 -top-4 text-[9px] text-gray-600 uppercase tracking-wider">
+                Sub-slide {i + 2}
+              </span>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   )

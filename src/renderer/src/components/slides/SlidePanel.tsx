@@ -17,7 +17,7 @@ export function SlidePanel(): JSX.Element {
   const editorRef = useRef<any>(null)
   const [showAIGenerate, setShowAIGenerate] = useState(false)
 
-  const { subSlides, currentSubSlide, setCurrentSubSlide } = useSubSlides(
+  const { subSlides, currentSubSlide, setCurrentSubSlide, breakOffsets } = useSubSlides(
     currentSlide?.markdownContent ?? '',
     currentSlideIndex
   )
@@ -85,7 +85,7 @@ export function SlidePanel(): JSX.Element {
           <>
             <div className="flex-1 min-h-0">
               {editorMode === 'wysiwyg' ? (
-                <WysiwygEditor slideIndex={currentSlideIndex} />
+                <WysiwygEditor slideIndex={currentSlideIndex} breakOffsets={breakOffsets} />
               ) : (
                 <div className="h-full" onBlur={handleEditorBlur}>
                   <Editor

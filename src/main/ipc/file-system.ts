@@ -24,7 +24,13 @@ import type {
   ExecutionEngine
 } from '../../../packages/shared/src/types/presentation'
 
-let recentDecks: string[] = []
+interface RecentDeck {
+  path: string
+  title: string
+  date: string // ISO date string
+}
+
+let recentDecks: RecentDeck[] = []
 
 async function getSettingsPath(): Promise<string> {
   const { app } = await import('electron')
@@ -196,7 +202,8 @@ export function registerFileSystemHandlers(): void {
     )
 
     // Track recent decks and set AI deck path
-    recentDecks = [folderPath, ...recentDecks.filter((d) => d !== folderPath)].slice(0, 10)
+    const newEntry: RecentDeck = { path: folderPath, title: config.title, date: new Date().toISOString() }
+    recentDecks = [newEntry, ...recentDecks.filter((d) => d.path !== folderPath)].slice(0, 10)
     await persistRecentDecks()
     await setAIDeckPath(folderPath)
 
@@ -683,16 +690,20 @@ export function registerFileSystemHandlers(): void {
     }
   )
 
-  ipcMain.handle('fs:get-recent-decks', async (): Promise<string[]> => {
+  ipcMain.handle('fs:get-recent-decks', async (): Promise<RecentDeck[]> => {
     if (recentDecks.length === 0) {
-      // Load from persisted settings on first access
       try {
         const { app } = await import('electron')
         const settingsPath = join(app.getPath('userData'), 'settings.json')
         const content = await readFile(settingsPath, 'utf-8')
         const settings = JSON.parse(content)
         if (Array.isArray(settings.recentDecks)) {
-          recentDecks = settings.recentDecks
+          // Handle migration from old string[] format
+          recentDecks = settings.recentDecks.map((d: string | RecentDeck) =>
+            typeof d === 'string'
+              ? { path: d, title: d.split('/').pop()?.replace(/^lecta-workspace-/, '').replace(/-[A-Za-z0-9]{6,}$/, '').replace(/-/g, ' ') || d, date: '' }
+              : d
+          )
         }
       } catch { /* no saved recents */ }
     }

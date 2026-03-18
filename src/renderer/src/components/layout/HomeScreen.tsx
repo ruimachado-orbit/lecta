@@ -2,16 +2,29 @@ import { useState, useEffect } from 'react'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore, COLOR_PALETTES } from '../../stores/ui-store'
 
+interface RecentDeck {
+  path: string
+  title: string
+  date: string
+}
+
 export function HomeScreen(): JSX.Element {
   const { openFolder, loadPresentation, isLoading, error } = usePresentationStore()
-  const [recentDecks, setRecentDecks] = useState<string[]>([])
+  const [recentDecks, setRecentDecks] = useState<RecentDeck[]>([])
   const [showCreate, setShowCreate] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [newName, setNewName] = useState('')
   const [createError, setCreateError] = useState<string | null>(null)
 
   useEffect(() => {
-    window.electronAPI.getRecentDecks().then(setRecentDecks)
+    window.electronAPI.getRecentDecks().then((decks: any[]) => {
+      // Handle both old string[] and new object[] formats
+      setRecentDecks(decks.map((d) =>
+        typeof d === 'string'
+          ? { path: d, title: d.split('/').pop()?.replace(/^lecta-workspace-/, '').replace(/-[A-Za-z0-9]{6,}$/, '').replace(/-/g, ' ') || d, date: '' }
+          : d
+      ))
+    })
   }, [])
 
   const handleCreateLecta = async () => {
@@ -49,8 +62,8 @@ export function HomeScreen(): JSX.Element {
   }
 
   return (
-    <div className="h-screen flex items-center justify-center bg-gray-950 relative" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
-      <div className="max-w-lg w-full px-8" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+    <div className="h-screen flex items-start justify-center bg-gray-950 relative overflow-y-auto pt-20" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
+      <div className="max-w-xl w-full px-8 pb-16" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         {/* Logo / Title */}
         <div className="text-center mb-12">
           <h1
@@ -148,33 +161,46 @@ export function HomeScreen(): JSX.Element {
           )}
         </div>
 
-        {/* Recent Decks */}
+        {/* Recent Presentations */}
         {recentDecks.length > 0 && (
           <div className="mt-10">
-            <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider mb-3">
-              Recent
+            <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider mb-4">
+              Recent Presentations
             </h3>
-            <div className="space-y-1">
-              {recentDecks.map((deckPath) => {
-                const folderName = deckPath.split('/').pop() || deckPath
-                const displayName = folderName
-                  .replace(/^lecta-workspace-/, '')
-                  .replace(/-[A-Za-z0-9]{6,}$/, '')
-                  .replace(/-/g, ' ')
-                return (
-                  <button
-                    key={deckPath}
-                    onClick={() => loadPresentation(deckPath)}
-                    className="w-full text-left px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-800
-                               hover:text-white transition-colors text-sm flex items-center gap-3"
-                  >
-                    <svg className="w-4 h-4 text-gray-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-                    </svg>
-                    <span className="truncate">{displayName}</span>
-                  </button>
-                )
-              })}
+            <div className="grid grid-cols-2 gap-3">
+              {recentDecks.map((deck) => (
+                <button
+                  key={deck.path}
+                  onClick={() => loadPresentation(deck.path)}
+                  className="group text-left rounded-xl border border-gray-800 bg-gray-900 hover:border-gray-600
+                             hover:bg-gray-800 transition-all overflow-hidden"
+                >
+                  {/* Thumbnail area */}
+                  <div className="h-24 bg-black flex items-center justify-center border-b border-gray-800">
+                    <span className="text-white text-lg font-bold opacity-20 truncate px-4">
+                      {deck.title.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                  {/* Info */}
+                  <div className="p-3">
+                    <div className="text-sm text-gray-200 font-medium truncate group-hover:text-white">
+                      {deck.title}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <svg className="w-3 h-3 text-gray-600" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                      </svg>
+                      {deck.date ? (
+                        <span className="text-[10px] text-gray-500">
+                          {new Date(deck.date).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-gray-600">—</span>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              ))}
             </div>
           </div>
         )}

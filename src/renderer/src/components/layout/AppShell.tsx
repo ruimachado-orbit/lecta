@@ -93,7 +93,7 @@ export function AppShell(): JSX.Element {
               if (activeArtifact === type && showRightPane) {
                 useUIStore.setState({ showRightPane: false })
               } else {
-                setActiveArtifact(type)
+                setActiveArtifact(type as ArtifactType)
                 useUIStore.setState({ showRightPane: true })
               }
             }}
@@ -136,6 +136,23 @@ export function AppShell(): JSX.Element {
       {/* Slide Map overlay */}
       {showSlideMap && <SlideMap />}
     </div>
+  )
+}
+
+function SpeakerNotesToggle(): JSX.Element {
+  const { showNotes, toggleNotes } = useUIStore()
+  return (
+    <button
+      onClick={toggleNotes}
+      className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
+        showNotes ? 'text-white' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
+      }`}
+      title="Speaker notes"
+    >
+      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+      </svg>
+    </button>
   )
 }
 
@@ -286,7 +303,7 @@ function ArtifactIconStrip({
       </div>
 
       {/* Separator */}
-      <div className="w-4 h-px bg-gray-800" />
+      <div className="w-4 h-px bg-gray-600" />
 
       {/* Individual artifact type buttons */}
       {availableArtifacts.map((type) => (
@@ -304,6 +321,31 @@ function ArtifactIconStrip({
         </button>
       ))}
 
+      {/* Collapse/expand panel */}
+      {availableArtifacts.length > 0 && (
+        <>
+          <div className="w-4 h-px bg-gray-600" />
+          <button
+            onClick={onToggleAll}
+            className="w-6 h-6 rounded flex items-center justify-center text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-colors"
+            title={showRightPane ? 'Collapse panel' : 'Expand panel'}
+          >
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              {showRightPane ? (
+                <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+              )}
+            </svg>
+          </button>
+        </>
+      )}
+
+      {/* Spacer */}
+      <div className="flex-1" />
+
+      {/* Speaker notes toggle */}
+      <SpeakerNotesToggle />
     </div>
   )
 }

@@ -3,7 +3,7 @@ import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore } from '../../stores/ui-store'
 
 export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCount?: number; currentSubSlide?: number }): JSX.Element {
-  const { slides, currentSlideIndex, goToSlide, addSlide, deleteSlide, reorderSlide, renameSlide } =
+  const { slides, currentSlideIndex, goToSlide, addSlide, deleteSlide, reorderSlide, renameSlide, setSlideTransition } =
     usePresentationStore()
   const { slideGroups, addSlideGroup, removeSlideGroup, toggleGroupCollapsed, addSlideToGroup, removeSlideFromGroup } =
     useUIStore()
@@ -219,6 +219,12 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
               {group && <span className="absolute -top-2 left-1 text-[7px] px-1 bg-gray-700 text-gray-400 rounded-sm leading-none">{group.name}</span>}
               {isSelected && selectedIndices.size > 1 && <span className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-white text-black text-[8px] font-bold rounded-full flex items-center justify-center z-10">✓</span>}
               <span className="block truncate font-medium">{index + 1}. {slide.config.id}</span>
+              {/* Transition arrow — top right */}
+              {slide.config.transition && slide.config.transition !== 'none' && (
+                <span className="absolute top-0.5 right-1 text-[7px] text-gray-400" title={`Transition: from ${slide.config.transition}`}>
+                  {slide.config.transition === 'left' ? '←' : slide.config.transition === 'right' ? '→' : slide.config.transition === 'top' ? '↑' : '↓'}
+                </span>
+              )}
               {/* Artifact icons — bottom right */}
               <div className="absolute bottom-0.5 right-1 flex gap-0.5">
                 {slide.config.code && <ArtifactDot title="Code" icon="code" />}
@@ -293,6 +299,46 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
             ) : (
               <button onClick={() => setShowNewGroupInMenu(true)}
                 className="w-full text-left px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-800 transition-colors">Create new group...</button>
+            )}
+
+            {/* Transition direction */}
+            {selectedIndices.size === 1 && (
+              <>
+                <div className="border-t border-gray-800 my-1" />
+                <div className="text-[9px] uppercase tracking-wider text-gray-600 px-3 py-0.5">Transition</div>
+                <div className="px-3 py-1 flex gap-1">
+                  {([
+                    { value: 'none', label: '·' },
+                    { value: 'left', label: '←' },
+                    { value: 'right', label: '→' },
+                    { value: 'top', label: '↑' },
+                    { value: 'bottom', label: '↓' }
+                  ] as const).map((t) => {
+                    const idx = Array.from(selectedIndices)[0]
+                    const current = slides[idx]?.config.transition || 'none'
+                    return (
+                      <button
+                        key={t.value}
+                        onClick={() => {
+                          // Navigate to the slide first so setSlideTransition targets it
+                          goToSlide(idx)
+                          setTimeout(() => {
+                            usePresentationStore.getState().setSlideTransition(t.value)
+                            setContextMenu(null)
+                            setSelectedIndices(new Set())
+                          }, 50)
+                        }}
+                        className={`w-7 h-6 rounded text-[11px] flex items-center justify-center transition-colors ${
+                          current === t.value ? 'bg-white text-black' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                        }`}
+                        title={t.value === 'none' ? 'No transition' : `From ${t.value}`}
+                      >
+                        {t.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </>
             )}
 
             {selectedIndices.size < slides.length && (

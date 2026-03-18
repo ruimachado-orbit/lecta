@@ -164,17 +164,6 @@ export function Toolbar(): JSX.Element {
           {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
         </button>
 
-        {/* Notes toggle */}
-        <button
-          onClick={toggleNotes}
-          className={`p-1.5 rounded transition-colors ${
-            showNotes ? 'bg-white text-black' : 'hover:bg-gray-800 text-gray-400'
-          }`}
-          title="Toggle speaker notes (N)"
-        >
-          <SpeakerIcon />
-        </button>
-
         {/* Article generator toggle */}
         <button
           onClick={toggleArticlePanel}
@@ -202,7 +191,7 @@ export function Toolbar(): JSX.Element {
         {/* Present mode */}
         <button
           onClick={async () => {
-            useUIStore.setState({ showArtifactDrawer: false, showArticlePanel: false, showSlideMap: false, editingSlide: false })
+            useUIStore.setState({ showArtifactDrawer: false, showArticlePanel: false, showSlideMap: false, showRightPane: false, showNotes: false, editingSlide: false })
             await window.electronAPI.openAudienceWindow()
             if (presentation?.rootPath) {
               setTimeout(() => {
@@ -248,10 +237,10 @@ function PlayIcon(): JSX.Element {
   )
 }
 
-function NotesIcon(): JSX.Element {
+function SpeakerIcon(): JSX.Element {
   return (
     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
     </svg>
   )
 }

@@ -79,10 +79,17 @@ export function SlidePanel(): JSX.Element {
       {/* AI improve bar */}
       {!editingSlide && <AIImproveBar />}
 
-      {/* Main content area */}
-      <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-        {editingSlide ? (
-          <>
+      {/* Main content — canvas always visible, editor overlays from bottom */}
+      <div className="flex-1 min-h-0 overflow-hidden relative">
+        <SlideCanvas
+          markdown={editingSlide ? currentSlide.markdownContent : activeMarkdown}
+          rootPath={presentation?.rootPath}
+          transition={editingSlide ? undefined : currentSlide.config.transition}
+        />
+
+        {/* Editor panel — overlays the bottom portion of canvas */}
+        {editingSlide && (
+          <div className="absolute inset-x-0 bottom-0 top-[40%] bg-gray-950/95 backdrop-blur-sm border-t border-gray-700 flex flex-col">
             <div className="flex-1 min-h-0">
               {editorMode === 'wysiwyg' ? (
                 <WysiwygEditor slideIndex={currentSlideIndex} breakOffsets={breakOffsets} />
@@ -96,12 +103,12 @@ export function SlidePanel(): JSX.Element {
                     onMount={handleEditorMount}
                     theme="vs-dark"
                     options={{
-                      fontSize: 15,
-                      lineHeight: 22,
+                      fontSize: 14,
+                      lineHeight: 20,
                       fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
                       minimap: { enabled: false },
                       scrollBeyondLastLine: false,
-                      padding: { top: 16, bottom: 16 },
+                      padding: { top: 12, bottom: 12 },
                       lineNumbers: 'off',
                       renderLineHighlight: 'none',
                       wordWrap: 'on',
@@ -112,13 +119,7 @@ export function SlidePanel(): JSX.Element {
                 </div>
               )}
             </div>
-            {/* Live canvas preview strip — always shows full current slide content */}
-            <div className="h-48 border-t border-gray-800 flex-shrink-0">
-              <SlideCanvas markdown={currentSlide.markdownContent} rootPath={presentation?.rootPath} />
-            </div>
-          </>
-        ) : (
-          <SlideCanvas markdown={activeMarkdown} rootPath={presentation?.rootPath} transition={currentSlide.config.transition} />
+          </div>
         )}
       </div>
 
@@ -232,7 +233,7 @@ function SlideCanvas({ markdown, rootPath, transition }: { markdown: string; roo
     <div ref={containerRef} className="h-full w-full flex items-center justify-center bg-neutral-800 overflow-hidden">
       <div
         ref={slideRef}
-        className={`relative rounded overflow-hidden ${transition && transition !== 'none' ? `slide-transition-${transition}` : ''}`}
+        className="relative rounded overflow-hidden"
         style={{
           width: SLIDE_W,
           height: SLIDE_H,
@@ -243,7 +244,7 @@ function SlideCanvas({ markdown, rootPath, transition }: { markdown: string; roo
         }}
       >
         <div className="absolute inset-0 bg-black rounded" />
-        <div className="absolute inset-0 p-12 overflow-hidden">
+        <div className={`absolute inset-0 p-12 overflow-hidden ${transition && transition !== 'none' ? `slide-transition-${transition}` : ''}`}>
           <div
             ref={contentRef}
             style={{

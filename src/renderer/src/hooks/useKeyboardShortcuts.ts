@@ -38,6 +38,8 @@ export function useKeyboardShortcuts(): void {
           e.preventDefault()
           setPresenting(false)
           window.electronAPI.closeAudienceWindow()
+          // Restore user's theme
+          { const t = useUIStore.getState().theme; document.documentElement.setAttribute('data-theme', t) }
           break
         case 'N':
           if (e.shiftKey && !e.metaKey && !e.ctrlKey) {

@@ -106,7 +106,13 @@ export function PresenterView(): JSX.Element {
             }`}>
             {formatTime(timer)}
           </button>
-          <button onClick={() => { setPresenting(false); window.electronAPI.closeAudienceWindow() }}
+          <button onClick={() => {
+            setPresenting(false)
+            window.electronAPI.closeAudienceWindow()
+            // Restore user's theme
+            const theme = useUIStore.getState().theme
+            document.documentElement.setAttribute('data-theme', theme)
+          }}
             className="px-3 py-1 text-xs bg-red-500 hover:bg-red-400 text-white rounded transition-colors font-medium">
             End
           </button>

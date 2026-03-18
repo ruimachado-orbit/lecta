@@ -45,12 +45,21 @@ export function registerPresenterHandlers(): void {
       return
     }
 
+    // Try to open on external display if available
+    const displays = screen.getAllDisplays()
+    const primaryDisplay = screen.getPrimaryDisplay()
+    const externalDisplay = displays.find((d) => d.id !== primaryDisplay.id)
+    const targetDisplay = externalDisplay || primaryDisplay
+
     audienceWindow = new BrowserWindow({
-      width: 960,
-      height: 600,
+      x: targetDisplay.bounds.x,
+      y: targetDisplay.bounds.y,
+      width: targetDisplay.bounds.width,
+      height: targetDisplay.bounds.height,
+      fullscreen: !!externalDisplay,
+      simpleFullscreen: !externalDisplay,
+      frame: false,
       title: 'Lecta — Presentation',
-      titleBarStyle: 'hiddenInset',
-      trafficLightPosition: { x: 12, y: 8 },
       backgroundColor: '#000000',
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
@@ -59,6 +68,11 @@ export function registerPresenterHandlers(): void {
         nodeIntegration: false
       }
     })
+
+    // If no external display, maximize on primary
+    if (!externalDisplay) {
+      audienceWindow.maximize()
+    }
 
     if (process.env['ELECTRON_RENDERER_URL']) {
       audienceWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#/audience`)

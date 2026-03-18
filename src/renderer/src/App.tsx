@@ -25,8 +25,10 @@ export default function App(): JSX.Element {
     })
   }, [])
 
-  // Audience window — separate fullscreen slide display
+  // Audience window — separate fullscreen slide display, always dark
   if (window.location.hash === '#/audience') {
+    document.documentElement.setAttribute('data-theme', 'dark')
+    document.body.style.background = '#000'
     return <AudienceView />
   }
 

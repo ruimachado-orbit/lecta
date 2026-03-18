@@ -64,6 +64,7 @@ export type SupportedLanguage =
   | 'csharp'
   | 'ruby'
   | 'php'
+  | 'markdown'
 
 export type ExecutionEngine = 'sandpack' | 'pyodide' | 'sql' | 'native' | 'none'
 

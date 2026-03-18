@@ -286,7 +286,8 @@ export function registerFileSystemHandlers(): void {
       const extMap: Partial<Record<SupportedLanguage, string>> = {
         javascript: '.js', typescript: '.ts', python: '.py', sql: '.sql',
         html: '.html', css: '.css', json: '.json', bash: '.sh',
-        rust: '.rs', go: '.go', java: '.java', csharp: '.cs', ruby: '.rb', php: '.php'
+        rust: '.rs', go: '.go', java: '.java', csharp: '.cs', ruby: '.rb', php: '.php',
+        markdown: '.md'
       }
       const ext = extMap[language] || '.txt'
       const codeFile = `code/${slide.id}${ext}`

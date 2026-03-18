@@ -11,7 +11,7 @@ const CodeBlockConfigSchema = z.object({
   file: z.string(),
   language: z.enum([
     'javascript', 'typescript', 'python', 'sql', 'html', 'css',
-    'json', 'bash', 'rust', 'go', 'java', 'csharp', 'ruby', 'php'
+    'json', 'bash', 'rust', 'go', 'java', 'csharp', 'ruby', 'php', 'markdown'
   ]),
   execution: z.enum(['sandpack', 'pyodide', 'sql', 'native', 'none']),
   dependencies: z.array(z.string()).optional(),

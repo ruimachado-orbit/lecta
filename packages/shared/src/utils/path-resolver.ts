@@ -26,7 +26,9 @@ const EXTENSION_TO_LANGUAGE: Record<string, SupportedLanguage> = {
   '.java': 'java',
   '.cs': 'csharp',
   '.rb': 'ruby',
-  '.php': 'php'
+  '.php': 'php',
+  '.md': 'markdown',
+  '.markdown': 'markdown'
 }
 
 export function detectLanguage(filePath: string): SupportedLanguage | null {

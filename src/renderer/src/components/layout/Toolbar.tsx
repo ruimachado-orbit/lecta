@@ -135,7 +135,7 @@ export function Toolbar(): JSX.Element {
                                focus:border-indigo-500 focus:outline-none"
                   >
                     <option value="" disabled>Select language...</option>
-                    {(['javascript', 'python', 'sql', 'typescript', 'bash', 'go', 'rust', 'java', 'ruby'] as SupportedLanguage[]).map((lang) => (
+                    {(['markdown', 'javascript', 'python', 'sql', 'typescript', 'bash', 'go', 'rust', 'java', 'ruby'] as SupportedLanguage[]).map((lang) => (
                       <option key={lang} value={lang} className="capitalize">{lang}</option>
                     ))}
                   </select>

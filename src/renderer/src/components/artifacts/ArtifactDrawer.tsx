@@ -1,14 +1,21 @@
 import { useState, useEffect } from 'react'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore } from '../../stores/ui-store'
-import type { ArtifactConfig } from '../../../../../packages/shared/src/types/presentation'
+import type { ArtifactConfig, SupportedLanguage } from '../../../../../packages/shared/src/types/presentation'
 
 export function ArtifactDrawer(): JSX.Element {
-  const { slides, currentSlideIndex, presentation, addArtifact } = usePresentationStore()
+  const { slides, currentSlideIndex, presentation, addArtifact, addCodeToSlide, addVideo, addWebApp } = usePresentationStore()
   const { toggleArtifactDrawer } = useUIStore()
   const currentSlide = slides[currentSlideIndex]
   const artifacts = currentSlide?.config.artifacts ?? []
   const [selectedArtifact, setSelectedArtifact] = useState<ArtifactConfig | null>(null)
+  const [showAddMenu, setShowAddMenu] = useState(false)
+  const [videoUrl, setVideoUrl] = useState('')
+  const [webAppUrl, setWebAppUrl] = useState('')
+
+  const hasCode = !!currentSlide?.config.code
+  const hasVideo = !!currentSlide?.config.video
+  const hasWebApp = !!currentSlide?.config.webapp
 
   // Auto-select first artifact when slide changes
   useEffect(() => {
@@ -26,13 +33,30 @@ export function ArtifactDrawer(): JSX.Element {
         <span className="text-[10px] font-medium uppercase tracking-wider text-gray-500 flex-1">
           Artifacts ({artifacts.length})
         </span>
-        <button
-          onClick={addArtifact}
-          className="px-2 py-0.5 text-[10px] bg-gray-800 hover:bg-gray-700 text-gray-400 rounded transition-colors"
-          title="Add artifact"
-        >
-          + Add
-        </button>
+        <div className="relative">
+          <button
+            onClick={() => setShowAddMenu(!showAddMenu)}
+            className="px-2 py-0.5 text-[10px] bg-gray-800 hover:bg-gray-700 text-gray-400 rounded transition-colors"
+            title="Add to slide"
+          >
+            + Add
+          </button>
+          {showAddMenu && (
+            <AddMenu
+              hasCode={hasCode}
+              hasVideo={hasVideo}
+              hasWebApp={hasWebApp}
+              videoUrl={videoUrl}
+              webAppUrl={webAppUrl}
+              onVideoUrlChange={setVideoUrl}
+              onWebAppUrlChange={setWebAppUrl}
+              onAddCode={(lang) => { addCodeToSlide(lang); setShowAddMenu(false) }}
+              onAddVideo={() => { const url = videoUrl.trim(); if (url) { addVideo(url); setVideoUrl(''); setShowAddMenu(false) } }}
+              onAddWebApp={() => { let url = webAppUrl.trim(); if (url) { if (!url.match(/^https?:\/\//)) url = `https://${url}`; addWebApp(url); setWebAppUrl(''); setShowAddMenu(false) } }}
+              onAddFile={() => { addArtifact(); setShowAddMenu(false) }}
+            />
+          )}
+        </div>
         <button
           onClick={toggleArtifactDrawer}
           className="p-0.5 hover:bg-gray-800 text-gray-500 hover:text-gray-300 rounded transition-colors"
@@ -45,12 +69,29 @@ export function ArtifactDrawer(): JSX.Element {
       {artifacts.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center p-4 text-center">
           <div className="text-gray-600 text-sm mb-3">No artifacts on this slide</div>
-          <button
-            onClick={addArtifact}
-            className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded-lg transition-colors border border-gray-700"
-          >
-            Add artifact
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setShowAddMenu(!showAddMenu)}
+              className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded-lg transition-colors border border-gray-700"
+            >
+              Add to slide
+            </button>
+            {showAddMenu && (
+              <AddMenu
+                hasCode={hasCode}
+                hasVideo={hasVideo}
+                hasWebApp={hasWebApp}
+                videoUrl={videoUrl}
+                webAppUrl={webAppUrl}
+                onVideoUrlChange={setVideoUrl}
+                onWebAppUrlChange={setWebAppUrl}
+                onAddCode={(lang) => { addCodeToSlide(lang); setShowAddMenu(false) }}
+                onAddVideo={() => { const url = videoUrl.trim(); if (url) { addVideo(url); setVideoUrl(''); setShowAddMenu(false) } }}
+                onAddWebApp={() => { let url = webAppUrl.trim(); if (url) { if (!url.match(/^https?:\/\//)) url = `https://${url}`; addWebApp(url); setWebAppUrl(''); setShowAddMenu(false) } }}
+                onAddFile={() => { addArtifact(); setShowAddMenu(false) }}
+              />
+            )}
+          </div>
         </div>
       ) : (
         <div className="flex-1 flex flex-col min-h-0">
@@ -184,6 +225,111 @@ function ArtifactPreview({ artifact, fullPath }: { artifact: ArtifactConfig; ful
         )}
       </div>
     </div>
+  )
+}
+
+function AddMenu({
+  hasCode, hasVideo, hasWebApp,
+  videoUrl, webAppUrl,
+  onVideoUrlChange, onWebAppUrlChange,
+  onAddCode, onAddVideo, onAddWebApp, onAddFile
+}: {
+  hasCode: boolean
+  hasVideo: boolean
+  hasWebApp: boolean
+  videoUrl: string
+  webAppUrl: string
+  onVideoUrlChange: (v: string) => void
+  onWebAppUrlChange: (v: string) => void
+  onAddCode: (lang: SupportedLanguage) => void
+  onAddVideo: () => void
+  onAddWebApp: () => void
+  onAddFile: () => void
+}): JSX.Element {
+  return (
+    <div className="absolute right-0 top-full mt-2 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl w-56 overflow-hidden">
+      {/* Code */}
+      {!hasCode && (
+        <div className="px-2 pt-2 pb-1">
+          <div className="text-[9px] uppercase tracking-wider text-gray-500 px-1 pb-1">Code</div>
+          <select
+            onChange={(e) => { if (e.target.value) onAddCode(e.target.value as SupportedLanguage) }}
+            defaultValue=""
+            className="w-full px-2 py-1.5 bg-gray-950 text-gray-300 text-xs rounded border border-gray-700 focus:border-indigo-500 focus:outline-none"
+          >
+            <option value="" disabled>Select language...</option>
+            {(['javascript', 'python', 'sql', 'typescript', 'bash', 'go', 'rust', 'java', 'ruby'] as SupportedLanguage[]).map((lang) => (
+              <option key={lang} value={lang}>{lang}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* Video */}
+      {!hasVideo && (
+        <div className="px-2 pt-2 pb-1 border-t border-gray-800">
+          <div className="text-[9px] uppercase tracking-wider text-gray-500 px-1 pb-1">Video</div>
+          <div className="flex gap-1">
+            <input
+              type="text"
+              value={videoUrl}
+              onChange={(e) => onVideoUrlChange(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') onAddVideo() }}
+              placeholder="YouTube URL..."
+              className="flex-1 px-2 py-1.5 bg-gray-950 text-gray-300 text-xs rounded border border-gray-700 focus:border-indigo-500 focus:outline-none"
+            />
+            <button
+              onClick={onAddVideo}
+              disabled={!videoUrl.trim()}
+              className="px-2 py-1.5 bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white text-[10px] rounded transition-colors"
+            >
+              Add
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Web App */}
+      {!hasWebApp && (
+        <div className="px-2 pt-2 pb-1 border-t border-gray-800">
+          <div className="text-[9px] uppercase tracking-wider text-gray-500 px-1 pb-1">Web App</div>
+          <div className="flex gap-1">
+            <input
+              type="text"
+              value={webAppUrl}
+              onChange={(e) => onWebAppUrlChange(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') onAddWebApp() }}
+              placeholder="https://localhost:3000"
+              className="flex-1 px-2 py-1.5 bg-gray-950 text-gray-300 text-xs rounded border border-gray-700 focus:border-indigo-500 focus:outline-none"
+            />
+            <button
+              onClick={onAddWebApp}
+              disabled={!webAppUrl.trim()}
+              className="px-2 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-[10px] rounded transition-colors"
+            >
+              Add
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* File */}
+      <button
+        onClick={onAddFile}
+        className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-gray-300 hover:bg-gray-800 transition-colors border-t border-gray-800"
+      >
+        <PaperclipIcon />
+        Upload file
+      </button>
+    </div>
+  )
+}
+
+function PaperclipIcon(): JSX.Element {
+  return (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
+    </svg>
   )
 }
 

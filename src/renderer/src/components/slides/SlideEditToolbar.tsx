@@ -87,6 +87,7 @@ export function SlideEditToolbar({ editorRef }: SlideEditToolbarProps): JSX.Elem
         <Btn title="Code block" onClick={() => insertAtCursor('\n```\n\n```\n')}>{"{ }"}</Btn>
         <Btn title="Blockquote" onClick={() => insertAtCursor('\n> ')}>❝</Btn>
         <Btn title="Divider" onClick={() => insertAtCursor('\n---\n')}>—</Btn>
+        <Btn title="Mermaid diagram" onClick={() => insertAtCursor('\n```mermaid\ngraph LR\n    A[Start] --> B[Process]\n    B --> C[End]\n```\n')}>◇</Btn>
         <Btn title="Upload image" onClick={async () => {
           if (!presentation) return
           const relativePath = await window.electronAPI.uploadImage(presentation.rootPath)

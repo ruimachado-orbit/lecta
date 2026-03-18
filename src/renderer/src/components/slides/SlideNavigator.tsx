@@ -243,10 +243,13 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
           )
         })}
 
+        <div className="flex-shrink-0 w-4" />
         <button onClick={() => addSlide(`slide-${slides.length + 1}`)}
           className="flex-shrink-0 w-10 h-10 rounded-md border-2 border-dashed border-gray-700 hover:border-white hover:text-white text-gray-600 flex items-center justify-center transition-colors">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
         </button>
+
+        <div className="flex-shrink-0 w-2" />
 
         {showNewGroup ? (
           <input type="text" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)}

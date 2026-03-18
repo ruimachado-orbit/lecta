@@ -7,6 +7,16 @@ settings:
 importers:
 
   .:
+    dependencies:
+      '@tiptap/extension-color':
+        specifier: ^3.20.4
+        version: 3.20.4(@tiptap/extension-text-style@3.20.4(@tiptap/core@3.20.4(@tiptap/pm@3.20.4)))
+      '@tiptap/extension-highlight':
+        specifier: ^3.20.4
+        version: 3.20.4(@tiptap/core@3.20.4(@tiptap/pm@3.20.4))
+      '@tiptap/extension-text-style':
+        specifier: ^3.20.4
+        version: 3.20.4(@tiptap/core@3.20.4(@tiptap/pm@3.20.4))
     devDependencies:
       '@anthropic-ai/sdk':
         specifier: ^0.39.0
@@ -932,6 +942,11 @@ packages:
     peerDependencies:
       '@tiptap/core': ^3.20.4
 
+  '@tiptap/extension-color@3.20.4':
+    resolution: {integrity: sha512-+OT9wWEJnqoWmzfqPYt0oWm8LZcH+D44Z3jA2TNzBj4tLGQ2YPxN2SyS12AlRi7MuguVT7utFy7qDXrfir8eUA==}
+    peerDependencies:
+      '@tiptap/extension-text-style': ^3.20.4
+
   '@tiptap/extension-document@3.20.4':
     resolution: {integrity: sha512-zF1CIFVLt8MfSpWWnPwtGyxPOsT0xYM2qJKcXf2yZcTG37wDKmUi6heG53vGigIavbQlLaAFvs+1mNdOu2x/0A==}
     peerDependencies:
@@ -961,6 +976,11 @@ packages:
 
   '@tiptap/extension-heading@3.20.4':
     resolution: {integrity: sha512-xsnkmTGggJc5P2iCwS1lv8KFG31xC/GNPJKoi/3UH67j/lKDhA3AdtshsLeyv2FKtTtYDb8oV0IqzHB1MM6a7w==}
+    peerDependencies:
+      '@tiptap/core': ^3.20.4
+
+  '@tiptap/extension-highlight@3.20.4':
+    resolution: {integrity: sha512-CyTVPorVWwE4v89+k1nmaoAvjXLo7/fYWBsYlHW6b9Y1Un0iLANgKMFmmuapyfpaqpvg7V0Eg5ElG9U9+rogVA==}
     peerDependencies:
       '@tiptap/core': ^3.20.4
 
@@ -1024,6 +1044,11 @@ packages:
 
   '@tiptap/extension-text-align@3.20.4':
     resolution: {integrity: sha512-6ZuRyClIyCimXu+S5LQ54DueEsYg5VOVOmubOVbG+WAjM9svn9Z8gv2sNDah2yEqXrX06B02zYcSyMiD7CHbfA==}
+    peerDependencies:
+      '@tiptap/core': ^3.20.4
+
+  '@tiptap/extension-text-style@3.20.4':
+    resolution: {integrity: sha512-PvW0Ja7ahWpo4bRuR8YCCVv4PH8lXjzhzlBAa4bMbsumOg+GbhX8Su7fwqd+IIPrHqfPXz9HTBMApSfzP6/08A==}
     peerDependencies:
       '@tiptap/core': ^3.20.4
 
@@ -5088,6 +5113,10 @@ snapshots:
     dependencies:
       '@tiptap/core': 3.20.4(@tiptap/pm@3.20.4)
 
+  '@tiptap/extension-color@3.20.4(@tiptap/extension-text-style@3.20.4(@tiptap/core@3.20.4(@tiptap/pm@3.20.4)))':
+    dependencies:
+      '@tiptap/extension-text-style': 3.20.4(@tiptap/core@3.20.4(@tiptap/pm@3.20.4))
+
   '@tiptap/extension-document@3.20.4(@tiptap/core@3.20.4(@tiptap/pm@3.20.4))':
     dependencies:
       '@tiptap/core': 3.20.4(@tiptap/pm@3.20.4)
@@ -5112,6 +5141,10 @@ snapshots:
       '@tiptap/core': 3.20.4(@tiptap/pm@3.20.4)
 
   '@tiptap/extension-heading@3.20.4(@tiptap/core@3.20.4(@tiptap/pm@3.20.4))':
+    dependencies:
+      '@tiptap/core': 3.20.4(@tiptap/pm@3.20.4)
+
+  '@tiptap/extension-highlight@3.20.4(@tiptap/core@3.20.4(@tiptap/pm@3.20.4))':
     dependencies:
       '@tiptap/core': 3.20.4(@tiptap/pm@3.20.4)
 
@@ -5164,6 +5197,10 @@ snapshots:
       '@tiptap/core': 3.20.4(@tiptap/pm@3.20.4)
 
   '@tiptap/extension-text-align@3.20.4(@tiptap/core@3.20.4(@tiptap/pm@3.20.4))':
+    dependencies:
+      '@tiptap/core': 3.20.4(@tiptap/pm@3.20.4)
+
+  '@tiptap/extension-text-style@3.20.4(@tiptap/core@3.20.4(@tiptap/pm@3.20.4))':
     dependencies:
       '@tiptap/core': 3.20.4(@tiptap/pm@3.20.4)
 

@@ -6,6 +6,26 @@ import { ResizableImage } from '../../extensions/resizable-image'
 import TurndownService from 'turndown'
 import { usePresentationStore } from '../../stores/presentation-store'
 
+const SHAPES = [
+  '■', '□', '▪', '▫', '●', '○', '◆', '◇',
+  '▲', '△', '▼', '▽', '◀', '▶', '★', '☆',
+  '♠', '♣', '♥', '♦', '⬟', '⬡', '⬢', '◉',
+]
+
+const ARROWS = [
+  '→', '←', '↑', '↓', '↗', '↘', '↙', '↖',
+  '⟶', '⟵', '⇒', '⇐', '⇑', '⇓', '↔', '↕',
+]
+
+const EMOJIS = [
+  '😀', '😂', '🤣', '😊', '😍', '🤔', '😎', '🥳', '🤯', '😱',
+  '👍', '👎', '👏', '🙌', '💪', '🤝', '✌️', '🫡', '🎯', '🔥',
+  '⭐', '💡', '🚀', '💎', '🏆', '🎉', '❤️', '💯', '✅', '❌',
+  '⚡', '🔑', '🛡️', '⚙️', '📊', '📈', '📉', '🗂️', '📋', '🔔',
+  '🌍', '🌟', '💻', '📱', '🖥️', '🔒', '🔓', '📡', '🧠', '🤖',
+  '⚠️', '🚧', '💬', '📌', '🏗️', '🔄', '📦', '🎯', '🧩', '🔗',
+]
+
 const turndown = new TurndownService({
   headingStyle: 'atx',
   bulletListMarker: '-',
@@ -150,6 +170,18 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
     return () => clearTimeout(timer)
   }, [computeBreaks])
 
+  const [isOverflow, setIsOverflow] = useState(false)
+
+  const checkOverflow = useCallback(() => {
+    if (!editorContainerRef.current) return false
+    const contentEl = editorContainerRef.current.querySelector('.ProseMirror')
+    if (!contentEl) return false
+    const contentHeight = contentEl.scrollHeight * EDITOR_TO_SLIDE_RATIO
+    const over = contentHeight > SLIDE_CONTENT_HEIGHT
+    setIsOverflow(over)
+    return over
+  }, [])
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -164,6 +196,13 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
     editorProps: {
       attributes: {
         class: 'wysiwyg-content outline-none min-h-full'
+      },
+      handleKeyDown: (_view, event) => {
+        // Block Enter when content overflows slide height
+        if (event.key === 'Enter' && checkOverflow()) {
+          return true // prevent
+        }
+        return false
       }
     },
     onUpdate: ({ editor }) => {
@@ -171,6 +210,9 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
       const html = editor.getHTML()
       const md = turndown.turndown(html)
       updateMarkdownContent(slideIndex, md)
+
+      // Check overflow after update
+      setTimeout(checkOverflow, 50)
 
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
       saveTimerRef.current = setTimeout(() => saveSlideContent(slideIndex), 1500)
@@ -200,6 +242,13 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
       const fullSrc = `lecta-file://${presentation.rootPath}/${relativePath}`
       editor.chain().focus().setImage({ src: fullSrc, alt: 'image' }).run()
     }
+  }
+
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [showShapePicker, setShowShapePicker] = useState(false)
+
+  const insertText = (text: string) => {
+    editor.chain().focus().insertContent(text).run()
   }
 
   return (
@@ -249,12 +298,78 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
           onClick={() => editor.chain().focus().toggleCodeBlock().run()}
         >{"{ }"}</WBtn>
         <Sep />
-        <WBtn onClick={handleImageUpload}>🖼</WBtn>
+        {/* Image upload — modern icon */}
+        <WBtn onClick={handleImageUpload}>
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3 3.75h18A2.25 2.25 0 0 1 23.25 6v12a2.25 2.25 0 0 1-2.25 2.25H3A2.25 2.25 0 0 1 .75 18V6A2.25 2.25 0 0 1 3 3.75Zm12.75 3a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
+          </svg>
+        </WBtn>
         <WBtn onClick={() => editor.chain().focus().setHorizontalRule().run()}>—</WBtn>
+        <Sep />
+        {/* Shapes picker */}
+        <div className="relative">
+          <WBtn onClick={() => { setShowShapePicker(!showShapePicker); setShowEmojiPicker(false) }}>
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.53 16.122a3 3 0 0 0-5.78 1.128 2.25 2.25 0 0 1-2.4 2.245 4.5 4.5 0 0 0 8.4-2.245c0-.399-.078-.78-.22-1.128Zm0 0a15.998 15.998 0 0 0 3.388-1.62m-5.043-.025a15.994 15.994 0 0 1 1.622-3.395m3.42 3.42a15.995 15.995 0 0 0 4.764-4.648l3.876-5.814a1.151 1.151 0 0 0-1.597-1.597L14.146 6.32a15.996 15.996 0 0 0-4.649 4.763m3.42 3.42a6.776 6.776 0 0 0-3.42-3.42" />
+            </svg>
+          </WBtn>
+          {showShapePicker && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setShowShapePicker(false)} />
+              <div className="absolute left-0 top-full mt-1 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-2 w-48">
+                <div className="text-[8px] text-gray-500 uppercase tracking-wider mb-1 px-1">Shapes</div>
+                <div className="grid grid-cols-8 gap-0.5">
+                  {SHAPES.map((s) => (
+                    <button key={s} onClick={() => { insertText(s); setShowShapePicker(false) }}
+                      className="w-6 h-6 rounded hover:bg-gray-800 flex items-center justify-center text-sm transition-colors">
+                      {s}
+                    </button>
+                  ))}
+                </div>
+                <div className="text-[8px] text-gray-500 uppercase tracking-wider mt-2 mb-1 px-1">Arrows</div>
+                <div className="grid grid-cols-8 gap-0.5">
+                  {ARROWS.map((s) => (
+                    <button key={s} onClick={() => { insertText(s); setShowShapePicker(false) }}
+                      className="w-6 h-6 rounded hover:bg-gray-800 flex items-center justify-center text-sm transition-colors">
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+        {/* Emoji picker */}
+        <div className="relative">
+          <WBtn onClick={() => { setShowEmojiPicker(!showEmojiPicker); setShowShapePicker(false) }}>
+            <span className="text-[11px]">😀</span>
+          </WBtn>
+          {showEmojiPicker && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setShowEmojiPicker(false)} />
+              <div className="absolute left-0 top-full mt-1 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-2 w-64 max-h-48 overflow-y-auto">
+                <div className="text-[8px] text-gray-500 uppercase tracking-wider mb-1 px-1">Emoji</div>
+                <div className="grid grid-cols-10 gap-0.5">
+                  {EMOJIS.map((e) => (
+                    <button key={e} onClick={() => { insertText(e); setShowEmojiPicker(false) }}
+                      className="w-6 h-6 rounded hover:bg-gray-800 flex items-center justify-center text-sm transition-colors">
+                      {e}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Editor */}
       <div className="flex-1 overflow-y-auto p-6 relative" ref={editorContainerRef}>
+        {isOverflow && (
+          <div className="sticky top-0 z-10 -mx-6 -mt-6 mb-2 px-3 py-1 bg-red-500/10 border-b border-red-500/20 text-red-400 text-[10px] text-center">
+            Slide limit reached — content exceeds visible area
+          </div>
+        )}
         <EditorContent editor={editor} />
         {/* Sub-slide break dividers */}
         {breakPositions.map((top, i) => (

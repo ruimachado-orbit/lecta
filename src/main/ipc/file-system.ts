@@ -27,7 +27,10 @@ import type {
 interface RecentDeck {
   path: string
   title: string
-  date: string // ISO date string
+  date: string
+  slideCount: number
+  firstSlidePreview: string // first few lines of markdown
+  artifacts: string[] // e.g. ['code', 'video', 'webapp', 'files']
 }
 
 let recentDecks: RecentDeck[] = []
@@ -202,7 +205,30 @@ export function registerFileSystemHandlers(): void {
     )
 
     // Track recent decks and set AI deck path
-    const newEntry: RecentDeck = { path: folderPath, title: config.title, date: new Date().toISOString() }
+    const allArtifacts = new Set<string>()
+    config.slides.forEach((s) => {
+      if (s.code) allArtifacts.add('code')
+      if (s.video) allArtifacts.add('video')
+      if (s.webapp) allArtifacts.add('webapp')
+      if (s.artifacts.length > 0) allArtifacts.add('files')
+    })
+    const firstSlide = slides[0]
+    const preview = firstSlide?.markdownContent
+      ?.replace(/<!--.*?-->/gs, '')
+      .trim()
+      .split('\n')
+      .filter((l: string) => l.trim())
+      .slice(0, 5)
+      .join('\n') || ''
+
+    const newEntry: RecentDeck = {
+      path: folderPath,
+      title: config.title,
+      date: new Date().toISOString(),
+      slideCount: config.slides.length,
+      firstSlidePreview: preview.slice(0, 200),
+      artifacts: Array.from(allArtifacts)
+    }
     recentDecks = [newEntry, ...recentDecks.filter((d) => d.path !== folderPath)].slice(0, 10)
     await persistRecentDecks()
     await setAIDeckPath(folderPath)

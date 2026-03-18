@@ -6,6 +6,9 @@ interface RecentDeck {
   path: string
   title: string
   date: string
+  slideCount?: number
+  firstSlidePreview?: string
+  artifacts?: string[]
 }
 
 export function HomeScreen(): JSX.Element {
@@ -168,39 +171,85 @@ export function HomeScreen(): JSX.Element {
               Recent Presentations
             </h3>
             <div className="grid grid-cols-2 gap-3">
-              {recentDecks.map((deck) => (
-                <button
-                  key={deck.path}
-                  onClick={() => loadPresentation(deck.path)}
-                  className="group text-left rounded-xl border border-gray-800 bg-gray-900 hover:border-gray-600
-                             hover:bg-gray-800 transition-all overflow-hidden"
-                >
-                  {/* Thumbnail area */}
-                  <div className="h-24 bg-black flex items-center justify-center border-b border-gray-800">
-                    <span className="text-white text-lg font-bold opacity-20 truncate px-4">
-                      {deck.title.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                  {/* Info */}
-                  <div className="p-3">
-                    <div className="text-sm text-gray-200 font-medium truncate group-hover:text-white">
-                      {deck.title}
-                    </div>
-                    <div className="flex items-center gap-2 mt-1.5">
-                      <svg className="w-3 h-3 text-gray-600" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-                      </svg>
-                      {deck.date ? (
-                        <span className="text-[10px] text-gray-500">
-                          {new Date(deck.date).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                        </span>
+              {recentDecks.map((deck) => {
+                // Parse the first slide preview into mini-rendered lines
+                const previewLines = (deck.firstSlidePreview || '')
+                  .split('\n')
+                  .filter((l) => l.trim())
+                  .slice(0, 4)
+
+                return (
+                  <button
+                    key={deck.path}
+                    onClick={() => loadPresentation(deck.path)}
+                    className="group text-left rounded-xl border border-gray-800 bg-gray-900 hover:border-gray-600
+                               hover:bg-gray-800 transition-all overflow-hidden"
+                  >
+                    {/* First slide preview */}
+                    <div className="h-28 bg-black p-3 border-b border-gray-800 overflow-hidden">
+                      {previewLines.length > 0 ? (
+                        <div className="space-y-1">
+                          {previewLines.map((line, i) => {
+                            const isH1 = line.startsWith('# ')
+                            const isH2 = line.startsWith('## ')
+                            const isBullet = line.match(/^[-*+] /)
+                            const text = line.replace(/^#{1,3}\s/, '').replace(/^[-*+]\s/, '').replace(/\*\*/g, '')
+                            return (
+                              <div key={i} className={`truncate ${
+                                isH1 ? 'text-[11px] font-bold text-white' :
+                                isH2 ? 'text-[10px] font-semibold text-gray-300' :
+                                isBullet ? 'text-[8px] text-gray-500 pl-2' :
+                                'text-[8px] text-gray-500'
+                              }`}>
+                                {isBullet && <span className="mr-1">•</span>}
+                                {text}
+                              </div>
+                            )
+                          })}
+                        </div>
                       ) : (
-                        <span className="text-[10px] text-gray-600">—</span>
+                        <div className="h-full flex items-center justify-center">
+                          <span className="text-gray-700 text-2xl font-bold">{deck.title.charAt(0).toUpperCase()}</span>
+                        </div>
                       )}
                     </div>
-                  </div>
-                </button>
-              ))}
+
+                    {/* Info */}
+                    <div className="p-3">
+                      <div className="text-sm text-gray-200 font-medium truncate group-hover:text-white">
+                        {deck.title}
+                      </div>
+                      <div className="flex items-center gap-2 mt-1.5">
+                        {/* Artifact icons */}
+                        <div className="flex items-center gap-1">
+                          {deck.artifacts?.includes('code') && (
+                            <span className="text-[8px] text-gray-500" title="Has code">{'{ }'}</span>
+                          )}
+                          {deck.artifacts?.includes('video') && (
+                            <span className="text-[8px] text-gray-500" title="Has video">▶</span>
+                          )}
+                          {deck.artifacts?.includes('webapp') && (
+                            <span className="text-[8px] text-gray-500" title="Has web app">◎</span>
+                          )}
+                          {deck.artifacts?.includes('files') && (
+                            <span className="text-[8px] text-gray-500" title="Has files">📎</span>
+                          )}
+                        </div>
+                        {/* Slide count */}
+                        {deck.slideCount && (
+                          <span className="text-[10px] text-gray-600">{deck.slideCount} slides</span>
+                        )}
+                        {/* Date */}
+                        {deck.date && (
+                          <span className="text-[10px] text-gray-600">
+                            {new Date(deck.date).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                )
+              })}
             </div>
           </div>
         )}

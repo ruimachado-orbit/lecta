@@ -79,17 +79,18 @@ export function SlidePanel(): JSX.Element {
       {/* AI improve bar */}
       {!editingSlide && <AIImproveBar />}
 
-      {/* Main content — canvas always visible, editor overlays from bottom */}
-      <div className="flex-1 min-h-0 overflow-hidden relative">
-        <SlideCanvas
-          markdown={editingSlide ? currentSlide.markdownContent : activeMarkdown}
-          rootPath={presentation?.rootPath}
-          transition={editingSlide ? undefined : currentSlide.config.transition}
-        />
-
-        {/* Editor panel — overlays the bottom portion of canvas */}
-        {editingSlide && (
-          <div className="absolute inset-x-0 bottom-0 top-[40%] bg-gray-950/95 backdrop-blur-sm border-t border-gray-700 flex flex-col">
+      {/* Main content */}
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+        {editingSlide ? (
+          <>
+            {/* Canvas preview — top */}
+            <div className="h-[40%] flex-shrink-0 border-b border-gray-800">
+              <SlideCanvas
+                markdown={currentSlide.markdownContent}
+                rootPath={presentation?.rootPath}
+              />
+            </div>
+            {/* Editor — bottom */}
             <div className="flex-1 min-h-0">
               {editorMode === 'wysiwyg' ? (
                 <WysiwygEditor slideIndex={currentSlideIndex} breakOffsets={breakOffsets} />
@@ -119,7 +120,14 @@ export function SlidePanel(): JSX.Element {
                 </div>
               )}
             </div>
-          </div>
+          </>
+        ) : (
+          /* Full canvas in preview mode */
+          <SlideCanvas
+            markdown={activeMarkdown}
+            rootPath={presentation?.rootPath}
+            transition={currentSlide.config.transition}
+          />
         )}
       </div>
 
@@ -168,15 +176,15 @@ function SlideCanvas({ markdown, rootPath, transition }: { markdown: string; roo
   const containerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const slideRef = useRef<HTMLDivElement>(null)
+  const transitionRef = useRef<HTMLDivElement>(null)
   const [canvasScale, setCanvasScale] = useState(1)
   const [contentScale, setContentScale] = useState(1)
 
   // Trigger entrance animation on markdown change
   useEffect(() => {
-    const el = slideRef.current
+    const el = transitionRef.current
     if (!el || !transition || transition === 'none') return
     el.classList.remove('slide-enter')
-    // Force reflow
     void el.offsetWidth
     el.classList.add('slide-enter')
   }, [markdown, transition])
@@ -244,7 +252,7 @@ function SlideCanvas({ markdown, rootPath, transition }: { markdown: string; roo
         }}
       >
         <div className="absolute inset-0 bg-black rounded" />
-        <div className={`absolute inset-0 p-12 overflow-hidden ${transition && transition !== 'none' ? `slide-transition-${transition}` : ''}`}>
+        <div ref={transitionRef} className={`absolute inset-0 p-12 overflow-hidden ${transition && transition !== 'none' ? `slide-transition-${transition}` : ''}`}>
           <div
             ref={contentRef}
             style={{

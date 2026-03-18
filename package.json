@@ -68,5 +68,10 @@
   "repository": {
     "type": "git",
     "url": "git@github.com:ruimachado-orbit/lecta.git"
+  },
+  "dependencies": {
+    "@tiptap/extension-color": "^3.20.4",
+    "@tiptap/extension-highlight": "^3.20.4",
+    "@tiptap/extension-text-style": "^3.20.4"
   }
 }

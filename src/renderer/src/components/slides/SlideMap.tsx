@@ -1,9 +1,10 @@
+import { useState } from 'react'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore, type SlideGroup } from '../../stores/ui-store'
-import type { LoadedSlide } from '../../../../../packages/shared/src/types/presentation'
+import type { LoadedSlide, SlideTransition } from '../../../../../packages/shared/src/types/presentation'
 
 export function SlideMap(): JSX.Element {
-  const { slides, currentSlideIndex, goToSlide, presentation } = usePresentationStore()
+  const { slides, currentSlideIndex, goToSlide, presentation, setSlideTransition } = usePresentationStore()
   const { slideGroups, toggleSlideMap } = useUIStore()
 
   // Build group lookup
@@ -126,16 +127,18 @@ export function SlideMap(): JSX.Element {
 
                     return (
                       <div key={slide.config.id} className="flex items-center">
-                        {/* Connector line with transition indicator */}
+                        {/* Connector with transition picker */}
                         {i > 0 && (
-                          <div className="w-8 flex-shrink-0 flex items-center justify-center relative">
-                            <div className="w-full h-px bg-gray-700" />
-                            {slide.config.transition && slide.config.transition !== 'none' && (
-                              <span className="absolute text-[8px] text-gray-400 bg-gray-950 px-0.5" title={`Appears from ${slide.config.transition}`}>
-                                {slide.config.transition === 'left' ? '←' : slide.config.transition === 'right' ? '→' : slide.config.transition === 'top' ? '↑' : '↓'}
-                              </span>
-                            )}
-                          </div>
+                          <TransitionConnector
+                            slideIndex={globalIndex}
+                            currentTransition={slide.config.transition || 'none'}
+                            onSetTransition={async (t) => {
+                              goToSlide(globalIndex)
+                              setTimeout(() => {
+                                usePresentationStore.getState().setSlideTransition(t)
+                              }, 50)
+                            }}
+                          />
                         )}
 
                         {/* Slide card */}
@@ -219,11 +222,69 @@ export function SlideMap(): JSX.Element {
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-400/50" /> Video</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-500/50" /> Web</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-500/50" /> Files</span>
-            <span className="flex items-center gap-1"><span className="text-white">✦</span> AI generated</span>
+            <span className="flex items-center gap-1">← → ↑ ↓ Click arrows to set transitions</span>
           </div>
           <span className="text-[10px] text-gray-600">Click a slide to navigate</span>
         </div>
       </div>
+    </div>
+  )
+}
+
+const TRANSITIONS: { value: SlideTransition; arrow: string; label: string }[] = [
+  { value: 'none', arrow: '·', label: 'No transition' },
+  { value: 'left', arrow: '←', label: 'Slide from left' },
+  { value: 'right', arrow: '→', label: 'Slide from right' },
+  { value: 'top', arrow: '↑', label: 'Slide from top' },
+  { value: 'bottom', arrow: '↓', label: 'Slide from bottom' }
+]
+
+function TransitionConnector({
+  slideIndex, currentTransition, onSetTransition
+}: {
+  slideIndex: number
+  currentTransition: string
+  onSetTransition: (t: string) => void
+}): JSX.Element {
+  const [showPicker, setShowPicker] = useState(false)
+  const current = TRANSITIONS.find((t) => t.value === currentTransition) || TRANSITIONS[0]
+
+  return (
+    <div className="w-10 flex-shrink-0 flex items-center justify-center relative">
+      <div className="w-full h-px bg-gray-700" />
+      <button
+        onClick={(e) => { e.stopPropagation(); setShowPicker(!showPicker) }}
+        className={`absolute w-6 h-6 rounded-full flex items-center justify-center text-[10px] transition-colors z-10 ${
+          currentTransition !== 'none'
+            ? 'bg-white text-black'
+            : 'bg-gray-800 text-gray-500 hover:bg-gray-700 hover:text-gray-300'
+        }`}
+        title={current.label}
+      >
+        {current.arrow}
+      </button>
+
+      {showPicker && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setShowPicker(false)} />
+          <div className="absolute top-full mt-1 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-1 flex gap-0.5">
+            {TRANSITIONS.map((t) => (
+              <button
+                key={t.value}
+                onClick={(e) => { e.stopPropagation(); onSetTransition(t.value); setShowPicker(false) }}
+                className={`w-7 h-7 rounded flex items-center justify-center text-[11px] transition-colors ${
+                  currentTransition === t.value
+                    ? 'bg-white text-black'
+                    : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+                }`}
+                title={t.label}
+              >
+                {t.arrow}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   )
 }

@@ -87,7 +87,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   showNavigator: true,
   showArticlePanel: false,
   showArtifactDrawer: false,
-  showRightPane: true,
+  showRightPane: false,
   showSlideMap: false,
   showAIGenerate: false,
   editingSlide: false,

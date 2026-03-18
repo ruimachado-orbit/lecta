@@ -6,7 +6,7 @@ const api = {
   // File system
   openFolder: (): Promise<string | null> =>
     ipcRenderer.invoke('fs:open-folder'),
-  loadPresentation: (folderPath: string): Promise<Presentation> =>
+  loadPresentation: (folderPath: string): Promise<LoadedPresentation> =>
     ipcRenderer.invoke('fs:load-presentation', folderPath),
   readFile: (filePath: string): Promise<string> =>
     ipcRenderer.invoke('fs:read-file', filePath),

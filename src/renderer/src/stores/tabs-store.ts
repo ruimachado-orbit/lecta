@@ -17,7 +17,7 @@ interface TabsState {
 
   openInNewTab: (folderPath: string) => Promise<void>
   closeTab: (tabId: string) => void
-  switchTab: (tabId: string) => void
+  switchTab: (tabId: string) => Promise<void>
   syncCurrentTab: () => void
 }
 
@@ -86,14 +86,14 @@ export const useTabsStore = create<TabsState>((set, get) => ({
     }
   },
 
-  switchTab: (tabId: string) => {
+  switchTab: async (tabId: string) => {
     const { tabs, activeTabId } = get()
     if (tabId === activeTabId) return
 
     // Flush pending content to disk before switching
     const presState = usePresentationStore.getState()
     if (presState.hasUnsavedChanges && presState.presentation) {
-      presState.saveSlideContent(presState.currentSlideIndex)
+      await presState.saveSlideContent(presState.currentSlideIndex)
     }
 
     // Save current state to the current tab

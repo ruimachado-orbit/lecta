@@ -67,15 +67,15 @@ export function AppShell(): JSX.Element {
       <div className="flex-1 min-h-0 flex flex-col">
         <PanelGroup direction="horizontal" className="flex-1">
           {/* Left Pane: Slides */}
-          <Panel defaultSize={hasRightPane || showArticlePanel || showArtifactDrawer ? 40 : 100} minSize={25}>
+          <Panel defaultSize={hasRightPane || showArticlePanel || showArtifactDrawer ? 66 : 100} minSize={30}>
             <SlidePanel />
           </Panel>
 
           {/* Right Pane: Artifact sidebar header + content */}
-          {showRightPane && (hasRightPane || true) && (
+          {showRightPane && hasRightPane && (
             <>
               <PanelResizeHandle className="w-1 bg-gray-800 hover:bg-white transition-colors cursor-col-resize" />
-              <Panel defaultSize={showArticlePanel ? 30 : 60} minSize={20}>
+              <Panel defaultSize={showArticlePanel ? 25 : 34} minSize={15}>
                 {activeArtifact === 'code' && hasCode && <CodePanel key={currentSlideIndex} />}
                 {activeArtifact === 'video' && hasVideo && <VideoPanel key={currentSlideIndex} video={currentSlide!.config.video!} />}
                 {activeArtifact === 'webapp' && hasWebApp && <WebPanel key={currentSlideIndex} webapp={currentSlide!.config.webapp!} />}

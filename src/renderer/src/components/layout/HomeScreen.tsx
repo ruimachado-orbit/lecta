@@ -193,7 +193,7 @@ export function HomeScreen(): JSX.Element {
                             const isH1 = line.startsWith('# ')
                             const isH2 = line.startsWith('## ')
                             const isBullet = line.match(/^[-*+] /)
-                            const text = line.replace(/^#{1,3}\s/, '').replace(/^[-*+]\s/, '').replace(/\*\*/g, '')
+                            const text = line.replace(/^#{1,3}\s/, '').replace(/^[-*+]\s/, '').replace(/\*\*/g, '').replace(/<[^>]+>/g, '')
                             return (
                               <div key={i} className={`truncate ${
                                 isH1 ? 'text-[11px] font-bold text-white' :

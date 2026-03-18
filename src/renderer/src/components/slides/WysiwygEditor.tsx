@@ -59,14 +59,43 @@ const turndown = new TurndownService({
   codeBlockStyle: 'fenced'
 })
 
-// Custom rule to preserve image width in markdown
+// Preserve colored text as inline HTML
+turndown.addRule('colored-text', {
+  filter: (node) =>
+    node.nodeName === 'SPAN' && !!(node as HTMLElement).style.color,
+  replacement: (content, node) => {
+    const color = (node as HTMLElement).style.color
+    if (!color || !content.trim()) return content
+    return `<span style="color: ${color}">${content}</span>`
+  }
+})
+
+// Preserve highlighted text as inline HTML
+turndown.addRule('highlighted-text', {
+  filter: (node) => node.nodeName === 'MARK',
+  replacement: (content, node) => {
+    const el = node as HTMLElement
+    const color = el.getAttribute('data-color') || el.style.backgroundColor
+    if (!content.trim()) return content
+    return color
+      ? `<mark style="background-color: ${color}">${content}</mark>`
+      : `<mark>${content}</mark>`
+  }
+})
+
+// Preserve underline as HTML
+turndown.addRule('underline', {
+  filter: ['u'],
+  replacement: (content) => `<u>${content}</u>`
+})
+
+// Preserve image src
 turndown.addRule('image-with-width', {
   filter: (node) => node.nodeName === 'IMG',
   replacement: (_content, node) => {
     const el = node as HTMLImageElement
     let src = el.getAttribute('src') || ''
     const alt = el.getAttribute('alt') || ''
-    // Strip lecta-file:// prefix for storage
     src = src.replace(/^lecta-file:\/\//, '')
     return `![${alt}](${src})`
   }
@@ -263,6 +292,24 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
     }
   }, [slideIndex])
 
+  // Track current text color/highlight from selection
+  const [activeColor, setActiveColor] = useState('#fff')
+  const [activeHighlight, setActiveHighlight] = useState('transparent')
+
+  useEffect(() => {
+    if (!editor) return
+    const updateColors = () => {
+      setActiveColor(editor.getAttributes('textStyle').color || '#fff')
+      setActiveHighlight(editor.getAttributes('highlight').color || 'transparent')
+    }
+    editor.on('selectionUpdate', updateColors)
+    editor.on('transaction', updateColors)
+    return () => {
+      editor.off('selectionUpdate', updateColors)
+      editor.off('transaction', updateColors)
+    }
+  }, [editor])
+
   if (!editor) return <div />
 
   const handleImageUpload = async () => {
@@ -328,21 +375,24 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
         {/* Text color */}
         <div className="relative">
           <WBtn onClick={() => { closeAllPickers(); setShowTextColor(!showTextColor) }}>
-            <span className="text-[10px] font-bold" style={{ color: editor.getAttributes('textStyle').color || '#fff' }}>A</span>
+            <span className="text-[10px] font-bold flex flex-col items-center leading-none">
+              A
+              <span className="w-3 h-0.5 rounded-full mt-px" style={{ backgroundColor: activeColor }} />
+            </span>
           </WBtn>
           {showTextColor && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setShowTextColor(false)} />
-              <div className="absolute left-0 top-full mt-1 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-2">
-                <div className="grid grid-cols-5 gap-1">
+              <div className="absolute left-0 top-full mt-1 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-2 w-40">
+                <div className="flex flex-wrap gap-1.5">
                   {TEXT_COLORS.map((c) => (
                     <button key={c.value} onClick={() => { editor.chain().focus().setColor(c.value).run(); setShowTextColor(false) }}
-                      className="w-6 h-6 rounded-full border border-gray-700 hover:scale-110 transition-transform"
+                      className="w-5 h-5 rounded-full border border-gray-600 hover:ring-2 hover:ring-white/50 transition-all flex-shrink-0"
                       style={{ backgroundColor: c.value }} title={c.label} />
                   ))}
                 </div>
                 <button onClick={() => { editor.chain().focus().unsetColor().run(); setShowTextColor(false) }}
-                  className="w-full mt-1 text-[9px] text-gray-500 hover:text-gray-300 py-0.5">Reset</button>
+                  className="w-full mt-2 text-[9px] text-gray-500 hover:text-gray-300 py-0.5 border-t border-gray-800 pt-1.5">Reset color</button>
               </div>
             </>
           )}
@@ -350,20 +400,20 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
         {/* Highlight color */}
         <div className="relative">
           <WBtn onClick={() => { closeAllPickers(); setShowHighlight(!showHighlight) }}>
-            <span className="text-[10px] font-bold px-0.5 rounded" style={{ backgroundColor: editor.getAttributes('highlight').color || 'transparent' }}>H</span>
+            <span className="text-[10px] font-bold px-0.5 rounded" style={{ backgroundColor: activeHighlight }}>H</span>
           </WBtn>
           {showHighlight && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setShowHighlight(false)} />
-              <div className="absolute left-0 top-full mt-1 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-2">
-                <div className="grid grid-cols-4 gap-1">
+              <div className="absolute left-0 top-full mt-1 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-2 w-40">
+                <div className="flex flex-wrap gap-1.5">
                   {HIGHLIGHT_COLORS.map((c) => (
                     <button key={c.value || 'none'} onClick={() => {
                       if (c.value) editor.chain().focus().setHighlight({ color: c.value }).run()
                       else editor.chain().focus().unsetHighlight().run()
                       setShowHighlight(false)
                     }}
-                      className="w-6 h-6 rounded border border-gray-700 hover:scale-110 transition-transform flex items-center justify-center"
+                      className="w-5 h-5 rounded border border-gray-600 hover:ring-2 hover:ring-white/50 transition-all flex-shrink-0 flex items-center justify-center"
                       style={{ backgroundColor: c.value || 'transparent' }} title={c.label}>
                       {!c.value && <span className="text-[8px] text-gray-500">✕</span>}
                     </button>
@@ -481,7 +531,7 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
           <div
             key={i}
             className="absolute left-0 right-0 pointer-events-none"
-            style={{ top: top + 24 }} // +24 for p-6 padding
+            style={{ top: top + 48 }} // +48 for p-12 padding
           >
             <div className="mx-2 border-t-2 border-dashed border-gray-500 relative">
               <span className="absolute right-0 -top-4 text-[9px] text-gray-400 bg-gray-950 px-1 uppercase tracking-wider">

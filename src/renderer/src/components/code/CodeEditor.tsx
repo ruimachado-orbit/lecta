@@ -17,25 +17,28 @@ export function CodeEditor(): JSX.Element {
   const { fontSize } = useUIStore()
   const currentSlide = slides[currentSlideIndex]
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>()
-  const lastSavedIndex = useRef<number>(currentSlideIndex)
+  const prevSlideIndexRef = useRef<number>(currentSlideIndex)
 
   const language = currentSlide?.codeLanguage
     ? getMonacoLanguage(currentSlide.codeLanguage)
     : 'plaintext'
 
-  // Save when switching slides
+  // Save previous slide when switching to a new one
   useEffect(() => {
-    if (lastSavedIndex.current !== currentSlideIndex) {
-      saveSlideContent(lastSavedIndex.current)
-      lastSavedIndex.current = currentSlideIndex
+    const prevIndex = prevSlideIndexRef.current
+    if (prevIndex !== currentSlideIndex) {
+      // Save the slide we're leaving
+      saveSlideContent(prevIndex)
     }
-  }, [currentSlideIndex])
+    prevSlideIndexRef.current = currentSlideIndex
+  }, [currentSlideIndex, saveSlideContent])
 
-  // Save on unmount
+  // Flush pending save on unmount
   useEffect(() => {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-      saveSlideContent(usePresentationStore.getState().currentSlideIndex)
+      const idx = prevSlideIndexRef.current
+      saveSlideContent(idx)
     }
   }, [])
 

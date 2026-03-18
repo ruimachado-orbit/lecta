@@ -280,14 +280,20 @@ sys.stderr = StringIO()
     if (stdout) onOutput(stdout, 'stdout')
     if (stderr) onOutput(stderr, 'stderr')
   } catch (err) {
+    // Capture any partial output before reporting error
+    try {
+      const partialOut = pyodide.runPython('sys.stdout.getvalue()')
+      if (partialOut) onOutput(partialOut, 'stdout')
+    } catch { /* ignore */ }
     onOutput(String(err) + '\n', 'stderr')
-  }
-
-  // Reset stdout/stderr
-  pyodide.runPython(`
+  } finally {
+    // Always reset stdout/stderr to prevent state pollution
+    pyodide.runPython(`
+import sys
 sys.stdout = sys.__stdout__
 sys.stderr = sys.__stderr__
-  `)
+    `)
+  }
 }
 
 async function runSql(

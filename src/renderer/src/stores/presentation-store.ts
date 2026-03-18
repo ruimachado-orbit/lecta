@@ -222,7 +222,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
       if (slides[slideIndex]) {
         slides[slideIndex] = { ...slides[slideIndex], notesContent: content }
       }
-      return { slides }
+      return { slides, hasUnsavedChanges: true }
     })
   },
 

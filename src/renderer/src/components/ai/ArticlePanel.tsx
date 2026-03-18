@@ -57,8 +57,12 @@ export function ArticlePanel(): JSX.Element {
     if (!articleContent || !presentation) return
     const fileName = `${presentation.title.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}-takeaway.md`
     const filePath = `${presentation.rootPath}/${fileName}`
-    await window.electronAPI.writeFile(filePath, articleContent)
-    alert(`Saved as ${fileName}`)
+    try {
+      await window.electronAPI.writeFile(filePath, articleContent)
+      alert(`Saved as ${fileName}`)
+    } catch (err) {
+      alert(`Failed to save: ${(err as Error).message}`)
+    }
   }, [articleContent, presentation])
 
   return (

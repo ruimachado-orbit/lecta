@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import { Toolbar } from './Toolbar'
 import { StatusBar } from './StatusBar'
@@ -33,7 +34,29 @@ export function AppShell(): JSX.Element {
   const hasCode = !!currentSlide?.config.code
   const hasVideo = !!currentSlide?.config.video
   const hasWebApp = !!currentSlide?.config.webapp
-  const hasRightPane = hasCode || hasVideo || hasWebApp
+  const hasFiles = (currentSlide?.config.artifacts.length ?? 0) > 0
+
+  // Build list of available artifacts for this slide
+  type ArtifactType = 'code' | 'video' | 'webapp' | 'files'
+  const availableArtifacts: ArtifactType[] = []
+  if (hasCode) availableArtifacts.push('code')
+  if (hasVideo) availableArtifacts.push('video')
+  if (hasWebApp) availableArtifacts.push('webapp')
+  if (hasFiles) availableArtifacts.push('files')
+  const hasRightPane = availableArtifacts.length > 0
+
+  const [activeArtifact, setActiveArtifact] = useState<ArtifactType | null>(
+    availableArtifacts[0] ?? null
+  )
+
+  // Reset active artifact when slide changes or artifacts change
+  useEffect(() => {
+    if (availableArtifacts.length > 0 && (!activeArtifact || !availableArtifacts.includes(activeArtifact))) {
+      setActiveArtifact(availableArtifacts[0])
+    } else if (availableArtifacts.length === 0) {
+      setActiveArtifact(null)
+    }
+  }, [currentSlideIndex, availableArtifacts.join(',')])
 
   return (
     <div className="h-screen flex flex-col bg-gray-950">
@@ -47,18 +70,40 @@ export function AppShell(): JSX.Element {
             <SlidePanel />
           </Panel>
 
-          {/* Right Pane: Code / Video / Web — toggled by attachments button */}
+          {/* Artifact switcher + right pane */}
           {hasRightPane && showRightPane && (
             <>
+              {/* Vertical artifact tab bar */}
+              <div className="flex flex-col items-center py-2 gap-1 bg-gray-900 border-x border-gray-800 w-8">
+                {availableArtifacts.map((type) => (
+                  <button
+                    key={type}
+                    onClick={() => setActiveArtifact(type)}
+                    className={`w-6 h-6 rounded flex items-center justify-center text-[8px] transition-colors ${
+                      activeArtifact === type
+                        ? 'bg-white text-black'
+                        : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
+                    }`}
+                    title={artifactLabel(type)}
+                  >
+                    {artifactIcon(type)}
+                  </button>
+                ))}
+              </div>
               <PanelResizeHandle className="w-1 bg-gray-800 hover:bg-white transition-colors cursor-col-resize" />
               <Panel defaultSize={showArticlePanel ? 30 : 60} minSize={20}>
-                {hasCode ? (
+                {activeArtifact === 'code' && hasCode && (
                   <CodePanel key={currentSlideIndex} />
-                ) : hasVideo ? (
+                )}
+                {activeArtifact === 'video' && hasVideo && (
                   <VideoPanel key={currentSlideIndex} video={currentSlide!.config.video!} />
-                ) : hasWebApp ? (
+                )}
+                {activeArtifact === 'webapp' && hasWebApp && (
                   <WebPanel key={currentSlideIndex} webapp={currentSlide!.config.webapp!} />
-                ) : null}
+                )}
+                {activeArtifact === 'files' && hasFiles && (
+                  <ArtifactDrawer />
+                )}
               </Panel>
             </>
           )}
@@ -94,4 +139,24 @@ export function AppShell(): JSX.Element {
       {showSlideMap && <SlideMap />}
     </div>
   )
+}
+
+function artifactIcon(type: string): string {
+  switch (type) {
+    case 'code': return '{ }'
+    case 'video': return '▶'
+    case 'webapp': return '◎'
+    case 'files': return '📎'
+    default: return '?'
+  }
+}
+
+function artifactLabel(type: string): string {
+  switch (type) {
+    case 'code': return 'Code editor'
+    case 'video': return 'Video'
+    case 'webapp': return 'Web browser'
+    case 'files': return 'File artifacts'
+    default: return type
+  }
 }

@@ -231,7 +231,7 @@ function SlideCanvas({ markdown, rootPath }: { markdown: string; rootPath?: stri
   }, [markdown])
 
   return (
-    <div ref={containerRef} className="h-full w-full flex items-center justify-center bg-neutral-900 overflow-hidden">
+    <div ref={containerRef} className="h-full w-full flex items-center justify-center bg-gray-950 overflow-hidden">
       <div
         className="relative rounded-lg overflow-hidden"
         style={{

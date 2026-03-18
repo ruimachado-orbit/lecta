@@ -18,6 +18,13 @@ export const COLOR_PALETTES: ColorPalette[] = [
   { name: 'Orange', accent: '#f97316', accentLight: '#fb923c', accentDark: '#ea580c' },
 ]
 
+export interface SlideGroup {
+  id: string
+  name: string
+  slideIds: string[]
+  collapsed: boolean
+}
+
 interface UIState {
   theme: 'dark' | 'light'
   isPresenting: boolean
@@ -25,10 +32,12 @@ interface UIState {
   showNavigator: boolean
   showArticlePanel: boolean
   showArtifactDrawer: boolean
+  showSlideMap: boolean
   editingSlide: boolean
   splitRatio: number
   fontSize: number
   palette: ColorPalette
+  slideGroups: SlideGroup[]
 
   // Actions
   setTheme: (theme: 'dark' | 'light') => void
@@ -38,11 +47,17 @@ interface UIState {
   toggleNavigator: () => void
   toggleArticlePanel: () => void
   toggleArtifactDrawer: () => void
+  toggleSlideMap: () => void
   toggleEditingSlide: () => void
   setEditingSlide: (editing: boolean) => void
   setSplitRatio: (ratio: number) => void
   setFontSize: (size: number) => void
   setPalette: (palette: ColorPalette) => void
+  addSlideGroup: (name: string) => void
+  removeSlideGroup: (groupId: string) => void
+  toggleGroupCollapsed: (groupId: string) => void
+  addSlideToGroup: (groupId: string, slideId: string) => void
+  removeSlideFromGroup: (groupId: string, slideId: string) => void
 }
 
 function applyPalette(palette: ColorPalette) {
@@ -52,17 +67,19 @@ function applyPalette(palette: ColorPalette) {
   root.style.setProperty('--color-brand-dark', palette.accentDark)
 }
 
-export const useUIStore = create<UIState>((set) => ({
+export const useUIStore = create<UIState>((set, get) => ({
   theme: 'dark',
   isPresenting: false,
   showNotes: false,
   showNavigator: true,
   showArticlePanel: false,
   showArtifactDrawer: false,
+  showSlideMap: false,
   editingSlide: false,
   splitRatio: 40,
   fontSize: 16,
   palette: COLOR_PALETTES[0],
+  slideGroups: [],
 
   setTheme: (theme) => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -74,6 +91,7 @@ export const useUIStore = create<UIState>((set) => ({
   toggleNavigator: () => set((s) => ({ showNavigator: !s.showNavigator })),
   toggleArticlePanel: () => set((s) => ({ showArticlePanel: !s.showArticlePanel })),
   toggleArtifactDrawer: () => set((s) => ({ showArtifactDrawer: !s.showArtifactDrawer })),
+  toggleSlideMap: () => set((s) => ({ showSlideMap: !s.showSlideMap })),
   toggleEditingSlide: () => set((s) => ({ editingSlide: !s.editingSlide })),
   setEditingSlide: (editing) => set({ editingSlide: editing }),
   setSplitRatio: (ratio) => set({ splitRatio: ratio }),
@@ -81,5 +99,26 @@ export const useUIStore = create<UIState>((set) => ({
   setPalette: (palette) => {
     applyPalette(palette)
     set({ palette })
-  }
+  },
+  addSlideGroup: (name) => set((s) => ({
+    slideGroups: [...s.slideGroups, { id: `group-${Date.now()}`, name, slideIds: [], collapsed: false }]
+  })),
+  removeSlideGroup: (groupId) => set((s) => ({
+    slideGroups: s.slideGroups.filter((g) => g.id !== groupId)
+  })),
+  toggleGroupCollapsed: (groupId) => set((s) => ({
+    slideGroups: s.slideGroups.map((g) => g.id === groupId ? { ...g, collapsed: !g.collapsed } : g)
+  })),
+  addSlideToGroup: (groupId, slideId) => set((s) => ({
+    slideGroups: s.slideGroups.map((g) =>
+      g.id === groupId && !g.slideIds.includes(slideId)
+        ? { ...g, slideIds: [...g.slideIds, slideId] }
+        : g
+    )
+  })),
+  removeSlideFromGroup: (groupId, slideId) => set((s) => ({
+    slideGroups: s.slideGroups.map((g) =>
+      g.id === groupId ? { ...g, slideIds: g.slideIds.filter((id) => id !== slideId) } : g
+    )
+  }))
 }))

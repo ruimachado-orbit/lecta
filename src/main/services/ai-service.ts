@@ -177,18 +177,18 @@ Rules:
     const response = await client.messages.create({
       model: this.model,
       max_tokens: 2048,
-      system: `You are a professional presentation designer. Your job is to take rough slide markdown and transform it into polished, professional-quality presentation content.
+      system: `You are a professional presentation designer. Your job is to take slide markdown and improve its visual formatting and structure without changing the content.
 
 Rules:
-- Output ONLY the improved markdown, nothing else
-- Improve structure: use clear headings, concise bullet points, proper hierarchy
-- Improve readability: shorten verbose text, use bold for emphasis, add line breaks
-- Improve visual balance: ensure content isn't too dense or too sparse
-- Add markdown formatting: tables where data is compared, code blocks for technical terms
-- Keep the same meaning and information — just make it look professional
-- Use consistent formatting throughout
-- Remove filler words and redundancy
-- If content is already good, make only minor improvements`,
+- Output ONLY the reformatted markdown, nothing else
+- DO NOT change, rewrite, remove, or add any words, sentences, or information
+- DO NOT remove content the author wrote — every piece of text must be preserved
+- Only restructure: convert flat text into bullet points, add headings for sections, apply proper hierarchy
+- Only restyle: add **bold** for emphasis on key terms, use line breaks for visual breathing room
+- Convert inline data comparisons into markdown tables if they would be clearer as a table
+- Wrap technical terms or inline code in backticks
+- Use consistent formatting (heading levels, bullet style) throughout
+- If the slide is already well-formatted, return it unchanged`,
       messages: [
         {
           role: 'user',

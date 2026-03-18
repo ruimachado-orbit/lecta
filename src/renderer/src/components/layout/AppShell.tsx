@@ -8,6 +8,7 @@ import { WebPanel } from '../web/WebPanel'
 import { SpeakerNotes } from '../ai/SpeakerNotes'
 import { ArticlePanel } from '../ai/ArticlePanel'
 import { ArtifactDrawer } from '../artifacts/ArtifactDrawer'
+import { SlideMap } from '../slides/SlideMap'
 import { PresenterView } from '../presenter/PresenterView'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore } from '../../stores/ui-store'
@@ -15,7 +16,7 @@ import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
 import { useFileWatcher } from '../../hooks/useFileWatcher'
 
 export function AppShell(): JSX.Element {
-  const { isPresenting, showNotes, showArticlePanel, showArtifactDrawer } = useUIStore()
+  const { isPresenting, showNotes, showArticlePanel, showArtifactDrawer, showSlideMap } = useUIStore()
   const currentSlide = usePresentationStore((s) => s.slides[s.currentSlideIndex])
 
   useKeyboardShortcuts()
@@ -83,6 +84,9 @@ export function AppShell(): JSX.Element {
       </div>
 
       <StatusBar />
+
+      {/* Slide Map overlay */}
+      {showSlideMap && <SlideMap />}
     </div>
   )
 }

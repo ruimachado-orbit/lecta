@@ -96,7 +96,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
 
       // Check if this is actually a notebook
       if (loaded?.__notebook) {
-        set({ isLoading: false, error: null })
+        set({ isLoading: false, error: null, presentation: null, slides: [], currentSlideIndex: 0 })
         const { useNotebookStore } = await import('./notebook-store')
         await useNotebookStore.getState().loadNotebook(loaded.rootPath)
         return

@@ -67,6 +67,9 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
     try {
       const loaded: LoadedNotebook = await window.electronAPI.loadNotebook(folderPath)
       set(applyLoaded(loaded))
+      // Clear presentation store so App.tsx doesn't render AppShell
+      const { usePresentationStore } = await import('./presentation-store')
+      usePresentationStore.getState().reset()
     } catch (error) {
       set({ isLoading: false, error: (error as Error).message })
     }

@@ -176,6 +176,17 @@ export function Toolbar(): JSX.Element {
           <SparklesIcon />
         </button>
 
+        {/* Import slides from another .lecta file */}
+        <button
+          onClick={handleImportSlides}
+          className="p-1.5 rounded hover:bg-gray-800 text-gray-400 hover:text-gray-200 transition-colors"
+          title="Import slides from another presentation"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+          </svg>
+        </button>
+
         {/* Separator */}
         <div className="w-px h-6 bg-gray-800" />
 

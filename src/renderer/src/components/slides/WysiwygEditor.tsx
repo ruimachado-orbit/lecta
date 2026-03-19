@@ -192,6 +192,17 @@ turndown.addRule('image-with-width', {
   }
 })
 
+// Table placeholder — preserve [TABLE_N] text through turndown roundtrip
+turndown.addRule('table-placeholder', {
+  filter: (node) => {
+    return node.nodeName === 'P' && node.hasAttribute('data-table-placeholder')
+  },
+  replacement: (_content, node) => {
+    const idx = (node as HTMLElement).getAttribute('data-table-placeholder')
+    return `[TABLE_${idx}]`
+  }
+})
+
 // Convert markdown to simple HTML for TipTap
 // Extract tables from markdown, replacing them with [TABLE_N] placeholders.
 // Returns the modified markdown and the extracted table strings.
@@ -227,18 +238,15 @@ function extractTables(md: string): { processed: string; tables: string[] } {
 // Handles both escaped (\[TABLE\_0\]) and unescaped ([TABLE_0]) versions
 function injectTables(md: string, tables: string[]): string {
   if (tables.length === 0) return md
-  // Handle various escaped versions from turndown
-  md = md.replace(/\\?\[TABLE[_\\]*(\d+)\\?\]/g, (_match, idx) => {
+  // Match [TABLE_N] — clean output from our turndown rule
+  md = md.replace(/\[TABLE_(\d+)\]/g, (_match, idx) => {
     const i = parseInt(idx, 10)
     return tables[i] != null ? tables[i] : _match
   })
-  // Handle "**Table:** Header1 | Header2" indicator text that turndown might produce
-  let tableIdx = 0
-  md = md.replace(/\*\*Table:\*\*\s+[^\n]+/g, (match) => {
-    if (tableIdx < tables.length) {
-      return tables[tableIdx++]
-    }
-    return match
+  // Fallback: escaped versions from turndown \[TABLE\_0\]
+  md = md.replace(/\\?\[TABLE[_\\]*(\d+)\\?\][^\n]*/g, (_match, idx) => {
+    const i = parseInt(idx, 10)
+    return tables[i] != null ? tables[i] : _match
   })
   return md
 }
@@ -343,7 +351,7 @@ function convertLinesToHtml(md: string, rootPath?: string, tables: string[] = []
         const tLines = table.split('\n')
         const parseCells = (row: string) => row.split('|').slice(1, -1).map((c: string) => c.trim())
         const headerCells = parseCells(tLines[0])
-        html.push(`<p data-table-placeholder="${idx}" style="background:rgba(99,102,241,0.08);border:1px dashed rgba(99,102,241,0.3);border-radius:6px;padding:8px 12px;font-size:0.85em;color:rgba(99,102,241,0.8)">[TABLE_${idx}] ${headerCells.join(' | ')}</p>`)
+        html.push(`<p data-table-placeholder="${idx}" style="background:rgba(99,102,241,0.08);border:1px dashed rgba(99,102,241,0.3);border-radius:6px;padding:8px 12px;font-size:0.85em;color:rgba(99,102,241,0.8)">📊 Table: ${headerCells.join(' | ')}</p>`)
       } else {
         html.push(`<p>[TABLE]</p>`)
       }

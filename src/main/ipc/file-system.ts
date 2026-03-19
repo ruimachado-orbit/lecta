@@ -939,6 +939,11 @@ export function registerFileSystemHandlers(): void {
     }
   )
 
+  ipcMain.handle('fs:remove-recent-deck', async (_event, path: string): Promise<void> => {
+    recentDecks = recentDecks.filter((d) => d.path !== path)
+    await persistRecentDecks()
+  })
+
   ipcMain.handle('fs:get-recent-decks', async (): Promise<RecentDeck[]> => {
     if (recentDecks.length === 0) {
       try {

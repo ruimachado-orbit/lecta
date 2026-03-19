@@ -24,6 +24,19 @@ export function PresenterView(): JSX.Element {
   const { runCode, cancelCode } = useCodeExecution()
   // keyboard shortcuts already handled by AppShell
 
+  // Expose slide state for remote control
+  useEffect(() => {
+    (window as any).__lectaSlideState = { current: currentSlideIndex + 1, total: slides.length }
+    ;(window as any).__lectaRemoteAction = (action: string) => {
+      if (action === 'next') nextSlide()
+      else if (action === 'prev') prevSlide()
+    }
+    return () => {
+      delete (window as any).__lectaSlideState
+      delete (window as any).__lectaRemoteAction
+    }
+  }, [currentSlideIndex, slides.length, nextSlide, prevSlide])
+
   const [activeArtifact, setActiveArtifact] = useState<ArtifactType | null>(null)
   const [artifactExpanded, setArtifactExpanded] = useState(false)
   const [panelSize, setPanelSize] = useState(34)
@@ -315,6 +328,7 @@ export function PresenterView(): JSX.Element {
         </button>
         <div className="w-px h-5 bg-gray-800" />
         <span className="text-gray-600 text-[11px] truncate flex-1">{presentation?.title}</span>
+        <RemoteControlButton />
         <button onClick={() => setPresenting(false)}
           className="px-3 py-1 text-[11px] bg-gray-800 hover:bg-red-500 text-gray-400 hover:text-white rounded transition-colors">
           End (Esc)

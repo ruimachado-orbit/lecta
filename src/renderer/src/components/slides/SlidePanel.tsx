@@ -569,11 +569,9 @@ function SubSlideStackEditor({ subSlides, currentSubSlide, setCurrentSubSlide, s
     if (!container) return
     const updateScale = () => {
       const cw = container.clientWidth
-      const ch = container.clientHeight
       const margin = 24
-      const scaleW = (cw - margin * 2) / SLIDE_W
-      const scaleH = (ch * 0.55) / SLIDE_H
-      setBaseScale(Math.min(Math.max(0.05, scaleW, 0.3), scaleH, 0.85))
+      // Fit width — scrollable vertically
+      setBaseScale(Math.min((cw - margin * 2) / SLIDE_W, 1))
     }
     updateScale()
     const ro = new ResizeObserver(updateScale)

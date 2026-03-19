@@ -7,6 +7,7 @@ import { registerSettingsHandlers } from './settings'
 import { registerExportHandlers } from './export-pdf'
 import { registerNotebookHandlers } from './notebook-fs'
 import { registerSlideLibraryHandlers } from './slide-library'
+import { registerRemoteControlHandlers } from './remote-control'
 
 export function registerAllIpcHandlers(): void {
   registerFileSystemHandlers()
@@ -18,4 +19,5 @@ export function registerAllIpcHandlers(): void {
   registerExportHandlers()
   registerNotebookHandlers()
   registerSlideLibraryHandlers()
+  registerRemoteControlHandlers()
 }

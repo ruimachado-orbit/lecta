@@ -822,7 +822,7 @@ function stripMarkdown(text: string): string {
     .trim()
 }
 
-function RecentCard({ deck, onClick }: { deck: RecentDeck; onClick: () => void }): JSX.Element {
+function RecentCard({ deck, onClick, onRemove }: { deck: RecentDeck; onClick: () => void; onRemove?: () => void }): JSX.Element {
   const previewLines = (deck.firstSlidePreview || '')
     .split('\n').filter((l) => l.trim()).slice(0, 4)
 

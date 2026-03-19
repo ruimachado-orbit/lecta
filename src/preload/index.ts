@@ -12,6 +12,8 @@ const api = {
     ipcRenderer.invoke('fs:read-file', filePath),
   getRecentDecks: (): Promise<string[]> =>
     ipcRenderer.invoke('fs:get-recent-decks'),
+  removeRecentDeck: (path: string): Promise<void> =>
+    ipcRenderer.invoke('fs:remove-recent-deck', path),
   createPresentation: (name: string): Promise<string | null> =>
     ipcRenderer.invoke('fs:create-presentation', name),
   createLectaFile: (name: string, docType?: string): Promise<string | null> =>
@@ -249,6 +251,12 @@ const api = {
     ipcRenderer.invoke('library:delete-slide', id),
   renameLibrarySlide: (id: string, newName: string): Promise<void> =>
     ipcRenderer.invoke('library:rename-slide', id, newName),
+
+  // Remote control
+  startRemote: (): Promise<string> =>
+    ipcRenderer.invoke('remote:start'),
+  stopRemote: (): Promise<void> =>
+    ipcRenderer.invoke('remote:stop'),
 
   // Remove listeners
   removeAllListeners: (channel: string): void => {

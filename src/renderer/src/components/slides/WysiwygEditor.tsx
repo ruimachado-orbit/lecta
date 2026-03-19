@@ -343,7 +343,7 @@ function convertLinesToHtml(md: string, rootPath?: string, tables: string[] = []
         const tLines = table.split('\n')
         const parseCells = (row: string) => row.split('|').slice(1, -1).map((c: string) => c.trim())
         const headerCells = parseCells(tLines[0])
-        html.push(`<p style="background:rgba(99,102,241,0.08);border:1px dashed rgba(99,102,241,0.3);border-radius:6px;padding:8px 12px;font-size:0.85em;color:rgba(99,102,241,0.8)"><strong>Table:</strong> ${headerCells.join(' | ')}</p>`)
+        html.push(`<p data-table-placeholder="${idx}" style="background:rgba(99,102,241,0.08);border:1px dashed rgba(99,102,241,0.3);border-radius:6px;padding:8px 12px;font-size:0.85em;color:rgba(99,102,241,0.8)">[TABLE_${idx}] ${headerCells.join(' | ')}</p>`)
       } else {
         html.push(`<p>[TABLE]</p>`)
       }

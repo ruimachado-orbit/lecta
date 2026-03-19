@@ -234,6 +234,10 @@ const api = {
   saveNoteContent: (rootPath: string, contentPath: string, content: string): Promise<void> =>
     ipcRenderer.invoke('nb:save-content', rootPath, contentPath, content),
 
+  // Import slides from another .lecta file
+  importSlides: (): Promise<{ id: string; markdown: string; layout?: string }[] | null> =>
+    ipcRenderer.invoke('fs:import-slides'),
+
   // Slide Library
   saveSlideToLibrary: (slide: {
     name: string; markdown: string; layout?: string; codeContent?: string; codeLanguage?: string; tags?: string[]

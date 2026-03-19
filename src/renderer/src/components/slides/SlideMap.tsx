@@ -175,37 +175,6 @@ export function SlideMap(): JSX.Element {
                           </div>
                         </div>
                       </button>
-                              <div className="text-[9px] text-gray-600 italic">Empty slide</div>
-                            )}
-                          </div>
-
-                          {/* Card footer — attachments */}
-                          {(hasCode || hasVideo || hasWebApp || artifactCount > 0) && (
-                            <div className="px-3 py-1.5 border-t border-gray-800 flex items-center gap-1 flex-wrap">
-                              {hasCode && (
-                                <span className="text-[7px] px-1.5 py-0.5 bg-gray-800 text-gray-300 rounded-full font-medium">
-                                  {slide.config.code!.language}
-                                </span>
-                              )}
-                              {hasVideo && (
-                                <span className="text-[7px] px-1.5 py-0.5 bg-gray-800 text-red-400 rounded-full font-medium">
-                                  video
-                                </span>
-                              )}
-                              {hasWebApp && (
-                                <span className="text-[7px] px-1.5 py-0.5 bg-gray-800 text-gray-300 rounded-full font-medium">
-                                  web
-                                </span>
-                              )}
-                              {artifactCount > 0 && (
-                                <span className="text-[7px] px-1.5 py-0.5 bg-gray-800 text-gray-300 rounded-full font-medium">
-                                  {artifactCount} file{artifactCount > 1 ? 's' : ''}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </button>
-                      </div>
                     )
                   })}
                 </div>

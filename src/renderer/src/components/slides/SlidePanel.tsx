@@ -540,7 +540,7 @@ function EditableSlideCanvas({ slideIndex, breakOffsets, rootPath, layout, subSl
 function splitFullMdSections(fullMd: string): string[] {
   const hasBreaks = fullMd.split('\n').some(l => /^(?:---+|\*\s*\*\s*\*|___+)$/.test(l.trim()))
   if (!hasBreaks) return [fullMd]
-  return fullMd.split(/\n?(?:---+|\*\s*\*\s*\*|___+)\n?/).map(s => s.trim())
+  return fullMd.split(/\n?(?:---+|\*\s*\*\s*\*|___+)\n?/).map(s => s.trim()).filter(s => s.length > 0)
 }
 
 /** Stacked sub-slide editor — shows all sub-slides as separate canvases, selected one is WYSIWYG-editable */

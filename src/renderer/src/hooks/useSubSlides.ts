@@ -143,10 +143,13 @@ export function useSubSlides(
       // Split on horizontal rule delimiters (---, ***, * * *, ___)
       // Use \n? to handle rules at start/end of content
       const sections = markdown.split(/\n?(?:---+|\*\s*\*\s*\*|___+)\n?/)
-      const pages: SubSlide[] = sections.map((section, i) => ({
-        markdown: section.trim(),
-        index: i
-      }))
+      let pageIdx = 0
+      const pages: SubSlide[] = sections
+        .filter(s => s.trim().length > 0)
+        .map((section) => ({
+          markdown: section.trim(),
+          index: pageIdx++
+        }))
       // Find break offsets by scanning lines for hr markers
       const breaks: number[] = []
       let charPos = 0

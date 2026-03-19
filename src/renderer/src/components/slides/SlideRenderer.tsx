@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
@@ -107,6 +107,12 @@ function enhanceVisualPatterns(md: string): string {
     }
   )
 
+  // Auto-fit: <!-- autofit --> before a heading makes it scale to fill width
+  result = result.replace(
+    /<!--\s*autofit\s*-->\s*\n(#{1,3}\s+.+)/gm,
+    (_m, heading) => `<div class="slide-autofit">\n\n${heading}\n\n</div>`
+  )
+
   return result
 }
 
@@ -196,6 +202,11 @@ export function SlideRenderer({ markdown, rootPath, clickStep = -1, onClickSteps
                   {children}
                 </div>
               )
+            }
+            // Auto-fit text
+            const className = String((node?.properties as any)?.className || '')
+            if (className.includes('slide-autofit')) {
+              return <div className="slide-autofit" {...props}>{children}</div>
             }
             return <div {...props}>{children}</div>
           },

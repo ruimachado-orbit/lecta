@@ -159,6 +159,50 @@ export function registerFileSystemHandlers(): void {
     return selected
   })
 
+  // Import slides from another .lecta file
+  ipcMain.handle('fs:import-slides', async (): Promise<{ id: string; markdown: string; layout?: string }[] | null> => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [
+        { name: 'Lecta Presentations', extensions: ['lecta'] },
+        { name: 'All Files', extensions: ['*'] }
+      ],
+      title: 'Import Slides From...'
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+
+    const selected = result.filePaths[0]
+    try {
+      const workspaceDir = await openLectaFile(selected)
+      const configPath = join(workspaceDir, DECK_CONFIG_FILE)
+      const yamlContent = await readFile(configPath, 'utf-8')
+      const config = parsePresentationYaml(yamlContent, workspaceDir)
+
+      const slides: { id: string; markdown: string; layout?: string }[] = []
+      for (const slideConfig of config.slides) {
+        const mdPath = join(workspaceDir, slideConfig.content)
+        try {
+          const markdown = await readFile(mdPath, 'utf-8')
+          slides.push({
+            id: slideConfig.id,
+            markdown,
+            layout: slideConfig.layout
+          })
+        } catch {
+          slides.push({ id: slideConfig.id, markdown: `# ${slideConfig.id}` })
+        }
+      }
+
+      // Clean up temp workspace
+      const { rm } = await import('fs/promises')
+      await rm(workspaceDir, { recursive: true, force: true }).catch(() => {})
+
+      return slides
+    } catch {
+      return null
+    }
+  })
+
   // Select a file (for AI generation source)
   ipcMain.handle('fs:select-file', async (_event, filters?: { name: string; extensions: string[] }[]) => {
     const result = await dialog.showOpenDialog({

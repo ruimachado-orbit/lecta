@@ -1102,6 +1102,22 @@ html[data-theme="light"] .wysiwyg-content th {
   font-style: italic;
 }
 
+/* Auto-fit text — scales heading to fill available width */
+.slide-content .slide-autofit {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+.slide-content .slide-autofit h1,
+.slide-content .slide-autofit h2,
+.slide-content .slide-autofit h3 {
+  white-space: nowrap;
+  width: 100%;
+  font-size: clamp(2rem, 8vw, 6rem);
+  line-height: 1.1;
+  margin-bottom: 0;
+}
+
 /* Click animation — incremental reveal */
 .slide-click-step {
   transition: opacity 0.3s ease, transform 0.3s ease;

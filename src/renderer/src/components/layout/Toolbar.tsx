@@ -37,6 +37,14 @@ export function Toolbar(): JSX.Element {
     await addSlide(`slide-${nextNum}`)
   }
 
+  const handleImportSlides = async () => {
+    const imported = await window.electronAPI.importSlides()
+    if (!imported || imported.length === 0 || !presentation) return
+    await window.electronAPI.addBulkSlides(presentation.rootPath, imported, currentSlideIndex)
+    // Reload presentation
+    await usePresentationStore.getState().loadPresentation(presentation.rootPath)
+  }
+
   const handleAddCode = async (language: SupportedLanguage) => {
     await addCodeToSlide(language)
   }

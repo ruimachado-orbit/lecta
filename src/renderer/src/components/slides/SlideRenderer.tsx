@@ -38,12 +38,29 @@ function preprocessColumns(md: string): string {
     .replace(/<!--\s*\/columns\s*-->/gi, '</div></div>')
     .replace(/<div class="slide-columns">/g, '<div class="slide-columns"><div class="slide-col">')
 
-  // Text boxes: <!-- textbox x=N y=N w=N -->content<!-- /textbox -->
+  // Text boxes: <!-- textbox x=N y=N w=N [fs=N] [fc=#hex] [fb=0|1] [fi=0|1] -->content<!-- /textbox -->
   result = result.replace(
-    /<!--\s*textbox\s+x=(\d+)\s+y=(\d+)(?:\s+w=(\d+))?\s*-->([\s\S]*?)<!--\s*\/textbox\s*-->/gi,
-    (_match, x, y, w, content) => {
+    /<!--\s*textbox\s+x=(\d+)\s+y=(\d+)(?:\s+w=(\d+))?(?:\s+fs=(\d+))?(?:\s+fc=([^\s]+))?(?:\s+fb=([01]))?(?:\s+fi=([01]))?\s*-->([\s\S]*?)<!--\s*\/textbox\s*-->/gi,
+    (_match, x, y, w, fs, fc, fb, fi, content) => {
       const width = w ? `width:${w}px;` : 'width:300px;'
-      return `<div class="slide-textbox" style="left:${x}px;top:${y}px;${width}">${content.trim()}</div>`
+      const fontSize = fs ? `font-size:${fs}px;` : ''
+      const color = fc ? `color:${fc};` : ''
+      const fontWeight = fb === '1' ? 'font-weight:bold;' : ''
+      const fontStyle = fi === '1' ? 'font-style:italic;' : ''
+      return `<div class="slide-textbox" style="left:${x}px;top:${y}px;${width}${fontSize}${color}${fontWeight}${fontStyle}">${content.trim()}</div>`
+    }
+  )
+
+  // Shapes: <!-- shape type=rect x=N y=N w=N h=N fill=# stroke=# sw=N -->
+  result = result.replace(
+    /<!--\s*shape\s+type=(\w+)\s+x=(-?\d+)\s+y=(-?\d+)\s+w=(\d+)\s+h=(\d+)(?:\s+fill=([^\s]+))?(?:\s+stroke=([^\s]+))?(?:\s+sw=(\d+))?\s*-->/gi,
+    (_match, type, x, y, w, h, fill, stroke, sw) => {
+      const f = fill || 'transparent', s = stroke || '#ffffff', swv = sw || '2'
+      let inner = ''
+      if (type === 'rect') inner = `<rect x="${Number(swv)/2}" y="${Number(swv)/2}" width="${Number(w)-Number(swv)}" height="${Number(h)-Number(swv)}" rx="4" fill="${f}" stroke="${s}" stroke-width="${swv}" />`
+      else if (type === 'ellipse') inner = `<ellipse cx="${Number(w)/2}" cy="${Number(h)/2}" rx="${Number(w)/2-Number(swv)/2}" ry="${Number(h)/2-Number(swv)/2}" fill="${f}" stroke="${s}" stroke-width="${swv}" />`
+      else if (type === 'line') inner = `<line x1="${swv}" y1="${Number(h)/2}" x2="${Number(w)-Number(swv)}" y2="${Number(h)/2}" stroke="${s}" stroke-width="${swv}" stroke-linecap="round" />`
+      return `<svg class="slide-shape" style="position:absolute;left:${x}px;top:${y}px;width:${w}px;height:${h}px;" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">${inner}</svg>`
     }
   )
 

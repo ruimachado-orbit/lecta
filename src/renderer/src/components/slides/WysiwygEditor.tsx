@@ -120,6 +120,28 @@ turndown.addRule('image-with-width', {
 
 // Convert markdown to simple HTML for TipTap
 function markdownToHtml(md: string, rootPath?: string): string {
+  // Convert column blocks: each column section becomes editable content
+  // separated by a visual column divider marker
+  const columnRegex = /<!--\s*columns\s*-->([\s\S]*?)<!--\s*\/columns\s*-->/gi
+  let processed = md
+
+  processed = processed.replace(columnRegex, (_match, innerContent: string) => {
+    const cols = innerContent.split(/<!--\s*col\s*-->/)
+    const parts = cols.map((colContent: string, i: number) => {
+      const label = i === 0 ? '[ Column 1 ]' : `[ Column ${i + 1} ]`
+      const content = colContent.trim() || 'Type here...'
+      return `<p><strong style="color:#6366f1;font-size:11px">${label}</strong></p>\n${content}`
+    })
+    return parts.join('\n---\n')
+  })
+
+  // Strip remaining non-structural comments (textbox, shape, etc.)
+  processed = processed.replace(/<!--.*?-->/gs, '')
+
+  return convertLinesToHtml(processed, rootPath)
+}
+
+function convertLinesToHtml(md: string, rootPath?: string): string {
   const lines = md.split('\n')
   const html: string[] = []
   let listDepth = 0
@@ -135,6 +157,9 @@ function markdownToHtml(md: string, rootPath?: string): string {
       continue
     }
 
+    // Pass through table HTML (from column conversion)
+    if (line.includes('<table') || line.includes('</table')) { closeTo(0); html.push(line); continue }
+
     const imgMatch = line.match(/^!\[([^\]]*)\]\(([^)]+)\)$/)
     if (imgMatch) { closeTo(0); html.push(`<img alt="${imgMatch[1]}" src="${resolveImageSrc(imgMatch[2], rootPath)}" />`); continue }
 
@@ -143,7 +168,6 @@ function markdownToHtml(md: string, rootPath?: string): string {
     const h1 = line.match(/^# (.+)$/); if (h1) { closeTo(0); html.push(`<h1>${processInline(h1[1])}</h1>`); continue }
     if (line.match(/^---+$/)) { closeTo(0); html.push('<hr>'); continue }
 
-    // List items with nesting via indent
     const li = line.match(/^(\s*)\\?[-*+] (.+)$/)
     if (li) {
       const target = Math.floor(li[1].length / 2) + 1
@@ -312,7 +336,7 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
         placeholder: 'Start typing your slide content...'
       })
     ],
-    content: slide ? markdownToHtml(slide.markdownContent.replace(/<!--.*?-->/gs, ''), presentation?.rootPath) : '',
+    content: slide ? markdownToHtml(slide.markdownContent, presentation?.rootPath) : '',
     editorProps: {
       attributes: {
         class: 'wysiwyg-content outline-none min-h-full'
@@ -339,7 +363,13 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
       if (isInternalUpdate.current) return
       const html = editor.getHTML()
       const md = turndown.turndown(html).replace(/^(\s*)\\-/gm, '$1-')
-      updateMarkdownContent(slideIndex, md)
+      // Preserve textbox/shape comments from the original markdown
+      const currentMd = usePresentationStore.getState().slides[slideIndex]?.markdownContent ?? ''
+      const comments: string[] = []
+      currentMd.replace(/<!--\s*textbox[\s\S]*?\/textbox\s*-->/gi, (m) => { comments.push(m); return '' })
+      currentMd.replace(/<!--\s*shape\s[^>]*-->/gi, (m) => { comments.push(m); return '' })
+      const preserved = comments.length > 0 ? md + '\n' + comments.join('\n') : md
+      updateMarkdownContent(slideIndex, preserved)
 
       // Check overflow after update
       setTimeout(checkOverflow, 50)
@@ -359,7 +389,7 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
   useEffect(() => {
     if (!editor || !slide) return
     const currentHtml = editor.getHTML()
-    const newHtml = markdownToHtml(slide.markdownContent.replace(/<!--.*?-->/gs, ''), presentation?.rootPath)
+    const newHtml = markdownToHtml(slide.markdownContent, presentation?.rootPath)
     // Only update if content actually changed (avoid cursor jumping)
     if (turndown.turndown(currentHtml) !== slide.markdownContent) {
       isInternalUpdate.current = true
@@ -609,31 +639,50 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
           saveSlideContent(currentSlideIndex)
         }}><svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M8 8h8M12 8v8" strokeLinecap="round" /></svg></WBtn>
         <Sep />
-        {/* Shapes picker */}
+        {/* Shape insertion */}
         <div className="relative">
           <WBtn onClick={() => { closeAllPickers(); setShowShapePicker(!showShapePicker) }}>
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9.53 16.122a3 3 0 0 0-5.78 1.128 2.25 2.25 0 0 1-2.4 2.245 4.5 4.5 0 0 0 8.4-2.245c0-.399-.078-.78-.22-1.128Zm0 0a15.998 15.998 0 0 0 3.388-1.62m-5.043-.025a15.994 15.994 0 0 1 1.622-3.395m3.42 3.42a15.995 15.995 0 0 0 4.764-4.648l3.876-5.814a1.151 1.151 0 0 0-1.597-1.597L14.146 6.32a15.996 15.996 0 0 0-4.649 4.763m3.42 3.42a6.776 6.776 0 0 0-3.42-3.42" />
+              <rect x="3" y="3" width="18" height="18" rx="2" />
             </svg>
           </WBtn>
           {showShapePicker && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setShowShapePicker(false)} />
-              <div className="absolute left-0 top-full mt-1 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-2 w-48">
-                <div className="text-[8px] text-gray-500 uppercase tracking-wider mb-1 px-1">Shapes</div>
+              <div className="absolute left-0 top-full mt-1 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-2 w-36">
+                <div className="text-[8px] text-gray-500 uppercase tracking-wider mb-1.5 px-1">Insert Shape</div>
+                {[
+                  { type: 'rect', label: 'Rectangle', w: 200, h: 120, icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><rect x="3" y="5" width="18" height="14" rx="2" /></svg> },
+                  { type: 'ellipse', label: 'Circle', w: 150, h: 150, icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><circle cx="12" cy="12" r="9" /></svg> },
+                  { type: 'line', label: 'Line', w: 200, h: 10, icon: <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" strokeWidth={1.5} stroke="currentColor"><line x1="3" y1="12" x2="21" y2="12" strokeLinecap="round" /></svg> },
+                ].map((s) => (
+                  <button key={s.type} onClick={() => {
+                    const { slides, currentSlideIndex, updateMarkdownContent, saveSlideContent } = usePresentationStore.getState()
+                    const current = slides[currentSlideIndex]?.markdownContent ?? ''
+                    const shape = `\n<!-- shape type=${s.type} x=100 y=200 w=${s.w} h=${s.h} fill=transparent stroke=#ffffff sw=2 -->\n`
+                    updateMarkdownContent(currentSlideIndex, current + shape)
+                    saveSlideContent(currentSlideIndex)
+                    setShowShapePicker(false)
+                  }}
+                    className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs text-gray-300 hover:bg-gray-800 transition-colors">
+                    {s.icon}
+                    {s.label}
+                  </button>
+                ))}
+                <div className="w-full h-px bg-gray-700 my-1.5" />
+                <div className="text-[8px] text-gray-500 uppercase tracking-wider mb-1 px-1">Symbols</div>
                 <div className="grid grid-cols-8 gap-0.5">
                   {SHAPES.map((s) => (
                     <button key={s} onClick={() => { insertText(s); setShowShapePicker(false) }}
-                      className="w-6 h-6 rounded hover:bg-gray-800 flex items-center justify-center text-sm transition-colors">
+                      className="w-5 h-5 rounded hover:bg-gray-800 flex items-center justify-center text-[10px] transition-colors">
                       {s}
                     </button>
                   ))}
                 </div>
-                <div className="text-[8px] text-gray-500 uppercase tracking-wider mt-2 mb-1 px-1">Arrows</div>
-                <div className="grid grid-cols-8 gap-0.5">
+                <div className="grid grid-cols-8 gap-0.5 mt-0.5">
                   {ARROWS.map((s) => (
                     <button key={s} onClick={() => { insertText(s); setShowShapePicker(false) }}
-                      className="w-6 h-6 rounded hover:bg-gray-800 flex items-center justify-center text-sm transition-colors">
+                      className="w-5 h-5 rounded hover:bg-gray-800 flex items-center justify-center text-[10px] transition-colors">
                       {s}
                     </button>
                   ))}

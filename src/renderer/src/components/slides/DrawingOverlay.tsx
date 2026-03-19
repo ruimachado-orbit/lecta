@@ -13,6 +13,7 @@ interface DrawElement {
   type: 'freedraw' | 'line' | 'arrow' | 'rect' | 'ellipse' | 'text'
   points: DrawPoint[]
   color: string
+  fill: string // 'transparent' or a color
   width: number
   text?: string
   fontSize?: number
@@ -270,7 +271,7 @@ export function DrawingOverlay({ slideIndex, active, width, height }: DrawingOve
       setDrawing(true)
       return
     }
-    const el: DrawElement = { type: tool, points: [pos], color, width: strokeWidth }
+    const el: DrawElement = { type: tool, points: [pos], color, fill: drawingToolState.fill, width: strokeWidth }
     setCurrentElement(el)
     setDrawing(true)
   }
@@ -501,6 +502,10 @@ function drawElement(ctx: CanvasRenderingContext2D, el: DrawElement): void {
   } else if (el.type === 'rect') {
     if (el.points.length < 2) return
     const [p1, p2] = [el.points[0], el.points[el.points.length - 1]]
+    if (el.fill && el.fill !== 'transparent') {
+      ctx.fillStyle = el.fill
+      ctx.fillRect(p1.x, p1.y, p2.x - p1.x, p2.y - p1.y)
+    }
     ctx.strokeRect(p1.x, p1.y, p2.x - p1.x, p2.y - p1.y)
   } else if (el.type === 'ellipse') {
     if (el.points.length < 2) return
@@ -509,6 +514,10 @@ function drawElement(ctx: CanvasRenderingContext2D, el: DrawElement): void {
     const rx = Math.abs(p2.x - p1.x) / 2, ry = Math.abs(p2.y - p1.y) / 2
     ctx.beginPath()
     ctx.ellipse(cx, cy, Math.max(rx, 0.1), Math.max(ry, 0.1), 0, 0, Math.PI * 2)
+    if (el.fill && el.fill !== 'transparent') {
+      ctx.fillStyle = el.fill
+      ctx.fill()
+    }
     ctx.stroke()
   }
 }
@@ -517,6 +526,7 @@ function drawElement(ctx: CanvasRenderingContext2D, el: DrawElement): void {
 export const drawingToolState = {
   tool: 'freedraw' as 'select' | 'freedraw' | 'line' | 'arrow' | 'rect' | 'ellipse' | 'text' | 'eraser',
   color: document.documentElement.getAttribute('data-theme') === 'light' ? '#0f172a' : '#ffffff',
+  fill: 'transparent',
   strokeWidth: 2,
 }
 
@@ -592,6 +602,8 @@ export function DrawingToolbar(): JSX.Element {
 
       <div className="w-4 h-px bg-gray-700 my-1" />
 
+      {/* Stroke color */}
+      <span className="text-[6px] text-gray-600">Stroke</span>
       {colors.map((c) => (
         <button
           key={c}
@@ -602,6 +614,32 @@ export function DrawingToolbar(): JSX.Element {
           title={c}
         >
           <div className="w-3 h-3 rounded-full" style={{ backgroundColor: c }} />
+        </button>
+      ))}
+
+      <div className="w-4 h-px bg-gray-700 my-1" />
+
+      {/* Fill color */}
+      <span className="text-[6px] text-gray-600">Fill</span>
+      <button
+        onClick={() => { drawingToolState.fill = 'transparent'; rerender() }}
+        className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
+          drawingToolState.fill === 'transparent' ? 'ring-1 ring-white ring-offset-1 ring-offset-gray-900' : 'hover:bg-gray-800'
+        }`}
+        title="No fill"
+      >
+        <div className="w-3 h-3 rounded-sm border border-gray-600" style={{ background: 'repeating-conic-gradient(#808080 0% 25%, transparent 0% 50%) 50% / 4px 4px' }} />
+      </button>
+      {colors.map((c) => (
+        <button
+          key={`fill-${c}`}
+          onClick={() => { drawingToolState.fill = c; rerender() }}
+          className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
+            drawingToolState.fill === c ? 'ring-1 ring-white ring-offset-1 ring-offset-gray-900' : 'hover:bg-gray-800'
+          }`}
+          title={`Fill: ${c}`}
+        >
+          <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: c }} />
         </button>
       ))}
 

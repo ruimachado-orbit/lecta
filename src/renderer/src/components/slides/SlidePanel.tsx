@@ -14,8 +14,19 @@ import Editor, { type OnMount } from '@monaco-editor/react'
 
 export function SlidePanel(): JSX.Element {
   const { slides, currentSlideIndex, updateMarkdownContent, saveSlideContent, presentation } = usePresentationStore()
-  const { showNavigator, editingSlide, editorMode, setEditorMode } = useUIStore()
+  const { showNavigator, editingSlide, editorMode, setEditorMode, slideGroups } = useUIStore()
   const currentSlide = slides[currentSlideIndex]
+
+  // Compute current group label
+  const groupLabel = (() => {
+    if (!currentSlide) return null
+    const slideId = currentSlide.config.id
+    for (const group of slideGroups) {
+      const idx = group.slideIds.indexOf(slideId)
+      if (idx >= 0) return { name: group.name, position: idx + 1, total: group.slideIds.length }
+    }
+    return null
+  })()
   const editorRef = useRef<any>(null)
   const { showAIGenerate } = useUIStore()
   const [drawingMode, setDrawingMode] = useState(false)
@@ -54,6 +65,14 @@ export function SlidePanel(): JSX.Element {
 
   return (
     <div className="h-full flex flex-col bg-gray-950">
+      {/* Group label */}
+      {groupLabel && (
+        <div className="h-8 bg-indigo-950/40 border-b border-indigo-500/20 flex items-center px-4 gap-2 flex-shrink-0">
+          <div className="w-1.5 h-4 rounded-full bg-indigo-500" />
+          <span className="text-[12px] font-semibold text-indigo-300 tracking-wide">{groupLabel.name}</span>
+          <span className="text-[11px] text-indigo-400/60 font-mono">{groupLabel.position} / {groupLabel.total}</span>
+        </div>
+      )}
       {/* Editor toolbar */}
       {editingSlide && (
         <>

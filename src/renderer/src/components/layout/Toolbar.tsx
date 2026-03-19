@@ -13,6 +13,8 @@ export function Toolbar(): JSX.Element {
   const { activeTabId, closeTab } = useTabsStore()
 
   const [showAddMenu, setShowAddMenu] = useState(false)
+  const [prettifying, setPrettifying] = useState(false)
+  const [prettifyProgress, setPrettifyProgress] = useState({ current: 0, total: 0 })
   const [videoUrl, setVideoUrl] = useState('')
   const [webAppUrl, setWebAppUrl] = useState('')
 
@@ -186,6 +188,48 @@ export function Toolbar(): JSX.Element {
           title="Export as PDF"
         >
           <PdfIcon />
+        </button>
+
+        {/* Prettify deck with AI */}
+        <button
+          onClick={async () => {
+            if (prettifying || !presentation) return
+            const title = presentation.title || 'Untitled'
+            const total = slides.length
+            setPrettifying(true)
+            setPrettifyProgress({ current: 0, total })
+            try {
+              for (let i = 0; i < total; i++) {
+                setPrettifyProgress({ current: i + 1, total })
+                const slide = slides[i]
+                if (!slide?.markdownContent?.trim()) continue
+                try {
+                  const improved = await window.electronAPI.beautifySlide(slide.markdownContent, title)
+                  if (improved?.trim()) {
+                    usePresentationStore.getState().updateMarkdownContent(i, improved)
+                    await usePresentationStore.getState().saveSlideContent(i)
+                  }
+                } catch {
+                  // Skip individual slide errors
+                }
+              }
+            } finally {
+              setPrettifying(false)
+              setPrettifyProgress({ current: 0, total: 0 })
+            }
+          }}
+          disabled={prettifying || !presentation}
+          className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5 ${
+            prettifying
+              ? 'bg-indigo-600 text-white cursor-wait'
+              : 'bg-gray-800 hover:bg-indigo-600 text-gray-300 hover:text-white'
+          }`}
+          title="Polish all slides with AI — enforces 7×7 rule, cleans formatting, adds bold keywords"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
+          </svg>
+          {prettifying ? `Prettifying ${prettifyProgress.current}/${prettifyProgress.total}` : 'Prettify'}
         </button>
 
         {/* Present mode */}

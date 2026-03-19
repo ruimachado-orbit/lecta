@@ -141,14 +141,29 @@ export function useSubSlides(
       const height = container.scrollHeight
 
       if (height > CONTENT_HEIGHT && currentBlocks.length > 0) {
-        // Overflow — finalize current page, start new one
-        pages.push({
-          markdown: currentBlocks.map((b) => b.text).join('\n\n'),
-          index: pageIndex
-        })
-        breaks.push(block.charOffset)
-        pageIndex++
-        currentBlocks = [block]
+        // Don't leave a heading stranded at the end — pull it to next page
+        const lastBlock = currentBlocks[currentBlocks.length - 1]
+        const lastIsHeading = lastBlock && lastBlock.text.trim().match(/^#{1,3}\s/)
+
+        if (lastIsHeading && currentBlocks.length > 1) {
+          // Move the heading to the next page with the overflowing block
+          const headingBlock = currentBlocks.pop()!
+          pages.push({
+            markdown: currentBlocks.map((b) => b.text).join('\n\n'),
+            index: pageIndex
+          })
+          breaks.push(headingBlock.charOffset)
+          pageIndex++
+          currentBlocks = [headingBlock, block]
+        } else {
+          pages.push({
+            markdown: currentBlocks.map((b) => b.text).join('\n\n'),
+            index: pageIndex
+          })
+          breaks.push(block.charOffset)
+          pageIndex++
+          currentBlocks = [block]
+        }
       } else {
         currentBlocks.push(block)
       }

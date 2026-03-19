@@ -241,11 +241,28 @@ FORMATTING TECHNIQUES — use ALL that apply:
     - Quantify everything possible
     - "X → Y" for cause and effect
 
-STYLE: Minimalist but information-dense. Every word earns its place. Professional executive tone. Make metrics prominent and bold.`,
+STYLE: Minimalist but information-dense. Every word earns its place. Professional executive tone. Make metrics prominent and bold.
+
+SLIDE TYPE AWARENESS — adapt formatting to the slide's layout type:
+- "title" → Large impactful heading only. One powerful subtitle line. No bullets. Think conference keynote opener.
+- "section" → Bold section heading with a brief (1-line) description. Acts as a divider between topics.
+- "center" → Centered, balanced content. Great for quotes, key stats, or single powerful messages.
+- "big-number" → One HUGE metric/number as the heading, with 2-3 context bullets below.
+- "quote" → Format as an elegant blockquote with attribution.
+- "two-col" / "two-col-wide-left" / "two-col-wide-right" → Structure content into two clear sections using ## headings. First ## is left column, second ## is right column.
+- "three-col" → Structure into three ## sections for three columns.
+- "top-bottom" → First ## section is top half, second ## is bottom half.
+- "default" or unspecified → Standard content slide with heading + structured bullets/tables.
+- "blank" → Minimal formatting, let the content breathe.`,
       messages: [
         {
           role: 'user',
-          content: `Presentation: "${deckTitle}"\n\nOriginal slide content to beautify (preserve ALL information, enrich with better structure and formatting):\n\n${slideContent}`
+          content: `Presentation: "${deckTitle}"
+Slide layout type: ${slideLayout || 'default'}
+
+Original slide content to beautify (preserve ALL information, enrich with better structure and formatting):
+
+${slideContent}`
         }
       ]
     })

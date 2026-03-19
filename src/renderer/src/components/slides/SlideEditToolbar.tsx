@@ -57,7 +57,8 @@ export function SlideEditToolbar({ editorRef }: SlideEditToolbarProps): JSX.Elem
     try {
       const result = await window.electronAPI.beautifySlide(
         currentSlide.markdownContent,
-        presentation.title
+        presentation.title,
+        currentSlide.config.layout
       )
       updateMarkdownContent(currentSlideIndex, result)
       saveSlideContent(currentSlideIndex)

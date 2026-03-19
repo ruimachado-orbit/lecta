@@ -67,6 +67,44 @@ function preprocessColumns(md: string): string {
   return result
 }
 
+/**
+ * Detect and enhance visual patterns in markdown:
+ * - Status badges: 🟢🟡🔴 text → colored pill badges
+ * - Progress indicators: [progress XX%] → visual progress bar
+ * - Metric highlights: standalone bold numbers → metric cards
+ * - Horizontal rules → styled dividers
+ */
+function enhanceVisualPatterns(md: string): string {
+  let result = md
+
+  // Status badges: 🟢 text, 🟡 text, 🔴 text → styled spans
+  result = result.replace(/🟢\s*([^\n]+)/g, '<span class="slide-badge slide-badge-green">$1</span>')
+  result = result.replace(/🟡\s*([^\n]+)/g, '<span class="slide-badge slide-badge-yellow">$1</span>')
+  result = result.replace(/🔴\s*([^\n]+)/g, '<span class="slide-badge slide-badge-red">$1</span>')
+  result = result.replace(/✅\s*/g, '<span class="slide-badge-icon slide-badge-green">✓</span> ')
+  result = result.replace(/❌\s*/g, '<span class="slide-badge-icon slide-badge-red">✗</span> ')
+
+  // Progress bars: [progress XX%] or [progress XX/YY]
+  result = result.replace(
+    /\[progress\s+(\d+)%\]/gi,
+    (_m, pct) => `<div class="slide-progress"><div class="slide-progress-bar" style="width:${pct}%"></div><span class="slide-progress-label">${pct}%</span></div>`
+  )
+
+  // Metric highlight: lines that are ONLY a bold number + optional unit + optional change
+  // e.g., "**$4.2M** (+12%)" or "**98.5%** uptime"
+  result = result.replace(
+    /^(\*\*[\$€£]?[\d,.]+[KMBTkm%]?\*\*)\s*(.*)$/gm,
+    (_m, metric, context) => {
+      if (context) {
+        return `<div class="slide-metric"><span class="slide-metric-value">${metric.replace(/\*\*/g, '')}</span><span class="slide-metric-context">${context}</span></div>`
+      }
+      return `<div class="slide-metric"><span class="slide-metric-value">${metric.replace(/\*\*/g, '')}</span></div>`
+    }
+  )
+
+  return result
+}
+
 export function SlideRenderer({ markdown, rootPath }: SlideRendererProps): JSX.Element {
   return (
     <div className="slide-content max-w-none relative">

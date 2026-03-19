@@ -15,6 +15,11 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
   const dragRef = useRef<number | null>(null)
 
   const [isBeautifying, setIsBeautifying] = useState(false)
+  const [beautifyReview, setBeautifyReview] = useState<{
+    slideIndex: number
+    original: string
+    proposed: string
+  } | null>(null)
 
   // Multi-select
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set())
@@ -125,7 +130,37 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
   slideGroups.forEach((g) => g.slideIds.forEach((id) => slideGroupMap.set(id, g.id)))
 
   return (
-    <div className="bg-gray-900 border-t border-gray-800">
+    <div className="bg-gray-900 border-t border-gray-800 relative">
+      {/* Beautify review bar */}
+      {beautifyReview && (
+        <div className="bg-gray-800 border-b border-gray-700 flex items-center justify-between px-4 py-2">
+          <div className="flex items-center gap-2">
+            <svg className="w-3.5 h-3.5 text-white" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+            </svg>
+            <span className="text-xs text-white font-medium">Review beautified slide</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => { updateMarkdownContent(beautifyReview.slideIndex, beautifyReview.original); setBeautifyReview(null) }}
+              className="px-3 py-1 text-[11px] bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition-colors">
+              Reject
+            </button>
+            <button onClick={() => { saveSlideContent(beautifyReview.slideIndex); setBeautifyReview(null) }}
+              className="px-3 py-1 text-[11px] bg-white hover:bg-gray-200 text-black font-medium rounded transition-colors">
+              Accept
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Loading indicator */}
+      {isBeautifying && !beautifyReview && (
+        <div className="bg-gray-800 border-b border-gray-700 flex items-center gap-2 px-4 py-2">
+          <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+          <span className="text-xs text-gray-400">Beautifying slide with AI...</span>
+        </div>
+      )}
+
       {slideGroups.length > 0 && (
         <div className="flex items-center gap-1 px-4 py-1 border-b border-gray-800 overflow-x-auto">
           <span className="text-[8px] text-gray-600 mr-1 flex-shrink-0">GROUPS</span>
@@ -439,19 +474,26 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
                     const slide = slides[idx]
                     if (!slide || !presentation) return
                     setIsBeautifying(true)
+                    setContextMenu(null)
+                    setSelectedIndices(new Set())
                     try {
                       const result = await window.electronAPI.beautifySlide(
                         slide.markdownContent,
-                        presentation.title
+                        presentation.title,
+                        slide.config.layout
                       )
+                      // Show review — don't apply yet
+                      goToSlide(idx)
                       updateMarkdownContent(idx, result)
-                      saveSlideContent(idx)
+                      setBeautifyReview({
+                        slideIndex: idx,
+                        original: slide.markdownContent,
+                        proposed: result
+                      })
                     } catch (err) {
                       console.error('Beautify failed:', err)
                     } finally {
                       setIsBeautifying(false)
-                      setContextMenu(null)
-                      setSelectedIndices(new Set())
                     }
                   }}
                   className="w-full text-left px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-800 transition-colors flex items-center gap-2"

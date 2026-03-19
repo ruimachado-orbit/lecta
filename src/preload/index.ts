@@ -42,6 +42,8 @@ const api = {
     ipcRenderer.invoke('fs:set-transition', rootPath, slideIndex, transition),
   setSlideLayout: (rootPath: string, slideIndex: number, layout: string): Promise<LoadedPresentation> =>
     ipcRenderer.invoke('fs:set-layout', rootPath, slideIndex, layout),
+  toggleSkipSlide: (rootPath: string, slideIndex: number): Promise<LoadedPresentation> =>
+    ipcRenderer.invoke('fs:toggle-skip', rootPath, slideIndex),
   removeAttachment: (
     rootPath: string, slideIndex: number, type: 'code' | 'video' | 'webapp' | 'artifact', artifactIndex?: number
   ): Promise<LoadedPresentation> =>

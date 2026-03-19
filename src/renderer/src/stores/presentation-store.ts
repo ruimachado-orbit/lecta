@@ -337,17 +337,15 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
     }
   },
 
-  toggleSkipSlide: (slideIndex: number) => {
-    set((state) => {
-      const slides = [...state.slides]
-      if (slides[slideIndex]) {
-        const config = { ...slides[slideIndex].config, skipped: !slides[slideIndex].config.skipped }
-        slides[slideIndex] = { ...slides[slideIndex], config }
-      }
-      return { slides, hasUnsavedChanges: true }
-    })
-    // Save to disk
-    get().saveSlideContent(slideIndex)
+  toggleSkipSlide: async (slideIndex: number) => {
+    const { presentation, currentSlideIndex } = get()
+    if (!presentation) return
+    try {
+      const loaded = await window.electronAPI.toggleSkipSlide(presentation.rootPath, slideIndex)
+      set(applyLoaded(loaded, currentSlideIndex))
+    } catch (error) {
+      set({ error: (error as Error).message })
+    }
   },
 
   setSlideTransition: async (transition: string) => {

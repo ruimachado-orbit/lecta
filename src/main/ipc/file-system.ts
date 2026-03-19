@@ -697,6 +697,25 @@ export function registerFileSystemHandlers(): void {
     }
   )
 
+  // Toggle skip/hidden on a slide
+  ipcMain.handle(
+    'fs:toggle-skip',
+    async (_event, rootPath: string, slideIndex: number): Promise<LoadedPresentation> => {
+      const configPath = join(rootPath, DECK_CONFIG_FILE)
+      const yamlContent = await readFile(configPath, 'utf-8')
+      const config = parsePresentationYaml(yamlContent, rootPath)
+      const slide = config.slides[slideIndex]
+      if (!slide) throw new Error(`Slide at index ${slideIndex} not found`)
+      slide.skipped = !slide.skipped
+      if (!slide.skipped) delete (slide as any).skipped
+      await savePresentationYaml(config)
+      const reloaded = await readFile(configPath, 'utf-8')
+      const reloadedConfig = parsePresentationYaml(reloaded, rootPath)
+      const slides = await loadAllSlides(reloadedConfig, rootPath)
+      return { config: reloadedConfig, slides }
+    }
+  )
+
   // Remove an attachment (code, video, webapp, or file artifact) from a slide
   ipcMain.handle(
     'fs:remove-attachment',

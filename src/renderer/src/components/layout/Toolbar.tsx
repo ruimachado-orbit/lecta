@@ -233,11 +233,8 @@ export function Toolbar(): JSX.Element {
               }
             }}
             disabled={prettifying || !presentation}
-            className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5 ${
-              prettifying
-                ? 'bg-indigo-600 text-white cursor-wait'
-                : 'bg-gray-800 hover:bg-indigo-600 text-gray-300 hover:text-white'
-            }`}
+            className="px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5 bg-gray-800 hover:bg-indigo-600 text-gray-300 hover:text-white"
+            style={prettifying ? { background: '#4f46e5', color: '#ffffff', cursor: 'wait' } : undefined}
             title="Polish all slides with AI — review changes per slide"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">

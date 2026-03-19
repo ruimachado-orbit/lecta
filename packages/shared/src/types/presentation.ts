@@ -25,6 +25,11 @@ export interface WebAppConfig {
   label?: string
 }
 
+export interface PromptConfig {
+  prompt: string
+  label?: string
+}
+
 export type SlideTransition = 'none' | 'left' | 'right' | 'top' | 'bottom'
 
 export type SlideLayout =
@@ -47,6 +52,7 @@ export interface SlideConfig {
   code?: CodeBlockConfig
   video?: VideoConfig
   webapp?: WebAppConfig
+  prompt?: PromptConfig
   artifacts: ArtifactConfig[]
   notes?: string
   transition?: SlideTransition

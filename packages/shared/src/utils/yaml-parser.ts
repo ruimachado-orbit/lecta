@@ -31,12 +31,18 @@ const WebAppConfigSchema = z.object({
   label: z.string().optional()
 })
 
+const PromptConfigSchema = z.object({
+  prompt: z.string(),
+  label: z.string().optional()
+})
+
 const SlideConfigSchema = z.object({
   id: z.string(),
   content: z.string(),
   code: CodeBlockConfigSchema.optional(),
   video: VideoConfigSchema.optional(),
   webapp: WebAppConfigSchema.optional(),
+  prompt: PromptConfigSchema.optional(),
   artifacts: z.array(ArtifactConfigSchema).default([]),
   notes: z.string().optional(),
   transition: z.enum(['none', 'left', 'right', 'top', 'bottom']).optional(),

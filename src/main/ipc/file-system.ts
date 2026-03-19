@@ -85,6 +85,7 @@ async function savePresentationYaml(presentation: Presentation): Promise<void> {
       if (s.code) slide.code = s.code
       if (s.video) slide.video = s.video
       if (s.webapp) slide.webapp = s.webapp
+      if (s.prompt) slide.prompt = s.prompt
       slide.artifacts = s.artifacts
       if (s.notes) slide.notes = s.notes
       if (s.transition && s.transition !== 'none') slide.transition = s.transition

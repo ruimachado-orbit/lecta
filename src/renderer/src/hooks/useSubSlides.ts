@@ -93,14 +93,32 @@ export function useSubSlides(
   subSlides: SubSlide[]
   currentSubSlide: number
   setCurrentSubSlide: (n: number) => void
-  /** Character offsets in the source markdown where each sub-slide break occurs */
   breakOffsets: number[]
 } {
   const [subSlides, setSubSlides] = useState<SubSlide[]>([{ markdown, index: 0 }])
-  const [currentSubSlide, setCurrentSubSlide] = useState(0)
   const [breakOffsets, setBreakOffsets] = useState<number[]>([])
   const measureRef = useRef<HTMLDivElement | null>(null)
 
+  // Read sub-slide state from the presentation store
+  let storeSubSlide = 0
+  let storeSetSubSlide: ((n: number) => void) | null = null
+  try {
+    const store = require('../stores/presentation-store')
+    const state = store.usePresentationStore?.getState?.()
+    if (state) {
+      storeSubSlide = state.currentSubSlide ?? 0
+      storeSetSubSlide = (n: number) => store.usePresentationStore.setState({ currentSubSlide: n })
+    }
+  } catch {}
+
+  const [localSubSlide, setLocalSubSlide] = useState(0)
+  const currentSubSlide = storeSetSubSlide ? storeSubSlide : localSubSlide
+  const setCurrentSubSlide = useCallback((n: number) => {
+    if (storeSetSubSlide) storeSetSubSlide(n)
+    else setLocalSubSlide(n)
+  }, [])
+
+  // Reset on slide change
   useEffect(() => {
     setCurrentSubSlide(0)
   }, [slideIndex])

@@ -11,6 +11,10 @@ interface PresentationState {
   lastSavedAt: Date | null
   hasUnsavedChanges: boolean
 
+  // Sub-slide state (synced from useSubSlides hook)
+  currentSubSlide: number
+  totalSubSlides: number
+
   // Derived getters
   currentSlide: () => LoadedSlide | null
   totalSlides: () => number
@@ -62,6 +66,8 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
   isSaving: false,
   lastSavedAt: null,
   hasUnsavedChanges: false,
+  currentSubSlide: 0,
+  totalSubSlides: 1,
 
   currentSlide: () => {
     const { slides, currentSlideIndex } = get()
@@ -140,26 +146,41 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
   goToSlide: (index: number) => {
     const { slides } = get()
     if (index >= 0 && index < slides.length) {
-      set({ currentSlideIndex: index })
+      set({ currentSlideIndex: index, currentSubSlide: 0 })
       window.electronAPI.syncPresenterSlide(index)
     }
   },
 
   nextSlide: () => {
-    const { currentSlideIndex, slides } = get()
+    const { currentSlideIndex, slides, currentSubSlide, totalSubSlides } = get()
+    // If there are more sub-slides, advance sub-slide first
+    if (totalSubSlides > 1 && currentSubSlide < totalSubSlides - 1) {
+      set({ currentSubSlide: currentSubSlide + 1 })
+      return
+    }
+    // Otherwise, go to next slide (reset sub-slide to 0)
     if (currentSlideIndex < slides.length - 1) {
       const newIndex = currentSlideIndex + 1
-      set({ currentSlideIndex: newIndex })
+      set({ currentSlideIndex: newIndex, currentSubSlide: 0 })
       window.electronAPI.syncPresenterSlide(newIndex)
     }
   },
 
   prevSlide: () => {
-    const { currentSlideIndex } = get()
+    const { currentSlideIndex, currentSubSlide } = get()
+    // If on a sub-slide > 0, go back one sub-slide
+    if (currentSubSlide > 0) {
+      set({ currentSubSlide: currentSubSlide - 1 })
+      return
+    }
+    // Otherwise, go to previous slide (set sub-slide to last)
     if (currentSlideIndex > 0) {
       const newIndex = currentSlideIndex - 1
-      set({ currentSlideIndex: newIndex })
+      set({ currentSlideIndex: newIndex, currentSubSlide: 0 })
       window.electronAPI.syncPresenterSlide(newIndex)
+      // After the slide loads and sub-slides are computed, jump to last sub-slide
+      // This is handled by setting a flag — the useSubSlides hook will pick it up
+      set({ currentSubSlide: -1 }) // -1 means "go to last"
     }
   },
 

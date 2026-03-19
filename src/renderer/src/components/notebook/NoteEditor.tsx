@@ -128,6 +128,18 @@ function resolveImageSrc(src: string, rootPath?: string): string {
   return src
 }
 
+/** If content is already HTML (stored directly from editor), use as-is.
+ *  If it's legacy markdown, convert it once. */
+function getEditorContent(content: string, rootPath?: string): string {
+  const trimmed = content.trim()
+  // Detect HTML: starts with a tag
+  if (trimmed.startsWith('<') && (trimmed.startsWith('<h') || trimmed.startsWith('<p') || trimmed.startsWith('<ul') || trimmed.startsWith('<ol') || trimmed.startsWith('<div') || trimmed.startsWith('<br'))) {
+    return content
+  }
+  // Legacy markdown — convert once
+  return markdownToHtml(content.replace(/<!--.*?-->/gs, ''), rootPath)
+}
+
 function markdownToHtml(md: string, rootPath?: string): string {
   const lines = md.split('\n')
   const html: string[] = []
@@ -250,7 +262,7 @@ export function NoteEditor({ pageIndex }: NoteEditorProps): JSX.Element {
         placeholder: 'Start writing your note...'
       })
     ],
-    content: page ? markdownToHtml(page.markdownContent.replace(/<!--.*?-->/gs, ''), notebook?.rootPath) : '',
+    content: page ? getEditorContent(page.markdownContent, notebook?.rootPath) : '',
     editorProps: {
       attributes: {
         class: 'wysiwyg-content outline-none min-h-[200px]'
@@ -258,9 +270,10 @@ export function NoteEditor({ pageIndex }: NoteEditorProps): JSX.Element {
     },
     onUpdate: ({ editor }) => {
       if (isInternalUpdate.current) return
+      // Store HTML directly — no markdown conversion. This preserves all spacing,
+      // formatting, colors, and structure exactly as the user typed it.
       const html = editor.getHTML()
-      const md = turndown.turndown(html)
-      updateMarkdownContent(pageIndex, md)
+      updateMarkdownContent(pageIndex, html)
 
       updateStrikeButton()
 
@@ -275,13 +288,10 @@ export function NoteEditor({ pageIndex }: NoteEditorProps): JSX.Element {
   // Sync content when page changes
   useEffect(() => {
     if (!editor || !page) return
-    const currentHtml = editor.getHTML()
-    const newHtml = markdownToHtml(page.markdownContent.replace(/<!--.*?-->/gs, ''), notebook?.rootPath)
-    if (turndown.turndown(currentHtml) !== page.markdownContent) {
-      isInternalUpdate.current = true
-      editor.commands.setContent(newHtml)
-      isInternalUpdate.current = false
-    }
+    const newContent = getEditorContent(page.markdownContent, notebook?.rootPath)
+    isInternalUpdate.current = true
+    editor.commands.setContent(newContent)
+    isInternalUpdate.current = false
   }, [pageIndex])
 
   // Track current text color / highlight from selection

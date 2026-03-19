@@ -224,11 +224,23 @@ function extractTables(md: string): { processed: string; tables: string[] } {
 }
 
 // Re-inject tables into markdown, replacing [TABLE_N] placeholders
+// Handles both escaped (\[TABLE\_0\]) and unescaped ([TABLE_0]) versions
 function injectTables(md: string, tables: string[]): string {
-  return md.replace(/\[TABLE_(\d+)\]/g, (_match, idx) => {
+  if (tables.length === 0) return md
+  // Handle various escaped versions from turndown
+  md = md.replace(/\\?\[TABLE[_\\]*(\d+)\\?\]/g, (_match, idx) => {
     const i = parseInt(idx, 10)
-    return tables[i] || _match
+    return tables[i] != null ? tables[i] : _match
   })
+  // Handle "**Table:** Header1 | Header2" indicator text that turndown might produce
+  let tableIdx = 0
+  md = md.replace(/\*\*Table:\*\*\s+[^\n]+/g, (match) => {
+    if (tableIdx < tables.length) {
+      return tables[tableIdx++]
+    }
+    return match
+  })
+  return md
 }
 
 // Store extracted tables globally so the onUpdate handler can re-inject them
@@ -602,18 +614,18 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
     }
   }, [editor, slideIndex])
 
-  // Sync content when slide changes
+  // Sync content ONLY when switching to a different slide
+  const prevSlideIdx = useRef(slideIndex)
   useEffect(() => {
     if (!editor || !slide) return
-    const currentHtml = editor.getHTML()
-    const newHtml = markdownToHtml(slide.markdownContent, presentation?.rootPath)
-    // Only update if content actually changed (avoid cursor jumping)
-    if (turndown.turndown(currentHtml) !== slide.markdownContent) {
+    if (prevSlideIdx.current !== slideIndex) {
+      prevSlideIdx.current = slideIndex
+      const newHtml = markdownToHtml(slide.markdownContent, presentation?.rootPath)
       isInternalUpdate.current = true
       editor.commands.setContent(newHtml)
       isInternalUpdate.current = false
     }
-  }, [slideIndex])
+  }, [slideIndex, editor, slide])
 
   // Track current text color/highlight from selection
   const [activeColor, setActiveColor] = useState('#fff')

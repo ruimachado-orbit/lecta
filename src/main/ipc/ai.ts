@@ -219,26 +219,41 @@ export function registerAiHandlers(): void {
 
       if (ext === 'pdf') {
         try {
-          const buffer = await readFile(filePath)
-          const { createRequire } = await import('module')
-          const { join, dirname } = await import('path')
-          // Use createRequire from app root to resolve pdfjs-dist from node_modules
-          const appRequire = createRequire(join(process.cwd(), 'package.json'))
-          const pdfjsPath = appRequire.resolve('pdfjs-dist/legacy/build/pdf.mjs')
-          const workerPath = join(dirname(pdfjsPath), 'pdf.worker.mjs')
-          const pdfjsLib = appRequire(pdfjsPath)
-          pdfjsLib.GlobalWorkerOptions.workerSrc = workerPath
-          const data = new Uint8Array(buffer)
-          const doc = await pdfjsLib.getDocument({ data }).promise
-          let text = ''
-          for (let i = 1; i <= doc.numPages; i++) {
-            const page = await doc.getPage(i)
-            const content = await page.getTextContent()
-            text += content.items.map((item: any) => item.str).join(' ') + '\n'
-          }
-          return text.trim().slice(0, 50000)
+          const { execFileSync } = await import('child_process')
+          const { join } = await import('path')
+          const { app } = await import('electron')
+          const appPath = app.getAppPath()
+          const projectRoot = appPath.endsWith('.asar')
+            ? join(appPath, '..', '..')
+            : appPath
+          const script = [
+            'const fs = require("fs");',
+            'const path = require("path");',
+            'const root = process.argv[1];',
+            'const pdfjsLib = require(path.join(root, "node_modules", "pdfjs-dist", "legacy", "build", "pdf.mjs"));',
+            'const workerPath = path.join(root, "node_modules", "pdfjs-dist", "legacy", "build", "pdf.worker.mjs");',
+            'pdfjsLib.GlobalWorkerOptions.workerSrc = workerPath;',
+            'async function main() {',
+            '  const data = new Uint8Array(fs.readFileSync(process.argv[2]));',
+            '  const doc = await pdfjsLib.getDocument({ data }).promise;',
+            '  let text = "";',
+            '  for (let i = 1; i <= doc.numPages; i++) {',
+            '    const page = await doc.getPage(i);',
+            '    const content = await page.getTextContent();',
+            '    text += content.items.map(item => item.str).join(" ") + "\\n";',
+            '  }',
+            '  process.stdout.write(text);',
+            '}',
+            'main().catch(e => { process.stderr.write(e.message); process.exit(1); });'
+          ].join('\n')
+          const result = execFileSync('node', ['--eval', script, projectRoot, filePath], {
+            maxBuffer: 10 * 1024 * 1024,
+            timeout: 30000,
+            encoding: 'utf-8'
+          })
+          return result.trim().slice(0, 50000)
         } catch (err) {
-          console.error('[pdf] Error:', err)
+          console.error('[pdf] Error:', err instanceof Error ? err.message : err)
           return '[Could not read PDF file]'
         }
       }

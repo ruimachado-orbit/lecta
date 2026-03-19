@@ -493,58 +493,48 @@ OUTPUT FORMAT: A valid JSON object with this exact structure:
 
 Output ONLY the JSON object. No markdown wrapping, no explanation, no \`\`\`json fences.
 
-SLIDE DESIGN PRINCIPLES:
+AVAILABLE LAYOUTS — choose the best for each slide:
+- "title" → Slide 1 only. Centered. Use: # Title\\n\\nSubtitle text
+- "center" → Big stats or single powerful message. Centered vertically and horizontally.
+- "section" → Section dividers with left accent bar. Use sparingly (max 2).
+- "two-col" → Equal 50/50 columns. Content after the first element (h1) splits into columns. Separate columns with a horizontal rule (---).
+- "default" → Standard content. Padded 48px. Best for bullets, tables, mixed content.
+- "top-bottom" → Vertical split. Good for data on top + analysis below.
+- "big-number" → Single large metric. h1 renders at 7rem with gradient. Use for: # **$4.2M**\\n\\nRevenue this quarter
+- "quote" → Pull quote with decorative quotation mark. Use for: # "Quote text here"\\n\\n— Attribution
 
-1. **Pyramid Principle**: Lead with the conclusion/recommendation first, then supporting evidence.
+VISUAL FEATURES — the renderer supports these special patterns:
+- Status badges: Start a line with 🟢, 🟡, or 🔴 for colored pill badges
+- Progress bars: Write [progress 75%] for a visual progress bar
+- Metric highlights: Bold a number like **$4.2M** (+12%) for styled metric cards
+- Mermaid diagrams: \`\`\`mermaid\\ngraph LR\\n  A["Label"] --> B["Label"]\\n\`\`\`
+- Tables: Standard markdown tables with | pipes |
+- Blockquotes: > for callout boxes with styled border
 
-2. **Every slide must have substance**:
-   - No filler slides. No "Thank you" slides. No "Questions?" slides.
-   - Every slide should contain real information, data, or analysis.
-   - Use markdown tables for comparisons (| Column | Column |)
-   - Use blockquotes for key insights (> **Key Insight:** ...)
-   - Use bold for metrics and key terms
+MERMAID RULES: Always use double quotes around node labels. Use descriptive 2-3 word labels. Prefer graph TD for 4+ steps. Keep simple (3-6 nodes max).
 
-3. **Slide types to use** — assign the best layout for each:
-   - "title" → Opening slide: bold title + one subtitle line. Only for slide 1.
-   - "center" → Key stats, quotes, or single powerful messages
-   - "section" → Section dividers between major topics (use sparingly, max 2-3)
-   - "two-col" → Comparisons, before/after, pros/cons
-   - "default" → Standard content slides with heading + structured bullets/tables
-   - "top-bottom" → Data on top, analysis on bottom
+SLIDE DESIGN RULES:
+1. **Pyramid Principle**: Lead with conclusion first, then evidence.
+2. **No filler**: No "Thank you", "Questions?", or empty slides.
+3. **CONTENT DENSITY IS CRITICAL**: The slide canvas is 1280x720px with 48px padding. A slide that is less than 60% filled looks broken and amateur.
+   - MINIMUM per "default" slide: 10-15 lines of markdown content (bullets, tables, blockquotes combined)
+   - MINIMUM per "two-col" slide: 8-10 lines per column. Each column must have its own ## heading, 4-6 bullet points, and optionally a table or blockquote.
+   - Use multi-level bullets (indent with spaces) to add detail under each point
+   - Add a > **Key Takeaway:** blockquote at the bottom of content-heavy slides
+   - Use status badges (🟢 🟡 🔴) inline with bullet points for visual richness
+4. **One # heading per slide** (the slide title). Use ## for sub-sections within.
+5. **Bold key terms and metrics**: **Revenue**, **+23%**, **$4.2M**
+6. **Use tables** for any comparison of 3+ items. Tables should have 4+ rows with ALL cells filled.
+7. **Prefer "default" layout** for content-heavy slides. Only use "two-col" when you have enough content to fill BOTH columns densely.
+8. **Vary visual elements**: Each slide should use at least 2 different elements (bullets + table, bullets + blockquote, table + status badges, etc.)
 
-4. **Content richness** — FILL THE SLIDE. A slide with 30% content and 70% empty space looks amateur.
-   - Each content slide should have 8-15 lines of meaningful content
-   - Include markdown tables whenever comparing 3+ items (full rows, no empty cells)
-   - Use status indicators: 🟢 On Track, 🟡 In Progress, 🔴 At Risk
-   - Use progress bars: [progress 75%]
-   - Bold metrics prominently: **$4.2M** or **+23%**
-   - Use multi-level bullets with indentation for detail — at least 5-8 bullet points per content slide
-   - Use blockquotes for key insights at the bottom of slides: > **Key Takeaway:** ...
-   - For mermaid diagrams, use FULL descriptive labels (never truncate):
-     \`\`\`mermaid
-     graph LR
-       A["User Input"] --> B["Processing Engine"]
-       B --> C["Output Generation"]
-     \`\`\`
-   - MERMAID RULES: Always use double quotes around node labels. Use descriptive 2-3 word labels. Prefer graph TD (top-down) for processes with 4+ steps. Keep diagrams simple (3-6 nodes max).
+STRUCTURE for ${slideCount} slides:
+- Slide 1: Title slide (layout: "title") — just title + subtitle
+- Slide 2: Executive summary or key findings (layout: "default" or "center")
+- Slides 3-${slideCount - 1}: Deep content with tables, data, diagrams. Use section dividers where topics shift.
+- Slide ${slideCount}: Recommendations or next steps (layout: "default")
 
-5. **Structure**:
-   - Slide 1: Title slide (layout: "title")
-   - Slides 2-3: Executive summary / key findings (layout: "center" or "default")
-   - Middle slides: Deep-dive content with data, tables, charts
-   - Section dividers where topic shifts (layout: "section")
-   - Final slide: Recommendations or next steps (layout: "default")
-
-6. **Markdown formatting**:
-   - # for slide title (exactly one per slide)
-   - ## for section headers within a slide
-   - **bold** for key terms and metrics
-   - > for callout blockquotes
-   - | for tables
-   - \`\`\`mermaid for diagrams
-   - - for bullets, with indentation for sub-bullets
-
-Generate exactly ${slideCount} slides. CRITICAL: Every content slide must FILL the visual space — aim for 8-15 lines of content per slide. Use tables, multi-level bullets, blockquote callouts, and mermaid diagrams to fill slides with substance. Empty-looking slides are unacceptable.`
+Generate exactly ${slideCount} slides.`
 
     // Use streaming to track progress
     const stream = client.messages.stream({

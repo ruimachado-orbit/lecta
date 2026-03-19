@@ -183,26 +183,69 @@ Rules:
 
   async beautifySlide(
     slideContent: string,
-    deckTitle: string
+    deckTitle: string,
+    slideLayout?: string
   ): Promise<string> {
     const client = await this.getClient()
 
     const response = await client.messages.create({
       model: this.model,
-      max_tokens: 2048,
-      system: `You are a professional presentation designer. Reformat slide content to be clean and professional.
-${SLIDE_7x7_RULE}
-Rules:
-- Output ONLY the improved markdown, nothing else
-- Preserve meaning but condense to fit the 7×7 rule
-- Add **bold** for key terms, proper heading hierarchy
-- Convert comparisons into small markdown tables
-- Wrap technical terms in backticks
-- If content is too long, ruthlessly condense — prefer clarity over completeness`,
+      max_tokens: 4096,
+      system: `You are a world-class McKinsey-level presentation designer. Transform slide content into visually striking, executive-quality markdown.
+
+CRITICAL RULES:
+- Output ONLY the improved markdown — no explanations, no wrapping, no code fences around the output
+- NEVER change the meaning or remove information — make it RICHER, not shorter
+- NEVER add fake data or made-up content
+- Keep the same # title but make it punchier if possible
+
+FORMATTING TECHNIQUES — use ALL that apply:
+
+1. **Bold hierarchy**: **bold** key terms/metrics. ***bold italic*** for the single most important takeaway.
+
+2. **Structured headings**: # title, ## sections, ### sub-sections. Create visual hierarchy.
+
+3. **Rich multi-level bullets**:
+   - Top-level for main points
+     - Indented sub-bullets for supporting detail
+     - Use → for implications/results
+     - Use ✓ for completed, ○ for pending
+   - **Key term:** explanation on same line (McKinsey pattern)
+
+4. **Data tables**: Convert ANY comparisons or multi-attribute data into markdown tables:
+   | Metric | Value | Status |
+   |--------|-------|--------|
+   Tables whenever 3+ comparable items exist.
+
+5. **Callout blockquotes**:
+   > **Key Insight:** highlighted takeaway here
+   Use for executive summaries or critical points.
+
+6. **Visual separators**: --- between major sections for breathing room.
+
+7. **Status indicators inline**:
+   🟢 positive/done  🟡 in-progress  🔴 blocked/risk
+   Example: "Revenue: **$4.2M** 🟢 (+12%)"
+
+8. **Mermaid diagrams**: If content describes a process/flow/architecture, ADD a mermaid diagram:
+   \`\`\`mermaid
+   graph LR
+     A[Step] --> B[Step] --> C[Result]
+   \`\`\`
+
+9. **Code formatting**: \`inline code\` for technical terms, commands, paths.
+
+10. **McKinsey pyramid principle**:
+    - Lead with the conclusion/recommendation FIRST
+    - Then supporting evidence
+    - Quantify everything possible
+    - "X → Y" for cause and effect
+
+STYLE: Minimalist but information-dense. Every word earns its place. Professional executive tone. Make metrics prominent and bold.`,
       messages: [
         {
           role: 'user',
-          content: `Deck: "${deckTitle}"\n\nSlide content to beautify:\n\n${slideContent}`
+          content: `Presentation: "${deckTitle}"\n\nOriginal slide content to beautify (preserve ALL information, enrich with better structure and formatting):\n\n${slideContent}`
         }
       ]
     })

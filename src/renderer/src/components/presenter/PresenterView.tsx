@@ -118,13 +118,16 @@ export function PresenterView(): JSX.Element {
             </svg>
           </button>
         </div>
-        {/* Group label */}
+        {/* Group label — uses group color */}
         {currentGroup && (
-          <div className="flex items-center gap-2 px-3 py-1 bg-white rounded-full">
-            <span className="text-xs text-black font-semibold">{currentGroup.name}</span>
-            <span className="text-xs text-gray-500 font-medium">{groupSlideIndex}/{currentGroup.slideIds.length}</span>
+          <div className="flex items-center gap-2 px-3 py-1 rounded-full"
+               style={{ backgroundColor: currentGroup.color || '#374151' }}>
+            <span className="text-xs text-white font-semibold">{currentGroup.name}</span>
+            <span className="text-xs text-white/60 font-medium">{groupSlideIndex}/{currentGroup.slideIds.length}</span>
           </div>
         )}
+        {/* Total slide counter */}
+        <span className="text-gray-400 text-[10px] font-mono">{currentSlideIndex + 1} / {slides.length}</span>
         <span className="text-gray-500 text-xs truncate flex-1">{presentation?.title}</span>
         <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           <button onClick={() => setShowNotes(!showNotes)}
@@ -164,7 +167,7 @@ export function PresenterView(): JSX.Element {
           </div>
         ) : activeArtifact ? (
           <PanelGroup direction="horizontal" className="flex-1 min-w-0"
-            onLayout={(sizes) => { if (sizes[1] !== undefined) setPanelSize(sizes[1]) }}>
+            onLayout={(sizes) => { if (sizes[1] !== undefined) { setPanelSize(sizes[1]); if (activeArtifact) typeSizeMemory.current[activeArtifact] = sizes[1] } }}>
             <Panel defaultSize={100 - panelSize} minSize={30}>
               <PresenterSlide markdown={slideMarkdown} rootPath={rootPath} layout={layout} />
             </Panel>

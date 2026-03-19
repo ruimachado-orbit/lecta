@@ -87,10 +87,11 @@ export function registerAiHandlers(): void {
     async (
       _event,
       slideContent: string,
-      deckTitle: string
+      deckTitle: string,
+      slideLayout?: string
     ): Promise<string> => {
       const service = getAIService()
-      return service.beautifySlide(slideContent, deckTitle)
+      return service.beautifySlide(slideContent, deckTitle, slideLayout)
     }
   )
 

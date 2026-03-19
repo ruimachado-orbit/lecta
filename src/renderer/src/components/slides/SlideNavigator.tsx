@@ -3,7 +3,7 @@ import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore } from '../../stores/ui-store'
 
 export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCount?: number; currentSubSlide?: number }): JSX.Element {
-  const { slides, currentSlideIndex, goToSlide, addSlide, deleteSlide, reorderSlide, renameSlide, setSlideTransition, setSlideLayout, toggleSkipSlide } =
+  const { slides, currentSlideIndex, goToSlide, addSlide, deleteSlide, reorderSlide, renameSlide, setSlideTransition, setSlideLayout, toggleSkipSlide, updateMarkdownContent, saveSlideContent, presentation } =
     usePresentationStore()
   const { slideGroups, addSlideGroup, removeSlideGroup, toggleGroupCollapsed, addSlideToGroup, removeSlideFromGroup, setGroupColor } =
     useUIStore()
@@ -13,6 +13,8 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
   const [dropTarget, setDropTarget] = useState<number | null>(null)
   const [dropGroupId, setDropGroupId] = useState<string | null>(null)
   const dragRef = useRef<number | null>(null)
+
+  const [isBeautifying, setIsBeautifying] = useState(false)
 
   // Multi-select
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set())
@@ -423,6 +425,42 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
                     )
                   })}
                 </div>
+              </>
+            )}
+
+            {/* Beautify with AI */}
+            {selectedIndices.size === 1 && (
+              <>
+                <div className="border-t border-gray-800 my-1" />
+                <button
+                  disabled={isBeautifying}
+                  onClick={async () => {
+                    const idx = Array.from(selectedIndices)[0]
+                    const slide = slides[idx]
+                    if (!slide || !presentation) return
+                    setIsBeautifying(true)
+                    try {
+                      const result = await window.electronAPI.beautifySlide(
+                        slide.markdownContent,
+                        presentation.title
+                      )
+                      updateMarkdownContent(idx, result)
+                      saveSlideContent(idx)
+                    } catch (err) {
+                      console.error('Beautify failed:', err)
+                    } finally {
+                      setIsBeautifying(false)
+                      setContextMenu(null)
+                      setSelectedIndices(new Set())
+                    }
+                  }}
+                  className="w-full text-left px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-800 transition-colors flex items-center gap-2"
+                >
+                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+                  </svg>
+                  {isBeautifying ? 'Beautifying...' : 'Beautify with AI'}
+                </button>
               </>
             )}
 

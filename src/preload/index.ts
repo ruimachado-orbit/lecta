@@ -95,8 +95,8 @@ const api = {
     ipcRenderer.invoke('ai:generate-slide-content', prompt, deckTitle, existingContent),
   generateChart: (prompt: string, deckTitle: string): Promise<string> =>
     ipcRenderer.invoke('ai:generate-chart', prompt, deckTitle),
-  beautifySlide: (slideContent: string, deckTitle: string): Promise<string> =>
-    ipcRenderer.invoke('ai:beautify-slide', slideContent, deckTitle),
+  beautifySlide: (slideContent: string, deckTitle: string, slideLayout?: string): Promise<string> =>
+    ipcRenderer.invoke('ai:beautify-slide', slideContent, deckTitle, slideLayout),
   generateBulkSlides: (
     prompt: string, deckTitle: string, existingSlides: string[], count: number, artifactContext?: string
   ): Promise<{ id: string; markdown: string }[]> =>

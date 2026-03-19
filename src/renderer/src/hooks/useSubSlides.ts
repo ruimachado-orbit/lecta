@@ -125,22 +125,30 @@ export function useSubSlides(
   }, [slideIndex])
 
   const measure = useCallback(() => {
-    // Check for manual sub-slide breaks (--- on its own line)
+    // Check for manual sub-slide breaks (--- or * * * or *** on its own line)
     // If found, use those as explicit break points instead of auto-calculating
-    const hasManualBreaks = markdown.split('\n').some((line) => line.trim() === '---')
+    const hasManualBreaks = markdown.split('\n').some((line) => {
+      const t = line.trim()
+      return t === '---' || t === '***' || t === '* * *' || t === '___' || t.match(/^-{3,}$/) || t.match(/^\*\s*\*\s*\*$/)
+    })
 
     if (hasManualBreaks) {
-      // Split on --- delimiters
-      const sections = markdown.split(/\n---\n/)
+      // Split on horizontal rule delimiters (---, ***, * * *, ___)
+      const sections = markdown.split(/\n(?:---+|\*\s*\*\s*\*|___+)\n/)
       const pages: SubSlide[] = sections.map((section, i) => ({
         markdown: section.trim(),
         index: i
       }))
+      // Find break offsets by scanning lines for hr markers
       const breaks: number[] = []
-      let pos = 0
-      for (let i = 0; i < sections.length - 1; i++) {
-        pos += sections[i].length + 5 // +5 for \n---\n
-        breaks.push(pos)
+      let charPos = 0
+      const lines = markdown.split('\n')
+      for (const line of lines) {
+        const t = line.trim()
+        if (t === '---' || t === '***' || t === '* * *' || t === '___' || t.match(/^-{3,}$/) || t.match(/^\*\s*\*\s*\*$/)) {
+          breaks.push(charPos)
+        }
+        charPos += line.length + 1
       }
 
       const finalPages = pages.length > 0 ? pages : [{ markdown: '', index: 0 }]

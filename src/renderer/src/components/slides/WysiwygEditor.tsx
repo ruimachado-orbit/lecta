@@ -430,7 +430,7 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
   const isInternalUpdate = useRef(false)
   const editorContainerRef = useRef<HTMLDivElement>(null)
   const latestMdRef = useRef<string>(slide?.markdownContent ?? '')
-  const [breakPositions, setBreakPositions] = useState<number[]>([])
+  // breakPositions removed — sub-slide breaks are now manual via --- horizontal rules
 
   // Inline AI state
   const [hasApiKey, setHasApiKey] = useState(false)
@@ -487,24 +487,7 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
 
   const editorRef = useRef<ReturnType<typeof useEditor>>(null)
 
-  // Place sub-slide break lines at fixed intervals matching actual slide height.
-  // Each sub-slide is exactly SLIDE_CONTENT_HEIGHT (624px) of content, so breaks
-  // are placed at multiples of that height.
-  const computeBreaks = useCallback(() => {
-    if (!breakOffsets || breakOffsets.length === 0) {
-      setBreakPositions([])
-      return
-    }
-    // Simple: each break is at (i+1) * slide content height
-    const positions = breakOffsets.map((_, i) => (i + 1) * SLIDE_CONTENT_HEIGHT)
-    setBreakPositions(positions)
-  }, [breakOffsets])
-
-  useEffect(() => {
-    computeBreaks()
-    const timer = setTimeout(computeBreaks, 300)
-    return () => clearTimeout(timer)
-  }, [computeBreaks])
+  // Sub-slide breaks are now manual via --- horizontal rules — no computed break positions needed
 
   const [isOverflow, setIsOverflow] = useState(false)
 
@@ -1008,21 +991,7 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
             </div>
           </>
         )}
-        {/* Sub-slide break dividers */}
-        {breakPositions.map((top, i) => (
-          <div
-            key={i}
-            className="absolute left-0 right-0 pointer-events-none z-10"
-            style={{ top: top + 48 }} // +48 for p-12 padding
-          >
-            <div className="mx-0 relative" style={{ borderTop: '3px dashed rgba(99, 102, 241, 0.5)' }}>
-              <span className="absolute right-2 -top-5 text-[10px] font-semibold text-indigo-400 px-2 py-0.5 rounded uppercase tracking-wider"
-                style={{ background: 'var(--slide-bg, #0a0a0a)' }}>
-                Sub-slide {i + 2}
-              </span>
-            </div>
-          </div>
-        ))}
+        {/* Sub-slide breaks are now controlled by --- (horizontal rules) in the content */}
       </div>
     </div>
   )

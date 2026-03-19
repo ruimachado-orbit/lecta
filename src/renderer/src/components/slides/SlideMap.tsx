@@ -157,6 +157,30 @@ export function SlideMap(): JSX.Element {
                           }`}>
                             {globalIndex + 1}
                           </span>
+                          {/* Transition bubble — clickable, cycles through transitions */}
+                          <span
+                            className={`absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center text-[10px] cursor-pointer transition-all hover:scale-110 ${
+                              slide.config.transition && slide.config.transition !== 'none'
+                                ? 'bg-indigo-500/80 text-white shadow-lg shadow-indigo-500/30'
+                                : 'bg-white/10 text-white/30 hover:bg-white/20 hover:text-white/60'
+                            }`}
+                            title={`Transition: ${slide.config.transition || 'none'} (click to change)`}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              const transitions = ['none', 'left', 'right', 'top', 'bottom']
+                              const current = slide.config.transition || 'none'
+                              const nextIdx = (transitions.indexOf(current) + 1) % transitions.length
+                              goToSlide(globalIndex)
+                              setTimeout(() => {
+                                usePresentationStore.getState().setSlideTransition(transitions[nextIdx])
+                              }, 50)
+                            }}
+                          >
+                            {!slide.config.transition || slide.config.transition === 'none' ? '·' :
+                             slide.config.transition === 'left' ? '←' :
+                             slide.config.transition === 'right' ? '→' :
+                             slide.config.transition === 'top' ? '↑' : '↓'}
+                          </span>
                         </div>
 
                         {/* Card footer */}
@@ -172,6 +196,7 @@ export function SlideMap(): JSX.Element {
                             {slide.config.layout && slide.config.layout !== 'default' && (
                               <span className="text-[7px] px-1 rounded bg-gray-800 text-gray-500">{slide.config.layout}</span>
                             )}
+                            <div className="flex-1" />
                           </div>
                         </div>
                       </button>

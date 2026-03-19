@@ -1102,6 +1102,75 @@ html[data-theme="light"] .wysiwyg-content th {
   font-style: italic;
 }
 
+/* WYSIWYG table styles */
+.wysiwyg-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.75rem 0;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.wysiwyg-content th,
+.wysiwyg-content td {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0.4rem 0.6rem;
+  min-width: 60px;
+  position: relative;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+.wysiwyg-content th {
+  background: rgba(255, 255, 255, 0.06);
+  font-weight: 600;
+  color: #e2e8f0;
+}
+.wysiwyg-content td {
+  color: #94a3b8;
+}
+.wysiwyg-content tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}
+/* Light mode */
+html[data-theme="light"] .wysiwyg-content table {
+  border-color: rgba(0, 0, 0, 0.1);
+}
+html[data-theme="light"] .wysiwyg-content th,
+html[data-theme="light"] .wysiwyg-content td {
+  border-color: rgba(0, 0, 0, 0.1);
+}
+html[data-theme="light"] .wysiwyg-content th {
+  background: rgba(0, 0, 0, 0.04);
+  color: #1e293b;
+}
+html[data-theme="light"] .wysiwyg-content td {
+  color: #334155;
+}
+/* Selected cell highlight */
+.wysiwyg-content .selectedCell {
+  background: rgba(99, 102, 241, 0.15) !important;
+}
+
+/* Code transition animation — smooth morphing between code states */
+.slide-content pre {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  animation: code-appear 0.5s ease forwards;
+}
+@keyframes code-appear {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+/* Magic Move placeholder — line-by-line reveal for code blocks during presentation */
+.slide-content pre code .magic-line {
+  display: block;
+  animation: magic-line-appear 0.3s ease forwards;
+  animation-fill-mode: both;
+}
+@keyframes magic-line-appear {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
 /* Auto-fit text — scales heading to fill available width */
 .slide-content .slide-autofit {
   display: flex;

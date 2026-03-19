@@ -192,21 +192,6 @@ turndown.addRule('image-with-width', {
   }
 })
 
-// Table placeholder — preserve [TABLE_N] text through turndown roundtrip
-turndown.addRule('table-placeholder', {
-  filter: (node) => {
-    if (node.nodeName !== 'PRE') return false
-    const code = node.querySelector('code.language-table')
-    return !!code
-  },
-  replacement: (_content, node) => {
-    const code = (node as HTMLElement).querySelector('code.language-table')
-    const text = code?.textContent || ''
-    const match = text.match(/\[TABLE_(\d+)\]/)
-    return match ? `[TABLE_${match[1]}]` : text
-  }
-})
-
 // Convert markdown to simple HTML for TipTap
 // Extract tables from markdown, replacing them with [TABLE_N] placeholders.
 // Returns the modified markdown and the extracted table strings.
@@ -344,20 +329,37 @@ function convertLinesToHtml(md: string, rootPath?: string, tables: string[] = []
     const h1 = line.match(/^# (.+)$/); if (h1) { closeTo(0); html.push(`<h1>${processInline(h1[1])}</h1>`); continue }
     if (line.match(/^---+$/)) { closeTo(0); html.push('<hr>'); continue }
 
-    // Table placeholders — rendered as styled indicators
+    // Table placeholders — rendered as real HTML tables for TipTap editing
     const tableMatch = line.match(/^\[TABLE_(\d+)\]$/)
     if (tableMatch) {
       closeTo(0)
       const idx = parseInt(tableMatch[1], 10)
       const table = tables[idx]
       if (table) {
-        // Show a readable summary of the table
-        const tLines = table.split('\n')
+        const tLines = table.split('\n').filter((l: string) => l.trim().length > 0)
         const parseCells = (row: string) => row.split('|').slice(1, -1).map((c: string) => c.trim())
+        const isSeparator = (row: string) => /^\|[\s\-:|]+\|$/.test(row.trim())
         const headerCells = parseCells(tLines[0])
-        const rows = tLines.filter((_l: string, li: number) => li !== 1) // skip separator row
-        const rowCount = Math.max(0, rows.length - 1) // exclude header
-        html.push(`<pre><code class="language-table">[TABLE_${idx}] 📊 ${headerCells.join(' │ ')}  (${rowCount} rows)</code></pre>`)
+        let tableHtml = '<table><thead><tr>'
+        headerCells.forEach((c: string) => { tableHtml += `<th>${processInline(c)}</th>` })
+        tableHtml += '</tr></thead><tbody>'
+        // Skip header and separator rows, render all body rows
+        for (let ri = 1; ri < tLines.length; ri++) {
+          if (isSeparator(tLines[ri])) continue
+          const cells = parseCells(tLines[ri])
+          tableHtml += '<tr>'
+          cells.forEach((c: string) => { tableHtml += `<td>${processInline(c)}</td>` })
+          tableHtml += '</tr>'
+        }
+        // If no body rows, add an empty row so TipTap has something to edit
+        const bodyRowCount = tLines.filter((_l: string, i: number) => i > 0 && !isSeparator(_l)).length
+        if (bodyRowCount === 0) {
+          tableHtml += '<tr>'
+          headerCells.forEach(() => { tableHtml += '<td></td>' })
+          tableHtml += '</tr>'
+        }
+        tableHtml += '</tbody></table>'
+        html.push(tableHtml)
       } else {
         html.push(`<p>[TABLE]</p>`)
       }
@@ -535,7 +537,10 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
       StarterKit.configure({
         heading: { levels: [1, 2, 3] }
       }),
-      // Tables rendered as non-editable divs (see markdownToHtml)
+      Table.configure({ resizable: false }),
+      TableRow,
+      TableHeader,
+      TableCell,
       ResizableImage.configure({ inline: false }),
       FontSize,
       Color,
@@ -580,8 +585,6 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
         .replace(/\\\]/g, ']')
         .replace(/\\`/g, '`')
         .replace(/\\\\/g, '\\')
-      // Re-inject extracted tables back into the markdown
-      md = injectTables(md, extractedTablesRef.current)
       // Preserve textbox/shape comments from the original markdown
       if (isSubSlideMode) {
         latestMdRef.current = md
@@ -626,7 +629,6 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
         .replace(/\\\]/g, ']')
         .replace(/\\`/g, '`')
         .replace(/\\\\/g, '\\')
-      md = injectTables(md, extractedTablesRef.current)
       if (isSubSlideMode) {
         // In sub-slide mode, route through the callback
         onSubSlideChange?.(md)
@@ -689,6 +691,7 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
     const updateColors = () => {
       setActiveColor(editor.getAttributes('textStyle').color || '#fff')
       setActiveHighlight(editor.getAttributes('highlight').color || 'transparent')
+      setIsInTable(editor.isActive('table'))
     }
     editor.on('selectionUpdate', updateColors)
     editor.on('transaction', updateColors)
@@ -739,6 +742,7 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
   const [showShapePicker, setShowShapePicker] = useState(false)
   const [showTextColor, setShowTextColor] = useState(false)
   const [showHighlight, setShowHighlight] = useState(false)
+  const [isInTable, setIsInTable] = useState(false)
 
   const [showFontSize, setShowFontSize] = useState(false)
 
@@ -914,9 +918,7 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
         </WBtn>
         <WBtn onClick={() => editor.chain().focus().setHorizontalRule().run()}>—</WBtn>
         <WBtn title="Insert table" onClick={() => {
-          editor.chain().focus().insertContent(
-            '<table><thead><tr><th>Column 1</th><th>Column 2</th><th>Column 3</th></tr></thead><tbody><tr><td>Cell 1</td><td>Cell 2</td><td>Cell 3</td></tr><tr><td>Cell 4</td><td>Cell 5</td><td>Cell 6</td></tr></tbody></table>'
-          ).run()
+          editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
         }}>
           <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
             <rect x="3" y="3" width="18" height="18" rx="1.5" />
@@ -1009,6 +1011,59 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
           )}
         </div>
       </div>
+
+      {/* Table actions bar — appears when cursor is inside a table */}
+      {isInTable && (
+        <div className="h-7 bg-gray-900/80 border-b border-gray-800 flex items-center px-3 gap-0.5 flex-shrink-0">
+          <span className="text-[9px] text-gray-500 font-medium tracking-wide mr-2">TABLE</span>
+          <WBtn title="Add row above" onClick={() => editor.chain().focus().addRowBefore().run()}>
+            <span className="text-[9px] flex items-center gap-0.5">
+              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M4 12h16M12 4v8" strokeLinecap="round"/></svg>
+              Row ↑
+            </span>
+          </WBtn>
+          <WBtn title="Add row below" onClick={() => editor.chain().focus().addRowAfter().run()}>
+            <span className="text-[9px] flex items-center gap-0.5">
+              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M4 12h16M12 12v8" strokeLinecap="round"/></svg>
+              Row ↓
+            </span>
+          </WBtn>
+          <WBtn title="Add column left" onClick={() => editor.chain().focus().addColumnBefore().run()}>
+            <span className="text-[9px] flex items-center gap-0.5">
+              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 4v16M4 12h8" strokeLinecap="round"/></svg>
+              Col ←
+            </span>
+          </WBtn>
+          <WBtn title="Add column right" onClick={() => editor.chain().focus().addColumnAfter().run()}>
+            <span className="text-[9px] flex items-center gap-0.5">
+              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 4v16M12 12h8" strokeLinecap="round"/></svg>
+              Col →
+            </span>
+          </WBtn>
+          <div className="w-px h-4 bg-gray-700 mx-1.5" />
+          <WBtn title="Delete row" onClick={() => editor.chain().focus().deleteRow().run()}>
+            <span className="text-[9px] text-red-400 flex items-center gap-0.5">
+              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M6 18L18 6M6 6l12 12" strokeLinecap="round"/></svg>
+              Row
+            </span>
+          </WBtn>
+          <WBtn title="Delete column" onClick={() => editor.chain().focus().deleteColumn().run()}>
+            <span className="text-[9px] text-red-400 flex items-center gap-0.5">
+              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M6 18L18 6M6 6l12 12" strokeLinecap="round"/></svg>
+              Col
+            </span>
+          </WBtn>
+          <div className="w-px h-4 bg-gray-700 mx-1.5" />
+          <WBtn title="Delete table" onClick={() => editor.chain().focus().deleteTable().run()}>
+            <span className="text-[9px] text-red-400 flex items-center gap-0.5">
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+              </svg>
+              Table
+            </span>
+          </WBtn>
+        </div>
+      )}
 
       {/* Editor */}
       <div className="p-12 relative" ref={editorContainerRef}>

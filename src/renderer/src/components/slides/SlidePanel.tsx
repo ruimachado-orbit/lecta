@@ -332,7 +332,8 @@ function SlideCanvas({ markdown, rootPath, transition, layout, slideIndex, drawi
   const SLIDE_W = 1280
   const SLIDE_H = 720
   const PAD = 48 // p-12 = 48px each side
-  const CONTENT_H = SLIDE_H - PAD * 2
+  const FOOTER_H = showGlobalLayers ? 24 : 0 // reserve space for global layers footer
+  const CONTENT_H = SLIDE_H - PAD * 2 - FOOTER_H
 
   // Scale the canvas frame to fit the container
   useEffect(() => {

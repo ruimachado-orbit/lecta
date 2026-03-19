@@ -146,10 +146,14 @@ function processClickAnimations(md: string): { processed: string; totalClicks: n
 export function SlideRenderer({ markdown, rootPath, clickStep = -1, onClickSteps }: SlideRendererProps): JSX.Element {
   const { processed: clickProcessed, totalClicks } = processClickAnimations(markdown)
 
-  // Report total click steps to parent
+  // Report total click steps to parent (only when count changes)
+  const prevClickCount = useRef(totalClicks)
   useEffect(() => {
-    onClickSteps?.(totalClicks)
-  }, [totalClicks, onClickSteps])
+    if (prevClickCount.current !== totalClicks) {
+      prevClickCount.current = totalClicks
+      onClickSteps?.(totalClicks)
+    }
+  }, [totalClicks]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="slide-content max-w-none relative">

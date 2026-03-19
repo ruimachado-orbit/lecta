@@ -33,7 +33,8 @@ const WebAppConfigSchema = z.object({
 
 const PromptConfigSchema = z.object({
   prompt: z.string(),
-  label: z.string().optional()
+  label: z.string().optional(),
+  response: z.string().optional()
 })
 
 const SlideConfigSchema = z.object({

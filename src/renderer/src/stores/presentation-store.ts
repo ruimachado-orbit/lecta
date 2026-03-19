@@ -376,6 +376,23 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
     }
   },
 
+  updatePrompt: async (promptIndex: number, promptText: string, response?: string) => {
+    const { presentation, currentSlideIndex } = get()
+    if (!presentation) return
+    try {
+      const loaded = await window.electronAPI.updatePrompt(
+        presentation.rootPath,
+        currentSlideIndex,
+        promptIndex,
+        promptText,
+        response
+      )
+      set(applyLoaded(loaded, currentSlideIndex))
+    } catch (error) {
+      set({ error: (error as Error).message })
+    }
+  },
+
   toggleSkipSlide: async (slideIndex: number) => {
     const { presentation, currentSlideIndex } = get()
     if (!presentation) return

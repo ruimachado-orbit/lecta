@@ -11,9 +11,10 @@ import { ExecutionOutput } from '../code/ExecutionOutput'
 import { MarkdownPreview } from '../code/MarkdownPreview'
 import { WebPanel } from '../web/WebPanel'
 import { VideoPanel } from '../video/VideoPanel'
+import { PromptPanel } from '../prompt/PromptPanel'
 import { useSubSlides } from '../../hooks/useSubSlides'
 
-type ArtifactType = 'code' | 'video' | 'webapp'
+type ArtifactType = 'code' | 'video' | 'webapp' | 'prompt' | 'artifact'
 
 export function PresenterView(): JSX.Element {
   const { slides, currentSlideIndex, nextSlide, prevSlide, presentation } =
@@ -27,7 +28,7 @@ export function PresenterView(): JSX.Element {
   const [artifactExpanded, setArtifactExpanded] = useState(false)
   const [panelSize, setPanelSize] = useState(34)
   const artifactMemory = useRef<Record<number, { type: ArtifactType; expanded: boolean; panelSize: number }>>({})
-  const typeSizeMemory = useRef<Record<ArtifactType, number>>({ code: 34, video: 34, webapp: 34 })
+  const typeSizeMemory = useRef<Record<string, number>>({ code: 34, video: 34, webapp: 34, prompt: 34, artifact: 34 })
 
   // Save artifact state before slide change, restore on return
   const prevSlideRef = useRef(currentSlideIndex)
@@ -52,9 +53,11 @@ export function PresenterView(): JSX.Element {
   const hasCode = !!currentSlide?.config.code
   const hasVideo = !!currentSlide?.config.video
   const hasWebApp = !!currentSlide?.config.webapp
+  const hasPrompts = (currentSlide?.config.prompts?.length ?? 0) > 0
+  const hasArtifacts = (currentSlide?.config.artifacts?.length ?? 0) > 0
   const isMarkdown = currentSlide?.config.code?.language === 'markdown'
   const layout = currentSlide?.config.layout
-  const hasAnyArtifact = hasCode || hasVideo || hasWebApp
+  const hasAnyArtifact = hasCode || hasVideo || hasWebApp || hasPrompts || hasArtifacts
 
   useEffect(() => {
     // Save current artifact state for the slide we're leaving
@@ -200,54 +203,86 @@ export function PresenterView(): JSX.Element {
           <PresenterSlide markdown={slideMarkdown} rootPath={rootPath} layout={layout} />
         )}
 
-        {/* Artifact sidebar */}
-        {hasAnyArtifact && (
-          <div className="flex flex-col items-center py-2 gap-1 w-9 flex-shrink-0 bg-gray-900 border-l border-gray-800">
-            {hasCode && (
-              <SidebarBtn active={activeArtifact === 'code'} onClick={() => {
-                const opening = activeArtifact !== 'code'
-                setActiveArtifact(opening ? 'code' : null); setArtifactExpanded(false)
-                if (opening) setPanelSize(typeSizeMemory.current.code)
-              }} title="Code">{'{ }'}</SidebarBtn>
-            )}
-            {hasVideo && (
-              <SidebarBtn active={activeArtifact === 'video'} onClick={() => {
-                const opening = activeArtifact !== 'video'
-                setActiveArtifact(opening ? 'video' : null); setArtifactExpanded(false)
-                if (opening) setPanelSize(typeSizeMemory.current.video)
-              }} title="Video">▶</SidebarBtn>
-            )}
-            {hasWebApp && (
-              <SidebarBtn active={activeArtifact === 'webapp'} onClick={() => {
-                const opening = activeArtifact !== 'webapp'
-                setActiveArtifact(opening ? 'webapp' : null); setArtifactExpanded(false)
-                if (opening) setPanelSize(typeSizeMemory.current.webapp)
-              }} title="Web">◎</SidebarBtn>
-            )}
+        {/* Artifact sidebar — always visible */}
+        <div className="flex flex-col items-center py-2 gap-1 w-9 flex-shrink-0 bg-gray-900 border-l border-gray-800">
+          {hasCode && (
+            <SidebarBtn active={activeArtifact === 'code'} onClick={() => {
+              const opening = activeArtifact !== 'code'
+              setActiveArtifact(opening ? 'code' : null); setArtifactExpanded(false)
+              if (opening) setPanelSize(typeSizeMemory.current.code)
+            }} title="Code">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
+              </svg>
+            </SidebarBtn>
+          )}
+          {hasVideo && (
+            <SidebarBtn active={activeArtifact === 'video'} onClick={() => {
+              const opening = activeArtifact !== 'video'
+              setActiveArtifact(opening ? 'video' : null); setArtifactExpanded(false)
+              if (opening) setPanelSize(typeSizeMemory.current.video)
+            }} title="Video">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />
+              </svg>
+            </SidebarBtn>
+          )}
+          {hasWebApp && (
+            <SidebarBtn active={activeArtifact === 'webapp'} onClick={() => {
+              const opening = activeArtifact !== 'webapp'
+              setActiveArtifact(opening ? 'webapp' : null); setArtifactExpanded(false)
+              if (opening) setPanelSize(typeSizeMemory.current.webapp)
+            }} title="Web">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0 1 12 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 0 1 3 12c0-1.605.42-3.113 1.157-4.418" />
+              </svg>
+            </SidebarBtn>
+          )}
+          {hasPrompts && (
+            <SidebarBtn active={activeArtifact === 'prompt'} onClick={() => {
+              const opening = activeArtifact !== 'prompt'
+              setActiveArtifact(opening ? 'prompt' : null); setArtifactExpanded(false)
+              if (opening) setPanelSize(typeSizeMemory.current.prompt)
+            }} title="AI Prompt">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
+              </svg>
+            </SidebarBtn>
+          )}
+          {hasArtifacts && (
+            <SidebarBtn active={activeArtifact === 'artifact'} onClick={() => {
+              const opening = activeArtifact !== 'artifact'
+              setActiveArtifact(opening ? 'artifact' : null); setArtifactExpanded(false)
+              if (opening) setPanelSize(typeSizeMemory.current.artifact)
+            }} title="Files">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+              </svg>
+            </SidebarBtn>
+          )}
 
-            {/* Expand / collapse artifact panel */}
-            {activeArtifact && (
-              <>
-                <div className="w-5 h-px bg-gray-700" />
-                <SidebarBtn
-                  active={artifactExpanded}
-                  onClick={() => setArtifactExpanded(!artifactExpanded)}
-                  title={artifactExpanded ? 'Split view' : 'Expand artifact'}
-                >
-                  {artifactExpanded ? (
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25" />
-                    </svg>
-                  ) : (
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
-                    </svg>
-                  )}
-                </SidebarBtn>
-              </>
-            )}
-          </div>
-        )}
+          {/* Expand / collapse artifact panel */}
+          {activeArtifact && (
+            <>
+              <div className="w-5 h-px bg-gray-700 my-0.5" />
+              <SidebarBtn
+                active={artifactExpanded}
+                onClick={() => setArtifactExpanded(!artifactExpanded)}
+                title={artifactExpanded ? 'Split view' : 'Expand artifact'}
+              >
+                {artifactExpanded ? (
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25" />
+                  </svg>
+                ) : (
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                  </svg>
+                )}
+              </SidebarBtn>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Speaker notes panel */}
@@ -397,6 +432,41 @@ function ArtifactPanel({ activeArtifact, currentSlide, presentation, isExecuting
   }
   if (activeArtifact === 'webapp' && currentSlide?.config.webapp) {
     return <div className="h-full bg-gray-950"><WebPanel key={idx} webapp={currentSlide.config.webapp} /></div>
+  }
+  if (activeArtifact === 'prompt' && currentSlide?.config.prompts?.length > 0) {
+    return (
+      <div className="h-full flex flex-col bg-gray-950">
+        {currentSlide.config.prompts.map((p: any, i: number) => (
+          <div key={i} className="flex-1 min-h-0">
+            <PromptPanel prompt={p} promptIndex={i} />
+          </div>
+        ))}
+      </div>
+    )
+  }
+  if (activeArtifact === 'artifact' && currentSlide?.config.artifacts?.length > 0) {
+    return (
+      <div className="h-full bg-gray-950 p-3 overflow-y-auto">
+        <div className="text-gray-400 text-xs font-medium mb-2">File Artifacts</div>
+        {currentSlide.config.artifacts.map((a: any, i: number) => (
+          <button
+            key={i}
+            onClick={() => window.electronAPI.openInSystemApp(
+              presentation?.rootPath ? `${presentation.rootPath}/${a.path}` : a.path
+            )}
+            className="w-full text-left px-3 py-2 mb-1 rounded bg-gray-900 hover:bg-gray-800 transition-colors flex items-center gap-2"
+          >
+            <svg className="w-4 h-4 text-gray-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+            </svg>
+            <div className="min-w-0">
+              <div className="text-gray-300 text-xs truncate">{a.label || a.path}</div>
+              <div className="text-gray-600 text-[10px] truncate">{a.path}</div>
+            </div>
+          </button>
+        ))}
+      </div>
+    )
   }
   return <div className="h-full bg-gray-950" />
 }

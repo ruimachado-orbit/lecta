@@ -77,6 +77,21 @@ const turndown = new TurndownService({
   codeBlockStyle: 'fenced'
 })
 
+// Preserve code blocks without escaping content
+turndown.addRule('fencedCodeBlock', {
+  filter: (node) => {
+    return node.nodeName === 'PRE' && !!node.querySelector('code')
+  },
+  replacement: (_content, node) => {
+    const code = (node as HTMLElement).querySelector('code')
+    const text = code?.textContent || ''
+    // Detect language from class (e.g., "language-mermaid")
+    const langClass = code?.className?.match(/language-(\w+)/)
+    const lang = langClass ? langClass[1] : ''
+    return `\n\`\`\`${lang}\n${text}\n\`\`\`\n`
+  }
+})
+
 // Convert HTML tables back to markdown tables
 turndown.addRule('table', {
   filter: 'table',
@@ -190,7 +205,16 @@ function convertLinesToHtml(md: string, rootPath?: string): string {
   const lines = md.split('\n')
   const html: string[] = []
   let listDepth = 0
-  const closeTo = (d: number) => { while (listDepth > d) { html.push('</ul>'); listDepth-- } }
+  const closeTo = (d: number) => {
+    while (listDepth > d) {
+      if (listDepth > 1) {
+        html.push('</ul></li>')
+      } else {
+        html.push('</ul>')
+      }
+      listDepth--
+    }
+  }
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
@@ -230,16 +254,16 @@ function convertLinesToHtml(md: string, rootPath?: string): string {
         const isSep = tableLines[1].match(/^\|[\s:-]+\|/)
         const bodyStart = isSep ? 2 : 1
 
-        html.push('<table><tr>')
-        headerCells.forEach((c) => html.push(`<th>${processInline(c)}</th>`))
+        html.push('<table><tbody><tr>')
+        headerCells.forEach((c) => html.push(`<th><p>${processInline(c)}</p></th>`))
         html.push('</tr>')
         for (let r = bodyStart; r < tableLines.length; r++) {
           const cells = parseCells(tableLines[r])
           html.push('<tr>')
-          cells.forEach((c) => html.push(`<td>${processInline(c)}</td>`))
+          cells.forEach((c) => html.push(`<td><p>${processInline(c)}</p></td>`))
           html.push('</tr>')
         }
-        html.push('</table>')
+        html.push('</tbody></table>')
       } else {
         html.push(`<p>${processInline(line)}</p>`)
       }
@@ -268,8 +292,18 @@ function convertLinesToHtml(md: string, rootPath?: string): string {
     const li = line.match(/^(\s*)\\?[-*+] (.+)$/)
     if (li) {
       const target = Math.floor(li[1].length / 2) + 1
-      while (listDepth < target) { html.push('<ul>'); listDepth++ }
-      while (listDepth > target) { html.push('</ul>'); listDepth-- }
+      if (target > listDepth) {
+        // Going deeper — nest inside the previous <li> (remove its closing tag)
+        if (listDepth > 0) {
+          // Remove the last </li> so we can nest inside it
+          const lastIdx = html.lastIndexOf('</li>')
+          if (lastIdx >= 0) html.splice(lastIdx, 1)
+        }
+        while (listDepth < target) { html.push('<ul>'); listDepth++ }
+      } else if (target < listDepth) {
+        // Going shallower — close nested lists and their parent <li>
+        while (listDepth > target) { html.push('</ul></li>'); listDepth-- }
+      }
       html.push(`<li>${processInline(li[2])}</li>`)
       continue
     }
@@ -453,6 +487,10 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
         .replace(/^(\s*)\\-/gm, '$1-')
         .replace(/\\_/g, '_')
         .replace(/\\\*/g, '*')
+        .replace(/\\\[/g, '[')
+        .replace(/\\\]/g, ']')
+        .replace(/\\`/g, '`')
+        .replace(/\\\\/g, '\\')
       // Preserve textbox/shape comments from the original markdown
       const currentMd = usePresentationStore.getState().slides[slideIndex]?.markdownContent ?? ''
       const comments: string[] = []

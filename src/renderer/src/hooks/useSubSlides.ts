@@ -7,9 +7,9 @@ import { usePresentationStore } from '../stores/presentation-store'
  */
 
 // Content height inside the 1280x720 slide with p-12 (48px each side)
-// Use 90% of actual height as safety margin — measurement HTML approximates real rendering
-// but doesn't perfectly match SlideRenderer's tables, mermaid, etc.
-const CONTENT_HEIGHT = (720 - 48 * 2) * 0.90 // ~562px (624px * 0.9)
+// Use 82% of actual height as safety margin — measurement HTML approximates real rendering
+// but doesn't perfectly match SlideRenderer's tables, mermaid, blockquotes, etc.
+const CONTENT_HEIGHT = (720 - 48 * 2) * 0.82 // ~512px (624px * 0.82)
 
 /**
  * Split markdown into logical blocks at heading or blank-line boundaries.

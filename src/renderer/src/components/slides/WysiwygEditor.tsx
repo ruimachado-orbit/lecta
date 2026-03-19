@@ -195,11 +195,15 @@ turndown.addRule('image-with-width', {
 // Table placeholder — preserve [TABLE_N] text through turndown roundtrip
 turndown.addRule('table-placeholder', {
   filter: (node) => {
-    return node.nodeName === 'P' && node.hasAttribute('data-table-placeholder')
+    if (node.nodeName !== 'PRE') return false
+    const code = node.querySelector('code.language-table')
+    return !!code
   },
   replacement: (_content, node) => {
-    const idx = (node as HTMLElement).getAttribute('data-table-placeholder')
-    return `[TABLE_${idx}]`
+    const code = (node as HTMLElement).querySelector('code.language-table')
+    const text = code?.textContent || ''
+    const match = text.match(/\[TABLE_(\d+)\]/)
+    return match ? `[TABLE_${match[1]}]` : text
   }
 })
 
@@ -351,7 +355,9 @@ function convertLinesToHtml(md: string, rootPath?: string, tables: string[] = []
         const tLines = table.split('\n')
         const parseCells = (row: string) => row.split('|').slice(1, -1).map((c: string) => c.trim())
         const headerCells = parseCells(tLines[0])
-        html.push(`<p data-table-placeholder="${idx}" style="background:rgba(99,102,241,0.08);border:1px dashed rgba(99,102,241,0.3);border-radius:6px;padding:8px 12px;font-size:0.85em;color:rgba(99,102,241,0.8)">📊 Table: ${headerCells.join(' | ')}</p>`)
+        const rows = tLines.filter((_l: string, li: number) => li !== 1) // skip separator row
+        const rowCount = Math.max(0, rows.length - 1) // exclude header
+        html.push(`<pre><code class="language-table">[TABLE_${idx}] 📊 ${headerCells.join(' │ ')}  (${rowCount} rows)</code></pre>`)
       } else {
         html.push(`<p>[TABLE]</p>`)
       }

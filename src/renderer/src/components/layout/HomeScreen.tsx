@@ -226,7 +226,10 @@ export function HomeScreen(): JSX.Element {
                   </h3>
                   <div className="grid grid-cols-2 gap-3">
                     {notebooks.slice(0, 4).map((deck) => (
-                      <RecentCard key={deck.path} deck={deck} onClick={() => handleOpenRecent(deck)} />
+                      <RecentCard key={deck.path} deck={deck} onClick={() => handleOpenRecent(deck)} onRemove={async () => {
+                        await window.electronAPI.removeRecentDeck(deck.path)
+                        setRecentDecks((prev) => prev.filter((d) => d.path !== deck.path))
+                      }} />
                     ))}
                   </div>
                 </div>
@@ -240,7 +243,10 @@ export function HomeScreen(): JSX.Element {
                   </h3>
                   <div className="grid grid-cols-2 gap-3">
                     {presentations.slice(0, 4).map((deck) => (
-                      <RecentCard key={deck.path} deck={deck} onClick={() => handleOpenRecent(deck)} />
+                      <RecentCard key={deck.path} deck={deck} onClick={() => handleOpenRecent(deck)} onRemove={async () => {
+                        await window.electronAPI.removeRecentDeck(deck.path)
+                        setRecentDecks((prev) => prev.filter((d) => d.path !== deck.path))
+                      }} />
                     ))}
                   </div>
                 </div>
@@ -845,6 +851,17 @@ function RecentCard({ deck, onClick, onRemove }: { deck: RecentDeck; onClick: ()
           <span className="absolute top-2 right-2 text-[8px] px-1.5 py-0.5 rounded-full bg-gray-700 text-gray-400">
             Notebook
           </span>
+          {onRemove && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onRemove() }}
+              className="absolute top-2 left-2 w-5 h-5 rounded-full bg-gray-800/80 hover:bg-red-600 text-gray-500 hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
+              title="Remove from recent"
+            >
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
           {/* Spine accent */}
           <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500/40 rounded-l" />
           {previewLines.length > 0 ? (
@@ -893,6 +910,17 @@ function RecentCard({ deck, onClick, onRemove }: { deck: RecentDeck; onClick: ()
         <span className="absolute top-2 right-2 text-[8px] px-1.5 py-0.5 rounded-full bg-gray-800 text-gray-500">
           Slides
         </span>
+        {onRemove && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onRemove() }}
+            className="absolute top-2 left-2 w-5 h-5 rounded-full bg-gray-800/80 hover:bg-red-600 text-gray-500 hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
+            title="Remove from recent"
+          >
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
         {previewLines.length > 0 ? (
           <div className="space-y-1">
             {previewLines.map((line, i) => {

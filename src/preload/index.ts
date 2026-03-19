@@ -158,6 +158,9 @@ const api = {
   exportPdf: (rootPath: string, slideHtmls: string[], title: string): Promise<string | null> =>
     ipcRenderer.invoke('export:pdf', rootPath, slideHtmls, title),
 
+  exportHtml: (slideMarkdowns: string[], title: string, theme: string): Promise<string | null> =>
+    ipcRenderer.invoke('export:html', slideMarkdowns, title, theme),
+
   // Presenter sync listener (for audience/presenter windows)
   onPresenterSync: (callback: (slideIndex: number) => void): void => {
     ipcRenderer.on('presenter:sync-slide', (_event, slideIndex: number) => callback(slideIndex))

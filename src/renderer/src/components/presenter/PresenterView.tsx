@@ -502,3 +502,51 @@ function SidebarBtn({ active, onClick, title, children }: {
     >{children}</button>
   )
 }
+
+function RemoteControlButton(): JSX.Element {
+  const [remoteUrl, setRemoteUrl] = useState<string | null>(null)
+  const [showQR, setShowQR] = useState(false)
+
+  const toggleRemote = async () => {
+    if (remoteUrl) {
+      await window.electronAPI.stopRemote()
+      setRemoteUrl(null)
+      setShowQR(false)
+    } else {
+      const url = await window.electronAPI.startRemote()
+      setRemoteUrl(url)
+      setShowQR(true)
+    }
+  }
+
+  return (
+    <div className="relative">
+      <button
+        onClick={toggleRemote}
+        className={`px-2 py-1 text-[11px] rounded transition-colors flex items-center gap-1 ${
+          remoteUrl ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
+        }`}
+        title={remoteUrl ? `Remote: ${remoteUrl}` : 'Start remote control'}
+      >
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 0 0 6 3.75v16.5a2.25 2.25 0 0 0 2.25 2.25h7.5A2.25 2.25 0 0 0 18 20.25V3.75a2.25 2.25 0 0 0-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3" />
+        </svg>
+        {remoteUrl ? 'Remote On' : 'Remote'}
+      </button>
+      {showQR && remoteUrl && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setShowQR(false)} />
+          <div className="absolute bottom-full right-0 mb-2 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-4 w-56">
+            <div className="text-[10px] text-gray-400 uppercase tracking-wider mb-2">Remote Control</div>
+            <div className="text-xs text-white font-mono mb-2 break-all">{remoteUrl}</div>
+            <div className="text-[9px] text-gray-500">Open this URL on your phone to control the presentation</div>
+            <button onClick={() => { navigator.clipboard.writeText(remoteUrl); setShowQR(false) }}
+              className="mt-2 w-full px-2 py-1 text-[10px] bg-gray-800 hover:bg-gray-700 text-gray-300 rounded transition-colors">
+              Copy URL
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}

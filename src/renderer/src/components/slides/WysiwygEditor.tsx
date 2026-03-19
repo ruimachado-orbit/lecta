@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -470,6 +471,8 @@ interface WysiwygEditorProps {
   subSlideMarkdown?: string
   /** Called when sub-slide content changes (used with subSlideMarkdown) */
   onSubSlideChange?: (md: string) => void
+  /** When provided, the toolbar is portaled into this DOM element (renders in the slide header) */
+  headerSlot?: HTMLDivElement | null
 }
 
 // Content height inside the 1280x720 slide with p-12 padding
@@ -494,7 +497,7 @@ function resolveImageSrc(src: string, rootPath?: string): string {
   return src
 }
 
-export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown, onSubSlideChange }: WysiwygEditorProps): JSX.Element {
+export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown, onSubSlideChange, headerSlot }: WysiwygEditorProps): JSX.Element {
   const { slides, updateMarkdownContent, saveSlideContent, presentation } = usePresentationStore()
   const slide = slides[slideIndex]
   const isSubSlideMode = subSlideMarkdown !== undefined
@@ -637,6 +640,12 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
         currentMd.replace(/<!--\s*textbox[\s\S]*?\/textbox\s*-->/gi, (m) => { comments.push(m); return '' })
         currentMd.replace(/<!--\s*shape\s[^>]*-->/gi, (m) => { comments.push(m); return '' })
         currentMd.replace(/<!--\s*image\s[^>]*-->/gi, (m) => { comments.push(m); return '' })
+        // Consume any pin comments queued by ResizableImage.handlePinToCanvas right before deleteNode()
+        const pending: string[] = (window as any).__pendingPinComments || []
+        if (pending.length > 0) {
+          ;(window as any).__pendingPinComments = []
+          pending.forEach(c => { if (!comments.includes(c)) comments.push(c) })
+        }
         const preserved = comments.length > 0 ? md + '\n' + comments.join('\n') : md
         latestMdRef.current = preserved
         updateMarkdownContent(slideIndex, preserved)
@@ -725,6 +734,24 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
     }
   }, [slideIndex, editor, slide])
 
+  // Sync when markdown is changed externally (e.g. unpin from DraggableElements)
+  useEffect(() => {
+    if (!editor || isSubSlideMode || !slide) return
+    const stored = slide.markdownContent
+    if (stored === latestMdRef.current) return
+    // Strip HTML comments to compare only text/inline content
+    const strip = (s: string) => s.replace(/<!--[\s\S]*?-->/g, '').trim()
+    if (strip(stored) !== strip(latestMdRef.current)) {
+      const out = { tables: [] as string[] }
+      const newHtml = markdownToHtml(strip(stored), presentation?.rootPath, out)
+      extractedTablesRef.current = out.tables
+      isInternalUpdate.current = true
+      editor.commands.setContent(newHtml)
+      isInternalUpdate.current = false
+    }
+    latestMdRef.current = stored
+  }, [slide?.markdownContent, editor, isSubSlideMode])
+
   // Track current text color/highlight from selection
   const [activeColor, setActiveColor] = useState('#fff')
   const [activeHighlight, setActiveHighlight] = useState('transparent')
@@ -809,10 +836,10 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
     editor.chain().focus().insertContent(text).run()
   }
 
-  return (
-    <div className="flex flex-col">
+  const toolbarSection = (
+    <>
       {/* WYSIWYG Toolbar */}
-      <div className="h-9 bg-gray-900 border-b border-gray-800 flex items-center px-2 gap-0.5 flex-shrink-0">
+      <div className="h-9 bg-gray-900 border-b border-gray-800 flex items-center px-2 gap-0.5 shrink-0">
         <WBtn
           active={editor.isActive('heading', { level: 1 })}
           onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
@@ -1072,6 +1099,14 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
             </>
           )}
         </div>
+        <Sep />
+        {/* Slide break — inserts a --- horizontal rule which splits into a new sub-slide */}
+        <WBtn
+          title="Add slide break — splits content into a new sub-slide"
+          onClick={() => editor.chain().focus().setHorizontalRule().run()}
+        >
+          ⊗ Break
+        </WBtn>
       </div>
 
       {/* Table actions bar — appears when cursor is inside a table */}
@@ -1126,6 +1161,12 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
           </WBtn>
         </div>
       )}
+    </>
+  )
+
+  return (
+    <div className="flex flex-col">
+      {headerSlot ? createPortal(toolbarSection, headerSlot) : toolbarSection}
 
       {/* Editor */}
       <div className="p-12 relative" ref={editorContainerRef}>

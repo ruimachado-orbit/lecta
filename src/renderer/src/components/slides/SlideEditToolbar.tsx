@@ -87,7 +87,8 @@ export function SlideEditToolbar({ editorRef }: SlideEditToolbarProps): JSX.Elem
         <Btn title="Table" onClick={() => insertAtCursor('\n| Col 1 | Col 2 |\n|-------|-------|\n| data  | data  |\n')}>⊞</Btn>
         <Btn title="Code block" onClick={() => insertAtCursor('\n```\n\n```\n')}>{"{ }"}</Btn>
         <Btn title="Blockquote" onClick={() => insertAtCursor('\n> ')}>❝</Btn>
-        <Btn title="Divider" onClick={() => insertAtCursor('\n---\n')}>—</Btn>
+        <Btn title="Divider (horizontal rule)" onClick={() => insertAtCursor('\n---\n')}>—</Btn>
+        <Btn title="Add slide break — splits content into a new sub-slide" onClick={() => insertAtCursor('\n\n---\n\n')} accent>⊗ Break</Btn>
         <Btn title="Mermaid diagram" onClick={() => insertAtCursor('\n```mermaid\ngraph LR\n    A[Start] --> B[Process]\n    B --> C[End]\n```\n')}>◇</Btn>
         <Btn title="2 columns" onClick={() => insertAtCursor('\n<!-- columns -->\nLeft column content\n<!-- col -->\nRight column content\n<!-- /columns -->\n')}>▥</Btn>
         <Btn title="3 columns" onClick={() => insertAtCursor('\n<!-- columns -->\nColumn 1\n<!-- col -->\nColumn 2\n<!-- col -->\nColumn 3\n<!-- /columns -->\n')}>▦</Btn>

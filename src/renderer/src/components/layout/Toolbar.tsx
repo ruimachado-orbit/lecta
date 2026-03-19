@@ -10,7 +10,7 @@ import type { SupportedLanguage } from '../../../../../packages/shared/src/types
 export function Toolbar(): JSX.Element {
   const { presentation, currentSlideIndex, slides, nextSlide, prevSlide, addSlide, addCodeToSlide, addArtifact, addVideo, addWebApp, saveSlideContent, hasUnsavedChanges } =
     usePresentationStore()
-  const { togglePresenting, toggleNotes, showNotes, editingSlide, toggleEditingSlide, theme, setTheme, showArticlePanel, toggleArticlePanel, showRightPane, toggleRightPane, toggleSlideMap, showAIGenerate, toggleAIGenerate } = useUIStore()
+  const { togglePresenting, toggleNotes, showNotes, theme, setTheme, showArticlePanel, toggleArticlePanel, showRightPane, toggleRightPane, toggleSlideMap, showAIGenerate, toggleAIGenerate } = useUIStore()
   const { isExecuting } = useExecutionStore()
   const { activeTabId, closeTab } = useTabsStore()
   const { isSidebarOpen, toggleSidebar } = useChatStore()
@@ -137,36 +137,6 @@ export function Toolbar(): JSX.Element {
           </div>
         )}
 
-        {/* Edit / Preview slide toggle */}
-        <button
-          onClick={async () => {
-            if (editingSlide) {
-              // Flush WYSIWYG editor content to store (while editor is still alive)
-              try {
-                const flush = (window as any).__wysiwygFlush
-                if (typeof flush === 'function') {
-                  flush()
-                }
-              } catch (e) {
-                console.error('Flush failed:', e)
-              }
-              // Save to disk — read latest from store
-              await saveSlideContent(currentSlideIndex)
-              // Also pack .lecta file
-              if (presentation) {
-                await window.electronAPI.saveLecta(presentation.rootPath)
-              }
-            }
-            toggleEditingSlide()
-          }}
-          className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-            editingSlide ? 'bg-white text-black' : 'hover:bg-gray-800 text-gray-400'
-          }`}
-          title={editingSlide ? 'Switch to preview (save)' : 'Edit slide content'}
-        >
-          Editor
-        </button>
-
         {/* AI Chat */}
         <button
           onClick={toggleSidebar}
@@ -254,9 +224,8 @@ export function Toolbar(): JSX.Element {
           </svg>
         </button>
 
-        {/* Prettify deck with AI — only in edit mode */}
-        {editingSlide && (
-          <button
+        {/* Prettify deck with AI */}
+        <button
             onClick={async () => {
               if (prettifying || !presentation) return
               const title = presentation.title || 'Untitled'
@@ -299,12 +268,11 @@ export function Toolbar(): JSX.Element {
             </svg>
             {prettifying ? `Analyzing ${prettifyProgress.current}/${prettifyProgress.total}` : 'Prettify'}
           </button>
-        )}
 
         {/* Present mode */}
         <button
           onClick={() => {
-            useUIStore.setState({ showArtifactDrawer: false, showArticlePanel: false, showSlideMap: false, showRightPane: false, showNotes: false, editingSlide: false })
+            useUIStore.setState({ showArtifactDrawer: false, showArticlePanel: false, showSlideMap: false, showRightPane: false, showNotes: false })
             togglePresenting()
           }}
           className="px-3 py-1.5 bg-white hover:bg-gray-200 text-black text-sm font-medium

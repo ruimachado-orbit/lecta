@@ -316,9 +316,25 @@ export function DraggableElements({ markdown, canvasScale, onUpdateMarkdown, edi
               <>
                 <DeleteBtn onDelete={(e) => { e.preventDefault(); e.stopPropagation(); clearSelection(); onUpdateMarkdown(removeFromMd(markdown, img.matchStart, img.matchEnd)) }} />
 
-                {/* Resize handle */}
-                <div className="absolute bottom-0 right-0 w-3 h-3 cursor-se-resize opacity-0 group-hover:opacity-100 transition-opacity"
-                  style={{ background: 'rgba(168,85,247,0.8)', borderRadius: 2 }}
+                {/* Unpin button — returns image to document flow */}
+                <button
+                  className="absolute top-0 left-0 -translate-x-1/2 -translate-y-1/2 w-5 h-5 bg-green-600 hover:bg-green-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20"
+                  title="Unpin — return to document flow"
+                  onMouseDown={(e) => { e.preventDefault(); e.stopPropagation() }}
+                  onClick={(e) => {
+                    e.preventDefault(); e.stopPropagation()
+                    const mdWithout = removeFromMd(markdown, img.matchStart, img.matchEnd)
+                    onUpdateMarkdown(mdWithout + `\n![image](${img.src})\n`)
+                  }}
+                >
+                  <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
+                  </svg>
+                </button>
+
+                {/* SE resize handle */}
+                <div className="absolute bottom-0 right-0 w-3 h-3 cursor-se-resize opacity-0 group-hover:opacity-100 transition-opacity z-20"
+                  style={{ background: 'rgba(168,85,247,0.8)', borderRadius: 2, transform: 'translate(50%,50%)' }}
                   onMouseDown={(e) => {
                     e.preventDefault(); e.stopPropagation()
                     const startX = e.clientX, startW = img.w
@@ -328,6 +344,65 @@ export function DraggableElements({ markdown, canvasScale, onUpdateMarkdown, edi
                     }
                     const up = (ev: MouseEvent) => {
                       onUpdateMarkdown(replaceImage(markdown, img, { w: Math.max(50, startW + (ev.clientX - startX) / canvasScale) }))
+                      window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up)
+                    }
+                    window.addEventListener('mousemove', move); window.addEventListener('mouseup', up)
+                  }}
+                />
+                {/* SW resize handle */}
+                <div className="absolute bottom-0 left-0 w-3 h-3 cursor-sw-resize opacity-0 group-hover:opacity-100 transition-opacity z-20"
+                  style={{ background: 'rgba(168,85,247,0.8)', borderRadius: 2, transform: 'translate(-50%,50%)' }}
+                  onMouseDown={(e) => {
+                    e.preventDefault(); e.stopPropagation()
+                    const startX = e.clientX, startW = img.w, startX0 = img.x
+                    const move = (ev: MouseEvent) => {
+                      const dx = (ev.clientX - startX) / canvasScale
+                      const newW = Math.max(50, startW - dx)
+                      const el = document.querySelector(`[data-dragimage="${img.index}"]`) as HTMLElement
+                      if (el) { el.style.width = `${newW}px`; el.style.left = `${startX0 + (startW - newW)}px` }
+                    }
+                    const up = (ev: MouseEvent) => {
+                      const dx = (ev.clientX - startX) / canvasScale
+                      const newW = Math.max(50, startW - dx)
+                      onUpdateMarkdown(replaceImage(markdown, img, { w: newW, x: startX0 + (startW - newW) }))
+                      window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up)
+                    }
+                    window.addEventListener('mousemove', move); window.addEventListener('mouseup', up)
+                  }}
+                />
+                {/* NE resize handle */}
+                <div className="absolute top-0 right-0 w-3 h-3 cursor-ne-resize opacity-0 group-hover:opacity-100 transition-opacity z-20"
+                  style={{ background: 'rgba(168,85,247,0.8)', borderRadius: 2, transform: 'translate(50%,-50%)' }}
+                  onMouseDown={(e) => {
+                    e.preventDefault(); e.stopPropagation()
+                    const startX = e.clientX, startW = img.w
+                    const move = (ev: MouseEvent) => {
+                      const el = document.querySelector(`[data-dragimage="${img.index}"]`) as HTMLElement
+                      if (el) el.style.width = `${Math.max(50, startW + (ev.clientX - startX) / canvasScale)}px`
+                    }
+                    const up = (ev: MouseEvent) => {
+                      onUpdateMarkdown(replaceImage(markdown, img, { w: Math.max(50, startW + (ev.clientX - startX) / canvasScale) }))
+                      window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up)
+                    }
+                    window.addEventListener('mousemove', move); window.addEventListener('mouseup', up)
+                  }}
+                />
+                {/* NW resize handle */}
+                <div className="absolute top-0 left-0 w-3 h-3 cursor-nw-resize opacity-0 group-hover:opacity-100 transition-opacity z-20"
+                  style={{ background: 'rgba(168,85,247,0.8)', borderRadius: 2, transform: 'translate(-50%,-50%)' }}
+                  onMouseDown={(e) => {
+                    e.preventDefault(); e.stopPropagation()
+                    const startX = e.clientX, startW = img.w, startX0 = img.x
+                    const move = (ev: MouseEvent) => {
+                      const dx = (ev.clientX - startX) / canvasScale
+                      const newW = Math.max(50, startW - dx)
+                      const el = document.querySelector(`[data-dragimage="${img.index}"]`) as HTMLElement
+                      if (el) { el.style.width = `${newW}px`; el.style.left = `${startX0 + (startW - newW)}px` }
+                    }
+                    const up = (ev: MouseEvent) => {
+                      const dx = (ev.clientX - startX) / canvasScale
+                      const newW = Math.max(50, startW - dx)
+                      onUpdateMarkdown(replaceImage(markdown, img, { w: newW, x: startX0 + (startW - newW) }))
                       window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up)
                     }
                     window.addEventListener('mousemove', move); window.addEventListener('mouseup', up)

@@ -17,6 +17,7 @@ export function SlidePanel(): JSX.Element {
   const slideTheme = presentation?.theme || 'dark'
   const { showNavigator, editingSlide, editorMode, setEditorMode, slideGroups } = useUIStore()
   const currentSlide = slides[currentSlideIndex]
+  const [wysiwygHeaderSlot, setWysiwygHeaderSlot] = useState<HTMLDivElement | null>(null)
 
   // Compute current group label
   const groupLabel = (() => {
@@ -150,6 +151,7 @@ export function SlidePanel(): JSX.Element {
         </div>
       )}
       {/* Editor toolbar */}
+<<<<<<< Updated upstream
       {editingSlide && (
         <>
           <div className="h-7 bg-gray-900 border-b border-gray-800 flex items-center px-3 gap-2">
@@ -194,6 +196,41 @@ export function SlidePanel(): JSX.Element {
           <AIImproveBar />
         </div>
       )}
+=======
+      <div className="h-7 bg-gray-900 border-b border-gray-800 flex items-center px-3 gap-2">
+        <button
+          onClick={() => { setEditorMode('wysiwyg'); setDrawingMode(false) }}
+          className={`text-[10px] px-2 py-0.5 rounded transition-colors ${
+            editorMode === 'wysiwyg' && !drawingMode ? 'bg-white text-black' : 'text-gray-500 hover:text-gray-300'
+          }`}
+        >
+          Visual
+        </button>
+        <button
+          onClick={() => { setEditorMode('markdown'); setDrawingMode(false) }}
+          className={`text-[10px] px-2 py-0.5 rounded transition-colors ${
+            editorMode === 'markdown' && !drawingMode ? 'bg-white text-black' : 'text-gray-500 hover:text-gray-300'
+          }`}
+        >
+          Markdown
+        </button>
+        <button
+          onClick={() => setDrawingMode(!drawingMode)}
+          className={`text-[10px] px-2 py-0.5 rounded transition-colors flex items-center gap-1 ${
+            drawingMode ? 'bg-white text-black' : 'text-gray-500 hover:text-gray-300'
+          }`}
+        >
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
+          </svg>
+          Draw
+        </button>
+        <div className="flex-1" />
+        <AIChangeBar />
+      </div>
+      {editorMode === 'markdown' && !drawingMode && <SlideEditToolbar editorRef={editorRef} />}
+      {editorMode === 'wysiwyg' && !drawingMode && <div ref={setWysiwygHeaderSlot} className="bg-gray-900 border-b border-gray-800 shrink-0" />}
+>>>>>>> Stashed changes
 
       {/* Main content */}
       <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
@@ -222,10 +259,11 @@ export function SlidePanel(): JSX.Element {
             presentation={presentation}
             updateMarkdownContent={updateMarkdownContent}
             saveSlideContent={saveSlideContent}
+            wysiwygHeaderSlot={wysiwygHeaderSlot}
           />
         ) : editingSlide && editorMode === 'wysiwyg' ? (
           /* WYSIWYG: single canvas */
-          <EditableSlideCanvas slideIndex={currentSlideIndex} breakOffsets={breakOffsets} rootPath={presentation?.rootPath} layout={currentSlide.config.layout} />
+          <EditableSlideCanvas slideIndex={currentSlideIndex} breakOffsets={breakOffsets} rootPath={presentation?.rootPath} layout={currentSlide.config.layout} wysiwygHeaderSlot={wysiwygHeaderSlot} />
         ) : editingSlide && editorMode === 'markdown' ? (
           /* Markdown: split view — canvas top, editor bottom */
           <>
@@ -270,9 +308,9 @@ export function SlidePanel(): JSX.Element {
         )}
       </div>
 
-      {/* Sub-slide pagination (read mode: navigate between sub-slides) */}
-      {subSlides.length > 1 && !editingSlide && (
-        <div className="h-8 bg-gray-900 border-t border-gray-800 flex items-center justify-center gap-1.5 px-4 flex-shrink-0">
+      {/* Sub-slide pagination */}
+      {subSlides.length > 1 && (
+        <div className="h-8 bg-gray-900 border-t border-gray-800 flex items-center justify-center gap-1.5 px-4 shrink-0">
           {subSlides.map((_, i) => (
             <button
               key={i}
@@ -288,14 +326,6 @@ export function SlidePanel(): JSX.Element {
           ))}
           <span className="text-[9px] text-gray-600 ml-2">
             {currentSubSlide + 1}/{subSlides.length} sub-slides
-          </span>
-        </div>
-      )}
-      {/* Sub-slide count (edit mode: all visible above) */}
-      {subSlides.length > 1 && editingSlide && (
-        <div className="h-6 bg-gray-900/50 border-t border-gray-800 flex items-center justify-center flex-shrink-0">
-          <span className="text-[9px] text-gray-500 font-mono">
-            {subSlides.length} sub-slides
           </span>
         </div>
       )}
@@ -366,11 +396,9 @@ function SlideCanvas({ markdown, rootPath, transition, layout, slideIndex, drawi
 }): JSX.Element {
   const slideTheme = usePresentationStore((s) => s.presentation?.theme) || 'dark'
   const containerRef = useRef<HTMLDivElement>(null)
-  const contentRef = useRef<HTMLDivElement>(null)
   const slideRef = useRef<HTMLDivElement>(null)
   const transitionRef = useRef<HTMLDivElement>(null)
   const [canvasScale, setCanvasScale] = useState(1)
-  const [contentScale, setContentScale] = useState(1)
 
   // Trigger entrance animation on markdown change
   useEffect(() => {
@@ -384,8 +412,6 @@ function SlideCanvas({ markdown, rootPath, transition, layout, slideIndex, drawi
   const SLIDE_W = 1280
   const SLIDE_H = 720
   const PAD = 48 // p-12 = 48px each side
-  const FOOTER_H = showGlobalLayers ? 24 : 0 // reserve space for global layers footer
-  const CONTENT_H = SLIDE_H - PAD * 2 - FOOTER_H
 
   // Scale the canvas frame to fit the container
   useEffect(() => {
@@ -406,31 +432,6 @@ function SlideCanvas({ markdown, rootPath, transition, layout, slideIndex, drawi
     return () => ro.disconnect()
   }, [])
 
-  // Scale content down if it overflows the slide height
-  useEffect(() => {
-    const el = contentRef.current
-    if (!el) return
-
-    const measure = () => {
-      // Reset scale to measure natural height
-      el.style.transform = 'scale(1)'
-      el.style.transformOrigin = 'top left'
-      const natural = el.scrollHeight
-      if (natural > CONTENT_H) {
-        const s = CONTENT_H / natural
-        setContentScale(Math.max(0.3, s))
-      } else {
-        setContentScale(1)
-      }
-    }
-
-    // Measure after render + images/diagrams load (multiple passes for async content)
-    measure()
-    const t1 = setTimeout(measure, 200)
-    const t2 = setTimeout(measure, 600)
-    const t3 = setTimeout(measure, 1500)
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
-  }, [markdown])
 
   return (
     <div ref={containerRef} className="h-full w-full flex items-center justify-center bg-neutral-800 overflow-hidden">
@@ -450,12 +451,9 @@ function SlideCanvas({ markdown, rootPath, transition, layout, slideIndex, drawi
         <div className="absolute inset-0 rounded" style={{ background: 'var(--slide-bg)' }} />
         <div ref={transitionRef} className={`absolute inset-0 ${layout === 'blank' ? '' : 'p-12'} overflow-hidden ${transition && transition !== 'none' ? `slide-transition-${transition}` : ''} ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
           <div
-            ref={contentRef}
             style={{
               width: layout === 'blank' ? SLIDE_W : SLIDE_W - PAD * 2,
               height: layout === 'blank' ? SLIDE_H : undefined,
-              transform: `scale(${contentScale})`,
-              transformOrigin: 'top left'
             }}
           >
             <SlideRenderer markdown={markdown} rootPath={rootPath} />
@@ -526,8 +524,8 @@ function GlobalLayers({ width, height }: { width: number; height: number }): JSX
 }
 
 /** Editable slide canvas — WYSIWYG editor rendered inside the scaled 16:9 frame */
-function EditableSlideCanvas({ slideIndex, breakOffsets, rootPath, layout, subSlideCount }: {
-  slideIndex: number; breakOffsets?: number[]; rootPath?: string; layout?: string; subSlideCount?: number
+function EditableSlideCanvas({ slideIndex, breakOffsets, rootPath, layout, subSlideCount, wysiwygHeaderSlot }: {
+  slideIndex: number; breakOffsets?: number[]; rootPath?: string; layout?: string; subSlideCount?: number; wysiwygHeaderSlot?: HTMLDivElement | null
 }): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
   const [canvasScale, setCanvasScale] = useState(1)
@@ -581,7 +579,7 @@ function EditableSlideCanvas({ slideIndex, breakOffsets, rootPath, layout, subSl
         }}
       >
         <div className={`relative ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
-          <WysiwygEditor slideIndex={slideIndex} breakOffsets={breakOffsets} />
+          <WysiwygEditor slideIndex={slideIndex} breakOffsets={breakOffsets} headerSlot={wysiwygHeaderSlot} />
         </div>
         {/* Positioned images/textboxes overlay in editor mode */}
         <div className="absolute inset-0 p-12" style={{ zIndex: 10, pointerEvents: 'none' }}>
@@ -614,7 +612,7 @@ function splitFullMdSections(fullMd: string): string[] {
 }
 
 /** Stacked sub-slide editor — shows all sub-slides as separate canvases, selected one is WYSIWYG-editable */
-function SubSlideStackEditor({ subSlides, currentSubSlide, setCurrentSubSlide, slideIndex, currentSlide, presentation, updateMarkdownContent, saveSlideContent }: {
+function SubSlideStackEditor({ subSlides, currentSubSlide, setCurrentSubSlide, slideIndex, currentSlide, presentation, updateMarkdownContent, saveSlideContent, wysiwygHeaderSlot }: {
   subSlides: { markdown: string; index: number }[]
   currentSubSlide: number
   setCurrentSubSlide: (n: number) => void
@@ -623,6 +621,7 @@ function SubSlideStackEditor({ subSlides, currentSubSlide, setCurrentSubSlide, s
   presentation: any
   updateMarkdownContent: (idx: number, md: string) => void
   saveSlideContent: (idx: number) => void
+  wysiwygHeaderSlot?: HTMLDivElement | null
 }): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
   const [baseScale, setBaseScale] = useState(0.5)
@@ -771,6 +770,7 @@ function SubSlideStackEditor({ subSlides, currentSubSlide, setCurrentSubSlide, s
                       slideIndex={slideIndex}
                       subSlideMarkdown={sub.markdown}
                       onSubSlideChange={(md) => replaceSubSlide(i, md)}
+                      headerSlot={wysiwygHeaderSlot}
                     />
                   </div>
                 ) : (

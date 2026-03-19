@@ -94,7 +94,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   showRightPane: false,
   showSlideMap: false,
   showAIGenerate: false,
-  editingSlide: false,
+  editingSlide: true,
   editorMode: 'wysiwyg' as const,
   splitRatio: 40,
   fontSize: 12,

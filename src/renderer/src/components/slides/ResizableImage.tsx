@@ -88,20 +88,10 @@ export function ResizableImageView({ node, updateAttributes, deleteNode, selecte
     const centerY = Math.round((720 - 300) / 2 - 48)
     const comment = `\n<!-- image x=${centerX} y=${centerY} w=${imgWidth} src=${imgSrc}${borderAttr}${radiusAttr} -->\n`
 
-    // First delete the inline node (this triggers onUpdate which saves markdown without the image)
+    // Queue comment so onUpdate (fired synchronously by deleteNode) picks it up atomically
+    ;(window as any).__pendingPinComments = (window as any).__pendingPinComments || []
+    ;(window as any).__pendingPinComments.push(comment.trim())
     deleteNode()
-
-    // Wait for the editor's debounced save (500ms) to complete, then append the comment
-    setTimeout(() => {
-      const { slides, currentSlideIndex, updateMarkdownContent, saveSlideContent } = usePresentationStore.getState()
-      const currentMd = slides[currentSlideIndex]?.markdownContent ?? ''
-      // Only append if not already present (avoid duplicates)
-      if (!currentMd.includes(comment.trim())) {
-        updateMarkdownContent(currentSlideIndex, currentMd + comment)
-      }
-      // Force save to disk
-      saveSlideContent(currentSlideIndex)
-    }, 700)
   }
 
   const handleAIEdit = async () => {

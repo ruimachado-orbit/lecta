@@ -154,6 +154,147 @@ html[data-theme="light"] .slide-content blockquote { color: #64748b; }
 html[data-theme="light"] .slide-content a { color: #171717; }
 html[data-theme="light"] .slide-content hr { border-color: #e2e8f0; }
 
+/* ============================================================
+   VISUAL MARKDOWN COMPONENTS — enhanced rendering
+   ============================================================ */
+
+/* Status badges */
+.slide-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.slide-badge-green { background: rgba(34,197,94,0.15); color: #4ade80; border: 1px solid rgba(34,197,94,0.3); }
+.slide-badge-yellow { background: rgba(234,179,8,0.15); color: #fbbf24; border: 1px solid rgba(234,179,8,0.3); }
+.slide-badge-red { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+
+.slide-badge-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+.slide-badge-icon.slide-badge-green { background: rgba(34,197,94,0.2); color: #4ade80; }
+.slide-badge-icon.slide-badge-red { background: rgba(239,68,68,0.2); color: #f87171; }
+
+/* Progress bars */
+.slide-progress {
+  position: relative;
+  height: 1.5rem;
+  background: rgba(255,255,255,0.08);
+  border-radius: 0.75rem;
+  overflow: hidden;
+  margin: 0.5rem 0;
+}
+.slide-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #4ade80, #22c55e);
+  border-radius: 0.75rem;
+  transition: width 0.5s ease;
+}
+.slide-progress-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: white;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+
+/* Metric highlight cards */
+.slide-metric {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 0.75rem 1.25rem;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 0.75rem;
+  margin: 0.5rem 0;
+}
+.slide-metric-value {
+  font-size: 2.5rem;
+  font-weight: 800;
+  line-height: 1.1;
+  color: #ffffff;
+  letter-spacing: -0.02em;
+}
+.slide-metric-context {
+  font-size: 0.85rem;
+  color: #a3a3a3;
+  margin-top: 0.25rem;
+}
+
+/* Enhanced table styling */
+.slide-content table {
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.slide-content th {
+  background: rgba(255,255,255,0.08);
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  padding: 0.6rem 1rem;
+  border-bottom: 2px solid rgba(255,255,255,0.15);
+  color: #e5e5e5;
+}
+.slide-content td {
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  color: #d4d4d4;
+}
+.slide-content tr:last-child td { border-bottom: none; }
+.slide-content tr:hover td { background: rgba(255,255,255,0.03); }
+
+/* Enhanced blockquotes — callout style */
+.slide-content blockquote {
+  background: rgba(255,255,255,0.04);
+  border-left: 3px solid #ffffff;
+  border-radius: 0 0.5rem 0.5rem 0;
+  padding: 1rem 1.25rem;
+  margin: 1rem 0;
+  font-style: italic;
+  color: #d4d4d4;
+}
+
+/* HR — pure spacing, no visible line */
+.slide-content hr {
+  border: none;
+  height: 0;
+  background: transparent;
+  margin: 1.5rem 0;
+}
+
+/* Light mode overrides for visual components */
+html[data-theme="light"] .slide-badge-green { background: rgba(34,197,94,0.1); color: #16a34a; border-color: rgba(34,197,94,0.2); }
+html[data-theme="light"] .slide-badge-yellow { background: rgba(234,179,8,0.1); color: #ca8a04; border-color: rgba(234,179,8,0.2); }
+html[data-theme="light"] .slide-badge-red { background: rgba(239,68,68,0.1); color: #dc2626; border-color: rgba(239,68,68,0.2); }
+html[data-theme="light"] .slide-metric { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.08); }
+html[data-theme="light"] .slide-metric-value { color: #0f172a; }
+html[data-theme="light"] .slide-metric-context { color: #64748b; }
+html[data-theme="light"] .slide-content table { border-color: rgba(0,0,0,0.1); }
+html[data-theme="light"] .slide-content th { background: rgba(0,0,0,0.04); border-bottom-color: rgba(0,0,0,0.1); color: #1e293b; }
+html[data-theme="light"] .slide-content td { border-bottom-color: rgba(0,0,0,0.05); color: #334155; }
+html[data-theme="light"] .slide-content blockquote { background: rgba(0,0,0,0.02); border-left-color: #0f172a; }
+html[data-theme="light"] .slide-content hr { background: transparent; }
+
 /* Presentation-quality slide styling */
 .slide-content h1 {
   @apply text-4xl font-bold mb-6 text-white;

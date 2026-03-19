@@ -126,8 +126,9 @@ export function PresenterView(): JSX.Element {
             <span className="text-xs text-white/60 font-medium">{groupSlideIndex}/{currentGroup.slideIds.length}</span>
           </div>
         )}
-        {/* Total slide counter */}
-        <span className="text-gray-400 text-[10px] font-mono">{currentSlideIndex + 1} / {slides.length}</span>
+        {/* Slide name + total counter */}
+        <span className="text-gray-300 text-xs font-medium truncate max-w-[150px]">{currentSlide?.config.id}</span>
+        <span className="text-gray-500 text-[10px] font-mono">{currentSlideIndex + 1}/{slides.length}</span>
         <span className="text-gray-500 text-xs truncate flex-1">{presentation?.title}</span>
         <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           <button onClick={() => setShowNotes(!showNotes)}

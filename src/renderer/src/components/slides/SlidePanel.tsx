@@ -65,16 +65,29 @@ export function SlidePanel(): JSX.Element {
 
   return (
     <div className="h-full flex flex-col bg-gray-950">
-      {/* Group label */}
-      {groupLabel && (
-        <div className="h-8 border-b flex items-center px-4 gap-2 flex-shrink-0"
-          style={{
-            backgroundColor: groupLabel.color ? `${groupLabel.color}15` : 'rgba(99,102,241,0.1)',
-            borderBottomColor: groupLabel.color ? `${groupLabel.color}30` : 'rgba(99,102,241,0.2)'
-          }}>
-          <div className="w-1.5 h-4 rounded-full" style={{ backgroundColor: groupLabel.color || '#6366f1' }} />
-          <span className="text-[12px] font-semibold tracking-wide" style={{ color: groupLabel.color || '#a5b4fc' }}>{groupLabel.name}</span>
-          <span className="text-[11px] font-mono" style={{ color: groupLabel.color ? `${groupLabel.color}90` : 'rgba(99,102,241,0.5)' }}>{groupLabel.position} / {groupLabel.total}</span>
+      {/* Group + sub-slide labels */}
+      {(groupLabel || subSlides.length > 1) && (
+        <div className="h-8 border-b border-gray-800 flex items-center px-4 gap-3 flex-shrink-0"
+          style={groupLabel ? {
+            backgroundColor: groupLabel.color ? `${groupLabel.color}15` : 'rgba(255,255,255,0.03)',
+            borderBottomColor: groupLabel.color ? `${groupLabel.color}30` : undefined
+          } : undefined}>
+          {/* Group label */}
+          {groupLabel && (
+            <div className="flex items-center gap-2">
+              <div className="w-1.5 h-4 rounded-full" style={{ backgroundColor: groupLabel.color || '#a3a3a3' }} />
+              <span className="text-[12px] font-semibold tracking-wide" style={{ color: groupLabel.color || '#a3a3a3' }}>{groupLabel.name}</span>
+              <span className="text-[11px] font-mono opacity-60" style={{ color: groupLabel.color || '#a3a3a3' }}>{groupLabel.position}/{groupLabel.total}</span>
+            </div>
+          )}
+          {/* Sub-slide label */}
+          {subSlides.length > 1 && (
+            <div className="flex items-center gap-1.5">
+              {groupLabel && <div className="w-px h-4 bg-gray-700" />}
+              <span className="text-[11px] text-gray-400 font-medium truncate max-w-[120px]">{currentSlide.config.id}</span>
+              <span className="text-[10px] text-gray-500 font-mono">{currentSubSlide + 1}/{subSlides.length}</span>
+            </div>
+          )}
         </div>
       )}
       {/* Editor toolbar */}

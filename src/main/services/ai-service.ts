@@ -223,11 +223,22 @@ FORMATTING TECHNIQUES — use ALL that apply:
 
 6. **Visual separators**: --- between major sections for breathing room.
 
-7. **Status indicators inline**:
-   🟢 positive/done  🟡 in-progress  🔴 blocked/risk
-   Example: "Revenue: **$4.2M** 🟢 (+12%)"
+7. **Status badges** — the renderer auto-styles these as colored pills:
+   🟢 On Track → renders as green badge
+   🟡 In Progress → renders as yellow badge
+   🔴 At Risk → renders as red badge
+   ✅ and ❌ also render as styled icons.
+   Place them at the START of a line for best visual effect.
 
-8. **Mermaid diagrams**: If content describes a process/flow/architecture, ADD a mermaid diagram:
+8. **Progress bars**: Use \`[progress XX%]\` syntax — renders as a visual progress bar.
+   Example: [progress 75%]
+
+9. **Metric highlights**: Put a bold number ALONE on its own line for a large metric card:
+   **$4.2M**
+   (+12% YoY growth)
+   This renders as a large highlighted metric card.
+
+10. **Mermaid diagrams**: If content describes a process/flow/architecture/funnel, ADD a mermaid diagram:
    \`\`\`mermaid
    graph LR
      A[Step] --> B[Step] --> C[Result]

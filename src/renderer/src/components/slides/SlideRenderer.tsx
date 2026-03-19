@@ -220,7 +220,7 @@ export function SlideRenderer({ markdown, rootPath }: SlideRendererProps): JSX.E
           hr: () => <hr className="border-gray-700 my-8" />
         }}
       >
-        {preprocessColumns(markdown)}
+        {enhanceVisualPatterns(preprocessColumns(markdown))}
       </ReactMarkdown>
     </div>
   )

@@ -1,6 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { loadAnthropicKey, loadAnthropicModel } from './env-loader'
 import { DEFAULT_AI_MODEL } from '../../../packages/shared/src/constants'
+import type { PresentationSnapshot, ChatStreamEvent } from '../../../packages/shared/src/types/chat'
+import { getToolSchemas, findTool, type ToolExecutionContext } from './chat-agent-tools'
 
 const SLIDE_7x7_RULE = `
 MANDATORY 7×7 RULE — NEVER VIOLATE:
@@ -660,5 +662,186 @@ Rules:
         onChunk(event.delta.text)
       }
     }
+  }
+
+  /**
+   * Chat agent with tool use — ReAct-style loop.
+   * Inspired by alibaba/page-agent's PageAgentCore observe→think→act cycle.
+   */
+  async chatWithTools(
+    messages: Anthropic.MessageParam[],
+    snapshot: PresentationSnapshot,
+    actionMode: 'auto' | 'ask',
+    onEvent: (event: ChatStreamEvent) => void,
+    confirmAction?: (toolCallId: string, toolName: string, toolInput: unknown) => Promise<boolean>
+  ): Promise<Anthropic.MessageParam[]> {
+    const client = await this.getClient()
+    const tools = getToolSchemas()
+    const maxIterations = 10
+
+    // Build system prompt with presentation context (like page-agent's getBrowserState)
+    const slideOverview = snapshot.slides
+      .map((s, i) => {
+        const heading = s.markdownContent.split('\n').find((l) => l.startsWith('#'))
+          ?.replace(/^#+\s*/, '').slice(0, 50) || '(empty)'
+        return `  [${i}] ${s.id}: ${heading}`
+      })
+      .join('\n')
+
+    const systemPrompt = `You are Lecta AI, an intelligent assistant embedded in the Lecta presentation app. You help users view, edit, and improve their presentations through natural conversation.
+
+Current presentation context:
+- Title: "${snapshot.title}"
+- Author: ${snapshot.author}
+- Theme: ${snapshot.theme}
+- Total slides: ${snapshot.slides.length}
+- Currently viewing: Slide ${snapshot.currentSlideIndex + 1}
+- Slide overview:
+${slideOverview}
+
+Guidelines:
+- Use the available tools to view and modify the presentation when asked.
+- Always confirm what you did after making changes.
+- For multi-step tasks, work through them one step at a time.
+- Be concise and helpful. Use markdown formatting in your responses.
+- When the user refers to "this slide" or "the current slide", they mean slide index ${snapshot.currentSlideIndex}.
+- Slide indices are 0-based internally but refer to them as 1-based when talking to the user.`
+
+    const conversationMessages = [...messages]
+    let iterations = 0
+
+    while (iterations < maxIterations) {
+      iterations++
+
+      // Call Claude with tools
+      const response = await client.messages.create({
+        model: this.model,
+        max_tokens: 4096,
+        system: systemPrompt,
+        tools,
+        messages: conversationMessages
+      })
+
+      // Process response content blocks
+      const assistantContent: Anthropic.ContentBlock[] = response.content
+      const toolUseBlocks = assistantContent.filter(
+        (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
+      )
+
+      // Stream any text blocks to the UI
+      for (const block of assistantContent) {
+        if (block.type === 'text' && block.text) {
+          onEvent({ type: 'text_delta', text: block.text })
+        }
+      }
+
+      // Add assistant message to conversation
+      conversationMessages.push({ role: 'assistant', content: assistantContent })
+
+      // If no tool calls, we're done
+      if (response.stop_reason === 'end_turn' || toolUseBlocks.length === 0) {
+        break
+      }
+
+      // Process tool calls
+      const toolResults: Anthropic.ToolResultBlockParam[] = []
+
+      for (const toolUse of toolUseBlocks) {
+        const tool = findTool(toolUse.name)
+        if (!tool) {
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: toolUse.id,
+            content: `Unknown tool: ${toolUse.name}`,
+            is_error: true
+          })
+          continue
+        }
+
+        onEvent({
+          type: 'tool_call_start',
+          id: toolUse.id,
+          toolName: toolUse.name,
+          toolInput: toolUse.input
+        })
+
+        // Check if confirmation is needed (ask mode + mutation tool)
+        if (actionMode === 'ask' && tool.isMutation && confirmAction) {
+          onEvent({
+            type: 'tool_confirm_request',
+            id: toolUse.id,
+            toolName: toolUse.name,
+            toolInput: toolUse.input
+          })
+
+          const approved = await confirmAction(toolUse.id, toolUse.name, toolUse.input)
+          if (!approved) {
+            toolResults.push({
+              type: 'tool_result',
+              tool_use_id: toolUse.id,
+              content: 'Action was rejected by the user.'
+            })
+            onEvent({
+              type: 'tool_call_result',
+              id: toolUse.id,
+              toolName: toolUse.name,
+              result: 'Action rejected by user.',
+              success: false
+            })
+            continue
+          }
+        }
+
+        // Execute the tool
+        const context: ToolExecutionContext = {
+          snapshot,
+          aiService: this
+        }
+
+        try {
+          const result = await tool.execute(
+            toolUse.input as Record<string, unknown>,
+            context
+          )
+
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: toolUse.id,
+            content: result.result,
+            is_error: !result.success
+          })
+
+          onEvent({
+            type: 'tool_call_result',
+            id: toolUse.id,
+            toolName: toolUse.name,
+            result: result.result,
+            success: result.success,
+            rendererAction: result.rendererAction
+          })
+        } catch (err) {
+          const errorMsg = `Tool execution error: ${(err as Error).message}`
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: toolUse.id,
+            content: errorMsg,
+            is_error: true
+          })
+          onEvent({
+            type: 'tool_call_result',
+            id: toolUse.id,
+            toolName: toolUse.name,
+            result: errorMsg,
+            success: false
+          })
+        }
+      }
+
+      // Add tool results to conversation and continue the loop
+      conversationMessages.push({ role: 'user', content: toolResults })
+    }
+
+    onEvent({ type: 'done' })
+    return conversationMessages
   }
 }

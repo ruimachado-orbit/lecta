@@ -4,11 +4,12 @@ import type { Presentation, LoadedSlide } from '../../../../packages/shared/src/
 
 export interface Tab {
   id: string
+  type: 'home' | 'presentation'
   title: string
-  rootPath: string
-  presentation: Presentation
-  slides: LoadedSlide[]
-  currentSlideIndex: number
+  rootPath?: string
+  presentation?: Presentation
+  slides?: LoadedSlide[]
+  currentSlideIndex?: number
 }
 
 interface TabsState {
@@ -18,7 +19,17 @@ interface TabsState {
   openInNewTab: (folderPath: string) => Promise<void>
   closeTab: (tabId: string) => void
   switchTab: (tabId: string) => Promise<void>
+  newHomeTab: () => void
+  goHome: () => void
   syncCurrentTab: () => void
+}
+
+function makeHomeTab(): Tab {
+  return {
+    id: `home-${Date.now()}`,
+    type: 'home',
+    title: 'Home'
+  }
 }
 
 export const useTabsStore = create<TabsState>((set, get) => ({
@@ -45,6 +56,7 @@ export const useTabsStore = create<TabsState>((set, get) => ({
     const tabId = `tab-${Date.now()}`
     const newTab: Tab = {
       id: tabId,
+      type: 'presentation',
       title: presentation.title,
       rootPath: presentation.rootPath,
       presentation,
@@ -63,7 +75,7 @@ export const useTabsStore = create<TabsState>((set, get) => ({
     const remaining = tabs.filter((t) => t.id !== tabId)
 
     if (remaining.length === 0) {
-      // No tabs left — go back to home screen
+      // No tabs left — show bare home screen
       usePresentationStore.getState().reset()
       set({ tabs: [], activeTabId: null })
       return
@@ -73,17 +85,41 @@ export const useTabsStore = create<TabsState>((set, get) => ({
     if (activeTabId === tabId) {
       const closedIndex = tabs.findIndex((t) => t.id === tabId)
       const nextTab = remaining[Math.min(closedIndex, remaining.length - 1)]
-      // Restore that tab's state
-      usePresentationStore.setState({
-        presentation: nextTab.presentation,
-        slides: nextTab.slides,
-        currentSlideIndex: nextTab.currentSlideIndex,
-        error: null
-      })
+
+      if (nextTab.type === 'presentation' && nextTab.presentation) {
+        usePresentationStore.setState({
+          presentation: nextTab.presentation,
+          slides: nextTab.slides || [],
+          currentSlideIndex: nextTab.currentSlideIndex || 0,
+          error: null
+        })
+      } else {
+        // Switching to a home tab
+        usePresentationStore.getState().reset()
+      }
       set({ tabs: remaining, activeTabId: nextTab.id })
     } else {
       set({ tabs: remaining })
     }
+  },
+
+  newHomeTab: () => {
+    // Save current tab state
+    get().syncCurrentTab()
+
+    const tab = makeHomeTab()
+    usePresentationStore.getState().reset()
+    set((s) => ({
+      tabs: [...s.tabs, tab],
+      activeTabId: tab.id
+    }))
+  },
+
+  goHome: () => {
+    // Save current tab state, then clear presentation to show HomeScreen
+    get().syncCurrentTab()
+    usePresentationStore.getState().reset()
+    set({ activeTabId: null })
   },
 
   switchTab: async (tabId: string) => {
@@ -103,12 +139,17 @@ export const useTabsStore = create<TabsState>((set, get) => ({
     const target = tabs.find((t) => t.id === tabId)
     if (!target) return
 
-    usePresentationStore.setState({
-      presentation: target.presentation,
-      slides: target.slides,
-      currentSlideIndex: target.currentSlideIndex,
-      error: null
-    })
+    if (target.type === 'presentation' && target.presentation) {
+      usePresentationStore.setState({
+        presentation: target.presentation,
+        slides: target.slides || [],
+        currentSlideIndex: target.currentSlideIndex || 0,
+        error: null
+      })
+    } else {
+      // Home tab
+      usePresentationStore.getState().reset()
+    }
 
     set({ activeTabId: tabId })
   },
@@ -116,6 +157,9 @@ export const useTabsStore = create<TabsState>((set, get) => ({
   syncCurrentTab: () => {
     const { tabs, activeTabId } = get()
     if (!activeTabId) return
+
+    const currentTab = tabs.find((t) => t.id === activeTabId)
+    if (!currentTab || currentTab.type !== 'presentation') return
 
     const { presentation, slides, currentSlideIndex } = usePresentationStore.getState()
     if (!presentation) return

@@ -9,6 +9,7 @@ import { registerNotebookHandlers } from './notebook-fs'
 import { registerSlideLibraryHandlers } from './slide-library'
 import { registerRemoteControlHandlers } from './remote-control'
 import { registerGeminiImageHandlers } from './gemini-image'
+import { registerChatAgentHandlers } from './chat-agent'
 
 export function registerAllIpcHandlers(): void {
   registerFileSystemHandlers()
@@ -22,4 +23,5 @@ export function registerAllIpcHandlers(): void {
   registerNotebookHandlers()
   registerSlideLibraryHandlers()
   registerRemoteControlHandlers()
+  registerChatAgentHandlers()
 }

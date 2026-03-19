@@ -14,8 +14,10 @@ import { ArtifactSidebarHeader } from '../artifacts/ArtifactSidebar'
 import { SlideMap } from '../slides/SlideMap'
 import { TabBar } from './TabBar'
 import { PresenterView } from '../presenter/PresenterView'
+import { ChatSidebarPanel } from '../chat/ChatPanel'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore } from '../../stores/ui-store'
+import { useChatStore } from '../../stores/chat-store'
 import { useImageStore } from '../../stores/image-store'
 import { applySlideTheme } from '../../themes/theme-registry'
 import { useTabsStore } from '../../stores/tabs-store'
@@ -24,6 +26,7 @@ import { useFileWatcher } from '../../hooks/useFileWatcher'
 
 export function AppShell(): JSX.Element {
   const { isPresenting, showNotes, showArticlePanel, showArtifactDrawer, showRightPane, showSlideMap } = useUIStore()
+  const isChatOpen = useChatStore((s) => s.isSidebarOpen)
   const { tabs } = useTabsStore()
   const currentSlide = usePresentationStore((s) => s.slides[s.currentSlideIndex])
   const currentSlideIndex = usePresentationStore((s) => s.currentSlideIndex)
@@ -141,6 +144,16 @@ export function AppShell(): JSX.Element {
               <PanelResizeHandle className="w-1 bg-gray-800 hover:bg-white transition-colors cursor-col-resize" />
               <Panel defaultSize={hasRightPane ? 30 : 60} minSize={25}>
                 <ArticlePanel />
+              </Panel>
+            </>
+          )}
+
+          {/* AI Chat Panel */}
+          {isChatOpen && (
+            <>
+              <PanelResizeHandle className="w-1 bg-gray-800 hover:bg-white transition-colors cursor-col-resize" />
+              <Panel defaultSize={30} minSize={20}>
+                <ChatSidebarPanel />
               </Panel>
             </>
           )}

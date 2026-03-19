@@ -3,6 +3,7 @@ import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useExecutionStore } from '../../stores/execution-store'
 import { useTabsStore } from '../../stores/tabs-store'
+import { useChatStore } from '../../stores/chat-store'
 import { ThemePicker } from '../slides/ThemePicker'
 import type { SupportedLanguage } from '../../../../../packages/shared/src/types/presentation'
 
@@ -12,6 +13,7 @@ export function Toolbar(): JSX.Element {
   const { togglePresenting, toggleNotes, showNotes, editingSlide, toggleEditingSlide, theme, setTheme, showArticlePanel, toggleArticlePanel, showRightPane, toggleRightPane, toggleSlideMap, showAIGenerate, toggleAIGenerate } = useUIStore()
   const { isExecuting } = useExecutionStore()
   const { activeTabId, closeTab } = useTabsStore()
+  const { isSidebarOpen, toggleSidebar } = useChatStore()
 
   const [showAddMenu, setShowAddMenu] = useState(false)
   const [showThemePicker, setShowThemePicker] = useState(false)
@@ -165,13 +167,13 @@ export function Toolbar(): JSX.Element {
           Editor
         </button>
 
-        {/* AI slide generator */}
+        {/* AI Chat */}
         <button
-          onClick={toggleAIGenerate}
+          onClick={toggleSidebar}
           className={`p-1.5 rounded transition-colors ${
-            showAIGenerate ? 'bg-white text-black' : 'hover:bg-gray-800 text-gray-400'
+            isSidebarOpen ? 'bg-white text-black' : 'hover:bg-gray-800 text-gray-400'
           }`}
-          title="AI slide generator"
+          title="AI Chat"
         >
           <SparklesIcon />
         </button>

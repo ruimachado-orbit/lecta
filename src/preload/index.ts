@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { ExecutionResult } from '../../packages/shared/src/types/execution'
 import type { Presentation, LoadedPresentation, SupportedLanguage } from '../../packages/shared/src/types/presentation'
+import type { PresentationSnapshot, ChatStreamEvent } from '../../packages/shared/src/types/chat'
 
 const api = {
   // File system
@@ -289,6 +290,20 @@ const api = {
     ipcRenderer.invoke('remote:start'),
   stopRemote: (): Promise<void> =>
     ipcRenderer.invoke('remote:stop'),
+
+  // Chat Agent
+  chatSendMessage: (
+    messages: unknown[],
+    snapshot: PresentationSnapshot,
+    actionMode: 'auto' | 'ask',
+    onEvent: (event: ChatStreamEvent) => void
+  ): Promise<unknown[]> => {
+    const channel = `chat:stream-${Date.now()}`
+    ipcRenderer.on(channel, (_event, data: ChatStreamEvent) => onEvent(data))
+    return ipcRenderer.invoke('chat:send-message', messages, snapshot, actionMode, channel)
+  },
+  chatConfirmAction: (toolCallId: string, approved: boolean): Promise<void> =>
+    ipcRenderer.invoke('chat:confirm-action', toolCallId, approved),
 
   // Remove listeners
   removeAllListeners: (channel: string): void => {

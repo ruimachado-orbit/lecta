@@ -187,7 +187,7 @@ export function SlidePanel(): JSX.Element {
         </>
       )}
 
-      {/* AI change bar (preview mode) + AI improve bar */}
+      {/* AI change bar (preview mode) + AI improve bar + Chat */}
       {!editingSlide && (
         <div className="flex items-center gap-2 px-3 py-1 border-b border-gray-800 bg-gray-900/50">
           <AIChangeBar />

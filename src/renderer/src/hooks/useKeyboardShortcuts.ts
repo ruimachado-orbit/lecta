@@ -8,6 +8,15 @@ export function useKeyboardShortcuts(): void {
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent): void {
+      // Cmd+/ or Ctrl+/ — toggle chat agent (works everywhere)
+      if ((e.metaKey || e.ctrlKey) && e.key === '/') {
+        e.preventDefault()
+        import('../stores/chat-store').then(({ useChatStore }) => {
+          useChatStore.getState().toggleSidebar()
+        })
+        return
+      }
+
       // Don't capture shortcuts when typing in an input or the Monaco editor
       const target = e.target as HTMLElement
       if (

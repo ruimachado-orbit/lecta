@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useNotebookStore } from '../../stores/notebook-store'
 import { useUIStore, COLOR_PALETTES } from '../../stores/ui-store'
+import { useChatStore } from '../../stores/chat-store'
+import { useTabsStore } from '../../stores/tabs-store'
 
 interface RecentDeck {
   path: string
@@ -81,10 +83,14 @@ export function HomeScreen(): JSX.Element {
   }
 
   return (
-    <div className="h-screen flex items-start justify-center bg-gray-950 relative overflow-y-auto pt-20" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
+    <div className="h-screen flex flex-col bg-gray-950 relative" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
+      {/* Tab bar — show open presentation tabs so user can switch back */}
+      <HomeTabBar />
+
+      <div className="flex-1 overflow-y-auto flex items-start justify-center pt-20">
       <div className="max-w-xl w-full px-8 pb-16" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         {/* Logo / Title */}
-        <div className="text-center mb-12">
+        <div className="text-center mb-8">
           <h1
             className="text-5xl text-white tracking-tight mb-3"
             style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontStyle: 'italic', fontWeight: 700 }}
@@ -343,6 +349,13 @@ export function HomeScreen(): JSX.Element {
         )}
       </div>
 
+      {/* AI Chat Input — fixed at bottom */}
+      <div className="fixed bottom-6 left-0 right-0 z-40 flex justify-center px-8" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+        <div className="max-w-xl w-full">
+          <ChatInput />
+        </div>
+      </div>
+
       {/* Settings gear — bottom left */}
       <button
         onClick={() => setShowSettings(true)}
@@ -355,6 +368,106 @@ export function HomeScreen(): JSX.Element {
           <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
         </svg>
       </button>
+      </div>
+    </div>
+  )
+}
+
+function HomeTabBar(): JSX.Element {
+  const { tabs, switchTab, closeTab, newHomeTab } = useTabsStore()
+
+  const activeTabId = useTabsStore((s) => s.activeTabId)
+
+  if (tabs.length === 0) return <></>
+
+  return (
+    <div
+      className="h-8 bg-gray-900 border-b border-gray-800 flex items-center px-20 flex-shrink-0"
+      style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+    >
+      {/* All tabs */}
+      {tabs.map((tab) => {
+        const isActive = tab.id === activeTabId
+        const isHome = tab.type === 'home'
+        return (
+          <div
+            key={tab.id}
+            onClick={() => { if (!isActive) switchTab(tab.id) }}
+            className={`group flex items-center gap-1.5 px-3 h-full text-[11px] cursor-pointer border-r border-gray-800 transition-colors max-w-[180px] ${
+              isActive
+                ? 'bg-gray-950 text-gray-200 border-b-2 border-b-white'
+                : 'text-gray-500 hover:bg-gray-800 hover:text-gray-300'
+            }`}
+          >
+            {isHome && (
+              <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+              </svg>
+            )}
+            <span className="truncate flex-1">{tab.title}</span>
+            {tabs.length > 1 && (
+              <button
+                onClick={(e) => { e.stopPropagation(); closeTab(tab.id) }}
+                className="hidden group-hover:flex w-4 h-4 items-center justify-center rounded hover:bg-gray-700 text-gray-500 hover:text-gray-200 transition-colors flex-shrink-0"
+              >
+                <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+        )
+      })}
+
+      {/* Add new tab */}
+      <button
+        onClick={newHomeTab}
+        className="h-full px-2 text-gray-600 hover:text-gray-400 hover:bg-gray-800 transition-colors flex items-center"
+        title="New tab"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        </svg>
+      </button>
+    </div>
+  )
+}
+
+function ChatInput(): JSX.Element {
+  const [value, setValue] = useState('')
+  const { openFullChat } = useChatStore()
+
+  const handleSend = (): void => {
+    const text = value.trim()
+    if (!text) return
+    setValue('')
+    openFullChat(text)
+  }
+
+  return (
+    <div className="mb-6">
+      <div className="flex items-center gap-2 bg-gray-900 border border-gray-700 rounded-full px-4 py-2 focus-within:border-indigo-500 transition-colors">
+        <svg className="w-4 h-4 text-indigo-400 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+        </svg>
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleSend() }}
+          placeholder="Ask Lecta AI anything..."
+          className="flex-1 bg-transparent text-sm text-gray-200 placeholder-gray-600 focus:outline-none"
+        />
+        <button
+          onClick={handleSend}
+          disabled={!value.trim()}
+          className="w-7 h-7 rounded-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-800 disabled:text-gray-600 text-white flex items-center justify-center transition-colors flex-shrink-0"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+          </svg>
+        </button>
+      </div>
     </div>
   )
 }

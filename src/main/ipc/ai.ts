@@ -220,7 +220,14 @@ export function registerAiHandlers(): void {
       if (ext === 'pdf') {
         try {
           const buffer = await readFile(filePath)
-          const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
+          const { createRequire } = await import('module')
+          const { join, dirname } = await import('path')
+          // Use createRequire from app root to resolve pdfjs-dist from node_modules
+          const appRequire = createRequire(join(process.cwd(), 'package.json'))
+          const pdfjsPath = appRequire.resolve('pdfjs-dist/legacy/build/pdf.mjs')
+          const workerPath = join(dirname(pdfjsPath), 'pdf.worker.mjs')
+          const pdfjsLib = appRequire(pdfjsPath)
+          pdfjsLib.GlobalWorkerOptions.workerSrc = workerPath
           const data = new Uint8Array(buffer)
           const doc = await pdfjsLib.getDocument({ data }).promise
           let text = ''
@@ -231,7 +238,7 @@ export function registerAiHandlers(): void {
           }
           return text.trim().slice(0, 50000)
         } catch (err) {
-          console.error('PDF parse error:', err)
+          console.error('[pdf] Error:', err)
           return '[Could not read PDF file]'
         }
       }

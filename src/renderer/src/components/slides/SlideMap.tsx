@@ -1,283 +1,203 @@
-import { useState } from 'react'
+import { useRef, useEffect } from 'react'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore, type SlideGroup } from '../../stores/ui-store'
-import type { LoadedSlide, SlideTransition } from '../../../../../packages/shared/src/types/presentation'
 
 export function SlideMap(): JSX.Element {
-  const { slides, currentSlideIndex, goToSlide, presentation, setSlideTransition } = usePresentationStore()
+  const { slides, currentSlideIndex, goToSlide, presentation } = usePresentationStore()
   const { slideGroups, toggleSlideMap } = useUIStore()
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   // Build group lookup
   const slideToGroup = new Map<string, SlideGroup>()
   slideGroups.forEach((g) => g.slideIds.forEach((id) => slideToGroup.set(id, g)))
 
-  // Organize slides into sections: groups + ungrouped
-  const groupedSections: { group: SlideGroup | null; slides: { slide: LoadedSlide; globalIndex: number }[] }[] = []
+  // Build timeline in slide order
+  const timeline = slides.map((slide, i) => ({
+    slide,
+    index: i,
+    group: slideToGroup.get(slide.config.id) || null
+  }))
 
-  // Collect grouped slides by group order
-  const usedGroups = new Set<string>()
-  const ungrouped: { slide: LoadedSlide; globalIndex: number }[] = []
-
-  slides.forEach((slide, index) => {
-    const group = slideToGroup.get(slide.config.id)
-    if (group) {
-      if (!usedGroups.has(group.id)) {
-        usedGroups.add(group.id)
-        const groupSlides = slides
-          .map((s, i) => ({ slide: s, globalIndex: i }))
-          .filter((s) => group.slideIds.includes(s.slide.config.id))
-        groupedSections.push({ group, slides: groupSlides })
-      }
-    } else {
-      ungrouped.push({ slide, globalIndex: index })
+  // Scroll to active slide on open
+  useEffect(() => {
+    if (!scrollRef.current) return
+    const active = scrollRef.current.querySelector('[data-active="true"]') as HTMLElement
+    if (active) {
+      active.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
     }
-  })
-
-  // Add ungrouped at the end
-  if (ungrouped.length > 0) {
-    groupedSections.push({ group: null, slides: ungrouped })
-  }
-
-  const totalGroups = slideGroups.length
-  const totalSlides = slides.length
+  }, [currentSlideIndex])
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center"
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end"
          onClick={toggleSlideMap}>
-      <div className="bg-gray-950 rounded-2xl border border-gray-800 w-[92vw] max-w-6xl max-h-[88vh]
-                      flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-black font-bold text-sm">
-              {presentation?.title?.charAt(0)?.toUpperCase()}
-            </div>
-            <div>
-              <h2 className="text-white font-semibold">{presentation?.title}</h2>
-              <div className="flex items-center gap-3 mt-0.5">
-                <span className="text-gray-500 text-xs">{totalSlides} slides</span>
-                {totalGroups > 0 && <span className="text-gray-600 text-xs">{totalGroups} groups</span>}
-                {presentation?.author && <span className="text-gray-600 text-xs">by {presentation.author}</span>}
+      <div className="w-full bg-gray-950/95 backdrop-blur-xl border-t border-gray-800 shadow-2xl shadow-black/50"
+           onClick={(e) => e.stopPropagation()}>
+
+        {/* Header bar */}
+        <div className="flex items-center justify-between px-6 py-2.5 border-b border-gray-800/50">
+          <div className="flex items-center gap-3">
+            <span className="text-white font-semibold text-sm">{presentation?.title}</span>
+            <span className="text-gray-600 text-xs">{slides.length} slides</span>
+            {slideGroups.length > 0 && (
+              <div className="flex items-center gap-2 ml-2">
+                {slideGroups.map((g) => (
+                  <span key={g.id} className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: g.color || '#6366f1' }} />
+                    <span className="text-[10px] text-gray-500">{g.name}</span>
+                  </span>
+                ))}
               </div>
-            </div>
+            )}
           </div>
-          <button
-            onClick={toggleSlideMap}
-            className="p-2 hover:bg-gray-800 rounded-lg transition-colors text-gray-400 hover:text-white"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-3">
+            <span className="text-gray-500 text-xs font-mono">{currentSlideIndex + 1} / {slides.length}</span>
+            <button onClick={toggleSlideMap}
+              className="p-1 hover:bg-gray-800 rounded transition-colors text-gray-500 hover:text-white">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
 
-        {/* Map */}
-        <div className="flex-1 overflow-auto p-6">
-          <div className="space-y-6 min-w-fit">
-            {groupedSections.map((section, sIdx) => (
-              <div key={section.group?.id ?? 'ungrouped'}>
-                {/* Section header */}
-                <div className="flex items-center gap-2 mb-3">
-                  {section.group ? (
-                    <>
-                      <div className="w-1.5 h-1.5 rounded-full bg-white" />
-                      <span className="text-xs font-semibold text-white uppercase tracking-wider">
-                        {section.group.name}
+        {/* Timeline */}
+        <div ref={scrollRef} className="overflow-x-auto overflow-y-hidden px-8 py-6"
+          style={{ scrollbarWidth: 'thin' }}>
+          <div className="flex items-center gap-0 min-w-fit relative">
+
+            {timeline.map((item, i) => {
+              const { slide, index: globalIndex, group } = item
+              const isActive = globalIndex === currentSlideIndex
+              const prevGroup = i > 0 ? timeline[i - 1].group : null
+              const isGroupStart = group && group !== prevGroup
+              const nextItem = timeline[i + 1]
+              const nextGroup = nextItem?.group
+
+              const title = slide.markdownContent
+                ?.replace(/<!--.*?-->/g, '')
+                .replace(/^#+\s*/, '')
+                .trim()
+                .split('\n')[0]
+                ?.slice(0, 40) || slide.config.id
+
+              const previewLines = slide.markdownContent
+                ?.replace(/<!--.*?-->/g, '')
+                .trim()
+                .split('\n')
+                .filter((l) => l.trim())
+                .slice(0, 5)
+                .map((l) => l.replace(/^[-*]\s*/, '').replace(/\*\*/g, '').replace(/^#+\s*/, '').slice(0, 50))
+
+              const transition = slide.config.transition
+              const hasTransition = transition && transition !== 'none'
+              const groupColor = group?.color || '#6366f1'
+
+              return (
+                <div key={slide.config.id} className="flex items-center flex-shrink-0"
+                  data-active={isActive ? 'true' : undefined}>
+
+                  {/* Group start label */}
+                  {isGroupStart && group && (
+                    <div className="flex flex-col items-center justify-center mr-3 flex-shrink-0 -mt-2">
+                      <span className="text-[9px] font-bold uppercase tracking-widest whitespace-nowrap px-2 py-0.5 rounded-full"
+                        style={{ color: groupColor, backgroundColor: groupColor + '15', border: `1px solid ${groupColor}30` }}>
+                        {group.name}
                       </span>
-                      <span className="text-[10px] text-gray-600">{section.slides.length} slides</span>
-                      <div className="flex-1 h-px bg-gray-800" />
-                    </>
-                  ) : totalGroups > 0 ? (
-                    <>
-                      <div className="w-1.5 h-1.5 rounded-full bg-gray-600" />
-                      <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                        Ungrouped
-                      </span>
-                      <span className="text-[10px] text-gray-600">{section.slides.length} slides</span>
-                      <div className="flex-1 h-px bg-gray-800" />
-                    </>
-                  ) : null}
-                </div>
+                    </div>
+                  )}
 
-                {/* Slides grid */}
-                <div className="grid grid-cols-4 gap-3 pb-2">
-                  {section.slides.map((item) => {
-                    const { slide, globalIndex } = item
-                    const isActive = globalIndex === currentSlideIndex
-                    const hasCode = !!slide.config.code
-                    const hasVideo = !!slide.config.video
-                    const hasWebApp = !!slide.config.webapp
-                    const artifactCount = slide.config.artifacts.length
-
-                    const title = slide.markdownContent
-                      ?.replace(/<!--.*?-->/g, '')
-                      .replace(/^#+\s*/, '')
-                      .trim()
-                      .split('\n')[0]
-                      ?.slice(0, 50) || slide.config.id
-
-                    const previewLines = slide.markdownContent
-                      ?.replace(/<!--.*?-->/g, '')
-                      .trim()
-                      .split('\n')
-                      .filter((l) => l.trim())
-                      .slice(0, 6)
-                      .map((l) => l.replace(/^[-*]\s*/, '').replace(/\*\*/g, '').replace(/^#+\s*/, '').slice(0, 60))
-
-                    return (
-                      <button
-                        key={slide.config.id}
-                        onClick={() => { goToSlide(globalIndex); toggleSlideMap() }}
-                        className={`rounded-lg border transition-all text-left overflow-hidden ${
-                          isActive
-                            ? 'border-white ring-2 ring-white/30 shadow-lg shadow-white/10'
-                            : 'border-gray-800 hover:border-gray-500'
+                  {/* Connector line + transition bubble */}
+                  {i > 0 && (
+                    <div className="w-8 flex-shrink-0 flex items-center justify-center relative">
+                      <div className="w-full h-0.5 rounded-full"
+                        style={{ background: group ? `linear-gradient(90deg, ${prevGroup?.color || '#333'}50, ${groupColor}50)` : '#262626' }} />
+                      <span
+                        className={`absolute w-4 h-4 rounded-full flex items-center justify-center text-[8px] cursor-pointer transition-all hover:scale-125 z-10 ${
+                          hasTransition
+                            ? 'text-white shadow-md'
+                            : 'bg-gray-800 text-gray-600 hover:bg-gray-700 hover:text-gray-400 border border-gray-700'
                         }`}
+                        style={hasTransition ? { backgroundColor: groupColor, boxShadow: `0 0 8px ${groupColor}60` } : undefined}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          const ts = ['none', 'left', 'right', 'top', 'bottom']
+                          const cur = transition || 'none'
+                          const next = ts[(ts.indexOf(cur) + 1) % ts.length]
+                          goToSlide(globalIndex)
+                          setTimeout(() => usePresentationStore.getState().setSlideTransition(next), 50)
+                        }}
+                        title={`Transition: ${transition || 'none'}`}
                       >
-                        {/* 16:9 aspect ratio thumbnail */}
-                        <div className="aspect-video bg-black rounded-t-lg overflow-hidden p-3 relative"
-                          data-slide-theme={presentation?.theme || 'dark'}
-                          style={{ background: 'var(--slide-bg, #0a0a0a)' }}>
-                          {/* Mini slide preview */}
-                          <div className="space-y-0.5">
-                            {previewLines?.map((line, li) => {
-                              const isH = slide.markdownContent?.split('\n').find((l) => l.trim())?.startsWith('#') && li === 0
-                              return (
-                                <div key={li} className={`truncate ${
-                                  isH ? 'text-[8px] font-bold' : 'text-[6px]'
-                                }`} style={{ color: 'var(--slide-text, #e2e8f0)', opacity: isH ? 1 : 0.6 }}>
-                                  {line}
-                                </div>
-                              )
-                            })}
-                          </div>
-                          {/* Slide number badge */}
-                          <span className={`absolute top-1.5 left-1.5 text-[8px] font-bold px-1 py-0.5 rounded ${
-                            isActive ? 'bg-white text-black' : 'bg-white/10 text-white/50'
-                          }`}>
-                            {globalIndex + 1}
-                          </span>
-                          {/* Transition bubble — clickable, cycles through transitions */}
-                          <span
-                            className={`absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center text-[10px] cursor-pointer transition-all hover:scale-110 ${
-                              slide.config.transition && slide.config.transition !== 'none'
-                                ? 'bg-indigo-500/80 text-white shadow-lg shadow-indigo-500/30'
-                                : 'bg-white/10 text-white/30 hover:bg-white/20 hover:text-white/60'
-                            }`}
-                            title={`Transition: ${slide.config.transition || 'none'} (click to change)`}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              const transitions = ['none', 'left', 'right', 'top', 'bottom']
-                              const current = slide.config.transition || 'none'
-                              const nextIdx = (transitions.indexOf(current) + 1) % transitions.length
-                              goToSlide(globalIndex)
-                              setTimeout(() => {
-                                usePresentationStore.getState().setSlideTransition(transitions[nextIdx])
-                              }, 50)
-                            }}
-                          >
-                            {!slide.config.transition || slide.config.transition === 'none' ? '·' :
-                             slide.config.transition === 'left' ? '←' :
-                             slide.config.transition === 'right' ? '→' :
-                             slide.config.transition === 'top' ? '↑' : '↓'}
-                          </span>
-                        </div>
+                        {!hasTransition ? '·' : transition === 'left' ? '←' : transition === 'right' ? '→' : transition === 'top' ? '↑' : '↓'}
+                      </span>
+                    </div>
+                  )}
 
-                        {/* Card footer */}
-                        <div className={`px-2 py-1.5 ${isActive ? 'bg-gray-900' : 'bg-gray-900/50'}`}>
-                          <div className={`text-[10px] font-medium truncate ${isActive ? 'text-white' : 'text-gray-400'}`}>
-                            {title}
-                          </div>
-                          <div className="flex items-center gap-1 mt-0.5">
-                            {hasCode && <span className="text-[7px] text-gray-600">{'{ }'}</span>}
-                            {hasVideo && <span className="text-[7px] text-gray-600">▶</span>}
-                            {hasWebApp && <span className="text-[7px] text-gray-600">◎</span>}
-                            {artifactCount > 0 && <span className="text-[7px] text-gray-600">📎{artifactCount}</span>}
-                            {slide.config.layout && slide.config.layout !== 'default' && (
-                              <span className="text-[7px] px-1 rounded bg-gray-800 text-gray-500">{slide.config.layout}</span>
-                            )}
-                            <div className="flex-1" />
-                          </div>
-                        </div>
-                      </button>
-                    )
-                  })}
+                  {/* Slide card */}
+                  <button
+                    onClick={() => { goToSlide(globalIndex); toggleSlideMap() }}
+                    className={`flex-shrink-0 w-44 rounded-xl overflow-hidden transition-all duration-200 ${
+                      isActive
+                        ? 'ring-2 ring-white shadow-xl shadow-white/10 scale-105 z-10'
+                        : 'hover:scale-[1.03] hover:shadow-lg'
+                    }`}
+                    style={{
+                      border: `2px solid ${isActive ? '#fff' : group ? groupColor + '40' : '#1e1e1e'}`,
+                    }}
+                  >
+                    {/* 16:9 thumbnail */}
+                    <div className="aspect-video overflow-hidden p-2.5 relative"
+                      data-slide-theme={presentation?.theme || 'dark'}
+                      style={{ background: 'var(--slide-bg, #0a0a0a)' }}>
+                      <div className="space-y-0.5">
+                        {previewLines?.map((line, li) => {
+                          const isH = slide.markdownContent?.split('\n').find((l) => l.trim())?.startsWith('#') && li === 0
+                          return (
+                            <div key={li} className={`truncate leading-tight ${isH ? 'text-[8px] font-bold' : 'text-[6px]'}`}
+                              style={{ color: 'var(--slide-text, #e2e8f0)', opacity: isH ? 0.9 : 0.4 }}>
+                              {line}
+                            </div>
+                          )
+                        })}
+                      </div>
+                      {/* Number */}
+                      <span className={`absolute top-1.5 left-1.5 text-[8px] font-bold w-5 h-5 rounded-md flex items-center justify-center ${
+                        isActive ? 'bg-white text-black' : 'bg-black/30 text-white/50'
+                      }`}>{globalIndex + 1}</span>
+                      {/* Group color strip at top */}
+                      {group && (
+                        <div className="absolute top-0 left-0 right-0 h-0.5" style={{ backgroundColor: groupColor }} />
+                      )}
+                    </div>
+                    {/* Footer */}
+                    <div className="px-2 py-1.5 bg-gray-900/80">
+                      <div className={`text-[10px] font-medium truncate ${isActive ? 'text-white' : 'text-gray-400'}`}>
+                        {title}
+                      </div>
+                      <div className="flex items-center gap-1 mt-0.5">
+                        {slide.config.code && <span className="text-[7px] text-gray-600">{'{ }'}</span>}
+                        {slide.config.video && <span className="text-[7px] text-gray-600">▶</span>}
+                        {slide.config.webapp && <span className="text-[7px] text-gray-600">◎</span>}
+                        {slide.config.layout && slide.config.layout !== 'default' && (
+                          <span className="text-[7px] px-1 rounded bg-gray-800/80 text-gray-500">{slide.config.layout}</span>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Group end — small gap before next group */}
+                  {group && nextGroup !== group && nextItem && (
+                    <div className="w-4 flex-shrink-0" />
+                  )}
                 </div>
-              </div>
-            ))}
-          </div>
-        </div>
+              )
+            })}
 
-        {/* Footer */}
-        <div className="px-6 py-3 border-t border-gray-800 flex items-center justify-between">
-          <div className="flex items-center gap-4 text-[10px] text-gray-600">
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-500/50" /> Code</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-400/50" /> Video</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-500/50" /> Web</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-500/50" /> Files</span>
-            <span className="flex items-center gap-1">← → ↑ ↓ Click arrows to set transitions</span>
+            {/* End cap */}
+            <div className="w-8 flex-shrink-0" />
           </div>
-          <span className="text-[10px] text-gray-600">Click a slide to navigate</span>
         </div>
       </div>
-    </div>
-  )
-}
-
-const TRANSITIONS: { value: SlideTransition; arrow: string; label: string }[] = [
-  { value: 'none', arrow: '·', label: 'No transition' },
-  { value: 'left', arrow: '←', label: 'Slide from left' },
-  { value: 'right', arrow: '→', label: 'Slide from right' },
-  { value: 'top', arrow: '↑', label: 'Slide from top' },
-  { value: 'bottom', arrow: '↓', label: 'Slide from bottom' }
-]
-
-function TransitionConnector({
-  slideIndex, currentTransition, onSetTransition
-}: {
-  slideIndex: number
-  currentTransition: string
-  onSetTransition: (t: string) => void
-}): JSX.Element {
-  const [showPicker, setShowPicker] = useState(false)
-  const current = TRANSITIONS.find((t) => t.value === currentTransition) || TRANSITIONS[0]
-
-  return (
-    <div className="w-10 flex-shrink-0 flex items-center justify-center relative">
-      <div className="w-full h-px bg-gray-700" />
-      <button
-        onClick={(e) => { e.stopPropagation(); setShowPicker(!showPicker) }}
-        className={`absolute w-6 h-6 rounded-full flex items-center justify-center text-[10px] transition-colors z-10 ${
-          currentTransition !== 'none'
-            ? 'bg-white text-black'
-            : 'bg-gray-800 text-gray-500 hover:bg-gray-700 hover:text-gray-300'
-        }`}
-        title={current.label}
-      >
-        {current.arrow}
-      </button>
-
-      {showPicker && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setShowPicker(false)} />
-          <div className="absolute top-full mt-1 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-1 flex gap-0.5">
-            {TRANSITIONS.map((t) => (
-              <button
-                key={t.value}
-                onClick={(e) => { e.stopPropagation(); onSetTransition(t.value); setShowPicker(false) }}
-                className={`w-7 h-7 rounded flex items-center justify-center text-[11px] transition-colors ${
-                  currentTransition === t.value
-                    ? 'bg-white text-black'
-                    : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
-                }`}
-                title={t.label}
-              >
-                {t.arrow}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
     </div>
   )
 }

@@ -42,10 +42,8 @@ export function NotebookToolbar({ showAgenda, onToggleAgenda }: {
     if (hasUnsavedChanges) {
       await savePageContent(currentPageIndex)
     }
-    if (activeTabId) {
-      closeTab(activeTabId)
-    }
-    // Always reset notebook store to return to HomeScreen
+    // Reset notebook store to return to HomeScreen
+    // Don't touch the tabs store — notebooks don't use tabs
     useNotebookStore.getState().reset()
   }
 

@@ -32,7 +32,7 @@ export function SlidePanel(): JSX.Element {
   const { showAIGenerate } = useUIStore()
   const [drawingMode, setDrawingMode] = useState(false)
 
-  const { subSlides, currentSubSlide, setCurrentSubSlide, breakOffsets } = useSubSlides(
+  const { subSlides, currentSubSlide, setCurrentSubSlide, breakOffsets, hasManualBreaks } = useSubSlides(
     currentSlide?.markdownContent ?? '',
     currentSlideIndex
   )
@@ -200,8 +200,8 @@ export function SlidePanel(): JSX.Element {
               />
             </div>
           </div>
-        ) : editingSlide && editorMode === 'wysiwyg' && subSlides.length > 1 ? (
-          /* WYSIWYG with sub-slides: stacked canvases, click to edit */
+        ) : editingSlide && editorMode === 'wysiwyg' && subSlides.length > 1 && hasManualBreaks ? (
+          /* WYSIWYG with manual sub-slides (---): stacked canvases, click to edit */
           <SubSlideStackEditor
             subSlides={subSlides}
             currentSubSlide={currentSubSlide}

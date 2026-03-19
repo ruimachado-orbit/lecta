@@ -99,16 +99,15 @@ export function SlideMap(): JSX.Element {
                   ) : null}
                 </div>
 
-                {/* Slides row with connectors */}
-                <div className="flex items-stretch gap-0 overflow-x-auto pb-2">
-                  {section.slides.map((item, i) => {
+                {/* Slides grid */}
+                <div className="grid grid-cols-4 gap-3 pb-2">
+                  {section.slides.map((item) => {
                     const { slide, globalIndex } = item
                     const isActive = globalIndex === currentSlideIndex
                     const hasCode = !!slide.config.code
                     const hasVideo = !!slide.config.video
                     const hasWebApp = !!slide.config.webapp
                     const artifactCount = slide.config.artifacts.length
-                    const isAI = slide.markdownContent?.includes('<!-- ai-generated -->')
 
                     const title = slide.markdownContent
                       ?.replace(/<!--.*?-->/g, '')
@@ -117,65 +116,65 @@ export function SlideMap(): JSX.Element {
                       .split('\n')[0]
                       ?.slice(0, 50) || slide.config.id
 
-                    const bodyLines = slide.markdownContent
+                    const previewLines = slide.markdownContent
                       ?.replace(/<!--.*?-->/g, '')
                       .trim()
                       .split('\n')
-                      .filter((l) => l.trim() && !l.startsWith('#'))
-                      .slice(0, 2)
-                      .map((l) => l.replace(/^[-*]\s*/, '').replace(/\*\*/g, '').slice(0, 45))
+                      .filter((l) => l.trim())
+                      .slice(0, 6)
+                      .map((l) => l.replace(/^[-*]\s*/, '').replace(/\*\*/g, '').replace(/^#+\s*/, '').slice(0, 60))
 
                     return (
-                      <div key={slide.config.id} className="flex items-center">
-                        {/* Connector with transition picker */}
-                        {i > 0 && (
-                          <TransitionConnector
-                            slideIndex={globalIndex}
-                            currentTransition={slide.config.transition || 'none'}
-                            onSetTransition={async (t) => {
-                              goToSlide(globalIndex)
-                              setTimeout(() => {
-                                usePresentationStore.getState().setSlideTransition(t)
-                              }, 50)
-                            }}
-                          />
-                        )}
-
-                        {/* Slide card */}
-                        <button
-                          onClick={() => { goToSlide(globalIndex); toggleSlideMap() }}
-                          className={`flex-shrink-0 w-44 rounded-xl border transition-colors text-left ${
-                            isActive
-                              ? 'border-white bg-gray-900 shadow-md shadow-white/5 ring-1 ring-white/30'
-                              : 'border-gray-800 bg-gray-900 hover:border-gray-500 hover:bg-gray-800'
-                          }`}
-                        >
-                          {/* Card header */}
-                          <div className={`px-3 py-2 rounded-t-xl border-b ${
-                            isActive ? 'bg-white/5 border-gray-700' : 'bg-gray-800/50 border-gray-800'
-                          }`}>
-                            <div className="flex items-center justify-between">
-                              <span className={`text-[10px] font-bold ${isActive ? 'text-white' : 'text-gray-500'}`}>
-                                {String(globalIndex + 1).padStart(2, '0')}
-                              </span>
-                              <div className="flex items-center gap-1">
-                                {isAI && <span className="text-[8px] text-white">✦ AI</span>}
-                              </div>
-                            </div>
-                            <div className="text-[11px] text-white font-medium truncate mt-0.5">
-                              {title}
-                            </div>
-                          </div>
-
-                          {/* Card body */}
-                          <div className="px-3 py-2 space-y-1">
-                            {bodyLines && bodyLines.length > 0 ? (
-                              bodyLines.map((line, li) => (
-                                <div key={li} className="text-[9px] text-gray-500 truncate">
+                      <button
+                        key={slide.config.id}
+                        onClick={() => { goToSlide(globalIndex); toggleSlideMap() }}
+                        className={`rounded-lg border transition-all text-left overflow-hidden ${
+                          isActive
+                            ? 'border-white ring-2 ring-white/30 shadow-lg shadow-white/10'
+                            : 'border-gray-800 hover:border-gray-500'
+                        }`}
+                      >
+                        {/* 16:9 aspect ratio thumbnail */}
+                        <div className="aspect-video bg-black rounded-t-lg overflow-hidden p-3 relative"
+                          data-slide-theme={presentation?.theme || 'dark'}
+                          style={{ background: 'var(--slide-bg, #0a0a0a)' }}>
+                          {/* Mini slide preview */}
+                          <div className="space-y-0.5">
+                            {previewLines?.map((line, li) => {
+                              const isH = slide.markdownContent?.split('\n').find((l) => l.trim())?.startsWith('#') && li === 0
+                              return (
+                                <div key={li} className={`truncate ${
+                                  isH ? 'text-[8px] font-bold' : 'text-[6px]'
+                                }`} style={{ color: 'var(--slide-text, #e2e8f0)', opacity: isH ? 1 : 0.6 }}>
                                   {line}
                                 </div>
-                              ))
-                            ) : (
+                              )
+                            })}
+                          </div>
+                          {/* Slide number badge */}
+                          <span className={`absolute top-1.5 left-1.5 text-[8px] font-bold px-1 py-0.5 rounded ${
+                            isActive ? 'bg-white text-black' : 'bg-white/10 text-white/50'
+                          }`}>
+                            {globalIndex + 1}
+                          </span>
+                        </div>
+
+                        {/* Card footer */}
+                        <div className={`px-2 py-1.5 ${isActive ? 'bg-gray-900' : 'bg-gray-900/50'}`}>
+                          <div className={`text-[10px] font-medium truncate ${isActive ? 'text-white' : 'text-gray-400'}`}>
+                            {title}
+                          </div>
+                          <div className="flex items-center gap-1 mt-0.5">
+                            {hasCode && <span className="text-[7px] text-gray-600">{'{ }'}</span>}
+                            {hasVideo && <span className="text-[7px] text-gray-600">▶</span>}
+                            {hasWebApp && <span className="text-[7px] text-gray-600">◎</span>}
+                            {artifactCount > 0 && <span className="text-[7px] text-gray-600">📎{artifactCount}</span>}
+                            {slide.config.layout && slide.config.layout !== 'default' && (
+                              <span className="text-[7px] px-1 rounded bg-gray-800 text-gray-500">{slide.config.layout}</span>
+                            )}
+                          </div>
+                        </div>
+                      </button>
                               <div className="text-[9px] text-gray-600 italic">Empty slide</div>
                             )}
                           </div>

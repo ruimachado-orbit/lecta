@@ -104,9 +104,11 @@ export function useSubSlides(
   currentSubSlide: number
   setCurrentSubSlide: (n: number) => void
   breakOffsets: number[]
+  hasManualBreaks: boolean
 } {
   const [subSlides, setSubSlides] = useState<SubSlide[]>([{ markdown, index: 0 }])
   const [breakOffsets, setBreakOffsets] = useState<number[]>([])
+  const [hasManualBreaks, setHasManualBreaks] = useState(false)
   const measureRef = useRef<HTMLDivElement | null>(null)
 
   // Read/write sub-slide state from the presentation store
@@ -134,9 +136,10 @@ export function useSubSlides(
   const measure = useCallback(() => {
     // Check for manual sub-slide breaks (--- or * * * or *** on its own line)
     // If found, use those as explicit break points instead of auto-calculating
-    const hasManualBreaks = markdown.split('\n').some(isHrLine)
+    const manualBreaks = markdown.split('\n').some(isHrLine)
+    setHasManualBreaks(manualBreaks)
 
-    if (hasManualBreaks) {
+    if (manualBreaks) {
       // Split on horizontal rule delimiters (---, ***, * * *, ___)
       // Use \n? to handle rules at start/end of content
       const sections = markdown.split(/\n?(?:---+|\*\s*\*\s*\*|___+)\n?/)
@@ -267,7 +270,7 @@ export function useSubSlides(
     }
   }, [])
 
-  return { subSlides, currentSubSlide, setCurrentSubSlide, breakOffsets }
+  return { subSlides, currentSubSlide, setCurrentSubSlide, breakOffsets, hasManualBreaks }
 }
 
 /**

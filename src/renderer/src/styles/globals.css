@@ -1053,6 +1053,23 @@ html[data-theme="light"] .wysiwyg-content th {
   font-style: italic;
 }
 
+/* Table code blocks in WYSIWYG editor — styled to look like tables */
+.wysiwyg-content pre:has(code.language-table) {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  line-height: 1.8;
+  white-space: pre;
+  overflow-x: auto;
+}
+html[data-theme="light"] .wysiwyg-content pre:has(code.language-table) {
+  background: rgba(0, 0, 0, 0.02) !important;
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
 /* Monaco sub-slide break decorations */
 .subslide-break-line {
   border-top: 2px dashed rgba(99, 102, 241, 0.4) !important;

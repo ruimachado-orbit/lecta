@@ -129,9 +129,9 @@ export function Toolbar(): JSX.Element {
 
         {/* Edit / Preview slide toggle */}
         <button
-          onClick={() => {
+          onClick={async () => {
             if (editingSlide) {
-              saveSlideContent(currentSlideIndex)
+              await saveSlideContent(currentSlideIndex)
             }
             toggleEditingSlide()
           }}

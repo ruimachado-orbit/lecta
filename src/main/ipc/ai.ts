@@ -211,7 +211,8 @@ export function registerAiHandlers(): void {
 
       if (ext === 'pdf') {
         try {
-          const pdfParse = (await import('pdf-parse')).default
+          // Import the lib directly to avoid pdf-parse's index.js test-file side-effect
+          const pdfParse = (await import('pdf-parse/lib/pdf-parse.js')).default
           const buffer = await readFile(filePath)
           const data = await pdfParse(buffer)
           return data.text.slice(0, 50000)

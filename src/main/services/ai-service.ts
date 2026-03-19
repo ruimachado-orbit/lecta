@@ -241,8 +241,9 @@ FORMATTING TECHNIQUES — use ALL that apply:
 10. **Mermaid diagrams**: If content describes a process/flow/architecture/funnel, ADD a mermaid diagram:
    \`\`\`mermaid
    graph LR
-     A[Step] --> B[Step] --> C[Result]
+     A["Input Data"] --> B["Processing"] --> C["Final Output"]
    \`\`\`
+   MERMAID RULES: Always wrap node labels in double quotes. Use 2-3 word descriptive labels. Prefer graph TD for 4+ steps. Max 3-6 nodes.
 
 9. **Code formatting**: \`inline code\` for technical terms, commands, paths.
 
@@ -457,6 +458,141 @@ Rules:
         event.delta.type === 'text_delta'
       ) {
         onChunk(event.delta.text)
+      }
+    }
+  }
+
+  async generateFullPresentation(
+    prompt: string,
+    title: string,
+    sourceContent: string | null,
+    slideCount: number,
+    onProgress: (status: string, slideIndex: number, total: number) => void
+  ): Promise<{ slides: { id: string; markdown: string; layout: string }[]; title: string }> {
+    const client = await this.getClient()
+
+    const sourceContext = sourceContent
+      ? `\n\nSOURCE MATERIAL (use this as the basis for the presentation — extract key insights, data, and structure from it):\n---\n${sourceContent.slice(0, 30000)}\n---`
+      : ''
+
+    onProgress('Designing presentation structure...', 0, slideCount)
+
+    const systemPrompt = `You are a McKinsey-level presentation designer. You create executive-quality presentations that are rich in content, data-driven, and visually structured.
+
+OUTPUT FORMAT: A valid JSON object with this exact structure:
+{
+  "title": "Presentation Title",
+  "slides": [
+    { "id": "kebab-case-id", "markdown": "# Slide Title\\n\\ncontent...", "layout": "default" }
+  ]
+}
+
+Output ONLY the JSON object. No markdown wrapping, no explanation, no \`\`\`json fences.
+
+SLIDE DESIGN PRINCIPLES:
+
+1. **Pyramid Principle**: Lead with the conclusion/recommendation first, then supporting evidence.
+
+2. **Every slide must have substance**:
+   - No filler slides. No "Thank you" slides. No "Questions?" slides.
+   - Every slide should contain real information, data, or analysis.
+   - Use markdown tables for comparisons (| Column | Column |)
+   - Use blockquotes for key insights (> **Key Insight:** ...)
+   - Use bold for metrics and key terms
+
+3. **Slide types to use** — assign the best layout for each:
+   - "title" → Opening slide: bold title + one subtitle line. Only for slide 1.
+   - "center" → Key stats, quotes, or single powerful messages
+   - "section" → Section dividers between major topics (use sparingly, max 2-3)
+   - "two-col" → Comparisons, before/after, pros/cons
+   - "default" → Standard content slides with heading + structured bullets/tables
+   - "top-bottom" → Data on top, analysis on bottom
+
+4. **Content richness** — FILL THE SLIDE. A slide with 30% content and 70% empty space looks amateur.
+   - Each content slide should have 8-15 lines of meaningful content
+   - Include markdown tables whenever comparing 3+ items (full rows, no empty cells)
+   - Use status indicators: 🟢 On Track, 🟡 In Progress, 🔴 At Risk
+   - Use progress bars: [progress 75%]
+   - Bold metrics prominently: **$4.2M** or **+23%**
+   - Use multi-level bullets with indentation for detail — at least 5-8 bullet points per content slide
+   - Use blockquotes for key insights at the bottom of slides: > **Key Takeaway:** ...
+   - For mermaid diagrams, use FULL descriptive labels (never truncate):
+     \`\`\`mermaid
+     graph LR
+       A["User Input"] --> B["Processing Engine"]
+       B --> C["Output Generation"]
+     \`\`\`
+   - MERMAID RULES: Always use double quotes around node labels. Use descriptive 2-3 word labels. Prefer graph TD (top-down) for processes with 4+ steps. Keep diagrams simple (3-6 nodes max).
+
+5. **Structure**:
+   - Slide 1: Title slide (layout: "title")
+   - Slides 2-3: Executive summary / key findings (layout: "center" or "default")
+   - Middle slides: Deep-dive content with data, tables, charts
+   - Section dividers where topic shifts (layout: "section")
+   - Final slide: Recommendations or next steps (layout: "default")
+
+6. **Markdown formatting**:
+   - # for slide title (exactly one per slide)
+   - ## for section headers within a slide
+   - **bold** for key terms and metrics
+   - > for callout blockquotes
+   - | for tables
+   - \`\`\`mermaid for diagrams
+   - - for bullets, with indentation for sub-bullets
+
+Generate exactly ${slideCount} slides. CRITICAL: Every content slide must FILL the visual space — aim for 8-15 lines of content per slide. Use tables, multi-level bullets, blockquote callouts, and mermaid diagrams to fill slides with substance. Empty-looking slides are unacceptable.`
+
+    // Use streaming to track progress
+    const stream = client.messages.stream({
+      model: this.model,
+      max_tokens: 16384,
+      system: systemPrompt,
+      messages: [
+        {
+          role: 'user',
+          content: `Create a complete ${slideCount}-slide presentation.${sourceContext}\n\nTopic/instructions: ${prompt}\n\nPresentation title suggestion: "${title}"\n\nGenerate the full presentation as a JSON object.`
+        }
+      ]
+    })
+
+    let raw = ''
+    let slidesFound = 0
+
+    for await (const event of stream) {
+      if (
+        event.type === 'content_block_delta' &&
+        event.delta.type === 'text_delta'
+      ) {
+        raw += event.delta.text
+
+        // Count completed slides by tracking "id": occurrences (each slide object has one)
+        const newCount = (raw.match(/"id"\s*:/g) || []).length
+        if (newCount > slidesFound) {
+          slidesFound = newCount
+          onProgress(`Generating slide ${slidesFound} of ${slideCount}...`, slidesFound, slideCount)
+        }
+      }
+    }
+
+    onProgress('Finalizing presentation...', slideCount, slideCount)
+
+    try {
+      const jsonMatch = raw.match(/\{[\s\S]*\}/)
+      const parsed = JSON.parse(jsonMatch?.[0] ?? '{}')
+      const slides = parsed.slides || []
+      const finalTitle = parsed.title || title
+
+      onProgress('Generation complete', slideCount, slideCount)
+
+      return { slides, title: finalTitle }
+    } catch {
+      // Fallback: try to parse as array
+      try {
+        const arrayMatch = raw.match(/\[[\s\S]*\]/)
+        const slides = JSON.parse(arrayMatch?.[0] ?? '[]')
+        return { slides: slides.map((s: any) => ({ ...s, layout: s.layout || 'default' })), title }
+      } catch {
+        return { slides: [{ id: 'generated', markdown: raw, layout: 'default' }], title }
       }
     }
   }

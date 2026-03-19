@@ -184,7 +184,7 @@ export function PresenterView(): JSX.Element {
           <PanelGroup direction="horizontal" className="flex-1 min-w-0"
             onLayout={(sizes) => { if (sizes[1] !== undefined) { setPanelSize(sizes[1]); if (activeArtifact) typeSizeMemory.current[activeArtifact] = sizes[1] } }}>
             <Panel defaultSize={100 - panelSize} minSize={30}>
-              <PresenterSlide markdown={slideMarkdown} rootPath={rootPath} layout={layout} />
+              <PresenterSlide markdown={slideMarkdown} rootPath={rootPath} layout={layout} theme={presentation?.theme || 'dark'} />
             </Panel>
             <PanelResizeHandle className="w-1.5 bg-gray-800 hover:bg-indigo-500 transition-colors" />
             <Panel defaultSize={panelSize} minSize={15}>
@@ -200,7 +200,7 @@ export function PresenterView(): JSX.Element {
             </Panel>
           </PanelGroup>
         ) : (
-          <PresenterSlide markdown={slideMarkdown} rootPath={rootPath} layout={layout} />
+          <PresenterSlide markdown={slideMarkdown} rootPath={rootPath} layout={layout} theme={presentation?.theme || 'dark'} />
         )}
 
         {/* Artifact sidebar — always visible */}
@@ -325,8 +325,8 @@ export function PresenterView(): JSX.Element {
 }
 
 /** 16:9 slide canvas — centered in container, auto-scaled */
-function PresenterSlide({ markdown, rootPath, layout }: {
-  markdown: string; rootPath?: string; layout?: string
+function PresenterSlide({ markdown, rootPath, layout, theme }: {
+  markdown: string; rootPath?: string; layout?: string; theme?: string
 }): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -374,6 +374,7 @@ function PresenterSlide({ markdown, rootPath, layout }: {
     <div ref={containerRef} className="h-full w-full flex items-center justify-center presenter-canvas-bg overflow-hidden">
       <div
         className="relative rounded overflow-hidden presenter-slide-frame"
+        data-slide-theme={theme || 'dark'}
         style={{
           width: SLIDE_W,
           height: SLIDE_H,
@@ -382,7 +383,7 @@ function PresenterSlide({ markdown, rootPath, layout }: {
           flexShrink: 0,
         }}
       >
-        <div className="absolute inset-0 bg-black rounded" />
+        <div className="absolute inset-0 rounded" style={{ background: 'var(--slide-bg)' }} />
         <div className={`absolute inset-0 ${layout === 'blank' ? '' : 'p-12'} overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
           <div
             ref={contentRef}

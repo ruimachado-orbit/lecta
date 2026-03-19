@@ -158,6 +158,20 @@ export function registerFileSystemHandlers(): void {
     return selected
   })
 
+  // Select a file (for AI generation source)
+  ipcMain.handle('fs:select-file', async (_event, filters?: { name: string; extensions: string[] }[]) => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: filters || [
+        { name: 'Documents', extensions: ['txt', 'md', 'pdf', 'csv', 'json', 'docx', 'html'] },
+        { name: 'All Files', extensions: ['*'] }
+      ],
+      title: 'Select Source File'
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+    return result.filePaths[0]
+  })
+
   // Create a new .lecta file (presentation or notebook)
   ipcMain.handle('fs:create-lecta-file', async (_event, name: string, docType?: string): Promise<string | null> => {
     const isNotebook = docType === 'notebook'
@@ -756,6 +770,18 @@ export function registerFileSystemHandlers(): void {
     }
   )
 
+  // Set presentation theme
+  ipcMain.handle(
+    'fs:set-theme',
+    async (_event, rootPath: string, themeId: string): Promise<void> => {
+      const configPath = join(rootPath, DECK_CONFIG_FILE)
+      const yamlContent = await readFile(configPath, 'utf-8')
+      const config = parsePresentationYaml(yamlContent, rootPath)
+      config.theme = themeId
+      await savePresentationYaml(config)
+    }
+  )
+
   // Toggle skip/hidden on a slide
   ipcMain.handle(
     'fs:toggle-skip',
@@ -787,6 +813,11 @@ export function registerFileSystemHandlers(): void {
     ): Promise<LoadedPresentation> => {
       const configPath = join(rootPath, DECK_CONFIG_FILE)
       const yamlContent = await readFile(configPath, 'utf-8')
+
+      // Guard: don't process notebooks as presentations
+      if (yamlContent.includes('type: notebook') || yamlContent.includes("type: 'notebook'")) {
+        throw new Error('Cannot remove attachment from notebook via presentation handler')
+      }
       const config = parsePresentationYaml(yamlContent, rootPath)
 
       const slide = config.slides[slideIndex]

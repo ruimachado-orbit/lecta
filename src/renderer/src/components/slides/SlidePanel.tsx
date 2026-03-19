@@ -14,6 +14,7 @@ import Editor, { type OnMount } from '@monaco-editor/react'
 
 export function SlidePanel(): JSX.Element {
   const { slides, currentSlideIndex, updateMarkdownContent, saveSlideContent, presentation } = usePresentationStore()
+  const slideTheme = presentation?.theme || 'dark'
   const { showNavigator, editingSlide, editorMode, setEditorMode, slideGroups } = useUIStore()
   const currentSlide = slides[currentSlideIndex]
 
@@ -236,6 +237,7 @@ function SlideCanvas({ markdown, rootPath, transition, layout, slideIndex, drawi
   markdown: string; rootPath?: string; transition?: string; layout?: string; slideIndex?: number; drawingMode?: boolean
   editable?: boolean; onUpdateMarkdown?: (md: string) => void
 }): JSX.Element {
+  const slideTheme = usePresentationStore((s) => s.presentation?.theme) || 'dark'
   const containerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const slideRef = useRef<HTMLDivElement>(null)
@@ -305,6 +307,7 @@ function SlideCanvas({ markdown, rootPath, transition, layout, slideIndex, drawi
       <div
         ref={slideRef}
         className="relative rounded overflow-hidden"
+        data-slide-theme={slideTheme}
         style={{
           width: SLIDE_W,
           height: SLIDE_H,
@@ -314,7 +317,7 @@ function SlideCanvas({ markdown, rootPath, transition, layout, slideIndex, drawi
           boxShadow: '0 0 0 1px rgba(255,255,255,0.15), 0 4px 24px rgba(0,0,0,0.6), 0 0 80px rgba(0,0,0,0.4)'
         }}
       >
-        <div className="absolute inset-0 bg-black rounded" />
+        <div className="absolute inset-0 rounded" style={{ background: 'var(--slide-bg)' }} />
         <div ref={transitionRef} className={`absolute inset-0 ${layout === 'blank' ? '' : 'p-12'} overflow-hidden ${transition && transition !== 'none' ? `slide-transition-${transition}` : ''} ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
           <div
             ref={contentRef}
@@ -364,6 +367,7 @@ function EditableSlideCanvas({ slideIndex, breakOffsets, rootPath, layout }: {
   const containerRef = useRef<HTMLDivElement>(null)
   const [canvasScale, setCanvasScale] = useState(1)
   const { slides, updateMarkdownContent, saveSlideContent } = usePresentationStore()
+  const slideTheme = usePresentationStore((s) => s.presentation?.theme) || 'dark'
   const markdown = slides[slideIndex]?.markdownContent ?? ''
 
   const SLIDE_W = 1280
@@ -390,6 +394,7 @@ function EditableSlideCanvas({ slideIndex, breakOffsets, rootPath, layout }: {
     <div ref={containerRef} className="h-full w-full flex items-center justify-center bg-neutral-800 overflow-hidden">
       <div
         className="relative rounded overflow-hidden"
+        data-slide-theme={slideTheme}
         style={{
           width: SLIDE_W,
           height: SLIDE_H,
@@ -399,7 +404,7 @@ function EditableSlideCanvas({ slideIndex, breakOffsets, rootPath, layout }: {
           boxShadow: '0 0 0 1px rgba(255,255,255,0.15), 0 4px 24px rgba(0,0,0,0.6), 0 0 80px rgba(0,0,0,0.4)'
         }}
       >
-        <div className="absolute inset-0 bg-black rounded" />
+        <div className="absolute inset-0 rounded" style={{ background: 'var(--slide-bg)' }} />
         <div className={`absolute inset-0 overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
           <WysiwygEditor slideIndex={slideIndex} breakOffsets={breakOffsets} />
         </div>

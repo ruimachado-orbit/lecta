@@ -279,7 +279,7 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
     }
   },
 
-  reset: () => {
+  reset: async () => {
     set({
       notebook: null,
       pages: [],
@@ -287,5 +287,8 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
       isLoading: false,
       error: null
     })
+    // Also clear presentation store so App.tsx goes to HomeScreen
+    const { usePresentationStore } = await import('./presentation-store')
+    usePresentationStore.getState().reset()
   }
 }))

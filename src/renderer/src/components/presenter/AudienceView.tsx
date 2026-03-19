@@ -93,9 +93,10 @@ export function AudienceView(): JSX.Element {
   }
 
   return (
-    <div className="h-screen w-screen bg-black overflow-hidden flex items-center justify-center">
+    <div className="h-screen w-screen overflow-hidden flex items-center justify-center" style={{ background: 'var(--slide-bg, #000)' }}>
       <div
         className="relative"
+        data-slide-theme={presentation?.theme || 'dark'}
         style={{
           width: '100vw',
           height: '56.25vw',
@@ -103,7 +104,7 @@ export function AudienceView(): JSX.Element {
           maxWidth: '177.78vh'
         }}
       >
-        <div className="absolute inset-0 bg-black" />
+        <div className="absolute inset-0" style={{ background: 'var(--slide-bg)' }} />
         <div className={`absolute inset-0 ${currentSlide.config.layout === 'blank' ? '' : 'p-[4%]'} overflow-hidden ${currentSlide.config.layout && currentSlide.config.layout !== 'default' ? `slide-layout-${currentSlide.config.layout}` : ''}`}>
           <div
             ref={contentRef}

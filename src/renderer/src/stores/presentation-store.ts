@@ -47,6 +47,7 @@ interface PresentationState {
   renameSlide: (slideIndex: number, newId: string) => Promise<void>
   deleteSlide: (slideIndex: number) => Promise<void>
   reorderSlide: (fromIndex: number, toIndex: number) => Promise<void>
+  setTheme: (themeId: string) => Promise<void>
 }
 
 function applyLoaded(loaded: LoadedPresentation, goToIndex?: number) {
@@ -498,6 +499,17 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
     } catch (error) {
       set({ error: (error as Error).message })
     }
+  },
+
+  setTheme: async (themeId: string) => {
+    const { presentation } = get()
+    if (!presentation) return
+    // Optimistic update
+    set({ presentation: { ...presentation, theme: themeId } })
+    // Persist to YAML
+    try {
+      await window.electronAPI.setTheme(presentation.rootPath, themeId)
+    } catch { /* best effort */ }
   },
 
   reset: () => {

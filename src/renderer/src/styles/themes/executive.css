@@ -1,0 +1,87 @@
+/* Executive — McKinsey/BCG. Dark, gold accent, ultra-clean */
+[data-slide-theme="executive"] {
+  --slide-bg: #0c0c0e;
+  --slide-font-heading: "Inter", -apple-system, sans-serif;
+  --slide-font-body: "Inter", -apple-system, sans-serif;
+
+  --slide-color-h1: #ffffff;
+  --slide-color-h2: #f0f0f0;
+  --slide-color-h3: #c8c8cc;
+  --slide-h1-size: 2.5rem;
+  --slide-h1-weight: 700;
+  --slide-h1-tracking: -0.025em;
+  --slide-h2-size: 1.75rem;
+  --slide-h3-size: 1.375rem;
+
+  --slide-color-body: #b8b8bc;
+  --slide-color-muted: #8a8a90;
+  --slide-color-dimmed: #5a5a60;
+  --slide-body-size: 1.15rem;
+  --slide-list-size: 1.05rem;
+
+  --slide-accent: #d4a843;
+  --slide-accent-light: #e8c96a;
+  --slide-accent-gradient: linear-gradient(135deg, #e8c96a, #d4a843);
+
+  --slide-link-color: #e8c96a;
+  --slide-link-hover: #d4a843;
+
+  --slide-table-border: rgba(212,168,67,0.15);
+  --slide-table-header-bg: rgba(212,168,67,0.08);
+  --slide-table-header-color: #e8c96a;
+  --slide-table-header-border: rgba(212,168,67,0.3);
+  --slide-table-cell-color: #b8b8bc;
+  --slide-table-cell-border: rgba(255,255,255,0.04);
+  --slide-table-row-hover: rgba(212,168,67,0.04);
+
+  --slide-quote-border: #d4a843;
+  --slide-quote-bg: rgba(212,168,67,0.04);
+  --slide-quote-color: #c8c8cc;
+
+  --slide-code-bg: rgba(212,168,67,0.08);
+  --slide-code-color: #e8c96a;
+  --slide-pre-bg: #08080a;
+
+  --slide-badge-green-bg: rgba(34,197,94,0.12);
+  --slide-badge-green-color: #4ade80;
+  --slide-badge-green-border: rgba(34,197,94,0.25);
+  --slide-badge-yellow-bg: rgba(212,168,67,0.15);
+  --slide-badge-yellow-color: #e8c96a;
+  --slide-badge-yellow-border: rgba(212,168,67,0.3);
+  --slide-badge-red-bg: rgba(239,68,68,0.12);
+  --slide-badge-red-color: #f87171;
+  --slide-badge-red-border: rgba(239,68,68,0.25);
+
+  --slide-progress-fill: linear-gradient(90deg, #d4a843, #e8c96a);
+
+  --slide-metric-bg: rgba(212,168,67,0.06);
+  --slide-metric-border: rgba(212,168,67,0.15);
+  --slide-metric-value-color: #ffffff;
+  --slide-metric-context-color: #8a8a90;
+
+  --slide-section-bar: linear-gradient(180deg, #d4a843, #b08930);
+  --slide-big-number-gradient: linear-gradient(135deg, #e8c96a 0%, #d4a843 50%, #b08930 100%);
+  --slide-quote-mark-color: #d4a843;
+  --slide-title-subtitle-color: #8a8a90;
+
+  --slide-h1-decoration: linear-gradient(90deg, #d4a843, transparent);
+  --slide-textbox-border: rgba(212,168,67,0.12);
+  --slide-textbox-color: #c8c8cc;
+}
+
+/* Executive H1 underline accent */
+[data-slide-theme="executive"] .slide-content h1 {
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid rgba(212,168,67,0.2);
+}
+[data-slide-theme="executive"] .slide-layout-title .slide-content h1,
+[data-slide-theme="executive"] .slide-layout-big-number .slide-content h1,
+[data-slide-theme="executive"] .slide-layout-center .slide-content h1 {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+/* Executive bullets — em-dash style */
+[data-slide-theme="executive"] .slide-content ul li {
+  list-style-type: "—  ";
+}

@@ -506,6 +506,34 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
               </>
             )}
 
+            {/* Save to Slide Store */}
+            {selectedIndices.size === 1 && (() => {
+              const idx = Array.from(selectedIndices)[0]
+              const slide = slides[idx]
+              return slide ? (
+                <>
+                  <div className="border-t border-gray-800 my-1" />
+                  <button onClick={async () => {
+                    const name = slide.config.id.replace(/-/g, ' ').replace(/^\w/, (c) => c.toUpperCase())
+                    await window.electronAPI.saveSlideToLibrary({
+                      name,
+                      markdown: slide.markdownContent,
+                      layout: slide.config.layout,
+                      codeContent: slide.codeContent || undefined,
+                      codeLanguage: slide.codeLanguage || undefined
+                    })
+                    setContextMenu(null); setSelectedIndices(new Set())
+                  }}
+                    className="w-full text-left px-3 py-1.5 text-xs text-indigo-400 hover:bg-gray-800 transition-colors flex items-center gap-2">
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" />
+                    </svg>
+                    Save to Slide Store
+                  </button>
+                </>
+              ) : null
+            })()}
+
             {selectedIndices.size < slides.length && (
               <>
                 <div className="border-t border-gray-800 my-1" />

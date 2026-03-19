@@ -112,63 +112,21 @@ export function SlideRenderer({ markdown, rootPath }: SlideRendererProps): JSX.E
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeRaw]}
         components={{
-          // Custom renderers for presentation-quality output
-          h1: ({ children }) => (
-            <h1 className="text-4xl font-bold mb-6 text-white leading-tight">
-              {children}
-            </h1>
-          ),
-          h2: ({ children }) => (
-            <h2 className="text-3xl font-semibold mb-4 text-white leading-tight">
-              {children}
-            </h2>
-          ),
-          h3: ({ children }) => (
-            <h3 className="text-2xl font-medium mb-3 text-gray-200">
-              {children}
-            </h3>
-          ),
-          p: ({ children }) => (
-            <p className="text-xl leading-relaxed mb-4 text-gray-300">
-              {children}
-            </p>
-          ),
-          ul: ({ children }) => (
-            <ul className="text-lg leading-relaxed mb-4 ml-6 text-gray-300 space-y-2">
-              {children}
-            </ul>
-          ),
-          ol: ({ children }) => (
-            <ol className="text-lg leading-relaxed mb-4 ml-6 text-gray-300 space-y-2 list-decimal">
-              {children}
-            </ol>
-          ),
-          li: ({ children }) => (
-            <li className="list-disc">{children}</li>
-          ),
+          // Renderers are minimal — all visual styling flows through CSS variables in globals.css
+          // This ensures themes work without changing component code
           code: ({ className, children, ...props }) => {
-            const isInline = !className
             // Render mermaid diagrams
             if (className?.includes('language-mermaid')) {
               const chart = String(children).replace(/\n$/, '')
               return <MermaidDiagram chart={chart} />
             }
+            const isInline = !className
             if (isInline) {
-              return (
-                <code className="bg-gray-800 px-2 py-0.5 rounded text-gray-300 font-mono text-base">
-                  {children}
-                </code>
-              )
+              return <code>{children}</code>
             }
-            return (
-              <code className={`${className} block`} {...props}>
-                {children}
-              </code>
-            )
+            return <code className={`${className} block`} {...props}>{children}</code>
           },
           pre: ({ node, children }) => {
-            // Check if this pre contains a mermaid code block
-            // by inspecting the original AST node's child
             const codeChild = node?.children?.[0] as any
             if (
               codeChild?.tagName === 'code' &&
@@ -176,48 +134,14 @@ export function SlideRenderer({ markdown, rootPath }: SlideRendererProps): JSX.E
             ) {
               return <>{children}</>
             }
-            return (
-              <pre className="bg-gray-900 rounded-lg p-4 mb-4 overflow-x-auto text-sm">
-                {children}
-              </pre>
-            )
+            return <pre>{children}</pre>
           },
-          blockquote: ({ children }) => (
-            <blockquote className="border-l-4 border-white pl-4 italic text-gray-400 mb-4">
-              {children}
-            </blockquote>
-          ),
           a: ({ href, children }) => (
-            <a
-              href={href}
-              className="text-white underline hover:text-gray-300"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {children}
-            </a>
+            <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>
           ),
           img: ({ src, alt }) => (
-            <img
-              src={resolveImageSrc(src, rootPath)}
-              alt={alt}
-              className="max-w-full h-auto rounded-lg my-4"
-            />
+            <img src={resolveImageSrc(src, rootPath)} alt={alt} className="my-4" />
           ),
-          table: ({ children }) => (
-            <table className="w-full border-collapse mb-4">{children}</table>
-          ),
-          th: ({ children }) => (
-            <th className="bg-gray-800 border border-gray-700 px-4 py-2 text-left font-semibold text-gray-200">
-              {children}
-            </th>
-          ),
-          td: ({ children }) => (
-            <td className="border border-gray-700 px-4 py-2 text-gray-300">
-              {children}
-            </td>
-          ),
-          hr: () => <hr className="border-gray-700 my-8" />
         }}
       >
         {enhanceVisualPatterns(preprocessColumns(markdown))}

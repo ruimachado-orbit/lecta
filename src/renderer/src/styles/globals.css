@@ -1,4 +1,11 @@
 @import "tailwindcss";
+@import "./themes/_base.css";
+@import "./themes/executive.css";
+@import "./themes/minimal.css";
+@import "./themes/corporate.css";
+@import "./themes/creative.css";
+@import "./themes/keynote-dark.css";
+@import "./themes/paper.css";
 
 html, body, * {
   font-family: -apple-system, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
@@ -170,9 +177,9 @@ html[data-theme="light"] .slide-content hr { border-color: #e2e8f0; }
   font-weight: 600;
   white-space: nowrap;
 }
-.slide-badge-green { background: rgba(34,197,94,0.15); color: #4ade80; border: 1px solid rgba(34,197,94,0.3); }
-.slide-badge-yellow { background: rgba(234,179,8,0.15); color: #fbbf24; border: 1px solid rgba(234,179,8,0.3); }
-.slide-badge-red { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+.slide-badge-green { background: var(--slide-badge-green-bg); color: var(--slide-badge-green-color); border: 1px solid var(--slide-badge-green-border); }
+.slide-badge-yellow { background: var(--slide-badge-yellow-bg); color: var(--slide-badge-yellow-color); border: 1px solid var(--slide-badge-yellow-border); }
+.slide-badge-red { background: var(--slide-badge-red-bg); color: var(--slide-badge-red-color); border: 1px solid var(--slide-badge-red-border); }
 
 .slide-badge-icon {
   display: inline-flex;
@@ -184,21 +191,21 @@ html[data-theme="light"] .slide-content hr { border-color: #e2e8f0; }
   font-size: 0.7rem;
   font-weight: 700;
 }
-.slide-badge-icon.slide-badge-green { background: rgba(34,197,94,0.2); color: #4ade80; }
-.slide-badge-icon.slide-badge-red { background: rgba(239,68,68,0.2); color: #f87171; }
+.slide-badge-icon.slide-badge-green { background: var(--slide-badge-green-bg); color: var(--slide-badge-green-color); }
+.slide-badge-icon.slide-badge-red { background: var(--slide-badge-red-bg); color: var(--slide-badge-red-color); }
 
 /* Progress bars */
 .slide-progress {
   position: relative;
   height: 1.5rem;
-  background: rgba(255,255,255,0.08);
+  background: var(--slide-progress-bg);
   border-radius: 0.75rem;
   overflow: hidden;
   margin: 0.5rem 0;
 }
 .slide-progress-bar {
   height: 100%;
-  background: linear-gradient(90deg, #4ade80, #22c55e);
+  background: var(--slide-progress-fill);
   border-radius: 0.75rem;
   transition: width 0.5s ease;
 }
@@ -220,21 +227,23 @@ html[data-theme="light"] .slide-content hr { border-color: #e2e8f0; }
   flex-direction: column;
   align-items: flex-start;
   padding: 0.75rem 1.25rem;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 0.75rem;
+  background: var(--slide-metric-bg);
+  border: 1px solid var(--slide-metric-border);
+  border-radius: var(--slide-element-radius);
   margin: 0.5rem 0;
 }
 .slide-metric-value {
-  font-size: 2.5rem;
+  font-family: var(--slide-font-heading);
+  font-size: var(--slide-metric-value-size);
   font-weight: 800;
   line-height: 1.1;
-  color: #ffffff;
+  color: var(--slide-metric-value-color);
   letter-spacing: -0.02em;
 }
 .slide-metric-context {
+  font-family: var(--slide-font-body);
   font-size: 0.85rem;
-  color: #a3a3a3;
+  color: var(--slide-metric-context-color);
   margin-top: 0.25rem;
 }
 
@@ -242,37 +251,165 @@ html[data-theme="light"] .slide-content hr { border-color: #e2e8f0; }
 .slide-content table {
   border-collapse: separate;
   border-spacing: 0;
-  border-radius: 0.5rem;
+  border-radius: var(--slide-table-radius);
   overflow: hidden;
-  border: 1px solid rgba(255,255,255,0.1);
+  border: 1px solid var(--slide-table-border);
 }
 .slide-content th {
-  background: rgba(255,255,255,0.08);
+  background: var(--slide-table-header-bg);
+  font-family: var(--slide-font-body);
   font-weight: 700;
   text-transform: uppercase;
   font-size: 0.7rem;
   letter-spacing: 0.05em;
   padding: 0.6rem 1rem;
-  border-bottom: 2px solid rgba(255,255,255,0.15);
-  color: #e5e5e5;
+  border-bottom: 2px solid var(--slide-table-header-border);
+  color: var(--slide-table-header-color);
 }
 .slide-content td {
+  font-family: var(--slide-font-body);
   padding: 0.5rem 1rem;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
-  color: #d4d4d4;
+  border-bottom: 1px solid var(--slide-table-cell-border);
+  color: var(--slide-table-cell-color);
 }
 .slide-content tr:last-child td { border-bottom: none; }
-.slide-content tr:hover td { background: rgba(255,255,255,0.03); }
+.slide-content tr:hover td { background: var(--slide-table-row-hover); }
+
+/* ============================================================
+   MERMAID DIAGRAM — modern minimalist presentation styling
+   ============================================================ */
+.mermaid-diagram {
+  margin: 1.25rem 0;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+.mermaid-diagram svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Node shapes — rounded, thin border, subtle fill */
+.mermaid-diagram .node rect,
+.mermaid-diagram .node .basic {
+  rx: 10 !important;
+  ry: 10 !important;
+  fill: rgba(255,255,255,0.06) !important;
+  stroke: rgba(255,255,255,0.18) !important;
+  stroke-width: 1px !important;
+}
+.mermaid-diagram .node polygon {
+  fill: rgba(255,255,255,0.06) !important;
+  stroke: rgba(255,255,255,0.18) !important;
+  stroke-width: 1px !important;
+}
+.mermaid-diagram .node circle,
+.mermaid-diagram .node ellipse {
+  fill: rgba(255,255,255,0.06) !important;
+  stroke: rgba(255,255,255,0.18) !important;
+  stroke-width: 1px !important;
+}
+
+/* Node text — SVG text elements (htmlLabels: false) */
+.mermaid-diagram .nodeLabel,
+.mermaid-diagram .label,
+.mermaid-diagram .node text {
+  fill: #e2e8f0 !important;
+  color: #e2e8f0 !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  font-family: -apple-system, "SF Pro Text", Inter, system-ui, sans-serif !important;
+}
+
+/* Edges — subtle lines with clean arrows */
+.mermaid-diagram .flowchart-link,
+.mermaid-diagram .edge-pattern-solid {
+  stroke: rgba(255,255,255,0.2) !important;
+  stroke-width: 1.5px !important;
+}
+.mermaid-diagram marker path,
+.mermaid-diagram .arrowheadPath {
+  fill: rgba(255,255,255,0.35) !important;
+  stroke: none !important;
+}
+
+/* Edge labels */
+.mermaid-diagram .edgeLabel {
+  font-size: 11px !important;
+  color: #94a3b8 !important;
+  background: transparent !important;
+}
+.mermaid-diagram .edgeLabel rect {
+  fill: transparent !important;
+  stroke: none !important;
+}
+
+/* Clusters */
+.mermaid-diagram .cluster rect {
+  fill: rgba(255,255,255,0.02) !important;
+  stroke: rgba(255,255,255,0.08) !important;
+  stroke-width: 1px !important;
+  rx: 12 !important;
+  ry: 12 !important;
+}
+
+/* Sequence diagram actors */
+.mermaid-diagram .actor {
+  fill: rgba(255,255,255,0.06) !important;
+  stroke: rgba(255,255,255,0.18) !important;
+  stroke-width: 1px !important;
+  rx: 8;
+  ry: 8;
+}
+.mermaid-diagram .actor-line {
+  stroke: rgba(255,255,255,0.1) !important;
+}
+.mermaid-diagram text.actor {
+  fill: #e2e8f0 !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+}
+
+/* Light theme overrides for mermaid */
+[data-slide-theme="minimal"] .mermaid-diagram .node rect,
+[data-slide-theme="minimal"] .mermaid-diagram .node .basic,
+[data-slide-theme="corporate"] .mermaid-diagram .node rect,
+[data-slide-theme="corporate"] .mermaid-diagram .node .basic,
+[data-slide-theme="paper"] .mermaid-diagram .node rect,
+[data-slide-theme="paper"] .mermaid-diagram .node .basic {
+  fill: rgba(0,0,0,0.03) !important;
+  stroke: rgba(0,0,0,0.15) !important;
+}
+[data-slide-theme="minimal"] .mermaid-diagram .nodeLabel,
+[data-slide-theme="minimal"] .mermaid-diagram .node text,
+[data-slide-theme="corporate"] .mermaid-diagram .nodeLabel,
+[data-slide-theme="corporate"] .mermaid-diagram .node text,
+[data-slide-theme="paper"] .mermaid-diagram .nodeLabel,
+[data-slide-theme="paper"] .mermaid-diagram .node text {
+  fill: #1e293b !important;
+  color: #1e293b !important;
+}
+[data-slide-theme="minimal"] .mermaid-diagram .flowchart-link,
+[data-slide-theme="corporate"] .mermaid-diagram .flowchart-link,
+[data-slide-theme="paper"] .mermaid-diagram .flowchart-link {
+  stroke: rgba(0,0,0,0.15) !important;
+}
+[data-slide-theme="minimal"] .mermaid-diagram marker path,
+[data-slide-theme="corporate"] .mermaid-diagram marker path,
+[data-slide-theme="paper"] .mermaid-diagram marker path {
+  fill: rgba(0,0,0,0.3) !important;
+}
 
 /* Enhanced blockquotes — callout style */
 .slide-content blockquote {
-  background: rgba(255,255,255,0.04);
-  border-left: 3px solid #ffffff;
-  border-radius: 0 0.5rem 0.5rem 0;
+  background: var(--slide-quote-bg);
+  border-left: var(--slide-quote-border-width) solid var(--slide-quote-border);
+  border-radius: var(--slide-quote-radius);
   padding: 1rem 1.25rem;
   margin: 1rem 0;
   font-style: italic;
-  color: #d4d4d4;
+  font-family: var(--slide-font-body);
+  color: var(--slide-quote-color);
 }
 
 /* HR — pure spacing, no visible line */
@@ -283,87 +420,105 @@ html[data-theme="light"] .slide-content hr { border-color: #e2e8f0; }
   margin: 1.5rem 0;
 }
 
-/* Light mode overrides for visual components */
-html[data-theme="light"] .slide-badge-green { background: rgba(34,197,94,0.1); color: #16a34a; border-color: rgba(34,197,94,0.2); }
-html[data-theme="light"] .slide-badge-yellow { background: rgba(234,179,8,0.1); color: #ca8a04; border-color: rgba(234,179,8,0.2); }
-html[data-theme="light"] .slide-badge-red { background: rgba(239,68,68,0.1); color: #dc2626; border-color: rgba(239,68,68,0.2); }
-html[data-theme="light"] .slide-metric { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.08); }
-html[data-theme="light"] .slide-metric-value { color: #0f172a; }
-html[data-theme="light"] .slide-metric-context { color: #64748b; }
-html[data-theme="light"] .slide-content table { border-color: rgba(0,0,0,0.1); }
-html[data-theme="light"] .slide-content th { background: rgba(0,0,0,0.04); border-bottom-color: rgba(0,0,0,0.1); color: #1e293b; }
-html[data-theme="light"] .slide-content td { border-bottom-color: rgba(0,0,0,0.05); color: #334155; }
-html[data-theme="light"] .slide-content blockquote { background: rgba(0,0,0,0.02); border-left-color: #0f172a; }
-html[data-theme="light"] .slide-content hr { background: transparent; }
+/* Light mode overrides — handled by per-theme CSS variables now.
+   Keep minimal fallback for the default "light" theme. */
+html[data-theme="light"]:not([data-slide-theme]) .slide-content table { border-color: rgba(0,0,0,0.1); }
+html[data-theme="light"]:not([data-slide-theme]) .slide-content th { background: rgba(0,0,0,0.04); border-bottom-color: rgba(0,0,0,0.1); color: #1e293b; }
+html[data-theme="light"]:not([data-slide-theme]) .slide-content td { border-bottom-color: rgba(0,0,0,0.05); color: #334155; }
 
-/* Presentation-quality slide styling */
+/* Presentation-quality slide styling — driven by CSS variables for theming */
 .slide-content h1 {
-  @apply text-4xl font-bold mb-6 text-white;
+  font-family: var(--slide-font-heading);
+  font-size: var(--slide-h1-size);
+  font-weight: var(--slide-h1-weight);
+  letter-spacing: var(--slide-h1-tracking);
+  color: var(--slide-color-h1);
+  margin-bottom: var(--slide-heading-mb);
+  line-height: 1.15;
 }
 
 .slide-content h2 {
-  @apply text-3xl font-semibold mb-4 text-white;
+  font-family: var(--slide-font-heading);
+  font-size: var(--slide-h2-size);
+  font-weight: var(--slide-h2-weight);
+  color: var(--slide-color-h2);
+  margin-bottom: 1rem;
+  line-height: 1.2;
 }
 
 .slide-content h3 {
-  @apply text-2xl font-medium mb-3 text-gray-200;
+  font-family: var(--slide-font-heading);
+  font-size: var(--slide-h3-size);
+  font-weight: var(--slide-h3-weight, 500);
+  color: var(--slide-color-h3);
+  margin-bottom: 0.75rem;
+  line-height: 1.25;
 }
 
 .slide-content p {
-  @apply text-xl leading-relaxed mb-4 text-gray-300;
+  font-family: var(--slide-font-body);
+  font-size: var(--slide-body-size);
+  line-height: var(--slide-body-line-height);
+  color: var(--slide-color-body);
+  margin-bottom: var(--slide-paragraph-mb);
 }
 
 .slide-content ul,
 .slide-content ol {
-  @apply text-lg leading-relaxed mb-4 ml-6 text-gray-300;
+  font-family: var(--slide-font-body);
+  font-size: var(--slide-list-size);
+  line-height: var(--slide-body-line-height);
+  color: var(--slide-color-body);
+  margin-bottom: 1rem;
+  margin-left: 1.5rem;
 }
 
 .slide-content li {
-  @apply mb-2;
+  margin-bottom: 0.5rem;
 }
 
 .slide-content ul li {
-  @apply list-disc;
+  list-style-type: var(--slide-bullet-style);
 }
 
 .slide-content ol li {
-  @apply list-decimal;
+  list-style-type: decimal;
 }
 
 .slide-content code {
-  @apply bg-surface-lighter px-2 py-0.5 rounded text-brand-light font-mono text-base;
+  font-family: var(--slide-font-mono);
+  background: var(--slide-code-bg);
+  color: var(--slide-code-color);
+  padding: 0.125rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 1rem;
 }
 
 .slide-content pre {
-  @apply bg-gray-900 rounded-lg p-4 mb-4 overflow-x-auto;
+  background: var(--slide-pre-bg);
+  border-radius: var(--slide-element-radius);
+  padding: 1rem;
+  margin-bottom: 1rem;
+  overflow-x: auto;
 }
 
 .slide-content pre code {
-  @apply bg-transparent p-0;
-}
-
-.slide-content blockquote {
-  @apply border-l-4 border-brand pl-4 italic text-gray-400 mb-4;
+  background: transparent;
+  padding: 0;
 }
 
 .slide-content img {
-  @apply max-w-full h-auto rounded-lg;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--slide-element-radius);
 }
 
 .slide-content a {
-  @apply text-brand-light underline hover:text-brand;
+  color: var(--slide-link-color);
+  text-decoration: underline;
 }
-
-.slide-content table {
-  @apply w-full border-collapse mb-4;
-}
-
-.slide-content th {
-  @apply bg-surface-lighter border border-border px-4 py-2 text-left font-semibold;
-}
-
-.slide-content td {
-  @apply border border-border px-4 py-2;
+.slide-content a:hover {
+  color: var(--slide-link-hover);
 }
 
 /* ============================================================
@@ -407,11 +562,11 @@ html[data-theme="light"] .slide-content hr { background: transparent; }
 .slide-layout-title .slide-content h2 {
   font-size: 2rem !important;
   font-weight: 400 !important;
-  color: #a3a3a3 !important;
+  color: var(--slide-title-subtitle-color) !important;
 }
 .slide-layout-title .slide-content p {
   font-size: 1.25rem !important;
-  color: #737373 !important;
+  color: var(--slide-color-dimmed) !important;
 }
 
 /* Section break — bold accent bar + heading */
@@ -431,7 +586,7 @@ html[data-theme="light"] .slide-content hr { background: transparent; }
   top: 0;
   bottom: 0;
   width: 4px;
-  background: linear-gradient(180deg, #818cf8 0%, #6366f1 100%);
+  background: var(--slide-section-bar);
   border-radius: 2px;
 }
 .slide-layout-section .slide-content h1 {
@@ -439,7 +594,7 @@ html[data-theme="light"] .slide-content hr { background: transparent; }
   margin-bottom: 0.5rem !important;
 }
 .slide-layout-section .slide-content p {
-  color: #737373 !important;
+  color: var(--slide-color-muted) !important;
   font-size: 1.5rem !important;
 }
 
@@ -509,10 +664,10 @@ html[data-theme="light"] .slide-content hr { background: transparent; }
   justify-content: center;
 }
 .slide-layout-big-number .slide-content h1 {
-  font-size: 7rem !important;
+  font-size: var(--slide-big-number-size) !important;
   line-height: 1 !important;
   margin-bottom: 1.5rem !important;
-  background: linear-gradient(135deg, #818cf8 0%, #6366f1 50%, #a855f7 100%);
+  background: var(--slide-big-number-gradient);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -521,10 +676,10 @@ html[data-theme="light"] .slide-content hr { background: transparent; }
 .slide-layout-big-number .slide-content h2 {
   font-size: 1.75rem !important;
   font-weight: 400 !important;
-  color: #d4d4d4 !important;
+  color: var(--slide-color-body) !important;
 }
 .slide-layout-big-number .slide-content p {
-  color: #737373 !important;
+  color: var(--slide-color-dimmed) !important;
   font-size: 1.125rem !important;
 }
 
@@ -547,13 +702,13 @@ html[data-theme="light"] .slide-content hr { background: transparent; }
   font-size: 2rem !important;
   font-style: italic !important;
   line-height: 1.5 !important;
-  color: #e2e8f0 !important;
+  color: var(--slide-color-h2) !important;
   position: relative;
 }
 .slide-layout-quote .slide-content p:first-of-type::before {
   content: '\201C';
   font-size: 5rem;
-  color: #6366f1;
+  color: var(--slide-quote-mark-color);
   position: absolute;
   left: -3rem;
   top: -1.5rem;
@@ -565,12 +720,12 @@ html[data-theme="light"] .slide-content hr { background: transparent; }
   font-size: 2rem !important;
   padding: 0 !important;
   text-align: center !important;
-  color: #e2e8f0 !important;
+  color: var(--slide-color-h2) !important;
 }
 .slide-layout-quote .slide-content h3,
 .slide-layout-quote .slide-content h2 {
   font-weight: 400 !important;
-  color: #737373 !important;
+  color: var(--slide-color-dimmed) !important;
   margin-top: 2rem !important;
   font-size: 1.125rem !important;
 }
@@ -581,38 +736,7 @@ html[data-theme="light"] .slide-content hr { background: transparent; }
   height: 100%;
 }
 
-/* Light-mode overrides for layout accent colors */
-html[data-theme="light"] .slide-layout-section .slide-content::before {
-  background: linear-gradient(180deg, #6366f1 0%, #4f46e5 100%);
-}
-html[data-theme="light"] .slide-layout-big-number .slide-content h1 {
-  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 50%, #7c3aed 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-html[data-theme="light"] .slide-layout-quote .slide-content p:first-of-type::before {
-  color: #4f46e5;
-}
-html[data-theme="light"] .slide-layout-title .slide-content h2 {
-  color: #64748b !important;
-}
-html[data-theme="light"] .slide-layout-title .slide-content p {
-  color: #94a3b8 !important;
-}
-html[data-theme="light"] .slide-layout-section .slide-content p {
-  color: #94a3b8 !important;
-}
-html[data-theme="light"] .slide-layout-big-number .slide-content h2 {
-  color: #334155 !important;
-}
-html[data-theme="light"] .slide-layout-big-number .slide-content p {
-  color: #94a3b8 !important;
-}
-html[data-theme="light"] .slide-layout-quote .slide-content h3,
-html[data-theme="light"] .slide-layout-quote .slide-content h2 {
-  color: #94a3b8 !important;
-}
+/* Layout accent colors now flow from --slide-* variables per theme */
 
 /* Multi-column layout */
 .slide-columns {
@@ -636,15 +760,16 @@ html[data-theme="light"] .slide-layout-quote .slide-content h2 {
 .slide-textbox {
   position: absolute;
   padding: 0.75rem 1rem;
-  border: 1px dashed rgba(255,255,255,0.15);
-  border-radius: 0.5rem;
+  border: 1px dashed var(--slide-textbox-border);
+  border-radius: var(--slide-element-radius);
+  font-family: var(--slide-font-body);
   font-size: 1rem;
   line-height: 1.5;
-  color: #e2e8f0;
+  color: var(--slide-textbox-color);
   z-index: 2;
 }
 .slide-textbox:hover {
-  border-color: rgba(255,255,255,0.3);
+  border-color: var(--slide-accent);
 }
 html[data-theme="light"] .slide-textbox {
   color: #334155;

@@ -6,6 +6,7 @@ import { registerPresenterHandlers } from './presenter'
 import { registerSettingsHandlers } from './settings'
 import { registerExportHandlers } from './export-pdf'
 import { registerNotebookHandlers } from './notebook-fs'
+import { registerSlideLibraryHandlers } from './slide-library'
 
 export function registerAllIpcHandlers(): void {
   registerFileSystemHandlers()
@@ -16,4 +17,5 @@ export function registerAllIpcHandlers(): void {
   registerSettingsHandlers()
   registerExportHandlers()
   registerNotebookHandlers()
+  registerSlideLibraryHandlers()
 }

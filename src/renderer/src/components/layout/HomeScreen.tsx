@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useNotebookStore } from '../../stores/notebook-store'
 import { useUIStore, COLOR_PALETTES } from '../../stores/ui-store'
@@ -20,6 +20,7 @@ export function HomeScreen(): JSX.Element {
   const [showCreate, setShowCreate] = useState(false)
   const [createType, setCreateType] = useState<'presentation' | 'notebook'>('presentation')
   const [showSettings, setShowSettings] = useState(false)
+  const [showAIGenerate, setShowAIGenerate] = useState(false)
   const [newName, setNewName] = useState('')
   const [createError, setCreateError] = useState<string | null>(null)
 
@@ -70,6 +71,13 @@ export function HomeScreen(): JSX.Element {
 
   if (showSettings) {
     return <SettingsPanel onBack={() => setShowSettings(false)} />
+  }
+
+  if (showAIGenerate) {
+    return <AIGeneratePanel onBack={() => setShowAIGenerate(false)} onGenerated={async (workspaceDir) => {
+      setShowAIGenerate(false)
+      await loadPresentation(workspaceDir)
+    }} />
   }
 
   return (
@@ -130,6 +138,19 @@ export function HomeScreen(): JSX.Element {
             </button>
           )}
           </div>
+
+          {/* AI Generate button */}
+          <button
+            onClick={() => setShowAIGenerate(true)}
+            className="w-full py-2.5 px-4 bg-gray-800 hover:bg-gray-700
+                       text-gray-300 hover:text-white font-medium rounded-full transition-all text-sm
+                       flex items-center justify-center gap-2 border border-gray-700"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
+            </svg>
+            Generate with AI
+          </button>
 
           {showCreate && (
             <div className="space-y-2">
@@ -328,6 +349,268 @@ export function HomeScreen(): JSX.Element {
           <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
         </svg>
       </button>
+    </div>
+  )
+}
+
+function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenerated: (workspaceDir: string) => void }): JSX.Element {
+  const [prompt, setPrompt] = useState('')
+  const [title, setTitle] = useState('')
+  const [slideCount, setSlideCount] = useState(10)
+  const [sourceFile, setSourceFile] = useState<string | null>(null)
+  const [sourceFileName, setSourceFileName] = useState<string | null>(null)
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [progress, setProgress] = useState<{ status: string; slideIndex: number; total: number } | null>(null)
+  const [genError, setGenError] = useState<string | null>(null)
+
+  const handleSelectFile = useCallback(async () => {
+    const filePath = await window.electronAPI.selectFile()
+    if (filePath) {
+      setSourceFile(filePath)
+      setSourceFileName(filePath.split('/').pop() || filePath)
+    }
+  }, [])
+
+  const handleGenerate = useCallback(async () => {
+    if (!prompt.trim() && !sourceFile) return
+
+    setIsGenerating(true)
+    setGenError(null)
+    setProgress({ status: 'Preparing...', slideIndex: 0, total: slideCount })
+
+    try {
+      // Read source file content if provided
+      let sourceContent: string | null = null
+      if (sourceFile) {
+        sourceContent = await window.electronAPI.readSourceFile(sourceFile)
+      }
+
+      const finalTitle = title.trim() || prompt.trim().slice(0, 60)
+
+      // Generate slides via AI
+      const result = await window.electronAPI.generateFullPresentation(
+        prompt,
+        finalTitle,
+        sourceContent,
+        slideCount,
+        (data: { status: string; slideIndex: number; total: number }) => setProgress(data)
+      )
+
+      if (!result.slides || result.slides.length === 0) {
+        throw new Error('AI returned no slides')
+      }
+
+      setProgress({ status: 'Creating presentation file...', slideIndex: slideCount, total: slideCount })
+
+      // Create a .lecta file
+      const workspaceDir = await window.electronAPI.createLectaFile(result.title || finalTitle, 'presentation')
+      if (!workspaceDir) throw new Error('User cancelled file creation')
+
+      // Add the generated slides after the default welcome slide, then delete it
+      await window.electronAPI.addBulkSlides(workspaceDir, result.slides, 0)
+
+      // Delete the default welcome slide (now at index 0 since bulk inserts after it)
+      await window.electronAPI.deleteSlide(workspaceDir, 0)
+
+      // Set layouts for each slide
+      for (let i = 0; i < result.slides.length; i++) {
+        const layout = result.slides[i].layout
+        if (layout && layout !== 'default') {
+          try {
+            await window.electronAPI.setSlideLayout(workspaceDir, i, layout)
+          } catch { /* ignore layout errors */ }
+        }
+      }
+
+      onGenerated(workspaceDir)
+    } catch (err) {
+      setGenError((err as Error).message)
+      setIsGenerating(false)
+    }
+  }, [prompt, title, slideCount, sourceFile, onGenerated])
+
+  return (
+    <div className="h-screen bg-gray-950 flex flex-col" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
+      {/* Header */}
+      <div className="flex items-center gap-3 px-6 pt-12 pb-6" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+        <button
+          onClick={onBack}
+          disabled={isGenerating}
+          className="p-1.5 rounded hover:bg-gray-800 text-gray-400 hover:text-white transition-colors disabled:opacity-30"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+          </svg>
+        </button>
+        <div className="flex items-center gap-2">
+          <svg className="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
+          </svg>
+          <h2 className="text-lg font-medium text-white">Generate Presentation with AI</h2>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto px-6 pb-8" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+        <div className="max-w-lg mx-auto space-y-6">
+
+          {/* Title */}
+          <div>
+            <label className="text-sm text-gray-300 block mb-1.5">Presentation title</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. Q1 2026 Business Review"
+              disabled={isGenerating}
+              className="w-full px-3 py-2 bg-gray-900 text-gray-300 text-sm rounded-lg border border-gray-700
+                         focus:border-indigo-500 focus:outline-none placeholder-gray-600 disabled:opacity-50"
+            />
+          </div>
+
+          {/* Prompt */}
+          <div>
+            <label className="text-sm text-gray-300 block mb-1.5">Describe your presentation</label>
+            <textarea
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder={"e.g. Create a quarterly business review presentation covering:\n- Revenue performance and growth metrics\n- Product roadmap updates\n- Team hiring progress\n- Key risks and mitigations\n- Next quarter priorities"}
+              disabled={isGenerating}
+              rows={6}
+              className="w-full px-3 py-2 bg-gray-900 text-gray-300 text-sm rounded-lg border border-gray-700
+                         focus:border-indigo-500 focus:outline-none placeholder-gray-600 resize-none disabled:opacity-50"
+            />
+          </div>
+
+          {/* Source file */}
+          <div>
+            <label className="text-sm text-gray-300 block mb-1.5">Source file (optional)</label>
+            <p className="text-[10px] text-gray-600 mb-2">Upload a document to generate slides from its content — supports .txt, .md, .pdf, .csv, .json</p>
+            {sourceFile ? (
+              <div className="flex items-center gap-2 px-3 py-2 bg-gray-900 rounded-lg border border-gray-700">
+                <svg className="w-4 h-4 text-indigo-400 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                </svg>
+                <span className="text-sm text-gray-300 truncate flex-1">{sourceFileName}</span>
+                <button onClick={() => { setSourceFile(null); setSourceFileName(null) }}
+                  disabled={isGenerating}
+                  className="p-0.5 rounded hover:bg-gray-800 text-gray-500 hover:text-gray-300 disabled:opacity-30">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={handleSelectFile}
+                disabled={isGenerating}
+                className="w-full px-3 py-3 bg-gray-900 hover:bg-gray-800 text-gray-500 hover:text-gray-300
+                           text-sm rounded-lg border border-dashed border-gray-700 hover:border-gray-500
+                           transition-colors flex items-center justify-center gap-2 disabled:opacity-30"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+                </svg>
+                Choose file...
+              </button>
+            )}
+          </div>
+
+          {/* Slide count */}
+          <div className="flex items-center justify-between">
+            <label className="text-sm text-gray-300">Number of slides</label>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setSlideCount(Math.max(3, slideCount - 1))}
+                disabled={isGenerating}
+                className="w-7 h-7 rounded bg-gray-800 hover:bg-gray-700 text-gray-400 text-sm flex items-center justify-center disabled:opacity-30"
+              >-</button>
+              <span className="text-sm text-gray-300 w-6 text-center">{slideCount}</span>
+              <button
+                onClick={() => setSlideCount(Math.min(30, slideCount + 1))}
+                disabled={isGenerating}
+                className="w-7 h-7 rounded bg-gray-800 hover:bg-gray-700 text-gray-400 text-sm flex items-center justify-center disabled:opacity-30"
+              >+</button>
+            </div>
+          </div>
+
+          {/* Quick presets */}
+          <div>
+            <label className="text-[10px] text-gray-600 uppercase tracking-wider block mb-2">Quick templates</label>
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { label: 'Business Review', prompt: 'Quarterly business review with revenue metrics, team updates, key risks, and next quarter priorities', count: 12 },
+                { label: 'Product Launch', prompt: 'Product launch presentation covering the problem, solution, market opportunity, competitive landscape, go-to-market strategy, and timeline', count: 10 },
+                { label: 'Technical Architecture', prompt: 'Technical architecture deep-dive covering system design, data flow, infrastructure, scalability, security, and monitoring', count: 10 },
+                { label: 'Team Standup', prompt: 'Team status update: what was done, what is in progress, blockers, and priorities for the week', count: 6 },
+                { label: 'Investor Pitch', prompt: 'Startup pitch deck: problem, solution, market size, business model, traction, team, financial projections, and ask', count: 12 },
+              ].map((preset) => (
+                <button
+                  key={preset.label}
+                  onClick={() => { setPrompt(preset.prompt); setSlideCount(preset.count); if (!title) setTitle(preset.label) }}
+                  disabled={isGenerating}
+                  className="px-2.5 py-1 text-[11px] rounded-full bg-gray-800 hover:bg-gray-700 text-gray-400
+                             hover:text-gray-200 transition-colors border border-gray-700 disabled:opacity-30"
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Error */}
+          {genError && (
+            <div className="bg-red-950/50 border border-red-800 text-red-300 rounded-lg px-4 py-3 text-sm">
+              {genError}
+            </div>
+          )}
+
+          {/* Progress */}
+          {isGenerating && progress && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <svg className="w-4 h-4 text-indigo-400 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                <span className="text-sm text-gray-300">{progress.status}</span>
+              </div>
+              <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-500"
+                  style={{ width: `${progress.total > 0 ? (progress.slideIndex / progress.total) * 100 : 0}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Generate button */}
+          <button
+            onClick={handleGenerate}
+            disabled={isGenerating || (!prompt.trim() && !sourceFile)}
+            className="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500
+                       disabled:from-gray-700 disabled:to-gray-700 disabled:text-gray-500
+                       text-white font-medium rounded-lg transition-all text-sm flex items-center justify-center gap-2"
+          >
+            {isGenerating ? (
+              <>
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Generating...
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
+                </svg>
+                Generate Presentation
+              </>
+            )}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

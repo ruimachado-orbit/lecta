@@ -42,6 +42,8 @@ const api = {
     ipcRenderer.invoke('fs:set-transition', rootPath, slideIndex, transition),
   setSlideLayout: (rootPath: string, slideIndex: number, layout: string): Promise<LoadedPresentation> =>
     ipcRenderer.invoke('fs:set-layout', rootPath, slideIndex, layout),
+  setTheme: (rootPath: string, themeId: string): Promise<void> =>
+    ipcRenderer.invoke('fs:set-theme', rootPath, themeId),
   toggleSkipSlide: (rootPath: string, slideIndex: number): Promise<LoadedPresentation> =>
     ipcRenderer.invoke('fs:toggle-skip', rootPath, slideIndex),
   removeAttachment: (
@@ -123,6 +125,21 @@ const api = {
     ipcRenderer.on(channel, (_event, chunk: string) => callback(chunk))
     ipcRenderer.invoke('ai:run-prompt', prompt, slideContent, deckTitle, channel)
   },
+  generateFullPresentation: (
+    prompt: string,
+    title: string,
+    sourceContent: string | null,
+    slideCount: number,
+    onProgress: (data: { status: string; slideIndex: number; total: number }) => void
+  ): Promise<{ slides: { id: string; markdown: string; layout: string }[]; title: string }> => {
+    const channel = `ai:gen-pres-progress-${Date.now()}`
+    ipcRenderer.on(channel, (_event, data) => onProgress(data))
+    return ipcRenderer.invoke('ai:generate-full-presentation', prompt, title, sourceContent, slideCount, channel)
+  },
+  readSourceFile: (filePath: string): Promise<string> =>
+    ipcRenderer.invoke('ai:read-source-file', filePath),
+  selectFile: (filters?: { name: string; extensions: string[] }[]): Promise<string | null> =>
+    ipcRenderer.invoke('fs:select-file', filters),
   streamArticle: (
     deckTitle: string,
     author: string,
@@ -216,6 +233,18 @@ const api = {
     ipcRenderer.invoke('nb:unarchive-note', rootPath, noteId),
   saveNoteContent: (rootPath: string, contentPath: string, content: string): Promise<void> =>
     ipcRenderer.invoke('nb:save-content', rootPath, contentPath, content),
+
+  // Slide Library
+  saveSlideToLibrary: (slide: {
+    name: string; markdown: string; layout?: string; codeContent?: string; codeLanguage?: string; tags?: string[]
+  }): Promise<any> =>
+    ipcRenderer.invoke('library:save-slide', slide),
+  listLibrarySlides: (): Promise<any[]> =>
+    ipcRenderer.invoke('library:list-slides'),
+  deleteLibrarySlide: (id: string): Promise<void> =>
+    ipcRenderer.invoke('library:delete-slide', id),
+  renameLibrarySlide: (id: string, newName: string): Promise<void> =>
+    ipcRenderer.invoke('library:rename-slide', id, newName),
 
   // Remove listeners
   removeAllListeners: (channel: string): void => {

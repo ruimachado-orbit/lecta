@@ -1,0 +1,111 @@
+/* ============================================================
+   SLIDE THEME BASE — CSS Custom Properties
+   All slide visual styling flows through these variables.
+   Themes override them via [data-slide-theme="..."] selectors.
+   ============================================================ */
+
+:root {
+  /* Canvas */
+  --slide-bg: #000000;
+
+  /* Typography — fonts */
+  --slide-font-heading: -apple-system, "SF Pro Display", "Inter", "Helvetica Neue", sans-serif;
+  --slide-font-body: -apple-system, "SF Pro Text", "Inter", "Helvetica Neue", sans-serif;
+  --slide-font-mono: "JetBrains Mono", "Fira Code", "SF Mono", monospace;
+
+  /* Typography — headings */
+  --slide-color-h1: #ffffff;
+  --slide-color-h2: #ffffff;
+  --slide-color-h3: #e5e5e5;
+  --slide-h1-size: 2.25rem;
+  --slide-h1-weight: 700;
+  --slide-h1-tracking: -0.01em;
+  --slide-h2-size: 1.875rem;
+  --slide-h2-weight: 600;
+  --slide-h3-size: 1.5rem;
+  --slide-h3-weight: 500;
+
+  /* Typography — body */
+  --slide-color-body: #d4d4d4;
+  --slide-color-muted: #a3a3a3;
+  --slide-color-dimmed: #737373;
+  --slide-body-size: 1.25rem;
+  --slide-body-line-height: 1.625;
+  --slide-list-size: 1.125rem;
+
+  /* Accent */
+  --slide-accent: #6366f1;
+  --slide-accent-light: #818cf8;
+  --slide-accent-gradient: linear-gradient(135deg, #818cf8, #6366f1);
+
+  /* Links */
+  --slide-link-color: #ffffff;
+  --slide-link-hover: #d4d4d4;
+
+  /* Tables */
+  --slide-table-border: rgba(255,255,255,0.1);
+  --slide-table-header-bg: rgba(255,255,255,0.08);
+  --slide-table-header-color: #e5e5e5;
+  --slide-table-header-border: rgba(255,255,255,0.15);
+  --slide-table-cell-color: #d4d4d4;
+  --slide-table-cell-border: rgba(255,255,255,0.06);
+  --slide-table-row-hover: rgba(255,255,255,0.03);
+  --slide-table-radius: 0.5rem;
+
+  /* Blockquotes */
+  --slide-quote-border: #ffffff;
+  --slide-quote-border-width: 3px;
+  --slide-quote-bg: rgba(255,255,255,0.04);
+  --slide-quote-color: #d4d4d4;
+  --slide-quote-radius: 0 0.5rem 0.5rem 0;
+
+  /* Code */
+  --slide-code-bg: rgba(255,255,255,0.08);
+  --slide-code-color: #e5e5e5;
+  --slide-pre-bg: #0a0a0a;
+
+  /* Badges */
+  --slide-badge-green-bg: rgba(34,197,94,0.15);
+  --slide-badge-green-color: #4ade80;
+  --slide-badge-green-border: rgba(34,197,94,0.3);
+  --slide-badge-yellow-bg: rgba(234,179,8,0.15);
+  --slide-badge-yellow-color: #fbbf24;
+  --slide-badge-yellow-border: rgba(234,179,8,0.3);
+  --slide-badge-red-bg: rgba(239,68,68,0.15);
+  --slide-badge-red-color: #f87171;
+  --slide-badge-red-border: rgba(239,68,68,0.3);
+
+  /* Progress */
+  --slide-progress-bg: rgba(255,255,255,0.08);
+  --slide-progress-fill: linear-gradient(90deg, #4ade80, #22c55e);
+
+  /* Metrics */
+  --slide-metric-bg: rgba(255,255,255,0.05);
+  --slide-metric-border: rgba(255,255,255,0.1);
+  --slide-metric-value-color: #ffffff;
+  --slide-metric-value-size: 2.5rem;
+  --slide-metric-context-color: #a3a3a3;
+
+  /* Layout accents */
+  --slide-section-bar: linear-gradient(180deg, #818cf8 0%, #6366f1 100%);
+  --slide-big-number-gradient: linear-gradient(135deg, #818cf8 0%, #6366f1 50%, #a855f7 100%);
+  --slide-big-number-size: 7rem;
+  --slide-quote-mark-color: #6366f1;
+  --slide-title-subtitle-color: #a3a3a3;
+  --slide-title-h1-size: 4rem;
+
+  /* Spacing */
+  --slide-padding: 48px;
+  --slide-heading-mb: 1.5rem;
+  --slide-paragraph-mb: 1rem;
+
+  /* Decorative */
+  --slide-h1-decoration: none;
+  --slide-bullet-style: disc;
+  --slide-bullet-color: currentColor;
+  --slide-element-radius: 0.5rem;
+
+  /* Textbox */
+  --slide-textbox-border: rgba(255,255,255,0.15);
+  --slide-textbox-color: #e2e8f0;
+}

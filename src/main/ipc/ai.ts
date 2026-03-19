@@ -179,6 +179,57 @@ export function registerAiHandlers(): void {
   )
 
   ipcMain.handle(
+    'ai:generate-full-presentation',
+    async (
+      _event,
+      prompt: string,
+      title: string,
+      sourceContent: string | null,
+      slideCount: number,
+      progressChannel: string
+    ): Promise<{ slides: { id: string; markdown: string; layout: string }[]; title: string }> => {
+      const service = getAIService()
+      const window = BrowserWindow.getFocusedWindow()
+
+      return service.generateFullPresentation(
+        prompt,
+        title,
+        sourceContent,
+        slideCount,
+        (status: string, slideIndex: number, total: number) => {
+          window?.webContents.send(progressChannel, { status, slideIndex, total })
+        }
+      )
+    }
+  )
+
+  ipcMain.handle(
+    'ai:read-source-file',
+    async (_event, filePath: string): Promise<string> => {
+      const { readFile } = await import('fs/promises')
+      const ext = filePath.toLowerCase().split('.').pop()
+
+      if (ext === 'pdf') {
+        // Read PDF as text (basic extraction)
+        try {
+          const buffer = await readFile(filePath)
+          // Simple PDF text extraction — look for text between stream/endstream or parentheses
+          const text = buffer.toString('utf-8')
+          // Extract readable text portions
+          const readable = text.replace(/[^\x20-\x7E\n\r\t]/g, ' ').replace(/\s+/g, ' ').trim()
+          return readable.slice(0, 50000)
+        } catch {
+          return '[Could not read PDF file]'
+        }
+      }
+
+      // For text-based files (md, txt, csv, json, etc.)
+      const content = await readFile(filePath, 'utf-8')
+      return content.slice(0, 50000)
+    }
+  )
+
+  ipcMain.handle(
     'ai:stream-article',
     async (
       _event,

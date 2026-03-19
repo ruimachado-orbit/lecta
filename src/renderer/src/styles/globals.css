@@ -129,6 +129,7 @@ html[data-theme="light"] body {
 /* Light mode slide content — needs explicit overrides since
    SlideRenderer uses inline className, not Tailwind variables */
 /* Presenter view — theme-aware */
+.presenter-canvas-bg { background: #262626; }
 .presenter-slide-frame {
   box-shadow: 0 0 0 1px rgba(255,255,255,0.15), 0 4px 24px rgba(0,0,0,0.6), 0 0 80px rgba(0,0,0,0.4);
 }

@@ -278,55 +278,76 @@ export function PresenterView(): JSX.Element {
   )
 }
 
-/** Fullscreen slide — fills the entire container, no borders */
+/** 16:9 slide canvas — centered in container, auto-scaled */
 function PresenterSlide({ markdown, rootPath, layout }: {
   markdown: string; rootPath?: string; layout?: string
 }): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
+  const [canvasScale, setCanvasScale] = useState(1)
   const [contentScale, setContentScale] = useState(1)
-  const [containerH, setContainerH] = useState(0)
 
-  // Track container height for content scaling
+  const SLIDE_W = 1280
+  const SLIDE_H = 720
+  const PAD = 48
+  const CONTENT_H = SLIDE_H - PAD * 2
+
+  // Scale the 16:9 frame to fit the container
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
-    const update = () => setContainerH(container.clientHeight)
+    const update = () => {
+      const cw = container.clientWidth
+      const ch = container.clientHeight
+      const margin = 16
+      const s = Math.min((cw - margin * 2) / SLIDE_W, (ch - margin * 2) / SLIDE_H)
+      setCanvasScale(Math.max(0.05, s))
+    }
     update()
     const ro = new ResizeObserver(update)
     ro.observe(container)
     return () => ro.disconnect()
   }, [])
 
-  const PAD = 48
-  const availH = containerH - PAD * 2
-
-  // Scale content down if it overflows the available height
+  // Scale content down if it overflows the slide height
   useEffect(() => {
     const el = contentRef.current
-    if (!el || availH <= 0) return
+    if (!el) return
     const measure = () => {
       el.style.transform = 'scale(1)'
       el.style.transformOrigin = 'top left'
       const natural = el.scrollHeight
-      setContentScale(natural > availH ? Math.max(0.3, availH / natural) : 1)
+      setContentScale(natural > CONTENT_H ? Math.max(0.3, CONTENT_H / natural) : 1)
     }
     measure()
     const t = setTimeout(measure, 500)
     return () => clearTimeout(t)
-  }, [markdown, availH])
+  }, [markdown])
 
   return (
-    <div ref={containerRef} className="h-full w-full overflow-hidden bg-black relative">
-      <div className={`absolute inset-0 ${layout === 'blank' ? '' : 'p-12'} overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
-        <div
-          ref={contentRef}
-          style={{
-            transform: `scale(${contentScale})`,
-            transformOrigin: 'top left'
-          }}
-        >
-          <SlideRenderer markdown={markdown} rootPath={rootPath} />
+    <div ref={containerRef} className="h-full w-full flex items-center justify-center presenter-canvas-bg overflow-hidden">
+      <div
+        className="relative rounded overflow-hidden presenter-slide-frame"
+        style={{
+          width: SLIDE_W,
+          height: SLIDE_H,
+          transform: `scale(${canvasScale})`,
+          transformOrigin: 'center center',
+          flexShrink: 0,
+        }}
+      >
+        <div className="absolute inset-0 bg-black rounded" />
+        <div className={`absolute inset-0 ${layout === 'blank' ? '' : 'p-12'} overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
+          <div
+            ref={contentRef}
+            style={{
+              width: SLIDE_W - PAD * 2,
+              transform: `scale(${contentScale})`,
+              transformOrigin: 'top left'
+            }}
+          >
+            <SlideRenderer markdown={markdown} rootPath={rootPath} />
+          </div>
         </div>
       </div>
     </div>

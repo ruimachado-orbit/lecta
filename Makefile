@@ -2,11 +2,11 @@
 
 # 🚀 Full setup + launch (first time or any time)
 dev: setup
-	cd "$(CURDIR)" && pnpm dev
+	cd "$(CURDIR)" && bun dev
 
-# Install dependencies
+# Install dependencies (requires bun: curl -fsSL https://bun.sh/install | bash, or brew install oven-sh/bun/bun)
 install:
-	cd "$(CURDIR)" && pnpm install
+	cd "$(CURDIR)" && bun install
 
 # Setup everything from scratch
 setup: install
@@ -17,34 +17,34 @@ setup: install
 
 # Build for production
 build:
-	cd "$(CURDIR)" && pnpm build
+	cd "$(CURDIR)" && bun build
 
 # Package as distributable (macOS DMG, etc.)
 package: build
-	cd "$(CURDIR)" && pnpm package
+	cd "$(CURDIR)" && bun package
 
 dmg: build
-	cd "$(CURDIR)" && pnpm package:mac
+	cd "$(CURDIR)" && bun run package:mac
 
 package-mac: build
-	cd "$(CURDIR)" && pnpm package:mac
+	cd "$(CURDIR)" && bun run package:mac
 
 package-win: build
-	cd "$(CURDIR)" && pnpm package:win
+	cd "$(CURDIR)" && bun run package:win
 
 package-linux: build
-	cd "$(CURDIR)" && pnpm package:linux
+	cd "$(CURDIR)" && bun run package:linux
 
 # Lint and format
 lint:
-	cd "$(CURDIR)" && pnpm lint
+	cd "$(CURDIR)" && bun lint
 
 format:
-	cd "$(CURDIR)" && pnpm format
+	cd "$(CURDIR)" && bun format
 
 # Type check
 typecheck:
-	cd "$(CURDIR)" && pnpm typecheck
+	cd "$(CURDIR)" && bun typecheck
 
 # Clean build artifacts
 clean:

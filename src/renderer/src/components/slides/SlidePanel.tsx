@@ -368,7 +368,7 @@ function EditableSlideCanvas({ slideIndex, breakOffsets, rootPath, layout }: {
           <WysiwygEditor slideIndex={slideIndex} breakOffsets={breakOffsets} />
         </div>
         {/* Draggable text boxes overlay — visible in editor mode */}
-        <div className="absolute inset-0 p-12" style={{ zIndex: 10 }}>
+        <div className="absolute inset-0 p-12 pointer-events-none" style={{ zIndex: 10 }}>
           <DraggableElements
             markdown={markdown}
             canvasScale={canvasScale}

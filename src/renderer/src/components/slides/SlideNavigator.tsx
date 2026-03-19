@@ -220,7 +220,7 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
                 overflow-visible px-1.5 py-1 text-left relative cursor-grab active:cursor-grabbing ${
                 isDragging ? 'opacity-40 border-gray-500'
                 : isDropTgt ? 'border-gray-400 bg-white/5'
-                : isSkipped ? 'opacity-40 border-gray-600 border-dashed bg-gray-900 text-gray-500'
+                : isSkipped ? 'opacity-30 border-gray-700 border-dashed bg-gray-900/50 text-gray-600 [filter:blur(0.5px)]'
                 : isSelected ? 'border-white bg-white/10 text-gray-200'
                 : isActive ? 'border-white bg-gray-800 text-gray-200'
                 : 'border-gray-500 bg-gray-900 text-gray-300 hover:border-gray-400 hover:text-gray-200'

@@ -20,12 +20,19 @@ export function PresenterView(): JSX.Element {
   const { setPresenting } = useUIStore()
   const { isExecuting } = useExecutionStore()
   const { runCode, cancelCode } = useCodeExecution()
-  useKeyboardShortcuts()
+  // keyboard shortcuts already handled by AppShell
 
   const [activeArtifact, setActiveArtifact] = useState<ArtifactType | null>(null)
   const [artifactExpanded, setArtifactExpanded] = useState(false)
+  const [panelSize, setPanelSize] = useState(34)
+  const artifactMemory = useRef<Record<number, { type: ArtifactType; expanded: boolean; panelSize: number }>>({})
+  const typeSizeMemory = useRef<Record<ArtifactType, number>>({ code: 34, video: 34, webapp: 34 })
+
+  // Save artifact state before slide change, restore on return
+  const prevSlideRef = useRef(currentSlideIndex)
   const [timer, setTimer] = useState(0)
   const [timerRunning, setTimerRunning] = useState(true)
+  const [showNotes, setShowNotes] = useState(false)
   const timerRef = useRef<ReturnType<typeof setInterval>>()
 
   useEffect(() => {
@@ -48,7 +55,28 @@ export function PresenterView(): JSX.Element {
   const layout = currentSlide?.config.layout
   const hasAnyArtifact = hasCode || hasVideo || hasWebApp
 
-  useEffect(() => { setActiveArtifact(null); setArtifactExpanded(false) }, [currentSlideIndex])
+  useEffect(() => {
+    // Save current artifact state for the slide we're leaving
+    const prev = prevSlideRef.current
+    if (activeArtifact) {
+      artifactMemory.current[prev] = { type: activeArtifact, expanded: artifactExpanded, panelSize }
+      typeSizeMemory.current[activeArtifact] = panelSize
+    } else {
+      delete artifactMemory.current[prev]
+    }
+    prevSlideRef.current = currentSlideIndex
+
+    // Restore artifact state if we've been on this slide before
+    const saved = artifactMemory.current[currentSlideIndex]
+    if (saved) {
+      setActiveArtifact(saved.type)
+      setArtifactExpanded(saved.expanded)
+      setPanelSize(saved.panelSize)
+    } else {
+      setActiveArtifact(null)
+      setArtifactExpanded(false)
+    }
+  }, [currentSlideIndex])
 
   const handleRun = () => {
     if (currentSlide?.codeContent && currentSlide.config.code) {
@@ -99,6 +127,10 @@ export function PresenterView(): JSX.Element {
         )}
         <span className="text-gray-500 text-xs truncate flex-1">{presentation?.title}</span>
         <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+          <button onClick={() => setShowNotes(!showNotes)}
+            className={`text-xs px-2 py-0.5 rounded transition-colors ${showNotes ? 'bg-white text-black' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}>
+            Notes
+          </button>
           <button onClick={() => setTimerRunning(!timerRunning)}
             className="text-xs font-mono px-2 py-0.5 rounded bg-gray-800 text-gray-300">
             {formatTime(timer)}
@@ -131,12 +163,13 @@ export function PresenterView(): JSX.Element {
             />
           </div>
         ) : activeArtifact ? (
-          <PanelGroup direction="horizontal" className="flex-1 min-w-0">
-            <Panel defaultSize={66} minSize={30}>
+          <PanelGroup direction="horizontal" className="flex-1 min-w-0"
+            onLayout={(sizes) => { if (sizes[1] !== undefined) setPanelSize(sizes[1]) }}>
+            <Panel defaultSize={100 - panelSize} minSize={30}>
               <PresenterSlide markdown={slideMarkdown} rootPath={rootPath} layout={layout} />
             </Panel>
             <PanelResizeHandle className="w-1.5 bg-gray-800 hover:bg-indigo-500 transition-colors" />
-            <Panel defaultSize={34} minSize={15}>
+            <Panel defaultSize={panelSize} minSize={15}>
               <ArtifactPanel
                 activeArtifact={activeArtifact}
                 currentSlide={currentSlide}
@@ -156,13 +189,25 @@ export function PresenterView(): JSX.Element {
         {hasAnyArtifact && (
           <div className="flex flex-col items-center py-2 gap-1 w-9 flex-shrink-0 bg-gray-900 border-l border-gray-800">
             {hasCode && (
-              <SidebarBtn active={activeArtifact === 'code'} onClick={() => { setActiveArtifact(activeArtifact === 'code' ? null : 'code'); setArtifactExpanded(false) }} title="Code">{'{ }'}</SidebarBtn>
+              <SidebarBtn active={activeArtifact === 'code'} onClick={() => {
+                const opening = activeArtifact !== 'code'
+                setActiveArtifact(opening ? 'code' : null); setArtifactExpanded(false)
+                if (opening) setPanelSize(typeSizeMemory.current.code)
+              }} title="Code">{'{ }'}</SidebarBtn>
             )}
             {hasVideo && (
-              <SidebarBtn active={activeArtifact === 'video'} onClick={() => { setActiveArtifact(activeArtifact === 'video' ? null : 'video'); setArtifactExpanded(false) }} title="Video">▶</SidebarBtn>
+              <SidebarBtn active={activeArtifact === 'video'} onClick={() => {
+                const opening = activeArtifact !== 'video'
+                setActiveArtifact(opening ? 'video' : null); setArtifactExpanded(false)
+                if (opening) setPanelSize(typeSizeMemory.current.video)
+              }} title="Video">▶</SidebarBtn>
             )}
             {hasWebApp && (
-              <SidebarBtn active={activeArtifact === 'webapp'} onClick={() => { setActiveArtifact(activeArtifact === 'webapp' ? null : 'webapp'); setArtifactExpanded(false) }} title="Web">◎</SidebarBtn>
+              <SidebarBtn active={activeArtifact === 'webapp'} onClick={() => {
+                const opening = activeArtifact !== 'webapp'
+                setActiveArtifact(opening ? 'webapp' : null); setArtifactExpanded(false)
+                if (opening) setPanelSize(typeSizeMemory.current.webapp)
+              }} title="Web">◎</SidebarBtn>
             )}
 
             {/* Expand / collapse artifact panel */}
@@ -189,6 +234,17 @@ export function PresenterView(): JSX.Element {
           </div>
         )}
       </div>
+
+      {/* Speaker notes panel */}
+      {showNotes && (
+        <div className="h-36 flex-shrink-0 bg-gray-900 border-t border-gray-800 overflow-y-auto px-6 py-3">
+          {currentSlide?.notesContent ? (
+            <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap">{currentSlide.notesContent}</p>
+          ) : (
+            <p className="text-gray-600 text-sm italic">No notes for this slide</p>
+          )}
+        </div>
+      )}
 
       {/* Bottom bar */}
       <div className="h-10 flex items-center px-4 gap-3 flex-shrink-0 bg-gray-900 border-t border-gray-800">

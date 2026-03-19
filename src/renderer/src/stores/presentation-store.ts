@@ -163,7 +163,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
   },
 
   nextSlide: () => {
-    const { currentSlideIndex, slides, currentSubSlide, totalSubSlides } = get()
+    const { currentSlideIndex, slides, currentSubSlide, totalSubSlides, presentation } = get()
     // If there are more sub-slides, advance sub-slide first
     if (totalSubSlides > 1 && currentSubSlide < totalSubSlides - 1) {
       set({ currentSubSlide: currentSubSlide + 1 })
@@ -174,11 +174,12 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
       const newIndex = currentSlideIndex + 1
       set({ currentSlideIndex: newIndex, currentSubSlide: 0 })
       window.electronAPI.syncPresenterSlide(newIndex)
+      if (presentation) set({ presentation: { ...presentation, lastViewedIndex: newIndex } })
     }
   },
 
   prevSlide: () => {
-    const { currentSlideIndex, currentSubSlide } = get()
+    const { currentSlideIndex, currentSubSlide, presentation } = get()
     // If on a sub-slide > 0, go back one sub-slide
     if (currentSubSlide > 0) {
       set({ currentSubSlide: currentSubSlide - 1 })
@@ -189,6 +190,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
       const newIndex = currentSlideIndex - 1
       set({ currentSlideIndex: newIndex, currentSubSlide: 0 })
       window.electronAPI.syncPresenterSlide(newIndex)
+      if (presentation) set({ presentation: { ...presentation, lastViewedIndex: newIndex } })
       // After the slide loads and sub-slides are computed, jump to last sub-slide
       // This is handled by setting a flag — the useSubSlides hook will pick it up
       set({ currentSubSlide: -1 }) // -1 means "go to last"

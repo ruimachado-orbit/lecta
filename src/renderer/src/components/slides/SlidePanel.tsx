@@ -200,8 +200,20 @@ export function SlidePanel(): JSX.Element {
               />
             </div>
           </div>
+        ) : editingSlide && editorMode === 'wysiwyg' && subSlides.length > 1 ? (
+          /* WYSIWYG with sub-slides: stacked canvases, click to edit */
+          <SubSlideStackEditor
+            subSlides={subSlides}
+            currentSubSlide={currentSubSlide}
+            setCurrentSubSlide={setCurrentSubSlide}
+            slideIndex={currentSlideIndex}
+            currentSlide={currentSlide}
+            presentation={presentation}
+            updateMarkdownContent={updateMarkdownContent}
+            saveSlideContent={saveSlideContent}
+          />
         ) : editingSlide && editorMode === 'wysiwyg' ? (
-          /* WYSIWYG: editor IS the canvas */
+          /* WYSIWYG: single canvas */
           <EditableSlideCanvas slideIndex={currentSlideIndex} breakOffsets={breakOffsets} rootPath={presentation?.rootPath} layout={currentSlide.config.layout} />
         ) : editingSlide && editorMode === 'markdown' ? (
           /* Markdown: split view — canvas top, editor bottom */
@@ -228,75 +240,8 @@ export function SlidePanel(): JSX.Element {
               />
             </div>
           </>
-        ) : subSlides.length > 1 ? (
-          /* Preview mode with multiple sub-slides: show all stacked */
-          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-4 px-2">
-            <div className="flex flex-col items-center gap-4">
-              {subSlides.map((sub, i) => (
-                <div key={i} className="w-full relative">
-                  {/* Sub-slide label */}
-                  <div className="flex items-center justify-center mb-1">
-                    <span className={`text-[10px] font-mono px-2 py-0.5 rounded ${
-                      i === currentSubSlide
-                        ? 'bg-white/10 text-white'
-                        : 'text-gray-600'
-                    }`}>
-                      Sub-slide {i + 1}
-                    </span>
-                  </div>
-                  <div
-                    className={`cursor-pointer transition-all ${
-                      i === currentSubSlide
-                        ? 'ring-2 ring-indigo-500 ring-offset-2 ring-offset-gray-950 rounded'
-                        : 'opacity-70 hover:opacity-90'
-                    }`}
-                    onClick={() => setCurrentSubSlide(i)}
-                  >
-                    <SlideCanvas
-                      markdown={sub.markdown}
-                      rootPath={presentation?.rootPath}
-                      layout={currentSlide.config.layout}
-                      slideIndex={currentSlideIndex}
-                      editable={i === currentSubSlide}
-                      onUpdateMarkdown={(md) => {
-                        // Replace this sub-slide's content in the full markdown
-                        const hasManualBreaks = currentSlide.markdownContent.split('\n').some(
-                          (l: string) => /^(?:---+|\*\s*\*\s*\*|___+)$/.test(l.trim())
-                        )
-                        if (hasManualBreaks) {
-                          const parts = currentSlide.markdownContent.split(/(\n?(?:---+|\*\s*\*\s*\*|___+)\n?)/)
-                          const sections: string[] = []
-                          const separators: string[] = []
-                          let current = ''
-                          for (const part of parts) {
-                            if (/^(\n?(?:---+|\*\s*\*\s*\*|___+)\n?)$/.test(part)) {
-                              sections.push(current)
-                              separators.push(part)
-                              current = ''
-                            } else {
-                              current = part
-                            }
-                          }
-                          sections.push(current)
-                          sections[i] = md
-                          let result = sections[0]
-                          for (let j = 0; j < separators.length; j++) {
-                            result += separators[j] + (sections[j + 1] ?? '')
-                          }
-                          updateMarkdownContent(currentSlideIndex, result)
-                        } else {
-                          updateMarkdownContent(currentSlideIndex, md)
-                        }
-                        saveSlideContent(currentSlideIndex)
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
         ) : (
-          /* Preview mode: single slide */
+          /* Preview/read mode: show active sub-slide only */
           <SlideCanvas
             markdown={activeMarkdown}
             rootPath={presentation?.rootPath}
@@ -313,8 +258,29 @@ export function SlidePanel(): JSX.Element {
         )}
       </div>
 
-      {/* Sub-slide count indicator (compact, since all are visible above) */}
-      {subSlides.length > 1 && (
+      {/* Sub-slide pagination (read mode: navigate between sub-slides) */}
+      {subSlides.length > 1 && !editingSlide && (
+        <div className="h-8 bg-gray-900 border-t border-gray-800 flex items-center justify-center gap-1.5 px-4 flex-shrink-0">
+          {subSlides.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setCurrentSubSlide(i)}
+              className={`w-6 h-5 rounded text-[9px] font-medium transition-colors ${
+                i === currentSubSlide
+                  ? 'bg-white text-black'
+                  : 'bg-gray-800 text-gray-500 hover:bg-gray-700 hover:text-gray-300'
+              }`}
+            >
+              {i + 1}
+            </button>
+          ))}
+          <span className="text-[9px] text-gray-600 ml-2">
+            {currentSubSlide + 1}/{subSlides.length} sub-slides
+          </span>
+        </div>
+      )}
+      {/* Sub-slide count (edit mode: all visible above) */}
+      {subSlides.length > 1 && editingSlide && (
         <div className="h-6 bg-gray-900/50 border-t border-gray-800 flex items-center justify-center flex-shrink-0">
           <span className="text-[9px] text-gray-500 font-mono">
             {subSlides.length} sub-slides
@@ -471,8 +437,8 @@ function SlideCanvas({ markdown, rootPath, transition, layout, slideIndex, drawi
 }
 
 /** Editable slide canvas — WYSIWYG editor rendered inside the scaled 16:9 frame */
-function EditableSlideCanvas({ slideIndex, breakOffsets, rootPath, layout }: {
-  slideIndex: number; breakOffsets?: number[]; rootPath?: string; layout?: string
+function EditableSlideCanvas({ slideIndex, breakOffsets, rootPath, layout, subSlideCount }: {
+  slideIndex: number; breakOffsets?: number[]; rootPath?: string; layout?: string; subSlideCount?: number
 }): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
   const [canvasScale, setCanvasScale] = useState(1)
@@ -500,8 +466,7 @@ function EditableSlideCanvas({ slideIndex, breakOffsets, rootPath, layout }: {
     return () => ro.disconnect()
   }, [])
 
-  // Show visual break indicators for sub-slides
-  const numSubSlides = (breakOffsets?.length ?? 0) + 1
+  const numSubSlides = subSlideCount ?? 1
 
   return (
     <div ref={containerRef} className="h-full w-full bg-neutral-800 overflow-y-auto overflow-x-hidden"
@@ -510,7 +475,7 @@ function EditableSlideCanvas({ slideIndex, breakOffsets, rootPath, layout }: {
       {numSubSlides > 1 && (
         <div className="sticky top-0 z-10 flex justify-center py-1">
           <span className="text-[10px] font-mono text-gray-400 bg-gray-800/80 backdrop-blur px-2 py-0.5 rounded-full">
-            {numSubSlides} sub-slides — edit below, breaks shown as dashed lines
+            {numSubSlides} sub-slides — use --- to add page breaks
           </span>
         </div>
       )}
@@ -533,6 +498,125 @@ function EditableSlideCanvas({ slideIndex, breakOffsets, rootPath, layout }: {
         {layout && layout !== 'default' && layout !== 'blank' && (
           <LayoutGuide layout={layout} width={SLIDE_W} height={SLIDE_H} pad={PAD} />
         )}
+      </div>
+    </div>
+  )
+}
+
+/** Split full markdown into sections by --- separators */
+function splitFullMdSections(fullMd: string): string[] {
+  const hasBreaks = fullMd.split('\n').some(l => /^(?:---+|\*\s*\*\s*\*|___+)$/.test(l.trim()))
+  if (!hasBreaks) return [fullMd]
+  return fullMd.split(/\n?(?:---+|\*\s*\*\s*\*|___+)\n?/).map(s => s.trim())
+}
+
+/** Stacked sub-slide editor — shows all sub-slides as separate canvases, selected one is WYSIWYG-editable */
+function SubSlideStackEditor({ subSlides, currentSubSlide, setCurrentSubSlide, slideIndex, currentSlide, presentation, updateMarkdownContent, saveSlideContent }: {
+  subSlides: { markdown: string; index: number }[]
+  currentSubSlide: number
+  setCurrentSubSlide: (n: number) => void
+  slideIndex: number
+  currentSlide: any
+  presentation: any
+  updateMarkdownContent: (idx: number, md: string) => void
+  saveSlideContent: (idx: number) => void
+}): JSX.Element {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [canvasScale, setCanvasScale] = useState(0.5)
+  const slideTheme = presentation?.theme || 'dark'
+  const layout = currentSlide.config.layout
+
+  const SLIDE_W = 1280
+  const SLIDE_H = 720
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    const updateScale = () => {
+      const cw = container.clientWidth
+      const margin = 32
+      const s = (cw - margin * 2) / SLIDE_W
+      setCanvasScale(Math.min(Math.max(0.05, s), 1))
+    }
+    updateScale()
+    const ro = new ResizeObserver(updateScale)
+    ro.observe(container)
+    return () => ro.disconnect()
+  }, [])
+
+  /** Replace a single sub-slide's content back into the full markdown */
+  const replaceSubSlide = useCallback((subIndex: number, newMd: string) => {
+    const sections = splitFullMdSections(currentSlide.markdownContent)
+    if (sections.length <= 1 && subIndex === 0) {
+      updateMarkdownContent(slideIndex, newMd)
+    } else {
+      sections[subIndex] = newMd
+      updateMarkdownContent(slideIndex, sections.join('\n\n---\n\n'))
+    }
+    saveSlideContent(slideIndex)
+  }, [currentSlide.markdownContent, slideIndex, updateMarkdownContent, saveSlideContent])
+
+  return (
+    <div ref={containerRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-4"
+      data-slide-theme={slideTheme}>
+      <div className="flex flex-col items-center gap-6 px-4">
+        {subSlides.map((sub, i) => (
+          <div key={i} className="w-full flex flex-col items-center">
+            {/* Sub-slide label */}
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className={`text-[10px] font-mono px-2 py-0.5 rounded ${
+                i === currentSubSlide ? 'bg-indigo-500/20 text-indigo-400' : 'text-gray-600'
+              }`}>
+                Sub-slide {i + 1}
+              </span>
+              {i > 0 && (
+                <span className="text-[9px] text-gray-700">--- page break ---</span>
+              )}
+            </div>
+            {/* Canvas frame */}
+            <div
+              className={`relative rounded transition-all ${
+                i === currentSubSlide
+                  ? 'ring-2 ring-indigo-500 ring-offset-2 ring-offset-neutral-800'
+                  : 'opacity-70 hover:opacity-90 ring-1 ring-white/10 cursor-pointer'
+              }`}
+              style={{
+                width: SLIDE_W * canvasScale,
+                minHeight: SLIDE_H * canvasScale,
+                overflow: 'hidden'
+              }}
+              onClick={() => { if (i !== currentSubSlide) setCurrentSubSlide(i) }}
+            >
+              <div
+                style={{
+                  width: SLIDE_W,
+                  minHeight: SLIDE_H,
+                  transform: `scale(${canvasScale})`,
+                  transformOrigin: 'top left',
+                  background: 'var(--slide-bg)',
+                }}
+              >
+                {i === currentSubSlide ? (
+                  /* Selected sub-slide: full WYSIWYG editor */
+                  <div className={`relative ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
+                    <WysiwygEditor
+                      slideIndex={slideIndex}
+                      subSlideMarkdown={sub.markdown}
+                      onSubSlideChange={(md) => replaceSubSlide(i, md)}
+                    />
+                  </div>
+                ) : (
+                  /* Other sub-slides: read-only preview */
+                  <div className={`absolute inset-0 ${layout === 'blank' ? '' : 'p-12'} overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
+                    <div className="slide-content max-w-none" style={{ width: layout === 'blank' ? SLIDE_W : SLIDE_W - 96 }}>
+                      <SlideRenderer markdown={sub.markdown} rootPath={presentation?.rootPath} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   )

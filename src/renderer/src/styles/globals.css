@@ -487,6 +487,55 @@ html[data-theme="light"] .slide-content hr { border-color: #e2e8f0; }
   margin: 1.5rem 0;
 }
 
+/* Sub-slide page break indicator in WYSIWYG editor */
+.ProseMirror hr {
+  border: none;
+  height: auto;
+  margin: 2rem -48px;
+  padding: 12px 0;
+  position: relative;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent,
+    transparent 8px,
+    rgba(99, 102, 241, 0.3) 8px,
+    rgba(99, 102, 241, 0.3) 16px
+  );
+  background-size: 100% 2px;
+  background-position: center;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+.ProseMirror hr::after {
+  content: '— page break —';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 10px;
+  font-family: monospace;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: rgba(99, 102, 241, 0.6);
+  background: var(--slide-bg, #0f172a);
+  padding: 2px 12px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.ProseMirror hr.ProseMirror-selectednode {
+  background-size: 100% 3px;
+  background-image: repeating-linear-gradient(
+    90deg,
+    transparent,
+    transparent 6px,
+    rgba(99, 102, 241, 0.6) 6px,
+    rgba(99, 102, 241, 0.6) 12px
+  );
+}
+.ProseMirror hr.ProseMirror-selectednode::after {
+  color: rgba(99, 102, 241, 1);
+}
+
 /* Light mode overrides — handled by per-theme CSS variables now.
    Keep minimal fallback for the default "light" theme. */
 html[data-theme="light"]:not([data-slide-theme]) .slide-content table { border-color: rgba(0,0,0,0.1); }

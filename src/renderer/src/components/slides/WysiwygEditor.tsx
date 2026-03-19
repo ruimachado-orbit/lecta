@@ -419,6 +419,10 @@ function processInline(text: string): string {
 interface WysiwygEditorProps {
   slideIndex: number
   breakOffsets?: number[]
+  /** When provided, editor works with this markdown instead of reading from store */
+  subSlideMarkdown?: string
+  /** Called when sub-slide content changes (used with subSlideMarkdown) */
+  onSubSlideChange?: (md: string) => void
 }
 
 // Content height inside the 1280x720 slide with p-12 padding
@@ -435,13 +439,15 @@ function resolveImageSrc(src: string, rootPath?: string): string {
   return src
 }
 
-export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorProps): JSX.Element {
+export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown, onSubSlideChange }: WysiwygEditorProps): JSX.Element {
   const { slides, updateMarkdownContent, saveSlideContent, presentation } = usePresentationStore()
   const slide = slides[slideIndex]
+  const isSubSlideMode = subSlideMarkdown !== undefined
+  const effectiveMarkdown = isSubSlideMode ? subSlideMarkdown : (slide?.markdownContent ?? '')
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const isInternalUpdate = useRef(false)
   const editorContainerRef = useRef<HTMLDivElement>(null)
-  const latestMdRef = useRef<string>(slide?.markdownContent ?? '')
+  const latestMdRef = useRef<string>(effectiveMarkdown)
   // breakPositions removed — sub-slide breaks are now manual via --- horizontal rules
 
   // Inline AI state
@@ -528,7 +534,7 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
         placeholder: 'Start typing your slide content...'
       })
     ],
-    content: slide ? markdownToHtml(slide.markdownContent, presentation?.rootPath) : '',
+    content: markdownToHtml(effectiveMarkdown, presentation?.rootPath),
     editorProps: {
       attributes: {
         class: 'wysiwyg-content outline-none min-h-full'
@@ -561,13 +567,18 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
       // Re-inject extracted tables back into the markdown
       md = injectTables(md, _extractedTables)
       // Preserve textbox/shape comments from the original markdown
-      const currentMd = usePresentationStore.getState().slides[slideIndex]?.markdownContent ?? ''
-      const comments: string[] = []
-      currentMd.replace(/<!--\s*textbox[\s\S]*?\/textbox\s*-->/gi, (m) => { comments.push(m); return '' })
-      currentMd.replace(/<!--\s*shape\s[^>]*-->/gi, (m) => { comments.push(m); return '' })
-      const preserved = comments.length > 0 ? md + '\n' + comments.join('\n') : md
-      latestMdRef.current = preserved
-      updateMarkdownContent(slideIndex, preserved)
+      if (isSubSlideMode) {
+        latestMdRef.current = md
+        onSubSlideChange?.(md)
+      } else {
+        const currentMd = usePresentationStore.getState().slides[slideIndex]?.markdownContent ?? ''
+        const comments: string[] = []
+        currentMd.replace(/<!--\s*textbox[\s\S]*?\/textbox\s*-->/gi, (m) => { comments.push(m); return '' })
+        currentMd.replace(/<!--\s*shape\s[^>]*-->/gi, (m) => { comments.push(m); return '' })
+        const preserved = comments.length > 0 ? md + '\n' + comments.join('\n') : md
+        latestMdRef.current = preserved
+        updateMarkdownContent(slideIndex, preserved)
+      }
 
       // Check overflow after update
       setTimeout(checkOverflow, 50)
@@ -575,8 +586,10 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
       // Reset AI idle timer on typing
       resetIdleTimer()
 
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-      saveTimerRef.current = setTimeout(() => saveSlideContent(slideIndex), 500)
+      if (!isSubSlideMode) {
+        if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+        saveTimerRef.current = setTimeout(() => saveSlideContent(slideIndex), 500)
+      }
     },
     onSelectionUpdate: () => {
       resetIdleTimer()
@@ -614,10 +627,28 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
     }
   }, [editor, slideIndex])
 
+  // Sync content when sub-slide markdown changes from outside (e.g. clicking a different sub-slide)
+  // Skip if the change came from this editor's own typing (latestMdRef matches)
+  const prevSubMdRef = useRef(subSlideMarkdown)
+  useEffect(() => {
+    if (!editor || !isSubSlideMode) return
+    if (prevSubMdRef.current !== subSlideMarkdown) {
+      prevSubMdRef.current = subSlideMarkdown
+      // Don't re-render if this is just our own edit echoing back from the store
+      const ourLastOutput = latestMdRef.current.trim()
+      const incoming = (subSlideMarkdown || '').trim()
+      if (ourLastOutput === incoming) return
+      const newHtml = markdownToHtml(subSlideMarkdown!, presentation?.rootPath)
+      isInternalUpdate.current = true
+      editor.commands.setContent(newHtml)
+      isInternalUpdate.current = false
+    }
+  }, [subSlideMarkdown, editor, isSubSlideMode])
+
   // Sync content ONLY when switching to a different slide
   const prevSlideIdx = useRef(slideIndex)
   useEffect(() => {
-    if (!editor || !slide) return
+    if (!editor || !slide || isSubSlideMode) return
     if (prevSlideIdx.current !== slideIndex) {
       prevSlideIdx.current = slideIndex
       const newHtml = markdownToHtml(slide.markdownContent, presentation?.rootPath)

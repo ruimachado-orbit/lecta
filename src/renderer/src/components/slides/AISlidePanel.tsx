@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore } from '../../stores/ui-store'
 
@@ -244,6 +244,168 @@ export function AIImproveBar(): JSX.Element {
         </button>
       )}
     </div>
+  )
+}
+
+/**
+ * "Change with AI" — prompt-based slide modification with accept/reject.
+ * Works on any slide. Shows inline prompt bar, generates changes, previews diff.
+ */
+export function AIChangeBar(): JSX.Element {
+  const { slides, currentSlideIndex, updateMarkdownContent, saveSlideContent, presentation } =
+    usePresentationStore()
+  const [showPrompt, setShowPrompt] = useState(false)
+  const [prompt, setPrompt] = useState('')
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [review, setReview] = useState<{ original: string; improved: string } | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const currentSlide = slides[currentSlideIndex]
+
+  useEffect(() => {
+    if (showPrompt) {
+      setTimeout(() => inputRef.current?.focus(), 100)
+    }
+  }, [showPrompt])
+
+  // Reset on slide change
+  useEffect(() => {
+    setShowPrompt(false)
+    setReview(null)
+    setPrompt('')
+  }, [currentSlideIndex])
+
+  const handleSubmit = async () => {
+    if (!prompt.trim() || !presentation || !currentSlide) return
+    setIsProcessing(true)
+
+    try {
+      // Get artifact context
+      const artifactParts: string[] = []
+      if (currentSlide.codeContent) {
+        artifactParts.push(`Code (${currentSlide.config.code?.language}):\n${currentSlide.codeContent}`)
+      }
+      if (currentSlide.config.video) artifactParts.push(`Video: ${currentSlide.config.video.url}`)
+      if (currentSlide.config.webapp) artifactParts.push(`Web App: ${currentSlide.config.webapp.url}`)
+      const artifactContext = artifactParts.length > 0 ? artifactParts.join('\n\n') : undefined
+
+      const result = await window.electronAPI.improveSlide(
+        currentSlide.markdownContent,
+        presentation.title,
+        prompt,
+        artifactContext
+      )
+
+      // Preview changes on canvas immediately
+      const original = currentSlide.markdownContent
+      updateMarkdownContent(currentSlideIndex, result)
+      // Show review bar (accept saves to disk, reject restores original)
+      setReview({ original, improved: result })
+    } catch (err) {
+      console.error('AI change failed:', err)
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleAccept = () => {
+    if (!review) return
+    updateMarkdownContent(currentSlideIndex, review.improved)
+    saveSlideContent(currentSlideIndex)
+    setReview(null)
+    setPrompt('')
+    setShowPrompt(false)
+  }
+
+  const handleReject = () => {
+    if (!review) return
+    // Restore original
+    updateMarkdownContent(currentSlideIndex, review.original)
+    setReview(null)
+  }
+
+  // Review mode — show accept/reject bar
+  if (review) {
+    return (
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-900/20 border-t border-amber-700/30">
+        <svg className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+        </svg>
+        <span className="text-[11px] text-amber-300 flex-shrink-0">AI changes applied</span>
+        <span className="text-[10px] text-gray-500 truncate flex-1">{prompt}</span>
+        <button
+          onClick={handleAccept}
+          className="px-3 py-1 bg-green-600 hover:bg-green-500 text-white text-[10px] font-medium rounded transition-colors"
+        >
+          Accept
+        </button>
+        <button
+          onClick={handleReject}
+          className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 text-[10px] font-medium rounded transition-colors"
+        >
+          Reject
+        </button>
+      </div>
+    )
+  }
+
+  // Prompt input mode
+  if (showPrompt) {
+    return (
+      <div className="flex items-center gap-2 px-4 py-2 w-full">
+        <svg className="w-3 h-3 text-gray-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+        </svg>
+        <input
+          ref={inputRef}
+          type="text"
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') handleSubmit()
+            if (e.key === 'Escape') { setShowPrompt(false); setPrompt('') }
+          }}
+          placeholder="Describe what to change — layout, content, diagram, restructure..."
+          disabled={isProcessing}
+          className="flex-1 bg-transparent text-sm text-gray-200 placeholder-gray-500 focus:outline-none disabled:opacity-50"
+        />
+        {isProcessing ? (
+          <span className="flex items-center gap-1 text-xs text-gray-400">
+            <Spinner /> Improving...
+          </span>
+        ) : (
+          <>
+            <button
+              onClick={handleSubmit}
+              disabled={!prompt.trim()}
+              className="px-3 py-1 text-gray-400 hover:text-white disabled:opacity-20 text-xs font-medium transition-colors"
+            >
+              Apply
+            </button>
+            <button
+              onClick={() => { setShowPrompt(false); setPrompt('') }}
+              className="px-2 py-1 text-gray-600 hover:text-gray-400 text-xs transition-colors"
+            >
+              Cancel
+            </button>
+          </>
+        )}
+      </div>
+    )
+  }
+
+  // Default — just the button
+  return (
+    <button
+      onClick={() => setShowPrompt(true)}
+      className="flex items-center gap-1 px-2 py-0.5 text-gray-500 hover:text-gray-300 hover:bg-gray-800 text-[10px] rounded transition-colors"
+      title="Improve this slide with AI"
+    >
+      <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+      </svg>
+      Improve with AI
+    </button>
   )
 }
 

@@ -22,6 +22,7 @@ const FontSize = TextStyle.extend({
 })
 import Highlight from '@tiptap/extension-highlight'
 import Underline from '@tiptap/extension-underline'
+import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table'
 import { ResizableImage } from '../../extensions/resizable-image'
 import TurndownService from 'turndown'
 import { usePresentationStore } from '../../stores/presentation-store'
@@ -74,6 +75,50 @@ const turndown = new TurndownService({
   headingStyle: 'atx',
   bulletListMarker: '-',
   codeBlockStyle: 'fenced'
+})
+
+// Convert HTML tables back to markdown tables
+turndown.addRule('table', {
+  filter: 'table',
+  replacement: (_content, node) => {
+    const table = node as HTMLTableElement
+    const rows = Array.from(table.rows)
+    if (rows.length === 0) return ''
+
+    const getCellText = (cell: HTMLTableCellElement) => {
+      // Get text content, preserving bold
+      let text = ''
+      cell.childNodes.forEach((child) => {
+        if (child.nodeName === 'STRONG' || child.nodeName === 'B') {
+          text += `**${child.textContent || ''}**`
+        } else if (child.nodeName === 'EM' || child.nodeName === 'I') {
+          text += `*${child.textContent || ''}*`
+        } else {
+          text += child.textContent || ''
+        }
+      })
+      return text.trim()
+    }
+
+    const lines: string[] = []
+    const headerRow = rows[0]
+    const headerCells = Array.from(headerRow.cells).map(getCellText)
+    lines.push('| ' + headerCells.join(' | ') + ' |')
+    lines.push('| ' + headerCells.map((c) => '-'.repeat(Math.max(c.length, 3))).join(' | ') + ' |')
+
+    for (let r = 1; r < rows.length; r++) {
+      const cells = Array.from(rows[r].cells).map(getCellText)
+      lines.push('| ' + cells.join(' | ') + ' |')
+    }
+
+    return '\n' + lines.join('\n') + '\n'
+  }
+})
+
+// Skip table sub-elements (handled by table rule above)
+turndown.addRule('tableCell', {
+  filter: ['thead', 'tbody', 'tfoot', 'tr', 'th', 'td'],
+  replacement: (content) => content
 })
 
 // Preserve colored text as inline HTML
@@ -168,6 +213,58 @@ function convertLinesToHtml(md: string, rootPath?: string): string {
     const h1 = line.match(/^# (.+)$/); if (h1) { closeTo(0); html.push(`<h1>${processInline(h1[1])}</h1>`); continue }
     if (line.match(/^---+$/)) { closeTo(0); html.push('<hr>'); continue }
 
+    // Markdown table: detect lines starting with |
+    if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
+      closeTo(0)
+      // Collect all consecutive table lines
+      const tableLines: string[] = [line]
+      while (i + 1 < lines.length && lines[i + 1].trim().startsWith('|') && lines[i + 1].trim().endsWith('|')) {
+        i++
+        tableLines.push(lines[i])
+      }
+      // Render table as proper HTML table (TipTap table extensions handle this)
+      if (tableLines.length >= 2) {
+        const parseCells = (row: string) =>
+          row.split('|').slice(1, -1).map((c) => c.trim())
+        const headerCells = parseCells(tableLines[0])
+        const isSep = tableLines[1].match(/^\|[\s:-]+\|/)
+        const bodyStart = isSep ? 2 : 1
+
+        html.push('<table><tr>')
+        headerCells.forEach((c) => html.push(`<th>${processInline(c)}</th>`))
+        html.push('</tr>')
+        for (let r = bodyStart; r < tableLines.length; r++) {
+          const cells = parseCells(tableLines[r])
+          html.push('<tr>')
+          cells.forEach((c) => html.push(`<td>${processInline(c)}</td>`))
+          html.push('</tr>')
+        }
+        html.push('</table>')
+      } else {
+        html.push(`<p>${processInline(line)}</p>`)
+      }
+      continue
+    }
+
+    // Blockquotes
+    const bq = line.match(/^>\s?(.*)$/)
+    if (bq) {
+      closeTo(0)
+      html.push(`<blockquote><p>${processInline(bq[1])}</p></blockquote>`)
+      continue
+    }
+
+    // Ordered list items
+    const ol = line.match(/^(\s*)(\d+)\.\s+(.+)$/)
+    if (ol) {
+      closeTo(0)
+      html.push(`<ol><li>${processInline(ol[3])}</li></ol>`)
+      continue
+    }
+
+    // Skip empty list items (just "- " or "  - " with no content)
+    if (line.match(/^\s*\\?[-*+]\s*$/)) continue
+
     const li = line.match(/^(\s*)\\?[-*+] (.+)$/)
     if (li) {
       const target = Math.floor(li[1].length / 2) + 1
@@ -187,8 +284,15 @@ function convertLinesToHtml(md: string, rootPath?: string): string {
 
 function processInline(text: string): string {
   return text
+    // Un-escape markdown characters first
+    .replace(/\\([_*`~\\>|])/g, '$1')
+    // Bold (** or __)
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/__(.+?)__/g, '<strong>$1</strong>')
+    // Italic (* or _)
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/(?<!\w)_(.+?)_(?!\w)/g, '<em>$1</em>')
+    // Inline code
     .replace(/`(.+?)`/g, '<code>$1</code>')
 }
 
@@ -274,38 +378,21 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
 
   const editorRef = useRef<ReturnType<typeof useEditor>>(null)
 
-  // Compute visual Y positions for sub-slide break lines by measuring ProseMirror blocks
+  // Place sub-slide break lines at fixed intervals matching actual slide height.
+  // Each sub-slide is exactly SLIDE_CONTENT_HEIGHT (624px) of content, so breaks
+  // are placed at multiples of that height.
   const computeBreaks = useCallback(() => {
-    if (!editorContainerRef.current) { setBreakPositions([]); return }
-    const contentEl = editorContainerRef.current.querySelector('.ProseMirror')
-    if (!contentEl) { setBreakPositions([]); return }
-
-    const children = Array.from(contentEl.children) as HTMLElement[]
-    if (children.length === 0) { setBreakPositions([]); return }
-
-    const positions: number[] = []
-    let accumulatedSlideHeight = 0
-    const contentTop = children[0]?.offsetTop ?? 0
-
-    for (const child of children) {
-      // Approximate how much slide height this block takes up
-      const blockHeight = child.offsetHeight * EDITOR_TO_SLIDE_RATIO
-
-      if (accumulatedSlideHeight + blockHeight > SLIDE_CONTENT_HEIGHT && accumulatedSlideHeight > 0) {
-        // This block would overflow — mark a break before it
-        positions.push(child.offsetTop - contentTop)
-        accumulatedSlideHeight = blockHeight
-      } else {
-        accumulatedSlideHeight += blockHeight
-      }
+    if (!breakOffsets || breakOffsets.length === 0) {
+      setBreakPositions([])
+      return
     }
-
+    // Simple: each break is at (i+1) * slide content height
+    const positions = breakOffsets.map((_, i) => (i + 1) * SLIDE_CONTENT_HEIGHT)
     setBreakPositions(positions)
-  }, [slide?.markdownContent])
+  }, [breakOffsets])
 
   useEffect(() => {
     computeBreaks()
-    // Recompute after a short delay for async content (images etc.)
     const timer = setTimeout(computeBreaks, 300)
     return () => clearTimeout(timer)
   }, [computeBreaks])
@@ -327,6 +414,10 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
       StarterKit.configure({
         heading: { levels: [1, 2, 3] }
       }),
+      Table.configure({ resizable: false }),
+      TableRow,
+      TableHeader,
+      TableCell,
       ResizableImage.configure({ inline: false }),
       FontSize,
       Color,
@@ -342,10 +433,6 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
         class: 'wysiwyg-content outline-none min-h-full'
       },
       handleKeyDown: (view, event) => {
-        // Block Enter when content overflows slide height
-        if (event.key === 'Enter' && checkOverflow()) {
-          return true // prevent
-        }
         // Tab to indent list items, Shift+Tab to outdent
         if (event.key === 'Tab') {
           if (event.shiftKey) {
@@ -362,7 +449,10 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
     onUpdate: ({ editor }) => {
       if (isInternalUpdate.current) return
       const html = editor.getHTML()
-      const md = turndown.turndown(html).replace(/^(\s*)\\-/gm, '$1-')
+      const md = turndown.turndown(html)
+        .replace(/^(\s*)\\-/gm, '$1-')
+        .replace(/\\_/g, '_')
+        .replace(/\\\*/g, '*')
       // Preserve textbox/shape comments from the original markdown
       const currentMd = usePresentationStore.getState().slides[slideIndex]?.markdownContent ?? ''
       const comments: string[] = []
@@ -473,7 +563,7 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="flex flex-col">
       {/* WYSIWYG Toolbar */}
       <div className="h-9 bg-gray-900 border-b border-gray-800 flex items-center px-2 gap-0.5 flex-shrink-0">
         <WBtn
@@ -716,12 +806,8 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
       </div>
 
       {/* Editor */}
-      <div className="flex-1 overflow-y-auto p-12 relative" ref={editorContainerRef}>
-        {isOverflow && (
-          <div className="sticky top-0 z-10 -mx-12 -mt-12 mb-2 px-3 py-1 bg-red-500/10 border-b border-red-500/20 text-red-400 text-[10px] text-center">
-            Slide limit reached — content exceeds visible area
-          </div>
-        )}
+      <div className="p-12 relative" ref={editorContainerRef}>
+        {/* Overflow is fine — content auto-splits into sub-slides */}
         <EditorContent editor={editor} />
         {/* Inline AI button — appears after 2s idle near cursor */}
         {hasApiKey && showAIButton && !showAIPrompt && (
@@ -782,11 +868,12 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
         {breakPositions.map((top, i) => (
           <div
             key={i}
-            className="absolute left-0 right-0 pointer-events-none"
+            className="absolute left-0 right-0 pointer-events-none z-10"
             style={{ top: top + 48 }} // +48 for p-12 padding
           >
-            <div className="mx-2 border-t-2 border-dashed border-gray-500 relative">
-              <span className="absolute right-0 -top-4 text-[9px] text-gray-400 bg-gray-950 px-1 uppercase tracking-wider">
+            <div className="mx-0 relative" style={{ borderTop: '3px dashed rgba(99, 102, 241, 0.5)' }}>
+              <span className="absolute right-2 -top-5 text-[10px] font-semibold text-indigo-400 px-2 py-0.5 rounded uppercase tracking-wider"
+                style={{ background: 'var(--slide-bg, #0a0a0a)' }}>
                 Sub-slide {i + 2}
               </span>
             </div>

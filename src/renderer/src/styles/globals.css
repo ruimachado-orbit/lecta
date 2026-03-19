@@ -276,8 +276,75 @@ html[data-theme="light"] .slide-content hr { border-color: #e2e8f0; }
 .slide-content tr:hover td { background: var(--slide-table-row-hover); }
 
 /* ============================================================
-   MERMAID DIAGRAM — modern minimalist presentation styling
+   FLOW DIAGRAM — custom SVG renderer, modern minimalist
    ============================================================ */
+.flow-diagram svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Nodes */
+.flow-node {
+  fill: rgba(255,255,255,0.04);
+  stroke: rgba(255,255,255,0.15);
+  stroke-width: 1;
+}
+.flow-node-text {
+  fill: rgba(255,255,255,0.85);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: -apple-system, "SF Pro Text", Inter, system-ui, sans-serif;
+}
+
+/* Edges */
+.flow-edge {
+  stroke: rgba(255,255,255,0.2);
+}
+.flow-arrow-head {
+  fill: rgba(255,255,255,0.3);
+}
+.flow-edge-label {
+  fill: rgba(255,255,255,0.5);
+  font-size: 11px;
+  font-family: -apple-system, "SF Pro Text", Inter, system-ui, sans-serif;
+}
+
+/* Light theme overrides */
+[data-slide-theme="minimal"] .flow-node,
+[data-slide-theme="corporate"] .flow-node,
+[data-slide-theme="paper"] .flow-node {
+  fill: rgba(0,0,0,0.03);
+  stroke: rgba(0,0,0,0.12);
+}
+[data-slide-theme="minimal"] .flow-node-text,
+[data-slide-theme="corporate"] .flow-node-text,
+[data-slide-theme="paper"] .flow-node-text {
+  fill: rgba(0,0,0,0.8);
+}
+[data-slide-theme="minimal"] .flow-edge,
+[data-slide-theme="corporate"] .flow-edge,
+[data-slide-theme="paper"] .flow-edge {
+  stroke: rgba(0,0,0,0.15);
+}
+[data-slide-theme="minimal"] .flow-arrow-head,
+[data-slide-theme="corporate"] .flow-arrow-head,
+[data-slide-theme="paper"] .flow-arrow-head {
+  fill: rgba(0,0,0,0.25);
+}
+
+/* Theme accent overrides */
+[data-slide-theme="executive"] .flow-node { stroke: rgba(212,168,67,0.2); }
+[data-slide-theme="executive"] .flow-arrow-head { fill: rgba(212,168,67,0.4); }
+[data-slide-theme="creative"] .flow-node { stroke: rgba(139,92,246,0.2); }
+[data-slide-theme="creative"] .flow-arrow-head { fill: rgba(139,92,246,0.4); }
+[data-slide-theme="keynote-dark"] .flow-node { stroke: rgba(0,212,255,0.15); }
+[data-slide-theme="keynote-dark"] .flow-arrow-head { fill: rgba(0,212,255,0.35); }
+[data-slide-theme="corporate"] .flow-node { stroke: rgba(37,99,235,0.15); }
+[data-slide-theme="corporate"] .flow-arrow-head { fill: rgba(37,99,235,0.3); }
+[data-slide-theme="paper"] .flow-node { stroke: rgba(139,69,19,0.12); }
+[data-slide-theme="paper"] .flow-arrow-head { fill: rgba(139,69,19,0.25); }
+
+/* Mermaid fallback (for complex diagrams) */
 .mermaid-diagram {
   margin: 1.25rem 0;
   display: flex;
@@ -947,6 +1014,56 @@ html[data-theme="light"] .wysiwyg-content li { color: #334155; }
 html[data-theme="light"] .wysiwyg-content code { background: #e2e8f0; }
 html[data-theme="light"] .wysiwyg-content pre { background: #f1f5f9; }
 html[data-theme="light"] .wysiwyg-content blockquote { border-color: #334155; color: #64748b; }
+
+/* WYSIWYG table styles */
+.wysiwyg-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0;
+  font-size: 0.875rem;
+}
+.wysiwyg-content th,
+.wysiwyg-content td {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0.375rem 0.625rem;
+  text-align: left;
+}
+.wysiwyg-content th {
+  background: rgba(255, 255, 255, 0.05);
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+.wysiwyg-content td {
+  font-size: 0.8rem;
+}
+html[data-theme="light"] .wysiwyg-content th,
+html[data-theme="light"] .wysiwyg-content td {
+  border-color: #e2e8f0;
+}
+html[data-theme="light"] .wysiwyg-content th {
+  background: #f1f5f9;
+}
+
+/* WYSIWYG blockquote styles */
+.wysiwyg-content blockquote {
+  border-left: 3px solid rgba(99, 102, 241, 0.5);
+  padding: 0.25rem 0.75rem;
+  margin: 0.5rem 0;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+/* Monaco sub-slide break decorations */
+.subslide-break-line {
+  border-top: 2px dashed rgba(99, 102, 241, 0.4) !important;
+  margin-top: 4px;
+}
+.subslide-break-label {
+  color: rgba(99, 102, 241, 0.6) !important;
+  font-size: 10px !important;
+  font-style: italic !important;
+  letter-spacing: 0.5px;
+}
 
 /* Scrollbar styling */
 ::-webkit-scrollbar {

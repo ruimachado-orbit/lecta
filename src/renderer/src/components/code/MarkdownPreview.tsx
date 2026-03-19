@@ -1,5 +1,5 @@
 import { SlideRenderer } from '../slides/SlideRenderer'
-import { MermaidDiagram } from '../common/MermaidDiagram'
+import { FlowDiagram } from '../common/FlowDiagram'
 
 const MERMAID_KEYWORDS = [
   'sequenceDiagram', 'flowchart', 'graph ', 'graph\n', 'classDiagram',
@@ -30,7 +30,7 @@ export function MarkdownPreview({ content, rootPath }: MarkdownPreviewProps): JS
   if (isMermaid(content)) {
     return (
       <div className="flex items-center justify-center h-full">
-        <MermaidDiagram chart={content.trim()} />
+        <FlowDiagram chart={content.trim()} />
       </div>
     )
   }

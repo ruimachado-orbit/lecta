@@ -7,7 +7,9 @@ import { usePresentationStore } from '../stores/presentation-store'
  */
 
 // Content height inside the 1280x720 slide with p-12 (48px each side)
-const CONTENT_HEIGHT = 720 - 48 * 2 // 624px
+// Use 90% of actual height as safety margin — measurement HTML approximates real rendering
+// but doesn't perfectly match SlideRenderer's tables, mermaid, etc.
+const CONTENT_HEIGHT = (720 - 48 * 2) * 0.90 // ~562px (624px * 0.9)
 
 /**
  * Split markdown into logical blocks at heading or blank-line boundaries.
@@ -102,15 +104,24 @@ export function useSubSlides(
 
   // Read/write sub-slide state from the presentation store
   const storeCurrentSubSlide = usePresentationStore((s) => s.currentSubSlide)
+  // -1 means "go to last sub-slide" — will be resolved after measure()
   const currentSubSlide = storeCurrentSubSlide < 0 ? 0 : storeCurrentSubSlide
 
   const setCurrentSubSlide = useCallback((n: number) => {
     usePresentationStore.setState({ currentSubSlide: n })
   }, [])
 
-  // Reset on slide change
+  // Reset on slide change — but preserve -1 (go-to-last flag from prevSlide)
+  const prevSlideIndex = useRef(slideIndex)
   useEffect(() => {
-    usePresentationStore.setState({ currentSubSlide: 0 })
+    if (prevSlideIndex.current !== slideIndex) {
+      const current = usePresentationStore.getState().currentSubSlide
+      // Only reset to 0 if not set to -1 (which means "go to last")
+      if (current !== -1) {
+        usePresentationStore.setState({ currentSubSlide: 0 })
+      }
+      prevSlideIndex.current = slideIndex
+    }
   }, [slideIndex])
 
   const measure = useCallback(() => {
@@ -134,6 +145,9 @@ export function useSubSlides(
         pointer-events: none;
       `
       container.className = 'slide-content max-w-none'
+      // Apply slide theme for correct CSS variable sizing
+      const theme = usePresentationStore.getState().presentation?.theme || 'dark'
+      container.setAttribute('data-slide-theme', theme)
       document.body.appendChild(container)
       measureRef.current = container
     }
@@ -222,15 +236,44 @@ function toMeasurementHTML(md: string): string {
   // Handle code blocks first (before other replacements)
   md = md.replace(/```[\s\S]*?```/g, '<pre class="bg-gray-900 rounded-lg p-4 mb-4 overflow-x-auto text-sm" style="min-height:60px">code block</pre>')
 
+  // Handle markdown tables — convert to HTML table for accurate measurement
+  md = md.replace(
+    /^(\|.+\|)\n(\|[\s:-]+\|)\n((?:\|.+\|\n?)+)/gm,
+    (_match, header: string, _sep: string, body: string) => {
+      const parseCells = (row: string) => row.split('|').slice(1, -1).map((c: string) => c.trim())
+      const headerCells = parseCells(header)
+      const bodyRows = body.trim().split('\n')
+      let html = '<table style="width:100%;border-collapse:collapse;margin:12px 0;font-size:18px"><thead><tr>'
+      headerCells.forEach((c: string) => { html += `<th style="padding:8px 12px;border:1px solid rgba(255,255,255,0.15);font-weight:600">${c}</th>` })
+      html += '</tr></thead><tbody>'
+      bodyRows.forEach((row: string) => {
+        const cells = parseCells(row)
+        html += '<tr>'
+        cells.forEach((c: string) => { html += `<td style="padding:8px 12px;border:1px solid rgba(255,255,255,0.1)">${c}</td>` })
+        html += '</tr>'
+      })
+      html += '</tbody></table>'
+      return html
+    }
+  )
+
+  // Handle blockquotes
+  md = md.replace(/^>\s?(.+)$/gm, '<blockquote style="border-left:3px solid #6366f1;padding:4px 12px;margin:8px 0;font-size:18px">$1</blockquote>')
+
+  // Handle horizontal rules
+  md = md.replace(/^---+$/gm, '<hr style="margin:16px 0;border-top:1px solid rgba(255,255,255,0.15)">')
+
   return md
     .replace(/^### (.+)$/gm, '<h3 class="text-2xl font-medium mb-3" style="line-height:1.2">$1</h3>')
     .replace(/^## (.+)$/gm, '<h2 class="text-3xl font-semibold mb-4" style="line-height:1.2">$1</h2>')
     .replace(/^# (.+)$/gm, '<h1 class="text-4xl font-bold mb-6" style="line-height:1.1">$1</h1>')
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    // List items — use same sizes as SlideRenderer
+    // Indented list items (sub-bullets)
+    .replace(/^\s{2,}[*\-+] (.+)$/gm, '<div class="text-base leading-relaxed mb-1.5 ml-12">◦ $1</div>')
+    // Top-level list items
     .replace(/^[*\-+] (.+)$/gm, '<div class="text-lg leading-relaxed mb-2 ml-6">• $1</div>')
-    // Paragraphs
-    .replace(/^(?!<[hd]|<pre)((?!<).+)$/gm, '<p class="text-xl leading-relaxed mb-4">$1</p>')
+    // Paragraphs (exclude lines already converted to HTML)
+    .replace(/^(?!<[hdbtp]|<pre|<hr|<table)((?!<).+)$/gm, '<p class="text-xl leading-relaxed mb-4">$1</p>')
     .replace(/<p[^>]*>\s*<\/p>/g, '')
 }

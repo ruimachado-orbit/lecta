@@ -340,7 +340,7 @@ export function HomeScreen(): JSX.Element {
       {/* Settings gear — bottom left */}
       <button
         onClick={() => setShowSettings(true)}
-        className="absolute bottom-6 left-6 p-2 rounded-lg text-gray-600 hover:text-gray-300 hover:bg-gray-800 transition-colors"
+        className="fixed bottom-6 left-6 z-50 p-2 rounded-lg text-gray-600 hover:text-gray-300 hover:bg-gray-800 transition-colors"
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         title="Settings"
       >

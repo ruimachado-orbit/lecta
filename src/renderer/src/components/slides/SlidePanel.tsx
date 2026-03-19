@@ -5,7 +5,7 @@ import { SlideRenderer } from './SlideRenderer'
 import { SlideNavigator } from './SlideNavigator'
 import { SlideEditToolbar } from './SlideEditToolbar'
 import { WysiwygEditor } from './WysiwygEditor'
-import { AIGeneratePanel, AIImproveBar } from './AISlidePanel'
+import { AIGeneratePanel, AIImproveBar, AIChangeBar } from './AISlidePanel'
 import { ArtifactBar } from '../artifacts/ArtifactBar'
 import { useSubSlides } from '../../hooks/useSubSlides'
 import { DrawingOverlay, DrawingToolbar } from './DrawingOverlay'
@@ -37,8 +37,55 @@ export function SlidePanel(): JSX.Element {
     currentSlideIndex
   )
 
-  const handleEditorMount: OnMount = (editor) => {
+  const handleEditorMount: OnMount = (editor, monaco) => {
     editorRef.current = editor
+
+    // Add sub-slide break decorations
+    const updateDecorations = () => {
+      if (!breakOffsets || breakOffsets.length === 0) {
+        editor.removeDecorations(editor.getModel()?.getAllDecorations()?.filter(
+          (d: any) => d.options?.className === 'subslide-break-line'
+        ).map((d: any) => d.id) || [])
+        return
+      }
+      const model = editor.getModel()
+      if (!model) return
+
+      const content = model.getValue()
+      const decorations = breakOffsets.map((offset, i) => {
+        // Find line number for this character offset
+        let charCount = 0
+        const lines = content.split('\n')
+        let lineNum = 1
+        for (let l = 0; l < lines.length; l++) {
+          charCount += lines[l].length + 1 // +1 for newline
+          if (charCount >= offset) {
+            lineNum = l + 2 // +2: 1-indexed + next line
+            break
+          }
+        }
+        return {
+          range: new monaco.Range(lineNum, 1, lineNum, 1),
+          options: {
+            isWholeLine: true,
+            className: 'subslide-break-line',
+            before: {
+              content: ` ── Sub-slide ${i + 2} ──`,
+              inlineClassName: 'subslide-break-label'
+            }
+          }
+        }
+      })
+
+      (editor as any).__subSlideDecorations = editor.deltaDecorations(
+        (editor as any).__subSlideDecorations || [],
+        decorations
+      )
+    }
+
+    // Run once and on content change
+    updateDecorations()
+    editor.onDidChangeModelContent(updateDecorations)
   }
 
   const handleEditorChange = useCallback(
@@ -122,13 +169,20 @@ export function SlidePanel(): JSX.Element {
               </svg>
               Draw
             </button>
+            <div className="flex-1" />
+            <AIChangeBar />
           </div>
           {editorMode === 'markdown' && !drawingMode && <SlideEditToolbar editorRef={editorRef} />}
         </>
       )}
 
-      {/* AI improve bar (preview mode only) */}
-      {!editingSlide && <AIImproveBar />}
+      {/* AI change bar (preview mode) + AI improve bar */}
+      {!editingSlide && (
+        <div className="flex items-center gap-2 px-3 py-1 border-b border-gray-800 bg-gray-900/50">
+          <AIChangeBar />
+          <AIImproveBar />
+        </div>
+      )}
 
       {/* Main content */}
       <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
@@ -166,8 +220,8 @@ export function SlidePanel(): JSX.Element {
                 options={{
                   fontSize: 14, lineHeight: 20,
                   fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
-                  minimap: { enabled: false }, scrollBeyondLastLine: false,
-                  padding: { top: 12, bottom: 12 }, lineNumbers: 'off',
+                  minimap: { enabled: false }, scrollBeyondLastLine: true,
+                  padding: { top: 12, bottom: 12 }, lineNumbers: 'on',
                   renderLineHighlight: 'none', wordWrap: 'on',
                   automaticLayout: true, tabSize: 2
                 }}
@@ -296,10 +350,12 @@ function SlideCanvas({ markdown, rootPath, transition, layout, slideIndex, drawi
       }
     }
 
-    // Measure after render + images/diagrams load
+    // Measure after render + images/diagrams load (multiple passes for async content)
     measure()
-    const timer = setTimeout(measure, 500)
-    return () => clearTimeout(timer)
+    const t1 = setTimeout(measure, 200)
+    const t2 = setTimeout(measure, 600)
+    const t3 = setTimeout(measure, 1500)
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
   }, [markdown])
 
   return (
@@ -391,34 +447,22 @@ function EditableSlideCanvas({ slideIndex, breakOffsets, rootPath, layout }: {
   }, [])
 
   return (
-    <div ref={containerRef} className="h-full w-full flex items-center justify-center bg-neutral-800 overflow-hidden">
+    <div ref={containerRef} className="h-full w-full bg-neutral-800 overflow-y-auto overflow-x-hidden"
+      data-slide-theme={slideTheme}>
       <div
-        className="relative rounded overflow-hidden"
-        data-slide-theme={slideTheme}
+        className="relative rounded mx-auto"
         style={{
           width: SLIDE_W,
-          height: SLIDE_H,
-          transform: `scale(${canvasScale})`,
-          transformOrigin: 'center center',
-          flexShrink: 0,
+          minHeight: SLIDE_H,
+          zoom: canvasScale,
+          marginTop: 16,
+          marginBottom: 16,
+          background: 'var(--slide-bg)',
           boxShadow: '0 0 0 1px rgba(255,255,255,0.15), 0 4px 24px rgba(0,0,0,0.6), 0 0 80px rgba(0,0,0,0.4)'
         }}
       >
-        <div className="absolute inset-0 rounded" style={{ background: 'var(--slide-bg)' }} />
-        <div className={`absolute inset-0 overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
+        <div className={`relative ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
           <WysiwygEditor slideIndex={slideIndex} breakOffsets={breakOffsets} />
-        </div>
-        {/* Draggable text boxes overlay — visible in editor mode */}
-        <div className="absolute inset-0 p-12 pointer-events-none" style={{ zIndex: 10 }}>
-          <DraggableElements
-            markdown={markdown}
-            canvasScale={canvasScale}
-            onUpdateMarkdown={(md) => {
-              updateMarkdownContent(slideIndex, md)
-              saveSlideContent(slideIndex)
-            }}
-            editable={true}
-          />
         </div>
         {/* Layout guide overlay */}
         {layout && layout !== 'default' && layout !== 'blank' && (

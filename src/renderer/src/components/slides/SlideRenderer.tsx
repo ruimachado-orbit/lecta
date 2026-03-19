@@ -1,7 +1,7 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
-import { MermaidDiagram } from '../common/MermaidDiagram'
+import { FlowDiagram } from '../common/FlowDiagram'
 
 interface SlideRendererProps {
   markdown: string
@@ -118,7 +118,7 @@ export function SlideRenderer({ markdown, rootPath }: SlideRendererProps): JSX.E
             // Render mermaid diagrams
             if (className?.includes('language-mermaid')) {
               const chart = String(children).replace(/\n$/, '')
-              return <MermaidDiagram chart={chart} />
+              return <FlowDiagram chart={chart} />
             }
             const isInline = !className
             if (isInline) {

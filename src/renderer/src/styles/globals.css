@@ -1102,6 +1102,24 @@ html[data-theme="light"] .wysiwyg-content th {
   font-style: italic;
 }
 
+/* Click animation — incremental reveal */
+.slide-click-step {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.slide-click-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.slide-click-hidden {
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  height: 0;
+  overflow: hidden;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
 /* Table code blocks in WYSIWYG editor — styled to look like tables */
 .wysiwyg-content pre:has(code.language-table) {
   background: rgba(255, 255, 255, 0.03) !important;

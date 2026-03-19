@@ -250,6 +250,7 @@ export function SlidePanel(): JSX.Element {
             slideIndex={currentSlideIndex}
             drawingMode={drawingMode}
             editable={true}
+            showGlobalLayers={true}
             onUpdateMarkdown={(md) => {
               updateMarkdownContent(currentSlideIndex, md)
               saveSlideContent(currentSlideIndex)
@@ -307,9 +308,9 @@ export function SlidePanel(): JSX.Element {
 }
 
 /** 16:9 slide canvas that auto-scales content to fit */
-function SlideCanvas({ markdown, rootPath, transition, layout, slideIndex, drawingMode, editable, onUpdateMarkdown }: {
+function SlideCanvas({ markdown, rootPath, transition, layout, slideIndex, drawingMode, editable, onUpdateMarkdown, showGlobalLayers }: {
   markdown: string; rootPath?: string; transition?: string; layout?: string; slideIndex?: number; drawingMode?: boolean
-  editable?: boolean; onUpdateMarkdown?: (md: string) => void
+  editable?: boolean; onUpdateMarkdown?: (md: string) => void; showGlobalLayers?: boolean
 }): JSX.Element {
   const slideTheme = usePresentationStore((s) => s.presentation?.theme) || 'dark'
   const containerRef = useRef<HTMLDivElement>(null)
@@ -431,6 +432,38 @@ function SlideCanvas({ markdown, rootPath, transition, layout, slideIndex, drawi
             height={SLIDE_H}
           />
         )}
+        {/* Global layers — persistent header/footer on every slide */}
+        {showGlobalLayers && (
+          <GlobalLayers width={SLIDE_W} height={SLIDE_H} />
+        )}
+      </div>
+    </div>
+  )
+}
+
+/** Global layers: persistent header/footer rendered on every slide */
+function GlobalLayers({ width, height }: { width: number; height: number }): JSX.Element | null {
+  const presentation = usePresentationStore((s) => s.presentation)
+  const currentSlideIndex = usePresentationStore((s) => s.currentSlideIndex)
+  const totalSlides = usePresentationStore((s) => s.slides.length)
+  const currentSlide = usePresentationStore((s) => s.slides[s.currentSlideIndex])
+
+  if (!presentation) return null
+
+  // Skip global layers on title/cover slides
+  const layout = currentSlide?.config.layout
+  if (layout === 'title' || layout === 'blank') return null
+
+  return (
+    <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 8 }}>
+      {/* Bottom bar: title left, slide number right */}
+      <div className="absolute bottom-0 left-0 right-0 px-12 pb-3 flex items-end justify-between">
+        <span style={{ fontSize: 11, opacity: 0.4, color: 'var(--slide-text)', fontWeight: 500 }}>
+          {presentation.title}
+        </span>
+        <span style={{ fontSize: 11, opacity: 0.35, color: 'var(--slide-text)', fontFamily: 'monospace' }}>
+          {currentSlideIndex + 1} / {totalSlides}
+        </span>
       </div>
     </div>
   )
@@ -522,7 +555,9 @@ function SubSlideStackEditor({ subSlides, currentSubSlide, setCurrentSubSlide, s
   saveSlideContent: (idx: number) => void
 }): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [canvasScale, setCanvasScale] = useState(0.5)
+  const [baseScale, setBaseScale] = useState(0.5)
+  const [zoomOffset, setZoomOffset] = useState(0) // -3 to +3 steps, each step = 0.08
+  const canvasScale = Math.max(0.15, Math.min(1.2, baseScale + zoomOffset * 0.08))
   const slideTheme = presentation?.theme || 'dark'
   const layout = currentSlide.config.layout
 
@@ -534,15 +569,39 @@ function SubSlideStackEditor({ subSlides, currentSubSlide, setCurrentSubSlide, s
     if (!container) return
     const updateScale = () => {
       const cw = container.clientWidth
-      const margin = 32
-      const s = (cw - margin * 2) / SLIDE_W
-      setCanvasScale(Math.min(Math.max(0.05, s), 1))
+      const ch = container.clientHeight
+      const margin = 24
+      const scaleW = (cw - margin * 2) / SLIDE_W
+      const scaleH = (ch * 0.55) / SLIDE_H
+      setBaseScale(Math.min(Math.max(0.05, scaleW, 0.3), scaleH, 0.85))
     }
     updateScale()
     const ro = new ResizeObserver(updateScale)
     ro.observe(container)
     return () => ro.disconnect()
   }, [])
+
+  /** Add a new empty sub-slide after the given index */
+  const addSubSlide = useCallback((afterIndex: number) => {
+    const sections = splitFullMdSections(currentSlide.markdownContent)
+    sections.splice(afterIndex + 1, 0, '')
+    updateMarkdownContent(slideIndex, sections.join('\n\n---\n\n'))
+    saveSlideContent(slideIndex)
+    setCurrentSubSlide(afterIndex + 1)
+  }, [currentSlide.markdownContent, slideIndex, updateMarkdownContent, saveSlideContent, setCurrentSubSlide])
+
+  /** Delete a sub-slide by index */
+  const deleteSubSlide = useCallback((subIndex: number) => {
+    const sections = splitFullMdSections(currentSlide.markdownContent)
+    if (sections.length <= 1) return // Can't delete the only sub-slide
+    sections.splice(subIndex, 1)
+    const newMd = sections.length === 1 ? sections[0] : sections.join('\n\n---\n\n')
+    updateMarkdownContent(slideIndex, newMd)
+    saveSlideContent(slideIndex)
+    if (currentSubSlide >= sections.length) {
+      setCurrentSubSlide(Math.max(0, sections.length - 1))
+    }
+  }, [currentSlide.markdownContent, slideIndex, updateMarkdownContent, saveSlideContent, currentSubSlide, setCurrentSubSlide])
 
   /** Replace a single sub-slide's content back into the full markdown */
   const replaceSubSlide = useCallback((subIndex: number, newMd: string) => {
@@ -557,11 +616,38 @@ function SubSlideStackEditor({ subSlides, currentSubSlide, setCurrentSubSlide, s
   }, [currentSlide.markdownContent, slideIndex, updateMarkdownContent, saveSlideContent])
 
   return (
-    <div ref={containerRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-4"
+    <div ref={containerRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-4 bg-neutral-800 relative"
       data-slide-theme={slideTheme}>
+      {/* Zoom controls */}
+      <div className="sticky top-2 z-20 flex justify-end pr-3 mb-1">
+        <div className="flex items-center gap-1 bg-gray-900/80 backdrop-blur rounded-full px-1.5 py-0.5 border border-gray-700/50">
+          <button
+            onClick={() => setZoomOffset(z => Math.max(-4, z - 1))}
+            className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-white rounded-full hover:bg-gray-700/50 transition-colors text-xs"
+            title="Zoom out"
+          >−</button>
+          <span className="text-[9px] text-gray-500 font-mono w-8 text-center">{Math.round(canvasScale * 100)}%</span>
+          <button
+            onClick={() => setZoomOffset(z => Math.min(4, z + 1))}
+            className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-white rounded-full hover:bg-gray-700/50 transition-colors text-xs"
+            title="Zoom in"
+          >+</button>
+          {zoomOffset !== 0 && (
+            <button
+              onClick={() => setZoomOffset(0)}
+              className="w-5 h-5 flex items-center justify-center text-gray-500 hover:text-white rounded-full hover:bg-gray-700/50 transition-colors"
+              title="Reset zoom"
+            >
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
+              </svg>
+            </button>
+          )}
+        </div>
+      </div>
       <div className="flex flex-col items-center gap-6 px-4">
         {subSlides.map((sub, i) => (
-          <div key={i} className="w-full flex flex-col items-center">
+          <div key={`sub-${sub.index}`} className="w-full flex flex-col items-center">
             {/* Sub-slide label */}
             <div className="flex items-center gap-2 mb-1.5">
               <span className={`text-[10px] font-mono px-2 py-0.5 rounded ${
@@ -575,7 +661,7 @@ function SubSlideStackEditor({ subSlides, currentSubSlide, setCurrentSubSlide, s
             </div>
             {/* Canvas frame */}
             <div
-              className={`relative rounded transition-all ${
+              className={`relative group/canvas rounded transition-all ${
                 i === currentSubSlide
                   ? 'ring-2 ring-indigo-500 ring-offset-2 ring-offset-neutral-800'
                   : 'opacity-70 hover:opacity-90 ring-1 ring-white/10 cursor-pointer'
@@ -587,6 +673,18 @@ function SubSlideStackEditor({ subSlides, currentSubSlide, setCurrentSubSlide, s
               }}
               onClick={() => { if (i !== currentSubSlide) setCurrentSubSlide(i) }}
             >
+              {/* Delete sub-slide button (top-right, only when >1 sub-slides) */}
+              {subSlides.length > 1 && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); deleteSubSlide(i) }}
+                  className="absolute top-1.5 right-1.5 z-30 w-6 h-6 rounded-full bg-red-500/80 hover:bg-red-500 text-white flex items-center justify-center opacity-0 group-hover/canvas:opacity-100 transition-opacity"
+                  title={`Delete sub-slide ${i + 1}`}
+                >
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                  </svg>
+                </button>
+              )}
               <div
                 style={{
                   width: SLIDE_W,
@@ -594,6 +692,8 @@ function SubSlideStackEditor({ subSlides, currentSubSlide, setCurrentSubSlide, s
                   transform: `scale(${canvasScale})`,
                   transformOrigin: 'top left',
                   background: 'var(--slide-bg)',
+                  boxShadow: '0 0 0 1px rgba(255,255,255,0.15), 0 4px 24px rgba(0,0,0,0.6)',
+                  borderRadius: 4,
                 }}
               >
                 {i === currentSubSlide ? (
@@ -617,6 +717,16 @@ function SubSlideStackEditor({ subSlides, currentSubSlide, setCurrentSubSlide, s
             </div>
           </div>
         ))}
+        {/* Add sub-slide button */}
+        <button
+          onClick={() => addSubSlide(subSlides.length - 1)}
+          className="mt-2 mb-4 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-dashed border-gray-600 text-gray-500 hover:text-gray-300 hover:border-gray-400 transition-colors text-[11px]"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          Add sub-slide
+        </button>
       </div>
     </div>
   )

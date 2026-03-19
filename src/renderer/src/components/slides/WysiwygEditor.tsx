@@ -243,13 +243,10 @@ function injectTables(md: string, tables: string[]): string {
   return md
 }
 
-// Store extracted tables globally so the onUpdate handler can re-inject them
-let _extractedTables: string[] = []
-
-function markdownToHtml(md: string, rootPath?: string): string {
+function markdownToHtml(md: string, rootPath?: string, tablesOut?: { tables: string[] }): string {
   // Extract tables before any conversion — they'll be re-injected after turndown
   const { processed: mdNoTables, tables } = extractTables(md)
-  _extractedTables = tables
+  if (tablesOut) tablesOut.tables = tables
 
   // Convert column blocks
   const columnRegex = /<!--\s*columns\s*-->([\s\S]*?)<!--\s*\/columns\s*-->/gi
@@ -268,10 +265,10 @@ function markdownToHtml(md: string, rootPath?: string): string {
   // Strip remaining non-structural comments (textbox, shape, etc.)
   processed = processed.replace(/<!--.*?-->/gs, '')
 
-  return convertLinesToHtml(processed, rootPath)
+  return convertLinesToHtml(processed, rootPath, tables)
 }
 
-function convertLinesToHtml(md: string, rootPath?: string): string {
+function convertLinesToHtml(md: string, rootPath?: string, tables: string[] = []): string {
   const lines = md.split('\n')
   const html: string[] = []
   let listDepth = 0
@@ -340,7 +337,7 @@ function convertLinesToHtml(md: string, rootPath?: string): string {
     if (tableMatch) {
       closeTo(0)
       const idx = parseInt(tableMatch[1], 10)
-      const table = _extractedTables[idx]
+      const table = tables[idx]
       if (table) {
         // Show a readable summary of the table
         const tLines = table.split('\n')
@@ -448,7 +445,7 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
   const isInternalUpdate = useRef(false)
   const editorContainerRef = useRef<HTMLDivElement>(null)
   const latestMdRef = useRef<string>(effectiveMarkdown)
-  // breakPositions removed — sub-slide breaks are now manual via --- horizontal rules
+  const extractedTablesRef = useRef<string[]>([])
 
   // Inline AI state
   const [hasApiKey, setHasApiKey] = useState(false)
@@ -534,7 +531,12 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
         placeholder: 'Start typing your slide content...'
       })
     ],
-    content: markdownToHtml(effectiveMarkdown, presentation?.rootPath),
+    content: (() => {
+      const out = { tables: [] as string[] }
+      const html = markdownToHtml(effectiveMarkdown, presentation?.rootPath, out)
+      extractedTablesRef.current = out.tables
+      return html
+    })(),
     editorProps: {
       attributes: {
         class: 'wysiwyg-content outline-none min-h-full'
@@ -565,7 +567,7 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
         .replace(/\\`/g, '`')
         .replace(/\\\\/g, '\\')
       // Re-inject extracted tables back into the markdown
-      md = injectTables(md, _extractedTables)
+      md = injectTables(md, extractedTablesRef.current)
       // Preserve textbox/shape comments from the original markdown
       if (isSubSlideMode) {
         latestMdRef.current = md
@@ -600,19 +602,21 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
   useEffect(() => {
     (window as any).__wysiwygFlush = () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-      // Read directly from TipTap editor
-      if (editor) {
-        const html = editor.getHTML()
-        let md = turndown.turndown(html)
-          .replace(/^(\s*)\\-/gm, '$1-')
-          .replace(/\\_/g, '_')
-          .replace(/\\\*/g, '*')
-          .replace(/\\\[/g, '[')
-          .replace(/\\\]/g, ']')
-          .replace(/\\`/g, '`')
-          .replace(/\\\\/g, '\\')
-        // Re-inject tables
-        md = injectTables(md, _extractedTables)
+      if (!editor) return
+      const html = editor.getHTML()
+      let md = turndown.turndown(html)
+        .replace(/^(\s*)\\-/gm, '$1-')
+        .replace(/\\_/g, '_')
+        .replace(/\\\*/g, '*')
+        .replace(/\\\[/g, '[')
+        .replace(/\\\]/g, ']')
+        .replace(/\\`/g, '`')
+        .replace(/\\\\/g, '\\')
+      md = injectTables(md, extractedTablesRef.current)
+      if (isSubSlideMode) {
+        // In sub-slide mode, route through the callback
+        onSubSlideChange?.(md)
+      } else {
         usePresentationStore.setState((state) => {
           const slides = [...state.slides]
           if (slides[slideIndex]) {
@@ -625,7 +629,7 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
     return () => {
       (window as any).__wysiwygFlush = null
     }
-  }, [editor, slideIndex])
+  }, [editor, slideIndex, isSubSlideMode, onSubSlideChange])
 
   // Sync content when sub-slide markdown changes from outside (e.g. clicking a different sub-slide)
   // Skip if the change came from this editor's own typing (latestMdRef matches)
@@ -638,7 +642,9 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
       const ourLastOutput = latestMdRef.current.trim()
       const incoming = (subSlideMarkdown || '').trim()
       if (ourLastOutput === incoming) return
-      const newHtml = markdownToHtml(subSlideMarkdown!, presentation?.rootPath)
+      const out = { tables: [] as string[] }
+      const newHtml = markdownToHtml(subSlideMarkdown!, presentation?.rootPath, out)
+      extractedTablesRef.current = out.tables
       isInternalUpdate.current = true
       editor.commands.setContent(newHtml)
       isInternalUpdate.current = false
@@ -651,7 +657,9 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
     if (!editor || !slide || isSubSlideMode) return
     if (prevSlideIdx.current !== slideIndex) {
       prevSlideIdx.current = slideIndex
-      const newHtml = markdownToHtml(slide.markdownContent, presentation?.rootPath)
+      const out = { tables: [] as string[] }
+      const newHtml = markdownToHtml(slide.markdownContent, presentation?.rootPath, out)
+      extractedTablesRef.current = out.tables
       isInternalUpdate.current = true
       editor.commands.setContent(newHtml)
       isInternalUpdate.current = false

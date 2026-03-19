@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
@@ -6,6 +7,10 @@ import { FlowDiagram } from '../common/FlowDiagram'
 interface SlideRendererProps {
   markdown: string
   rootPath?: string
+  /** Current click step (0 = show only non-click content, N = show up to click N). -1 = show all (edit/preview mode) */
+  clickStep?: number
+  /** Callback to report total click steps found in this slide */
+  onClickSteps?: (total: number) => void
 }
 
 function resolveImageSrc(src: string | undefined, rootPath?: string): string {
@@ -105,7 +110,41 @@ function enhanceVisualPatterns(md: string): string {
   return result
 }
 
-export function SlideRenderer({ markdown, rootPath }: SlideRendererProps): JSX.Element {
+/**
+ * Process <!-- click --> comments into data-click-step wrapper divs.
+ * Each <!-- click --> increments a counter. Content after it gets wrapped
+ * in a div that only shows when clickStep >= that counter.
+ */
+function processClickAnimations(md: string): { processed: string; totalClicks: number } {
+  const lines = md.split('\n')
+  const result: string[] = []
+  let clickCount = 0
+
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].trim().match(/^<!--\s*click\s*-->$/i)) {
+      clickCount++
+      // Close previous click wrapper if open
+      if (clickCount > 1) result.push('</div>')
+      result.push(`<div data-click-step="${clickCount}">`)
+    } else {
+      result.push(lines[i])
+    }
+  }
+
+  // Close last click wrapper
+  if (clickCount > 0) result.push('</div>')
+
+  return { processed: result.join('\n'), totalClicks: clickCount }
+}
+
+export function SlideRenderer({ markdown, rootPath, clickStep = -1, onClickSteps }: SlideRendererProps): JSX.Element {
+  const { processed: clickProcessed, totalClicks } = processClickAnimations(markdown)
+
+  // Report total click steps to parent
+  useEffect(() => {
+    onClickSteps?.(totalClicks)
+  }, [totalClicks, onClickSteps])
+
   return (
     <div className="slide-content max-w-none relative">
       <ReactMarkdown
@@ -142,9 +181,27 @@ export function SlideRenderer({ markdown, rootPath }: SlideRendererProps): JSX.E
           img: ({ src, alt }) => (
             <img src={resolveImageSrc(src, rootPath)} alt={alt} className="my-4" />
           ),
+          div: ({ node, children, ...props }) => {
+            const step = (node?.properties as any)?.['dataClickStep']
+            if (step !== undefined) {
+              const stepNum = parseInt(String(step), 10)
+              // clickStep -1 = show all (edit/preview mode)
+              const visible = clickStep === -1 || clickStep >= stepNum
+              return (
+                <div
+                  className={`slide-click-step ${visible ? 'slide-click-visible' : 'slide-click-hidden'}`}
+                  data-click-step={stepNum}
+                  {...props}
+                >
+                  {children}
+                </div>
+              )
+            }
+            return <div {...props}>{children}</div>
+          },
         }}
       >
-        {enhanceVisualPatterns(preprocessColumns(markdown))}
+        {enhanceVisualPatterns(preprocessColumns(clickProcessed))}
       </ReactMarkdown>
     </div>
   )

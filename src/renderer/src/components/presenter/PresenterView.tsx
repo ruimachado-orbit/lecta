@@ -393,7 +393,12 @@ function PresenterSlide({ markdown, rootPath, layout, theme }: {
               transformOrigin: 'top left'
             }}
           >
-            <SlideRenderer markdown={markdown} rootPath={rootPath} />
+            <SlideRenderer
+              markdown={markdown}
+              rootPath={rootPath}
+              clickStep={usePresentationStore.getState().clickStep}
+              onClickSteps={(total) => usePresentationStore.setState({ totalClickSteps: total })}
+            />
           </div>
         </div>
       </div>

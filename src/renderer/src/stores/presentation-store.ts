@@ -15,6 +15,10 @@ interface PresentationState {
   currentSubSlide: number
   totalSubSlides: number
 
+  // Click animation state (for incremental reveal in presentation mode)
+  clickStep: number
+  totalClickSteps: number
+
   // Derived getters
   currentSlide: () => LoadedSlide | null
   totalSlides: () => number
@@ -71,6 +75,8 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
   hasUnsavedChanges: false,
   currentSubSlide: 0,
   totalSubSlides: 1,
+  clickStep: 0,
+  totalClickSteps: 0,
 
   currentSlide: () => {
     const { slides, currentSlideIndex } = get()
@@ -153,7 +159,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
   goToSlide: (index: number) => {
     const { slides, presentation } = get()
     if (index >= 0 && index < slides.length) {
-      set({ currentSlideIndex: index, currentSubSlide: 0 })
+      set({ currentSlideIndex: index, currentSubSlide: 0, clickStep: 0 })
       window.electronAPI.syncPresenterSlide(index)
       // Update lastViewedIndex in config (persisted on next save)
       if (presentation) {
@@ -163,32 +169,42 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
   },
 
   nextSlide: () => {
-    const { currentSlideIndex, slides, currentSubSlide, totalSubSlides, presentation } = get()
-    // If there are more sub-slides, advance sub-slide first
-    if (totalSubSlides > 1 && currentSubSlide < totalSubSlides - 1) {
-      set({ currentSubSlide: currentSubSlide + 1 })
+    const { currentSlideIndex, slides, currentSubSlide, totalSubSlides, clickStep, totalClickSteps, presentation } = get()
+    // 1. Advance click steps first (incremental reveal)
+    if (totalClickSteps > 0 && clickStep < totalClickSteps) {
+      set({ clickStep: clickStep + 1 })
       return
     }
-    // Otherwise, go to next slide (reset sub-slide to 0)
+    // 2. Then advance sub-slides
+    if (totalSubSlides > 1 && currentSubSlide < totalSubSlides - 1) {
+      set({ currentSubSlide: currentSubSlide + 1, clickStep: 0 })
+      return
+    }
+    // 3. Then go to next slide
     if (currentSlideIndex < slides.length - 1) {
       const newIndex = currentSlideIndex + 1
-      set({ currentSlideIndex: newIndex, currentSubSlide: 0 })
+      set({ currentSlideIndex: newIndex, currentSubSlide: 0, clickStep: 0 })
       window.electronAPI.syncPresenterSlide(newIndex)
       if (presentation) set({ presentation: { ...presentation, lastViewedIndex: newIndex } })
     }
   },
 
   prevSlide: () => {
-    const { currentSlideIndex, currentSubSlide, presentation } = get()
-    // If on a sub-slide > 0, go back one sub-slide
+    const { currentSlideIndex, currentSubSlide, clickStep, presentation } = get()
+    // 1. Go back click steps first
+    if (clickStep > 0) {
+      set({ clickStep: clickStep - 1 })
+      return
+    }
+    // 2. Then go back sub-slides
     if (currentSubSlide > 0) {
       set({ currentSubSlide: currentSubSlide - 1 })
       return
     }
-    // Otherwise, go to previous slide (set sub-slide to last)
+    // 3. Then go to previous slide
     if (currentSlideIndex > 0) {
       const newIndex = currentSlideIndex - 1
-      set({ currentSlideIndex: newIndex, currentSubSlide: 0 })
+      set({ currentSlideIndex: newIndex, currentSubSlide: 0, clickStep: 0 })
       window.electronAPI.syncPresenterSlide(newIndex)
       if (presentation) set({ presentation: { ...presentation, lastViewedIndex: newIndex } })
       // After the slide loads and sub-slides are computed, jump to last sub-slide

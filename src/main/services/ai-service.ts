@@ -564,21 +564,27 @@ Generate exactly ${slideCount} slides. CRITICAL: Every content slide must FILL t
     let raw = ''
     let slidesFound = 0
 
-    for await (const event of stream) {
-      if (
-        event.type === 'content_block_delta' &&
-        event.delta.type === 'text_delta'
-      ) {
-        raw += event.delta.text
+    try {
+      for await (const event of stream) {
+        if (
+          event.type === 'content_block_delta' &&
+          event.delta.type === 'text_delta'
+        ) {
+          raw += event.delta.text
 
-        // Count completed slides by tracking "id": occurrences (each slide object has one)
-        const newCount = (raw.match(/"id"\s*:/g) || []).length
-        if (newCount > slidesFound) {
-          slidesFound = newCount
-          onProgress(`Generating slide ${slidesFound} of ${slideCount}...`, slidesFound, slideCount)
+          // Count completed slides by tracking "id": occurrences (each slide object has one)
+          const newCount = (raw.match(/"id"\s*:/g) || []).length
+          if (newCount > slidesFound) {
+            slidesFound = newCount
+            onProgress(`Generating slide ${slidesFound} of ${slideCount}...`, slidesFound, slideCount)
+          }
         }
       }
+    } catch (streamErr) {
+      console.error('[generateFullPresentation] Stream error:', streamErr)
     }
+
+    console.log('[generateFullPresentation] raw length:', raw.length, 'first 200 chars:', raw.slice(0, 200))
 
     onProgress('Finalizing presentation...', slideCount, slideCount)
 

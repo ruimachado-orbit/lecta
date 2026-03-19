@@ -191,15 +191,23 @@ export function registerAiHandlers(): void {
       const service = getAIService()
       const window = BrowserWindow.getFocusedWindow()
 
-      return service.generateFullPresentation(
-        prompt,
-        title,
-        sourceContent,
-        slideCount,
-        (status: string, slideIndex: number, total: number) => {
-          window?.webContents.send(progressChannel, { status, slideIndex, total })
-        }
-      )
+      console.log('[ai:generate-full-presentation] prompt length:', prompt.length, 'sourceContent length:', sourceContent?.length ?? 0, 'slideCount:', slideCount)
+      try {
+        const result = await service.generateFullPresentation(
+          prompt,
+          title,
+          sourceContent,
+          slideCount,
+          (status: string, slideIndex: number, total: number) => {
+            window?.webContents.send(progressChannel, { status, slideIndex, total })
+          }
+        )
+        console.log('[ai:generate-full-presentation] result slides:', result.slides?.length ?? 0)
+        return result
+      } catch (err) {
+        console.error('[ai:generate-full-presentation] error:', err)
+        throw err
+      }
     }
   )
 
@@ -211,12 +219,19 @@ export function registerAiHandlers(): void {
 
       if (ext === 'pdf') {
         try {
-          // Import the lib directly to avoid pdf-parse's index.js test-file side-effect
-          const pdfParse = (await import('pdf-parse/lib/pdf-parse.js')).default
           const buffer = await readFile(filePath)
-          const data = await pdfParse(buffer)
-          return data.text.slice(0, 50000)
-        } catch {
+          const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
+          const data = new Uint8Array(buffer)
+          const doc = await pdfjsLib.getDocument({ data }).promise
+          let text = ''
+          for (let i = 1; i <= doc.numPages; i++) {
+            const page = await doc.getPage(i)
+            const content = await page.getTextContent()
+            text += content.items.map((item: any) => item.str).join(' ') + '\n'
+          }
+          return text.trim().slice(0, 50000)
+        } catch (err) {
+          console.error('PDF parse error:', err)
           return '[Could not read PDF file]'
         }
       }

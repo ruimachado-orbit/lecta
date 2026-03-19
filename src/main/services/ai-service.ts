@@ -472,12 +472,16 @@ Rules:
     const client = await this.getClient()
 
     const sourceContext = sourceContent
-      ? `\n\nSOURCE MATERIAL (use this as the basis for the presentation — extract key insights, data, and structure from it):\n---\n${sourceContent.slice(0, 30000)}\n---`
+      ? `\n\nSOURCE DOCUMENT — THIS IS YOUR PRIMARY INPUT:\n\`\`\`\n${sourceContent.slice(0, 30000)}\n\`\`\`\n\nYou MUST base the presentation content on the source document above. Extract real facts, data points, names, figures, and structure directly from it. Do NOT invent information that is not in the source document. The user's prompt provides additional instructions on how to present the source material.`
       : ''
 
     onProgress('Designing presentation structure...', 0, slideCount)
 
-    const systemPrompt = `You are a McKinsey-level presentation designer. You create executive-quality presentations that are rich in content, data-driven, and visually structured.
+    const sourceSystemRule = sourceContent
+      ? `\n\nCRITICAL RULE — SOURCE MATERIAL PROVIDED: The user has uploaded a source document. You MUST ground ALL slide content in the source material. Extract actual data, facts, quotes, and structure from it. Do NOT hallucinate or fabricate information that is not present in the source document. If the source document does not contain enough information for a slide, state what is available rather than making things up.`
+      : ''
+
+    const systemPrompt = `You are a McKinsey-level presentation designer. You create executive-quality presentations that are rich in content, data-driven, and visually structured.${sourceSystemRule}
 
 OUTPUT FORMAT: A valid JSON object with this exact structure:
 {
@@ -550,7 +554,9 @@ Generate exactly ${slideCount} slides. CRITICAL: Every content slide must FILL t
       messages: [
         {
           role: 'user',
-          content: `Create a complete ${slideCount}-slide presentation.${sourceContext}\n\nTopic/instructions: ${prompt}\n\nPresentation title suggestion: "${title}"\n\nGenerate the full presentation as a JSON object.`
+          content: sourceContent
+            ? `Create a complete ${slideCount}-slide presentation based on the following source document and instructions.${sourceContext}\n\nAdditional instructions from the user: ${prompt}\n\nPresentation title suggestion: "${title}"\n\nGenerate the full presentation as a JSON object. Remember: ALL content must come from the source document above.`
+            : `Create a complete ${slideCount}-slide presentation.\n\nTopic/instructions: ${prompt}\n\nPresentation title suggestion: "${title}"\n\nGenerate the full presentation as a JSON object.`
         }
       ]
     })

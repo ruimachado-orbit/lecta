@@ -210,14 +210,11 @@ export function registerAiHandlers(): void {
       const ext = filePath.toLowerCase().split('.').pop()
 
       if (ext === 'pdf') {
-        // Read PDF as text (basic extraction)
         try {
+          const pdfParse = (await import('pdf-parse')).default
           const buffer = await readFile(filePath)
-          // Simple PDF text extraction — look for text between stream/endstream or parentheses
-          const text = buffer.toString('utf-8')
-          // Extract readable text portions
-          const readable = text.replace(/[^\x20-\x7E\n\r\t]/g, ' ').replace(/\s+/g, ' ').trim()
-          return readable.slice(0, 50000)
+          const data = await pdfParse(buffer)
+          return data.text.slice(0, 50000)
         } catch {
           return '[Could not read PDF file]'
         }

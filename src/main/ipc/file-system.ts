@@ -77,6 +77,7 @@ async function savePresentationYaml(presentation: Presentation): Promise<void> {
     title: presentation.title,
     author: presentation.author,
     theme: presentation.theme,
+    ...(presentation.lastViewedIndex != null && presentation.lastViewedIndex > 0 ? { lastViewedIndex: presentation.lastViewedIndex } : {}),
     slides: presentation.slides.map((s) => {
       const slide: Record<string, unknown> = {
         id: s.id,

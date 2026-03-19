@@ -43,6 +43,7 @@ async function saveNotebookYaml(notebook: Notebook): Promise<void> {
     author: notebook.author,
     theme: notebook.theme,
     defaultLayout: notebook.defaultLayout,
+    ...(notebook.lastViewedIndex != null && notebook.lastViewedIndex > 0 ? { lastViewedIndex: notebook.lastViewedIndex } : {}),
     pages: notebook.pages.map(serializeNote)
   }
 

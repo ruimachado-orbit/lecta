@@ -103,7 +103,11 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
         return
       }
 
-      set(applyLoaded(loaded as LoadedPresentation))
+      const pres = loaded as LoadedPresentation
+      // Restore last viewed slide index (clamped to valid range)
+      const lastIdx = pres.config.lastViewedIndex
+      const restoreIdx = (lastIdx != null && lastIdx > 0 && lastIdx < pres.slides.length) ? lastIdx : 0
+      set(applyLoaded(pres, restoreIdx))
 
       // Re-check AI key availability (deck might have its own .env)
       const { useUIStore } = await import('./ui-store')
@@ -147,10 +151,14 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
   },
 
   goToSlide: (index: number) => {
-    const { slides } = get()
+    const { slides, presentation } = get()
     if (index >= 0 && index < slides.length) {
       set({ currentSlideIndex: index, currentSubSlide: 0 })
       window.electronAPI.syncPresenterSlide(index)
+      // Update lastViewedIndex in config (persisted on next save)
+      if (presentation) {
+        set({ presentation: { ...presentation, lastViewedIndex: index } })
+      }
     }
   },
 

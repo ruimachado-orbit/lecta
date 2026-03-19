@@ -21,6 +21,7 @@ export interface Notebook {
   author: string
   theme: string
   defaultLayout: NoteLayout
+  lastViewedIndex?: number
   pages: NoteConfig[]
   rootPath: string
 }

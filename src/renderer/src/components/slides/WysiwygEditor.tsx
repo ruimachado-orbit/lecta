@@ -96,7 +96,7 @@ turndown.addRule('fencedCodeBlock', {
   }
 })
 
-// Preserve empty paragraphs as blank lines
+// Preserve empty paragraphs as blank lines with a <br> tag
 turndown.addRule('emptyParagraph', {
   filter: (node) => {
     if (node.nodeName !== 'P') return false
@@ -104,7 +104,7 @@ turndown.addRule('emptyParagraph', {
     const text = el.textContent || ''
     return text.trim() === '' || text === '\u00A0'
   },
-  replacement: () => '\n\u00A0\n'
+  replacement: () => '\n<br>\n'
 })
 
 // Convert any remaining HTML tables to markdown
@@ -193,11 +193,55 @@ turndown.addRule('image-with-width', {
 })
 
 // Convert markdown to simple HTML for TipTap
+// Extract tables from markdown, replacing them with [TABLE_N] placeholders.
+// Returns the modified markdown and the extracted table strings.
+function extractTables(md: string): { processed: string; tables: string[] } {
+  const tables: string[] = []
+  const lines = md.split('\n')
+  const result: string[] = []
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
+      const tableLines: string[] = [line]
+      while (i + 1 < lines.length && lines[i + 1].trim().startsWith('|') && lines[i + 1].trim().endsWith('|')) {
+        i++
+        tableLines.push(lines[i])
+      }
+      if (tableLines.length >= 2) {
+        const idx = tables.length
+        tables.push(tableLines.join('\n'))
+        result.push(`[TABLE_${idx}]`)
+      } else {
+        result.push(line)
+      }
+    } else {
+      result.push(line)
+    }
+  }
+
+  return { processed: result.join('\n'), tables }
+}
+
+// Re-inject tables into markdown, replacing [TABLE_N] placeholders
+function injectTables(md: string, tables: string[]): string {
+  return md.replace(/\[TABLE_(\d+)\]/g, (_match, idx) => {
+    const i = parseInt(idx, 10)
+    return tables[i] || _match
+  })
+}
+
+// Store extracted tables globally so the onUpdate handler can re-inject them
+let _extractedTables: string[] = []
+
 function markdownToHtml(md: string, rootPath?: string): string {
-  // Convert column blocks: each column section becomes editable content
-  // separated by a visual column divider marker
+  // Extract tables before any conversion — they'll be re-injected after turndown
+  const { processed: mdNoTables, tables } = extractTables(md)
+  _extractedTables = tables
+
+  // Convert column blocks
   const columnRegex = /<!--\s*columns\s*-->([\s\S]*?)<!--\s*\/columns\s*-->/gi
-  let processed = md
+  let processed = mdNoTables
 
   processed = processed.replace(columnRegex, (_match, innerContent: string) => {
     const cols = innerContent.split(/<!--\s*col\s*-->/)
@@ -254,8 +298,8 @@ function convertLinesToHtml(md: string, rootPath?: string): string {
       continue
     }
 
-    // Preserve explicit empty lines (non-breaking space marker)
-    if (line.trim() === '\u00A0' || line.trim() === '&nbsp;') {
+    // Preserve explicit empty lines (non-breaking space or <br> marker)
+    if (line.trim() === '\u00A0' || line.trim() === '&nbsp;' || line.trim() === '<br>' || line.trim() === '<br/>') {
       closeTo(0)
       html.push('<p><br></p>')
       continue
@@ -279,22 +323,20 @@ function convertLinesToHtml(md: string, rootPath?: string): string {
     const h1 = line.match(/^# (.+)$/); if (h1) { closeTo(0); html.push(`<h1>${processInline(h1[1])}</h1>`); continue }
     if (line.match(/^---+$/)) { closeTo(0); html.push('<hr>'); continue }
 
-    // Markdown table: detect lines starting with |
-    if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
+    // Table placeholders — rendered as styled indicators
+    const tableMatch = line.match(/^\[TABLE_(\d+)\]$/)
+    if (tableMatch) {
       closeTo(0)
-      // Collect all consecutive table lines
-      const tableLines: string[] = [line]
-      while (i + 1 < lines.length && lines[i + 1].trim().startsWith('|') && lines[i + 1].trim().endsWith('|')) {
-        i++
-        tableLines.push(lines[i])
-      }
-      if (tableLines.length >= 2) {
-        // Render as a code block with class "language-table" — ProseMirror preserves code blocks
-        // The raw markdown table is stored as-is inside the code block
-        const rawTable = tableLines.join('\n')
-        html.push(`<pre><code class="language-table">${rawTable.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>`)
+      const idx = parseInt(tableMatch[1], 10)
+      const table = _extractedTables[idx]
+      if (table) {
+        // Show a readable summary of the table
+        const tLines = table.split('\n')
+        const parseCells = (row: string) => row.split('|').slice(1, -1).map((c: string) => c.trim())
+        const headerCells = parseCells(tLines[0])
+        html.push(`<p style="background:rgba(99,102,241,0.08);border:1px dashed rgba(99,102,241,0.3);border-radius:6px;padding:8px 12px;font-size:0.85em;color:rgba(99,102,241,0.8)"><strong>Table:</strong> ${headerCells.join(' | ')}</p>`)
       } else {
-        html.push(`<p>${processInline(line)}</p>`)
+        html.push(`<p>[TABLE]</p>`)
       }
       continue
     }
@@ -358,6 +400,9 @@ function processInline(text: string): string {
     // Inline code
     .replace(/`(.+?)`/g, '<code>$1</code>')
 }
+
+// Global ref for Toolbar to trigger save before unmounting editor
+;(window as any).__wysiwygFlush = null as (() => void) | null
 
 interface WysiwygEditorProps {
   slideIndex: number
@@ -510,7 +555,7 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
     onUpdate: ({ editor }) => {
       if (isInternalUpdate.current) return
       const html = editor.getHTML()
-      const md = turndown.turndown(html)
+      let md = turndown.turndown(html)
         .replace(/^(\s*)\\-/gm, '$1-')
         .replace(/\\_/g, '_')
         .replace(/\\\*/g, '*')
@@ -518,6 +563,8 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
         .replace(/\\\]/g, ']')
         .replace(/\\`/g, '`')
         .replace(/\\\\/g, '\\')
+      // Re-inject extracted tables back into the markdown
+      md = injectTables(md, _extractedTables)
       // Preserve textbox/shape comments from the original markdown
       const currentMd = usePresentationStore.getState().slides[slideIndex]?.markdownContent ?? ''
       const comments: string[] = []
@@ -541,45 +588,36 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
     }
   })
 
-  // Save when editingSlide changes to false (user clicks Editor button)
-  const editingSlide = useUIStore((s) => s.editingSlide)
-  const prevEditingRef = useRef(editingSlide)
+  // Register global flush function so Toolbar can trigger save before unmount
   useEffect(() => {
-    if (prevEditingRef.current && !editingSlide) {
-      // Was editing, now stopped — flush and save immediately
+    (window as any).__wysiwygFlush = () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-      const latest = latestMdRef.current
-      if (latest) {
+      // Read directly from TipTap editor
+      if (editor) {
+        const html = editor.getHTML()
+        let md = turndown.turndown(html)
+          .replace(/^(\s*)\\-/gm, '$1-')
+          .replace(/\\_/g, '_')
+          .replace(/\\\*/g, '*')
+          .replace(/\\\[/g, '[')
+          .replace(/\\\]/g, ']')
+          .replace(/\\`/g, '`')
+          .replace(/\\\\/g, '\\')
+        // Re-inject tables
+        md = injectTables(md, _extractedTables)
         usePresentationStore.setState((state) => {
           const slides = [...state.slides]
           if (slides[slideIndex]) {
-            slides[slideIndex] = { ...slides[slideIndex], markdownContent: latest }
+            slides[slideIndex] = { ...slides[slideIndex], markdownContent: md }
           }
           return { slides, hasUnsavedChanges: true }
         })
-        saveSlideContent(slideIndex)
       }
     }
-    prevEditingRef.current = editingSlide
-  }, [editingSlide, slideIndex, saveSlideContent])
-
-  // Also save on unmount as backup
-  useLayoutEffect(() => {
     return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-      const latest = latestMdRef.current
-      if (latest) {
-        usePresentationStore.setState((state) => {
-          const slides = [...state.slides]
-          if (slides[slideIndex]) {
-            slides[slideIndex] = { ...slides[slideIndex], markdownContent: latest }
-          }
-          return { slides, hasUnsavedChanges: true }
-        })
-        saveSlideContent(slideIndex)
-      }
+      (window as any).__wysiwygFlush = null
     }
-  }, [slideIndex, saveSlideContent])
+  }, [editor, slideIndex])
 
   // Sync content when slide changes
   useEffect(() => {

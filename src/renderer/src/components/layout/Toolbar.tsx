@@ -131,7 +131,21 @@ export function Toolbar(): JSX.Element {
         <button
           onClick={async () => {
             if (editingSlide) {
+              // Flush WYSIWYG editor content to store (while editor is still alive)
+              try {
+                const flush = (window as any).__wysiwygFlush
+                if (typeof flush === 'function') {
+                  flush()
+                }
+              } catch (e) {
+                console.error('Flush failed:', e)
+              }
+              // Save to disk — read latest from store
               await saveSlideContent(currentSlideIndex)
+              // Also pack .lecta file
+              if (presentation) {
+                await window.electronAPI.saveLecta(presentation.rootPath)
+              }
             }
             toggleEditingSlide()
           }}

@@ -125,6 +125,39 @@ export function useSubSlides(
   }, [slideIndex])
 
   const measure = useCallback(() => {
+    // Check for manual sub-slide breaks (--- on its own line)
+    // If found, use those as explicit break points instead of auto-calculating
+    const hasManualBreaks = markdown.split('\n').some((line) => line.trim() === '---')
+
+    if (hasManualBreaks) {
+      // Split on --- delimiters
+      const sections = markdown.split(/\n---\n/)
+      const pages: SubSlide[] = sections.map((section, i) => ({
+        markdown: section.trim(),
+        index: i
+      }))
+      const breaks: number[] = []
+      let pos = 0
+      for (let i = 0; i < sections.length - 1; i++) {
+        pos += sections[i].length + 5 // +5 for \n---\n
+        breaks.push(pos)
+      }
+
+      const finalPages = pages.length > 0 ? pages : [{ markdown: '', index: 0 }]
+      setSubSlides(finalPages)
+      setBreakOffsets(breaks)
+
+      const storeState = usePresentationStore.getState()
+      usePresentationStore.setState({ totalSubSlides: finalPages.length })
+      if (storeState.currentSubSlide === -1) {
+        usePresentationStore.setState({ currentSubSlide: finalPages.length - 1 })
+      } else if (storeState.currentSubSlide >= finalPages.length) {
+        usePresentationStore.setState({ currentSubSlide: Math.max(0, finalPages.length - 1) })
+      }
+      return
+    }
+
+    // Auto-calculate breaks based on content height
     const blocks = splitIntoBlocks(markdown)
     if (blocks.length === 0) {
       setSubSlides([{ markdown: '', index: 0 }])
@@ -145,7 +178,6 @@ export function useSubSlides(
         pointer-events: none;
       `
       container.className = 'slide-content max-w-none'
-      // Apply slide theme for correct CSS variable sizing
       const theme = usePresentationStore.getState().presentation?.theme || 'dark'
       container.setAttribute('data-slide-theme', theme)
       document.body.appendChild(container)
@@ -163,12 +195,10 @@ export function useSubSlides(
       const height = container.scrollHeight
 
       if (height > CONTENT_HEIGHT && currentBlocks.length > 0) {
-        // Don't leave a heading stranded at the end — pull it to next page
         const lastBlock = currentBlocks[currentBlocks.length - 1]
         const lastIsHeading = lastBlock && lastBlock.text.trim().match(/^#{1,3}\s/)
 
         if (lastIsHeading && currentBlocks.length > 1) {
-          // Move the heading to the next page with the overflowing block
           const headingBlock = currentBlocks.pop()!
           pages.push({
             markdown: currentBlocks.map((b) => b.text).join('\n\n'),

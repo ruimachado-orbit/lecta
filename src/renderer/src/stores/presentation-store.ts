@@ -249,7 +249,8 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
       await window.electronAPI.saveLecta(presentation.rootPath)
 
       set({ isSaving: false, lastSavedAt: new Date(), hasUnsavedChanges: false })
-    } catch {
+    } catch (err) {
+      console.error('saveSlideContent failed:', err)
       set({ isSaving: false })
     }
   },

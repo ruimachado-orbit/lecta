@@ -154,6 +154,35 @@ const api = {
     ipcRenderer.invoke('ai:stream-article', deckTitle, author, slidesContent, rules, channel)
   },
 
+  // AI Image Generation (multi-provider: OpenAI DALL-E, Google Gemini)
+  generateImage: (
+    rootPath: string,
+    prompt: string,
+    aspectRatio?: string,
+    imageSize?: string,
+    provider?: string
+  ): Promise<string> =>
+    ipcRenderer.invoke('gemini:generate-image', rootPath, prompt, aspectRatio, imageSize, provider),
+  editImage: (
+    rootPath: string,
+    imagePath: string,
+    prompt: string,
+    aspectRatio?: string,
+    imageSize?: string,
+    provider?: string
+  ): Promise<string> =>
+    ipcRenderer.invoke('gemini:edit-image', rootPath, imagePath, prompt, aspectRatio, imageSize, provider),
+  hasGeminiApiKey: (provider?: string): Promise<boolean> =>
+    ipcRenderer.invoke('gemini:has-api-key', provider),
+  getImageProviders: (): Promise<{ id: string; name: string; hasKey: boolean }[]> =>
+    ipcRenderer.invoke('gemini:get-providers'),
+  getImageProvider: (): Promise<string> =>
+    ipcRenderer.invoke('gemini:get-provider'),
+  setImageProvider: (provider: string): Promise<void> =>
+    ipcRenderer.invoke('gemini:set-provider', provider),
+  listImages: (rootPath: string): Promise<{ relativePath: string; timestamp: number; size: number }[]> =>
+    ipcRenderer.invoke('gemini:list-images', rootPath),
+
   // Export
   exportPdf: (rootPath: string, slideHtmls: string[], title: string): Promise<string | null> =>
     ipcRenderer.invoke('export:pdf', rootPath, slideHtmls, title),

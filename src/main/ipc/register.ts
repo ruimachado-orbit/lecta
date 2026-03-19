@@ -8,11 +8,13 @@ import { registerExportHandlers } from './export-pdf'
 import { registerNotebookHandlers } from './notebook-fs'
 import { registerSlideLibraryHandlers } from './slide-library'
 import { registerRemoteControlHandlers } from './remote-control'
+import { registerGeminiImageHandlers } from './gemini-image'
 
 export function registerAllIpcHandlers(): void {
   registerFileSystemHandlers()
   registerExecutionHandlers()
   registerAiHandlers()
+  registerGeminiImageHandlers()
   registerArtifactHandlers()
   registerPresenterHandlers()
   registerSettingsHandlers()

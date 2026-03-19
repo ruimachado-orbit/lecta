@@ -16,6 +16,7 @@ import { TabBar } from './TabBar'
 import { PresenterView } from '../presenter/PresenterView'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore } from '../../stores/ui-store'
+import { useImageStore } from '../../stores/image-store'
 import { applySlideTheme } from '../../themes/theme-registry'
 import { useTabsStore } from '../../stores/tabs-store'
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
@@ -414,6 +415,19 @@ function ArtifactIconStrip({
 
       {/* Spacer */}
       <div className="flex-1" />
+
+      {/* Image Library button */}
+      <button
+        onClick={() => useImageStore.getState().togglePanel()}
+        className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
+          useImageStore.getState().isPanelOpen ? 'text-purple-400' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
+        }`}
+        title="Image Library"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 3.75h16.5A2.25 2.25 0 0 1 22.5 6v12a2.25 2.25 0 0 1-2.25 2.25H3.75A2.25 2.25 0 0 1 1.5 18V6a2.25 2.25 0 0 1 2.25-2.25z" />
+        </svg>
+      </button>
 
       {/* Slide Store button */}
       <div className="relative">

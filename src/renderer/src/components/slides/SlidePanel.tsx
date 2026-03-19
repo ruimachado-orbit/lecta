@@ -532,6 +532,8 @@ function EditableSlideCanvas({ slideIndex, breakOffsets, rootPath, layout, subSl
         {layout && layout !== 'default' && layout !== 'blank' && (
           <LayoutGuide layout={layout} width={SLIDE_W} height={SLIDE_H} pad={PAD} />
         )}
+        {/* Drawing overlay (read-only) */}
+        <DrawingOverlay slideIndex={slideIndex} active={false} width={SLIDE_W} height={SLIDE_H} />
       </div>
     </div>
   )

@@ -103,12 +103,25 @@ export function DrawingOverlay({ slideIndex, active, width, height }: DrawingOve
   const deleteBtnRef = useRef<{ x: number; y: number; r: number } | null>(null)
   const [editingText, setEditingText] = useState<{ pos: DrawPoint; value: string; editIndex: number | null } | null>(null)
 
-  // Save to disk
+  // Save to disk and update the store so inactive overlays pick up the change immediately
   const saveDrawings = useCallback((els: DrawElement[]) => {
     if (!presentation) return
+    const json = els.length > 0 ? JSON.stringify(els) : ''
+
+    // Optimistic store update — keeps the read-mode overlay in sync without a reload
+    usePresentationStore.setState((state) => {
+      const slides = [...state.slides]
+      if (slides[slideIndex]) {
+        slides[slideIndex] = {
+          ...slides[slideIndex],
+          config: { ...slides[slideIndex].config, drawings: json || undefined }
+        }
+      }
+      return { slides }
+    })
+
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     saveTimerRef.current = setTimeout(() => {
-      const json = els.length > 0 ? JSON.stringify(els) : ''
       window.electronAPI.saveDrawings(presentation.rootPath, slideIndex, json)
     }, 1000)
   }, [presentation, slideIndex])

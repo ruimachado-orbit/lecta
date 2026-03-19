@@ -188,9 +188,25 @@ export function SlideRenderer({ markdown, rootPath, clickStep = -1, onClickSteps
           a: ({ href, children }) => (
             <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>
           ),
-          img: ({ src, alt }) => (
-            <img src={resolveImageSrc(src, rootPath)} alt={alt} className="my-4" />
-          ),
+          img: ({ src, alt, node }) => {
+            const imgProps = (node as any)?.properties || {}
+            const border = imgProps.dataBorder || undefined
+            const radius = imgProps.dataBorderRadius || undefined
+            const width = imgProps.width || undefined
+            return (
+              <img
+                src={resolveImageSrc(src, rootPath)}
+                alt={alt}
+                className="my-4"
+                style={{
+                  width: width ? `${width}px` : undefined,
+                  maxWidth: '100%',
+                  border: border || undefined,
+                  borderRadius: radius ? `${radius}px` : undefined,
+                }}
+              />
+            )
+          },
           div: ({ node, children, ...props }) => {
             const step = (node?.properties as any)?.['dataClickStep']
             if (step !== undefined) {

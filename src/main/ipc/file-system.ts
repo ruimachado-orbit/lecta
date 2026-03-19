@@ -7,6 +7,7 @@ import { resolveRelativePath, detectLanguage } from '../../../packages/shared/sr
 import { DECK_CONFIG_FILE } from '../../../packages/shared/src/constants'
 import { startWatching } from '../services/file-watcher'
 import { setAIDeckPath } from './ai'
+import { setGeminiDeckPath } from './gemini-image'
 import {
   openLectaFile,
   saveLectaFile,
@@ -319,6 +320,7 @@ export function registerFileSystemHandlers(): void {
     recentDecks = [newEntry, ...recentDecks.filter((d) => d.path !== folderPath)].slice(0, 10)
     await persistRecentDecks()
     await setAIDeckPath(folderPath)
+    await setGeminiDeckPath(folderPath)
 
     // Start watching code files for changes
     const codeFiles = config.slides

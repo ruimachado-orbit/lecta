@@ -27,6 +27,9 @@ import { ResizableImage } from '../../extensions/resizable-image'
 import TurndownService from 'turndown'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore } from '../../stores/ui-store'
+import { useImageStore } from '../../stores/image-store'
+import { AIImagePanel } from './AIImagePanel'
+import { ImageLibrary } from './ImageLibrary'
 
 const SHAPES = [
   '■', '□', '▪', '▫', '●', '○', '◆', '◇',
@@ -180,14 +183,37 @@ turndown.addRule('underline', {
   replacement: (content) => `<u>${content}</u>`
 })
 
-// Preserve image src
+// Preserve image src, width, border, and border-radius attributes
+// Converts lecta-file:// URLs to relative paths (images/filename.png)
 turndown.addRule('image-with-width', {
   filter: (node) => node.nodeName === 'IMG',
   replacement: (_content, node) => {
     const el = node as HTMLImageElement
     let src = el.getAttribute('src') || ''
     const alt = el.getAttribute('alt') || ''
-    src = src.replace(/^lecta-file:\/\//, '')
+
+    // Strip lecta-file:// and convert to relative path
+    if (src.startsWith('lecta-file://')) {
+      src = src.replace(/^lecta-file:\/\//, '')
+      const imagesIdx = src.indexOf('/images/')
+      if (imagesIdx !== -1) {
+        src = src.substring(imagesIdx + 1) // "images/filename.png"
+      }
+    }
+
+    const width = el.getAttribute('width')
+    const border = el.getAttribute('data-border')
+    const radius = el.getAttribute('data-border-radius')
+
+    // If image has any custom attributes, emit as HTML <img> to preserve them
+    if (width || border || radius) {
+      let attrs = `src="${src}" alt="${alt}"`
+      if (width) attrs += ` width="${width}"`
+      if (border) attrs += ` data-border="${border}"`
+      if (radius) attrs += ` data-border-radius="${radius}"`
+      return `\n<img ${attrs} />\n`
+    }
+
     return `![${alt}](${src})`
   }
 })
@@ -321,6 +347,14 @@ function convertLinesToHtml(md: string, rootPath?: string, tables: string[] = []
     // Pass through table HTML (from column conversion)
     if (line.includes('<table') || line.includes('</table')) { closeTo(0); html.push(line); continue }
 
+    // Raw <img> tags (from styled images with border/radius) — pass through with src resolution
+    if (line.trim().startsWith('<img ')) {
+      closeTo(0)
+      const resolved = line.replace(/src="([^"]+)"/, (_m, s) => `src="${resolveImageSrc(s, rootPath)}"`)
+      html.push(resolved)
+      continue
+    }
+
     const imgMatch = line.match(/^!\[([^\]]*)\]\(([^)]+)\)$/)
     if (imgMatch) { closeTo(0); html.push(`<img alt="${imgMatch[1]}" src="${resolveImageSrc(imgMatch[2], rootPath)}" />`); continue }
 
@@ -448,6 +482,14 @@ function resolveImageSrc(src: string, rootPath?: string): string {
   if (!src) return ''
   if (src.startsWith('http') || src.startsWith('data:') || src.startsWith('lecta-file://')) return src
   if (src.startsWith('file://')) return src.replace('file://', 'lecta-file://')
+  // Handle absolute paths (e.g. /Users/.../images/file.png) — extract relative part
+  if (src.startsWith('/') && rootPath) {
+    const imagesIdx = src.indexOf('/images/')
+    if (imagesIdx !== -1) {
+      return `lecta-file://${rootPath}/${src.substring(imagesIdx + 1)}`
+    }
+    return `lecta-file://${src}`
+  }
   if (rootPath) return `lecta-file://${rootPath}/${decodeURIComponent(src)}`
   return src
 }
@@ -732,9 +774,14 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
     if (!presentation) return
     const relativePath = await window.electronAPI.uploadImage(presentation.rootPath)
     if (relativePath) {
-      const encoded = relativePath.split('/').map(encodeURIComponent).join('/')
       const fullSrc = `lecta-file://${presentation.rootPath}/${relativePath}`
       editor.chain().focus().setImage({ src: fullSrc, alt: 'image' }).run()
+
+      useImageStore.getState().addImage({
+        relativePath,
+        fullSrc,
+        source: 'uploaded',
+      })
     }
   }
 
@@ -745,6 +792,9 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
   const [isInTable, setIsInTable] = useState(false)
 
   const [showFontSize, setShowFontSize] = useState(false)
+  const [showImageGen, setShowImageGen] = useState(false)
+  const [showImageLibrary, setShowImageLibrary] = useState(false)
+  const imageLibraryFromSidebar = useImageStore((s) => s.isPanelOpen)
 
   const closeAllPickers = () => {
     setShowEmojiPicker(false)
@@ -911,9 +961,20 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
         >{"{ }"}</WBtn>
         <Sep />
         {/* Image upload — modern icon */}
-        <WBtn onClick={handleImageUpload}>
+        <WBtn onClick={handleImageUpload} title="Upload image">
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3 3.75h18A2.25 2.25 0 0 1 23.25 6v12a2.25 2.25 0 0 1-2.25 2.25H3A2.25 2.25 0 0 1 .75 18V6A2.25 2.25 0 0 1 3 3.75Zm12.75 3a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
+          </svg>
+        </WBtn>
+        <WBtn onClick={() => setShowImageGen(true)} title="Generate image with AI">
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
+          </svg>
+        </WBtn>
+        <WBtn onClick={() => setShowImageLibrary(true)} title="Image library">
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 3.75h16.5A2.25 2.25 0 0122.5 6v12a2.25 2.25 0 01-2.25 2.25H3.75A2.25 2.25 0 011.5 18V6a2.25 2.25 0 012.25-2.25z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 3.75v16.5M1.5 9.75h21" />
           </svg>
         </WBtn>
         <WBtn onClick={() => editor.chain().focus().setHorizontalRule().run()}>—</WBtn>
@@ -1126,6 +1187,24 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
         )}
         {/* Sub-slide breaks are now controlled by --- (horizontal rules) in the content */}
       </div>
+
+      {/* AI Image Generation Modal */}
+      {showImageGen && presentation && (
+        <AIImagePanel
+          editor={editor}
+          rootPath={presentation.rootPath}
+          onClose={() => setShowImageGen(false)}
+        />
+      )}
+
+      {/* Image Library Modal */}
+      {(showImageLibrary || imageLibraryFromSidebar) && presentation && (
+        <ImageLibrary
+          editor={editor}
+          rootPath={presentation.rootPath}
+          onClose={() => { setShowImageLibrary(false); useImageStore.getState().setPanel(false) }}
+        />
+      )}
     </div>
   )
 }

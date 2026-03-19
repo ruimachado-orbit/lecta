@@ -81,7 +81,7 @@ function createWindow(): void {
           `default-src 'self';` +
             ` script-src 'self' 'unsafe-eval' blob: https://cdn.jsdelivr.net https://unpkg.com https://esm.sh https://www.youtube.com https://s.ytimg.com;` +
             ` style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net;` +
-            ` connect-src 'self' https://cdn.jsdelivr.net https://unpkg.com https://esm.sh https://api.anthropic.com${devConnect};` +
+            ` connect-src 'self' https://cdn.jsdelivr.net https://unpkg.com https://esm.sh https://api.anthropic.com https://generativelanguage.googleapis.com${devConnect};` +
             ` worker-src 'self' blob:;` +
             ` child-src 'self' blob:;` +
             ` frame-src 'self' blob: https: http://localhost:* http://127.0.0.1:*;` +

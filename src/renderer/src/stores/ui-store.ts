@@ -20,6 +20,11 @@ export interface SlideGroup {
   color?: string
 }
 
+export interface ProviderStatus {
+  id: string
+  hasKey: boolean
+}
+
 interface UIState {
   theme: 'dark' | 'light'
   isPresenting: boolean
@@ -37,6 +42,9 @@ interface UIState {
   palette: ColorPalette
   slideGroups: SlideGroup[]
   aiEnabled: boolean
+  aiModel: string
+  providerStatuses: ProviderStatus[]
+  pendingGeneratePrompt: string | null
 
   // Actions
   setTheme: (theme: 'dark' | 'light') => void
@@ -62,6 +70,9 @@ interface UIState {
   removeSlideFromGroup: (groupId: string, slideId: string) => void
   setGroupColor: (groupId: string, color: string) => void
   checkAiEnabled: () => Promise<void>
+  setAiModel: (model: string) => void
+  refreshProviderStatuses: () => Promise<void>
+  setPendingGeneratePrompt: (prompt: string | null) => void
   loadGroupsFromPresentation: (groups: { id: string; name: string; slideIds: string[]; color?: string }[]) => void
 }
 
@@ -101,6 +112,9 @@ export const useUIStore = create<UIState>((set, get) => ({
   palette: COLOR_PALETTES[0],
   slideGroups: [],
   aiEnabled: false,
+  aiModel: 'claude-sonnet-4-20250514',
+  providerStatuses: [],
+  pendingGeneratePrompt: null,
 
   setTheme: (theme) => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -173,8 +187,30 @@ export const useUIStore = create<UIState>((set, get) => ({
     try {
       const enabled = await window.electronAPI.hasApiKey()
       set({ aiEnabled: enabled })
+      // Also load provider statuses and model
+      const statuses = await window.electronAPI.getProviderStatuses()
+      set({ providerStatuses: statuses })
+      const settings = await window.electronAPI.getAppSettings()
+      if (typeof settings.aiModel === 'string' && settings.aiModel) {
+        set({ aiModel: settings.aiModel })
+      }
     } catch {
       set({ aiEnabled: false })
     }
-  }
+  },
+  setAiModel: (model: string) => {
+    set({ aiModel: model })
+    window.electronAPI.setAIModel(model)
+    window.electronAPI.setAppSettings({ aiModel: model })
+  },
+  refreshProviderStatuses: async () => {
+    try {
+      const statuses = await window.electronAPI.getProviderStatuses()
+      const enabled = statuses.some((s: { id: string; hasKey: boolean }) => s.hasKey)
+      set({ providerStatuses: statuses, aiEnabled: enabled })
+    } catch {
+      // ignore
+    }
+  },
+  setPendingGeneratePrompt: (prompt) => set({ pendingGeneratePrompt: prompt }),
 }))

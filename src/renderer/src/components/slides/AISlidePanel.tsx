@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore } from '../../stores/ui-store'
+import { ModelSelector } from '../ai/ModelSelector'
 
 export function AIGeneratePanel(): JSX.Element {
   const { presentation, slides, currentSlideIndex, addSlide } = usePresentationStore()
@@ -113,18 +114,32 @@ export function AIGeneratePanel(): JSX.Element {
       />
 
       <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <label className="text-[10px] text-gray-500">Slides:</label>
-          <select
+          <button
+            onClick={() => setCount(Math.max(1, count - 1))}
+            disabled={isGenerating}
+            className="w-5 h-5 rounded bg-gray-800 hover:bg-gray-700 text-gray-400 text-[10px] flex items-center justify-center disabled:opacity-30"
+          >-</button>
+          <input
+            type="number"
+            min={1}
+            max={50}
             value={count}
-            onChange={(e) => setCount(Number(e.target.value))}
-            className="bg-gray-950 text-gray-300 text-xs rounded border border-gray-700 px-2 py-1
-                       focus:border-white focus:outline-none"
-          >
-            {[1, 3, 5, 8, 10, 15, 20].map((n) => (
-              <option key={n} value={n}>{n}</option>
-            ))}
-          </select>
+            onChange={(e) => {
+              const v = parseInt(e.target.value, 10)
+              if (!isNaN(v)) setCount(Math.max(1, Math.min(50, v)))
+            }}
+            disabled={isGenerating}
+            className="w-8 text-center text-xs text-gray-300 bg-gray-950 border border-gray-700 rounded py-0.5
+                       focus:border-indigo-500 focus:outline-none disabled:opacity-30
+                       [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          />
+          <button
+            onClick={() => setCount(Math.min(50, count + 1))}
+            disabled={isGenerating}
+            className="w-5 h-5 rounded bg-gray-800 hover:bg-gray-700 text-gray-400 text-[10px] flex items-center justify-center disabled:opacity-30"
+          >+</button>
         </div>
 
         <div className="flex items-center gap-1 bg-gray-950 rounded border border-gray-700 p-0.5">
@@ -152,6 +167,8 @@ export function AIGeneratePanel(): JSX.Element {
             Use artifact context
           </label>
         )}
+
+        <ModelSelector compact />
 
         <div className="flex-1" />
 

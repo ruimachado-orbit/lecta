@@ -15,6 +15,13 @@ const DEFAULTS: Record<string, unknown> = {
   fontSize: 16,
   splitRatio: 40,
   anthropicApiKey: '',
+  openaiApiKey: '',
+  geminiApiKey: '',
+  mistralApiKey: '',
+  llamaApiKey: '',
+  xaiApiKey: '',
+  perplexityApiKey: '',
+  imageProvider: 'openai',
   recentDecks: []
 }
 

@@ -3,7 +3,6 @@ import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useExecutionStore } from '../../stores/execution-store'
-import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
 import { useCodeExecution } from '../../hooks/useCodeExecution'
 import { SlideRenderer } from '../slides/SlideRenderer'
 import { CodeEditor } from '../code/CodeEditor'
@@ -22,7 +21,6 @@ export function PresenterView(): JSX.Element {
   const { setPresenting } = useUIStore()
   const { isExecuting } = useExecutionStore()
   const { runCode, cancelCode } = useCodeExecution()
-  // keyboard shortcuts already handled by AppShell
 
   // Expose slide state for remote control
   useEffect(() => {
@@ -47,8 +45,8 @@ export function PresenterView(): JSX.Element {
   const prevSlideRef = useRef(currentSlideIndex)
   const [timer, setTimer] = useState(0)
   const [timerRunning, setTimerRunning] = useState(true)
-  const [showNotes, setShowNotes] = useState(false)
-  const timerRef = useRef<ReturnType<typeof setInterval>>()
+  const [audienceOpen, setAudienceOpen] = useState(false)
+  const timerRef = useRef<ReturnType<typeof setInterval>>(null)
 
   useEffect(() => {
     if (timerRunning) {
@@ -63,6 +61,7 @@ export function PresenterView(): JSX.Element {
   }
 
   const currentSlide = slides[currentSlideIndex]
+  const nextSlideData = slides[currentSlideIndex + 1] ?? null
   const hasCode = !!currentSlide?.config.code
   const hasVideo = !!currentSlide?.config.video
   const hasWebApp = !!currentSlide?.config.webapp
@@ -95,7 +94,39 @@ export function PresenterView(): JSX.Element {
     }
   }, [currentSlideIndex])
 
-  // Sub-slides — compute and sync with store
+  // Sync artifact state to audience window
+  useEffect(() => {
+    window.electronAPI.syncPresenterArtifact(activeArtifact)
+  }, [activeArtifact])
+
+  // Mouse tracking — send relative position to audience window
+  const mainAreaRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = mainAreaRef.current
+    if (!el) return
+    let throttle: ReturnType<typeof setTimeout> | null = null
+    const onMove = (e: MouseEvent) => {
+      if (throttle) return
+      throttle = setTimeout(() => { throttle = null }, 50) // 20fps
+      const rect = el.getBoundingClientRect()
+      const x = (e.clientX - rect.left) / rect.width
+      const y = (e.clientY - rect.top) / rect.height
+      if (x >= 0 && x <= 1 && y >= 0 && y <= 1) {
+        window.electronAPI.syncPresenterMouse({ x, y, area: activeArtifact ? 'artifact' : 'slide' })
+      }
+    }
+    const onLeave = () => {
+      window.electronAPI.syncPresenterMouse(null)
+    }
+    el.addEventListener('mousemove', onMove)
+    el.addEventListener('mouseleave', onLeave)
+    return () => {
+      el.removeEventListener('mousemove', onMove)
+      el.removeEventListener('mouseleave', onLeave)
+    }
+  }, [activeArtifact])
+
+  // Sub-slides
   const { subSlides, currentSubSlide } = useSubSlides(
     currentSlide?.markdownContent ?? '',
     currentSlideIndex
@@ -120,10 +151,36 @@ export function PresenterView(): JSX.Element {
     ? currentGroup.slideIds.indexOf(currentSlide?.config.id ?? '') + 1
     : 0
 
+  // Open audience window
+  const openAudience = async () => {
+    if (presentation?.rootPath) {
+      window.electronAPI.sendPresenterPath(presentation.rootPath)
+    }
+    await window.electronAPI.openAudienceWindow()
+    // Sync current state after the audience window loads
+    setTimeout(() => {
+      window.electronAPI.syncPresenterSlide(currentSlideIndex)
+      window.electronAPI.syncPresenterArtifact(activeArtifact)
+    }, 800)
+    setAudienceOpen(true)
+  }
+
+  const closeAudience = async () => {
+    await window.electronAPI.closeAudienceWindow()
+    setAudienceOpen(false)
+  }
+
+  const endPresentation = () => {
+    setPresenting(false)
+    window.electronAPI.closeAudienceWindow()
+    const t = useUIStore.getState().theme
+    document.documentElement.setAttribute('data-theme', t)
+  }
+
   return (
     <div className="h-screen w-screen flex flex-col bg-black">
-      {/* Top bar — spans full width for consistent background */}
-      <div className="h-10 flex-shrink-0 bg-gray-900 border-b border-gray-800 flex items-center px-20 gap-3"
+      {/* Top bar */}
+      <div className="h-10 flex-shrink-0 bg-gray-900 border-b border-gray-800 flex items-center px-4 gap-3"
            style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
         <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           <button onClick={prevSlide} disabled={currentSlideIndex === 0}
@@ -142,7 +199,7 @@ export function PresenterView(): JSX.Element {
             </svg>
           </button>
         </div>
-        {/* Group label — uses group color */}
+
         {currentGroup && (
           <div className="flex items-center gap-2 px-3 py-1 rounded-full"
                style={{ backgroundColor: currentGroup.color || '#374151' }}>
@@ -150,29 +207,28 @@ export function PresenterView(): JSX.Element {
             <span className="text-xs text-white/60 font-medium">{groupSlideIndex}/{currentGroup.slideIds.length}</span>
           </div>
         )}
-        {/* Slide name + counters */}
-        <span className="text-gray-300 text-xs font-medium truncate max-w-[150px]">{currentSlide?.config.id}</span>
-        {subSlides.length > 1 && (
-          <span className="text-gray-500 text-[10px] font-mono">{currentSubSlide + 1}/{subSlides.length}</span>
-        )}
-        <span className="text-gray-600 text-[10px] font-mono">{currentSlideIndex + 1}/{slides.length}</span>
+
         <span className="text-gray-500 text-xs truncate flex-1">{presentation?.title}</span>
+
         <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-          <button onClick={() => setShowNotes(!showNotes)}
-            className={`text-xs px-2 py-0.5 rounded transition-colors ${showNotes ? 'bg-white text-black' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}>
-            Notes
+          {/* Audience window toggle */}
+          <button onClick={audienceOpen ? closeAudience : openAudience}
+            className={`px-2 py-1 text-[11px] rounded transition-colors flex items-center gap-1.5 ${
+              audienceOpen ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
+            }`}
+            title={audienceOpen ? 'Close audience window' : 'Open audience window on external display'}>
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25v1.007a3 3 0 0 1-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0 1 15 18.257V17.25m6-12V15a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 15V5.25A2.25 2.25 0 0 1 5.25 3h13.5A2.25 2.25 0 0 1 21 5.25Z" />
+            </svg>
+            {audienceOpen ? 'Audience On' : 'Audience'}
           </button>
+          <RemoteControlButton />
           <button onClick={() => setTimerRunning(!timerRunning)}
-            className="text-xs font-mono px-2 py-0.5 rounded bg-gray-800 text-gray-300">
+            className="text-xs font-mono px-2 py-1 rounded bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors">
             {formatTime(timer)}
           </button>
-          <button onClick={() => {
-            setPresenting(false)
-            window.electronAPI.closeAudienceWindow()
-            const t = useUIStore.getState().theme
-            document.documentElement.setAttribute('data-theme', t)
-          }}
-            className="px-3 py-1 text-xs bg-red-500 hover:bg-red-400 text-white rounded font-medium">
+          <button onClick={endPresentation}
+            className="px-3 py-1 text-xs bg-red-500 hover:bg-red-400 text-white rounded font-medium transition-colors">
             End
           </button>
         </div>
@@ -180,27 +236,10 @@ export function PresenterView(): JSX.Element {
 
       {/* Main area */}
       <div className="flex-1 min-h-0 flex overflow-hidden">
-        {activeArtifact && artifactExpanded ? (
-          /* Artifact expanded to full width */
-          <div className="flex-1 min-w-0">
-            <ArtifactPanel
-              activeArtifact={activeArtifact}
-              currentSlide={currentSlide}
-              presentation={presentation}
-              isExecuting={isExecuting}
-              isMarkdown={!!isMarkdown}
-              onRun={handleRun}
-              onCancel={cancelCode}
-            />
-          </div>
-        ) : activeArtifact ? (
-          <PanelGroup direction="horizontal" className="flex-1 min-w-0"
-            onLayout={(sizes) => { if (sizes[1] !== undefined) { setPanelSize(sizes[1]); if (activeArtifact) typeSizeMemory.current[activeArtifact] = sizes[1] } }}>
-            <Panel defaultSize={100 - panelSize} minSize={30}>
-              <PresenterSlide markdown={slideMarkdown} rootPath={rootPath} layout={layout} theme={presentation?.theme || 'dark'} />
-            </Panel>
-            <PanelResizeHandle className="w-1.5 bg-gray-800 hover:bg-indigo-500 transition-colors" />
-            <Panel defaultSize={panelSize} minSize={15}>
+        {/* Left: slides + artifacts area — mouse tracked for audience cursor */}
+        <div ref={mainAreaRef} className="flex-1 min-w-0 flex">
+          {activeArtifact && artifactExpanded ? (
+            <div className="flex-1 min-w-0" data-artifact-capture>
               <ArtifactPanel
                 activeArtifact={activeArtifact}
                 currentSlide={currentSlide}
@@ -210,129 +249,158 @@ export function PresenterView(): JSX.Element {
                 onRun={handleRun}
                 onCancel={cancelCode}
               />
-            </Panel>
-          </PanelGroup>
-        ) : (
-          <PresenterSlide markdown={slideMarkdown} rootPath={rootPath} layout={layout} theme={presentation?.theme || 'dark'} />
-        )}
-
-        {/* Artifact sidebar — always visible */}
-        <div className="flex flex-col items-center py-2 gap-1 w-9 flex-shrink-0 bg-gray-900 border-l border-gray-800">
-          {hasCode && (
-            <SidebarBtn active={activeArtifact === 'code'} onClick={() => {
-              const opening = activeArtifact !== 'code'
-              setActiveArtifact(opening ? 'code' : null); setArtifactExpanded(false)
-              if (opening) setPanelSize(typeSizeMemory.current.code)
-            }} title="Code">
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
-              </svg>
-            </SidebarBtn>
-          )}
-          {hasVideo && (
-            <SidebarBtn active={activeArtifact === 'video'} onClick={() => {
-              const opening = activeArtifact !== 'video'
-              setActiveArtifact(opening ? 'video' : null); setArtifactExpanded(false)
-              if (opening) setPanelSize(typeSizeMemory.current.video)
-            }} title="Video">
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />
-              </svg>
-            </SidebarBtn>
-          )}
-          {hasWebApp && (
-            <SidebarBtn active={activeArtifact === 'webapp'} onClick={() => {
-              const opening = activeArtifact !== 'webapp'
-              setActiveArtifact(opening ? 'webapp' : null); setArtifactExpanded(false)
-              if (opening) setPanelSize(typeSizeMemory.current.webapp)
-            }} title="Web">
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0 1 12 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 0 1 3 12c0-1.605.42-3.113 1.157-4.418" />
-              </svg>
-            </SidebarBtn>
-          )}
-          {hasPrompts && (
-            <SidebarBtn active={activeArtifact === 'prompt'} onClick={() => {
-              const opening = activeArtifact !== 'prompt'
-              setActiveArtifact(opening ? 'prompt' : null); setArtifactExpanded(false)
-              if (opening) setPanelSize(typeSizeMemory.current.prompt)
-            }} title="AI Prompt">
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
-              </svg>
-            </SidebarBtn>
-          )}
-          {hasArtifacts && (
-            <SidebarBtn active={activeArtifact === 'artifact'} onClick={() => {
-              const opening = activeArtifact !== 'artifact'
-              setActiveArtifact(opening ? 'artifact' : null); setArtifactExpanded(false)
-              if (opening) setPanelSize(typeSizeMemory.current.artifact)
-            }} title="Files">
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-              </svg>
-            </SidebarBtn>
-          )}
-
-          {/* Expand / collapse artifact panel */}
-          {activeArtifact && (
-            <>
-              <div className="w-5 h-px bg-gray-700 my-0.5" />
-              <SidebarBtn
-                active={artifactExpanded}
-                onClick={() => setArtifactExpanded(!artifactExpanded)}
-                title={artifactExpanded ? 'Split view' : 'Expand artifact'}
-              >
-                {artifactExpanded ? (
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25" />
-                  </svg>
-                ) : (
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
-                  </svg>
-                )}
-              </SidebarBtn>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Speaker notes panel */}
-      {showNotes && (
-        <div className="h-36 flex-shrink-0 bg-gray-900 border-t border-gray-800 overflow-y-auto px-6 py-3">
-          {currentSlide?.notesContent ? (
-            <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap">{currentSlide.notesContent}</p>
+            </div>
+          ) : activeArtifact ? (
+            <PanelGroup direction="horizontal" className="flex-1 min-w-0"
+              onLayout={(sizes) => { if (sizes[1] !== undefined) { setPanelSize(sizes[1]); if (activeArtifact) typeSizeMemory.current[activeArtifact] = sizes[1] } }}>
+              <Panel defaultSize={100 - panelSize} minSize={30}>
+                <PresenterSlide markdown={slideMarkdown} rootPath={rootPath} layout={layout} theme={presentation?.theme || 'dark'} />
+              </Panel>
+              <PanelResizeHandle className="w-1.5 bg-gray-800 hover:bg-indigo-500 transition-colors" />
+              <Panel defaultSize={panelSize} minSize={15} id="artifact-panel">
+                <div className="h-full" data-artifact-capture>
+                <ArtifactPanel
+                  activeArtifact={activeArtifact}
+                  currentSlide={currentSlide}
+                  presentation={presentation}
+                  isExecuting={isExecuting}
+                  isMarkdown={!!isMarkdown}
+                  onRun={handleRun}
+                  onCancel={cancelCode}
+                />
+                </div>
+              </Panel>
+            </PanelGroup>
           ) : (
-            <p className="text-gray-600 text-sm italic">No notes for this slide</p>
+            <PresenterSlide markdown={slideMarkdown} rootPath={rootPath} layout={layout} theme={presentation?.theme || 'dark'} />
+          )}
+
+          {/* Artifact sidebar */}
+          {hasAnyArtifact && (
+            <div className="flex flex-col items-center py-2 gap-1 w-9 flex-shrink-0 bg-gray-900 border-l border-gray-800">
+              {hasCode && (
+                <SidebarBtn active={activeArtifact === 'code'} onClick={() => {
+                  const opening = activeArtifact !== 'code'
+                  setActiveArtifact(opening ? 'code' : null); setArtifactExpanded(false)
+                  if (opening) setPanelSize(typeSizeMemory.current.code)
+                }} title="Code">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
+                  </svg>
+                </SidebarBtn>
+              )}
+              {hasVideo && (
+                <SidebarBtn active={activeArtifact === 'video'} onClick={() => {
+                  const opening = activeArtifact !== 'video'
+                  setActiveArtifact(opening ? 'video' : null); setArtifactExpanded(false)
+                  if (opening) setPanelSize(typeSizeMemory.current.video)
+                }} title="Video">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />
+                  </svg>
+                </SidebarBtn>
+              )}
+              {hasWebApp && (
+                <SidebarBtn active={activeArtifact === 'webapp'} onClick={() => {
+                  const opening = activeArtifact !== 'webapp'
+                  setActiveArtifact(opening ? 'webapp' : null); setArtifactExpanded(false)
+                  if (opening) setPanelSize(typeSizeMemory.current.webapp)
+                }} title="Web">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0 1 12 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 0 1 3 12c0-1.605.42-3.113 1.157-4.418" />
+                  </svg>
+                </SidebarBtn>
+              )}
+              {hasPrompts && (
+                <SidebarBtn active={activeArtifact === 'prompt'} onClick={() => {
+                  const opening = activeArtifact !== 'prompt'
+                  setActiveArtifact(opening ? 'prompt' : null); setArtifactExpanded(false)
+                  if (opening) setPanelSize(typeSizeMemory.current.prompt)
+                }} title="AI Prompt">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
+                  </svg>
+                </SidebarBtn>
+              )}
+              {hasArtifacts && (
+                <SidebarBtn active={activeArtifact === 'artifact'} onClick={() => {
+                  const opening = activeArtifact !== 'artifact'
+                  setActiveArtifact(opening ? 'artifact' : null); setArtifactExpanded(false)
+                  if (opening) setPanelSize(typeSizeMemory.current.artifact)
+                }} title="Files">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                  </svg>
+                </SidebarBtn>
+              )}
+              {activeArtifact && (
+                <>
+                  <div className="w-5 h-px bg-gray-700 my-0.5" />
+                  <SidebarBtn active={artifactExpanded} onClick={() => setArtifactExpanded(!artifactExpanded)}
+                    title={artifactExpanded ? 'Split view' : 'Expand artifact'}>
+                    {artifactExpanded ? (
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25" />
+                      </svg>
+                    ) : (
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                      </svg>
+                    )}
+                  </SidebarBtn>
+                  {/* Close artifact */}
+                  <SidebarBtn active={false} onClick={() => { setActiveArtifact(null); setArtifactExpanded(false) }}
+                    title="Close artifact">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                    </svg>
+                  </SidebarBtn>
+                </>
+              )}
+            </div>
           )}
         </div>
-      )}
 
-      {/* Bottom bar */}
-      <div className="h-10 flex items-center px-4 gap-3 flex-shrink-0 bg-gray-900 border-t border-gray-800">
-        <button onClick={prevSlide} disabled={currentSlideIndex === 0}
-          className="p-1 rounded hover:bg-gray-800 disabled:opacity-30 transition-colors">
-          <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
-          </svg>
-        </button>
-        <span className="text-white text-xs font-mono font-semibold min-w-[50px] text-center">
-          {currentSlideIndex + 1} / {slides.length}
-        </span>
-        <button onClick={nextSlide} disabled={currentSlideIndex === slides.length - 1}
-          className="p-1 rounded hover:bg-gray-800 disabled:opacity-30 transition-colors">
-          <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-          </svg>
-        </button>
-        <div className="w-px h-5 bg-gray-800" />
-        <span className="text-gray-600 text-[11px] truncate flex-1">{presentation?.title}</span>
-        <RemoteControlButton />
-        <button onClick={() => setPresenting(false)}
-          className="px-3 py-1 text-[11px] bg-gray-800 hover:bg-red-500 text-gray-400 hover:text-white rounded transition-colors">
-          End (Esc)
-        </button>
+        {/* Right panel: next slide preview + notes */}
+        <div className="w-80 flex-shrink-0 bg-gray-950 border-l border-gray-800 flex flex-col">
+          {/* Next slide preview */}
+          <div className="flex-shrink-0 border-b border-gray-800">
+            <div className="px-3 py-1.5 flex items-center gap-2">
+              <span className="text-[10px] text-gray-500 uppercase tracking-wider font-medium">Next</span>
+              {nextSlideData && (
+                <span className="text-[10px] text-gray-600 font-mono">{currentSlideIndex + 2}/{slides.length}</span>
+              )}
+            </div>
+            <div className="px-3 pb-3">
+              {nextSlideData ? (
+                <MiniSlide
+                  markdown={nextSlideData.markdownContent || ''}
+                  rootPath={rootPath}
+                  layout={nextSlideData.config.layout}
+                  theme={presentation?.theme || 'dark'}
+                />
+              ) : (
+                <div className="aspect-video rounded bg-gray-900 flex items-center justify-center">
+                  <span className="text-gray-600 text-xs">End of presentation</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Speaker notes — prominent, scrollable, fills remaining space */}
+          <div className="flex-1 min-h-0 flex flex-col">
+            <div className="px-3 py-1.5 flex items-center gap-2 flex-shrink-0">
+              <span className="text-[10px] text-gray-500 uppercase tracking-wider font-medium">Speaker Notes</span>
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4">
+              {currentSlide?.notesContent ? (
+                <p className="text-gray-200 text-sm leading-relaxed whitespace-pre-wrap">{currentSlide.notesContent}</p>
+              ) : (
+                <p className="text-gray-600 text-sm italic">No notes for this slide</p>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -352,7 +420,6 @@ function PresenterSlide({ markdown, rootPath, layout, theme }: {
   const PAD = 48
   const CONTENT_H = SLIDE_H - PAD * 2
 
-  // Scale the 16:9 frame to fit the container
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
@@ -369,7 +436,6 @@ function PresenterSlide({ markdown, rootPath, layout, theme }: {
     return () => ro.disconnect()
   }, [])
 
-  // Scale content down if it overflows the slide height
   useEffect(() => {
     const el = contentRef.current
     if (!el) return
@@ -413,6 +479,52 @@ function PresenterSlide({ markdown, rootPath, layout, theme }: {
               clickStep={usePresentationStore.getState().clickStep}
               onClickSteps={(total) => usePresentationStore.setState({ totalClickSteps: total })}
             />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** Small 16:9 slide preview for the "next slide" panel */
+function MiniSlide({ markdown, rootPath, layout, theme }: {
+  markdown: string; rootPath?: string; layout?: string; theme?: string
+}): JSX.Element {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [scale, setScale] = useState(0.2)
+
+  const SLIDE_W = 1280
+  const SLIDE_H = 720
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    const update = () => {
+      const cw = container.clientWidth
+      setScale(cw / SLIDE_W)
+    }
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(container)
+    return () => ro.disconnect()
+  }, [])
+
+  return (
+    <div ref={containerRef} className="w-full aspect-video rounded overflow-hidden relative" style={{ background: '#111' }}>
+      <div
+        data-slide-theme={theme || 'dark'}
+        className="absolute top-0 left-0 overflow-hidden"
+        style={{
+          width: SLIDE_W,
+          height: SLIDE_H,
+          transform: `scale(${scale})`,
+          transformOrigin: 'top left',
+        }}
+      >
+        <div className="absolute inset-0" style={{ background: 'var(--slide-bg)' }} />
+        <div className={`absolute inset-0 ${layout === 'blank' ? '' : 'p-12'} overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
+          <div style={{ width: SLIDE_W - 96 }}>
+            <SlideRenderer markdown={markdown} rootPath={rootPath} />
           </div>
         </div>
       </div>

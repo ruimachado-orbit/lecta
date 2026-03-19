@@ -1,13 +1,8 @@
 import { ipcMain, BrowserWindow } from 'electron'
-import { AIService } from '../services/ai-service'
+import { getSharedAIService } from '../services/ai-singleton'
 
-let aiService: AIService | null = null
-
-function getAIService(): AIService {
-  if (!aiService) {
-    aiService = new AIService()
-  }
-  return aiService
+function getAIService() {
+  return getSharedAIService()
 }
 
 export async function setAIDeckPath(deckPath: string): Promise<void> {
@@ -128,7 +123,23 @@ export function registerAiHandlers(): void {
     'ai:has-api-key',
     async (): Promise<boolean> => {
       const service = getAIService()
-      return service.hasApiKey()
+      return service.hasAnyApiKey()
+    }
+  )
+
+  ipcMain.handle(
+    'ai:get-provider-statuses',
+    async (): Promise<{ id: string; hasKey: boolean }[]> => {
+      const service = getAIService()
+      return service.getProviderStatuses()
+    }
+  )
+
+  ipcMain.handle(
+    'ai:set-model',
+    async (_event, model: string): Promise<void> => {
+      const service = getAIService()
+      service.setModel(model)
     }
   )
 

@@ -10,6 +10,7 @@ import { registerSlideLibraryHandlers } from './slide-library'
 import { registerRemoteControlHandlers } from './remote-control'
 import { registerGeminiImageHandlers } from './gemini-image'
 import { registerChatAgentHandlers } from './chat-agent'
+import { registerLibraryHandlers } from './library'
 
 export function registerAllIpcHandlers(): void {
   registerFileSystemHandlers()
@@ -24,4 +25,5 @@ export function registerAllIpcHandlers(): void {
   registerSlideLibraryHandlers()
   registerRemoteControlHandlers()
   registerChatAgentHandlers()
+  registerLibraryHandlers()
 }

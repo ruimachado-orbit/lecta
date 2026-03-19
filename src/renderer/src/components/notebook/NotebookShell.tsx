@@ -182,6 +182,8 @@ export function NotebookShell(): React.ReactElement {
 /** Add artifact button — same dropdown as presentation slides */
 function AddArtifactButton(): React.ReactElement {
   const [showMenu, setShowMenu] = useState(false)
+  const [videoUrlInput, setVideoUrlInput] = useState<string | null>(null)
+  const [webAppUrlInput, setWebAppUrlInput] = useState<string | null>(null)
   const { pages, currentPageIndex, addCodeToNote, addVideoToNote, addWebAppToNote } = useNotebookStore()
   const currentPage = pages[currentPageIndex]
 
@@ -241,35 +243,62 @@ function AddArtifactButton(): React.ReactElement {
               {/* Video */}
               {!hasVideo && (
                 <div className="px-1 border-t border-gray-800">
-                  <button className="w-full flex items-center gap-2.5 px-2 py-2 text-xs text-gray-300 hover:bg-gray-800 rounded transition-colors"
-                    onClick={() => {
-                      const url = prompt('YouTube URL:')
-                      if (url?.trim()) { addVideoToNote(url.trim()); setShowMenu(false) }
-                    }}>
-                    <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />
-                    </svg>
-                    Embed video
-                  </button>
+                  {videoUrlInput !== null ? (
+                    <div className="px-2 py-1.5">
+                      <div className="text-[10px] text-gray-500 mb-1">YouTube / video URL</div>
+                      <form onSubmit={(e) => {
+                        e.preventDefault()
+                        if (videoUrlInput.trim()) { addVideoToNote(videoUrlInput.trim()); setVideoUrlInput(null); setShowMenu(false) }
+                      }} className="flex gap-1">
+                        <input type="text" value={videoUrlInput} onChange={(e) => setVideoUrlInput(e.target.value)}
+                          placeholder="https://youtube.com/..." autoFocus
+                          className="flex-1 bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500"
+                          onKeyDown={(e) => { if (e.key === 'Escape') setVideoUrlInput(null) }} />
+                        <button type="submit" className="px-2 py-1 text-[10px] rounded bg-indigo-600 hover:bg-indigo-500 text-white">Add</button>
+                      </form>
+                    </div>
+                  ) : (
+                    <button className="w-full flex items-center gap-2.5 px-2 py-2 text-xs text-gray-300 hover:bg-gray-800 rounded transition-colors"
+                      onClick={() => setVideoUrlInput('')}>
+                      <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />
+                      </svg>
+                      Embed video
+                    </button>
+                  )}
                 </div>
               )}
 
               {/* Web App */}
               {!hasWebApp && (
                 <div className="px-1 border-t border-gray-800">
-                  <button className="w-full flex items-center gap-2.5 px-2 py-2 text-xs text-gray-300 hover:bg-gray-800 rounded transition-colors"
-                    onClick={() => {
-                      let url = prompt('Web app URL:')
-                      if (url?.trim()) {
-                        if (!url.match(/^https?:\/\//)) url = 'https://' + url
-                        addWebAppToNote(url); setShowMenu(false)
-                      }
-                    }}>
-                    <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582" />
-                    </svg>
-                    Embed website
-                  </button>
+                  {webAppUrlInput !== null ? (
+                    <div className="px-2 py-1.5">
+                      <div className="text-[10px] text-gray-500 mb-1">Website URL</div>
+                      <form onSubmit={(e) => {
+                        e.preventDefault()
+                        let url = (webAppUrlInput || '').trim()
+                        if (url) {
+                          if (!url.match(/^https?:\/\//)) url = 'https://' + url
+                          addWebAppToNote(url); setWebAppUrlInput(null); setShowMenu(false)
+                        }
+                      }} className="flex gap-1">
+                        <input type="text" value={webAppUrlInput} onChange={(e) => setWebAppUrlInput(e.target.value)}
+                          placeholder="https://example.com" autoFocus
+                          className="flex-1 bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500"
+                          onKeyDown={(e) => { if (e.key === 'Escape') setWebAppUrlInput(null) }} />
+                        <button type="submit" className="px-2 py-1 text-[10px] rounded bg-indigo-600 hover:bg-indigo-500 text-white">Add</button>
+                      </form>
+                    </div>
+                  ) : (
+                    <button className="w-full flex items-center gap-2.5 px-2 py-2 text-xs text-gray-300 hover:bg-gray-800 rounded transition-colors"
+                      onClick={() => setWebAppUrlInput('')}>
+                      <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582" />
+                      </svg>
+                      Embed website
+                    </button>
+                  )}
                 </div>
               )}
 

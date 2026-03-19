@@ -50,6 +50,18 @@ export async function addRecentItem(item: {
   const entry: RecentDeck = { ...item, date: new Date().toISOString() }
   recentDecks = [entry, ...recentDecks.filter((d) => d.path !== item.path)].slice(0, 20)
   await persistRecentDecks()
+
+  // Also register in the presentation library
+  try {
+    const { upsertLibraryEntry } = await import('./library')
+    await upsertLibraryEntry({
+      path: item.path,
+      title: item.title,
+      type: item.type,
+      slideCount: item.slideCount,
+      firstSlidePreview: item.firstSlidePreview,
+    })
+  } catch {}
 }
 
 async function persistRecentDecks(): Promise<void> {
@@ -309,16 +321,13 @@ export function registerFileSystemHandlers(): void {
       .slice(0, 5)
       .join('\n') || ''
 
-    const newEntry: RecentDeck = {
+    await addRecentItem({
       path: folderPath,
       title: config.title,
-      date: new Date().toISOString(),
       slideCount: config.slides.length,
       firstSlidePreview: preview.slice(0, 200),
       artifacts: Array.from(allArtifacts)
-    }
-    recentDecks = [newEntry, ...recentDecks.filter((d) => d.path !== folderPath)].slice(0, 10)
-    await persistRecentDecks()
+    })
     await setAIDeckPath(folderPath)
     await setGeminiDeckPath(folderPath)
 

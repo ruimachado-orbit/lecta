@@ -4,6 +4,8 @@ import { useNotebookStore } from '../../stores/notebook-store'
 import { useUIStore, COLOR_PALETTES } from '../../stores/ui-store'
 import { useChatStore } from '../../stores/chat-store'
 import { useTabsStore } from '../../stores/tabs-store'
+import { ModelSelector } from '../ai/ModelSelector'
+import { MyPresentations } from '../library/MyPresentations'
 
 interface RecentDeck {
   path: string
@@ -18,13 +20,22 @@ interface RecentDeck {
 export function HomeScreen(): JSX.Element {
   const { openFolder, loadPresentation, isLoading, error } = usePresentationStore()
   const { loadNotebook } = useNotebookStore()
+  const pendingGeneratePrompt = useUIStore((s) => s.pendingGeneratePrompt)
   const [recentDecks, setRecentDecks] = useState<RecentDeck[]>([])
   const [showCreate, setShowCreate] = useState(false)
   const [createType, setCreateType] = useState<'presentation' | 'notebook'>('presentation')
   const [showSettings, setShowSettings] = useState(false)
   const [showAIGenerate, setShowAIGenerate] = useState(false)
+  const [showLibrary, setShowLibrary] = useState(false)
   const [newName, setNewName] = useState('')
   const [createError, setCreateError] = useState<string | null>(null)
+
+  // Auto-open AI Generate panel when a pending prompt arrives from the chat
+  useEffect(() => {
+    if (pendingGeneratePrompt) {
+      setShowAIGenerate(true)
+    }
+  }, [pendingGeneratePrompt])
 
   useEffect(() => {
     window.electronAPI.getRecentDecks().then((decks: any[]) => {
@@ -69,6 +80,10 @@ export function HomeScreen(): JSX.Element {
     } catch (err) {
       setCreateError((err as Error).message)
     }
+  }
+
+  if (showLibrary) {
+    return <MyPresentations onBack={() => setShowLibrary(false)} />
   }
 
   if (showSettings) {
@@ -156,6 +171,19 @@ export function HomeScreen(): JSX.Element {
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
             </svg>
             Generate with AI
+          </button>
+
+          {/* My Presentations button */}
+          <button
+            onClick={() => setShowLibrary(true)}
+            className="w-full py-2.5 px-4 bg-gray-800 hover:bg-gray-700
+                       text-gray-300 hover:text-white font-medium rounded-full transition-all text-sm
+                       flex items-center justify-center gap-2 border border-gray-700"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
+            </svg>
+            My Presentations
           </button>
 
           {showCreate && (
@@ -445,7 +473,7 @@ function ChatInput(): JSX.Element {
   }
 
   return (
-    <div className="mb-6">
+    <div className="mb-6 space-y-2">
       <div className="flex items-center gap-2 bg-gray-900 border border-gray-700 rounded-full px-4 py-2 focus-within:border-indigo-500 transition-colors">
         <svg className="w-4 h-4 text-indigo-400 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
           <path d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
@@ -458,6 +486,7 @@ function ChatInput(): JSX.Element {
           placeholder="Ask Lecta AI anything..."
           className="flex-1 bg-transparent text-sm text-gray-200 placeholder-gray-600 focus:outline-none"
         />
+        <ModelSelector compact />
         <button
           onClick={handleSend}
           disabled={!value.trim()}
@@ -473,6 +502,7 @@ function ChatInput(): JSX.Element {
 }
 
 function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenerated: (workspaceDir: string) => void }): JSX.Element {
+  const pendingPrompt = useUIStore((s) => s.pendingGeneratePrompt)
   const [prompt, setPrompt] = useState('')
   const [title, setTitle] = useState('')
   const [slideCount, setSlideCount] = useState(10)
@@ -481,6 +511,14 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
   const [isGenerating, setIsGenerating] = useState(false)
   const [progress, setProgress] = useState<{ status: string; slideIndex: number; total: number } | null>(null)
   const [genError, setGenError] = useState<string | null>(null)
+
+  // Consume pending prompt from chat selection
+  useEffect(() => {
+    if (pendingPrompt) {
+      setPrompt(pendingPrompt)
+      useUIStore.getState().setPendingGeneratePrompt(null)
+    }
+  }, [pendingPrompt])
 
   const handleSelectFile = useCallback(async () => {
     const filePath = await window.electronAPI.selectFile()
@@ -635,18 +673,37 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
             )}
           </div>
 
+          {/* AI Model */}
+          <div className="flex items-center justify-between">
+            <label className="text-sm text-gray-300">AI Model</label>
+            <ModelSelector direction="down" />
+          </div>
+
           {/* Slide count */}
           <div className="flex items-center justify-between">
             <label className="text-sm text-gray-300">Number of slides</label>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setSlideCount(Math.max(3, slideCount - 1))}
+                onClick={() => setSlideCount(Math.max(1, slideCount - 1))}
                 disabled={isGenerating}
                 className="w-7 h-7 rounded bg-gray-800 hover:bg-gray-700 text-gray-400 text-sm flex items-center justify-center disabled:opacity-30"
               >-</button>
-              <span className="text-sm text-gray-300 w-6 text-center">{slideCount}</span>
+              <input
+                type="number"
+                min={1}
+                max={50}
+                value={slideCount}
+                onChange={(e) => {
+                  const v = parseInt(e.target.value, 10)
+                  if (!isNaN(v)) setSlideCount(Math.max(1, Math.min(50, v)))
+                }}
+                disabled={isGenerating}
+                className="w-10 text-center text-sm text-gray-300 bg-gray-900 border border-gray-700 rounded py-0.5
+                           focus:border-indigo-500 focus:outline-none disabled:opacity-30
+                           [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
               <button
-                onClick={() => setSlideCount(Math.min(30, slideCount + 1))}
+                onClick={() => setSlideCount(Math.min(50, slideCount + 1))}
                 disabled={isGenerating}
                 className="w-7 h-7 rounded bg-gray-800 hover:bg-gray-700 text-gray-400 text-sm flex items-center justify-center disabled:opacity-30"
               >+</button>
@@ -734,40 +791,80 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
   )
 }
 
+const PROVIDER_META: Record<string, { name: string; placeholder: string; icon: string; description: string }> = {
+  anthropic:   { name: 'Anthropic',    placeholder: 'sk-ant-...',  icon: 'A', description: 'Claude Sonnet 4, Opus 4, Haiku 4' },
+  openai:      { name: 'OpenAI',       placeholder: 'sk-proj-...', icon: 'O', description: 'GPT-4o, o3, o4-mini' },
+  google:      { name: 'Google Gemini', placeholder: 'AIza...',    icon: 'G', description: 'Gemini 2.5 Pro, Flash' },
+  mistral:     { name: 'Mistral',      placeholder: 'key-...',    icon: 'M', description: 'Mistral Large, Medium, Small' },
+  meta:        { name: 'Meta Llama',   placeholder: 'LA-...',     icon: 'L', description: 'Llama 4 Maverick, Scout, 3.3' },
+  xai:         { name: 'xAI',          placeholder: 'xai-...',    icon: 'X', description: 'Grok 3, Grok 3 Mini' },
+  perplexity:  { name: 'Perplexity',   placeholder: 'pplx-...',   icon: 'P', description: 'Sonar Pro, Sonar Reasoning' },
+}
+
+const PROVIDER_KEY_FIELDS: Record<string, string> = {
+  anthropic:   'anthropicApiKey',
+  openai:      'openaiApiKey',
+  google:      'geminiApiKey',
+  mistral:     'mistralApiKey',
+  meta:        'llamaApiKey',
+  xai:         'xaiApiKey',
+  perplexity:  'perplexityApiKey',
+}
+
+const ALL_PROVIDER_IDS = ['anthropic', 'openai', 'google', 'mistral', 'meta', 'xai', 'perplexity']
+
 function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
-  const { theme, setTheme, palette, setPalette, fontSize, setFontSize } = useUIStore()
-  const [apiKey, setApiKey] = useState('')
-  const [aiModel, setAiModel] = useState('')
+  const { theme, setTheme, palette, setPalette, fontSize, setFontSize, refreshProviderStatuses, providerStatuses } = useUIStore()
   const [nativeExec, setNativeExec] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [editingProvider, setEditingProvider] = useState<string | null>(null)
+  const [editingKey, setEditingKey] = useState('')
+  const [keys, setKeys] = useState<Record<string, string>>({})
 
-  // Load settings from disk on mount
   useEffect(() => {
     window.electronAPI.getAppSettings().then((settings) => {
-      setApiKey((settings.anthropicApiKey as string) || '')
-      setAiModel((settings.aiModel as string) || 'claude-sonnet-4-20250514')
       setNativeExec((settings.nativeExecutionEnabled as boolean) || false)
-      // Sync UI store from persisted settings
       if (settings.theme === 'light' || settings.theme === 'dark') {
         setTheme(settings.theme)
       }
       if (typeof settings.fontSize === 'number') {
         setFontSize(settings.fontSize)
       }
+      // Load all keys
+      const loadedKeys: Record<string, string> = {}
+      for (const id of ALL_PROVIDER_IDS) {
+        const field = PROVIDER_KEY_FIELDS[id]
+        if (field) loadedKeys[id] = (settings[field] as string) || ''
+      }
+      setKeys(loadedKeys)
     })
+    refreshProviderStatuses()
   }, [])
 
   const handleSave = async () => {
     await window.electronAPI.setAppSettings({
       theme,
-      anthropicApiKey: apiKey,
-      aiModel,
       nativeExecutionEnabled: nativeExec,
       fontSize,
       palette: palette.name
     })
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
+  }
+
+  const handleSaveKey = async (providerId: string, key: string) => {
+    const field = PROVIDER_KEY_FIELDS[providerId]
+    if (!field) return
+    await window.electronAPI.setAppSettings({ [field]: key })
+    setKeys((prev) => ({ ...prev, [providerId]: key }))
+    setEditingProvider(null)
+    setEditingKey('')
+    await refreshProviderStatuses()
+  }
+
+  const openKeyModal = (providerId: string) => {
+    setEditingProvider(providerId)
+    setEditingKey(keys[providerId] || '')
   }
 
   return (
@@ -793,7 +890,6 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
           <section>
             <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-4">Appearance</h3>
             <div className="space-y-4">
-              {/* Theme */}
               <div className="flex items-center justify-between">
                 <label className="text-sm text-gray-300">Theme</label>
                 <div className="flex gap-1 bg-gray-900 rounded-lg p-0.5 border border-gray-800">
@@ -816,7 +912,6 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
                 </div>
               </div>
 
-              {/* Accent color */}
               <div className="flex items-center justify-between">
                 <label className="text-sm text-gray-300">Accent</label>
                 <div className="flex gap-2">
@@ -834,7 +929,6 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
                 </div>
               </div>
 
-              {/* Font size */}
               <div className="flex items-center justify-between">
                 <label className="text-sm text-gray-300">Editor font size</label>
                 <div className="flex items-center gap-2">
@@ -856,38 +950,37 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
             </div>
           </section>
 
-          {/* AI */}
+          {/* AI Providers */}
           <section>
-            <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-4">AI</h3>
-            <div className="space-y-4">
-              {/* API Key */}
-              <div>
-                <label className="text-sm text-gray-300 block mb-1.5">Anthropic API Key</label>
-                <input
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="sk-ant-..."
-                  className="w-full px-3 py-2 bg-gray-900 text-gray-300 text-sm rounded-lg border border-gray-700
-                             focus:border-white focus:outline-none placeholder-gray-600"
-                />
-                <p className="text-[10px] text-gray-600 mt-1">Can also be set per-deck via a .env file</p>
-              </div>
+            <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-4">AI Providers</h3>
+            <p className="text-[10px] text-gray-600 mb-3">Configure API keys for the LLM providers you want to use. Keys can also be set per-deck via a .env file.</p>
+            <div className="grid grid-cols-2 gap-3">
+              {ALL_PROVIDER_IDS.map((id) => {
+                const meta = PROVIDER_META[id]
+                const status = providerStatuses.find((s) => s.id === id)
+                const connected = status?.hasKey ?? false
 
-              {/* Model */}
-              <div>
-                <label className="text-sm text-gray-300 block mb-1.5">Model</label>
-                <select
-                  value={aiModel}
-                  onChange={(e) => setAiModel(e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-900 text-gray-300 text-sm rounded-lg border border-gray-700
-                             focus:border-white focus:outline-none"
-                >
-                  <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
-                  <option value="claude-opus-4-20250514">Claude Opus 4</option>
-                  <option value="claude-haiku-4-20250414">Claude Haiku 4</option>
-                </select>
-              </div>
+                return (
+                  <button
+                    key={id}
+                    onClick={() => openKeyModal(id)}
+                    className="text-left p-3 rounded-xl border border-gray-800 bg-gray-900 hover:border-gray-600
+                               hover:bg-gray-800 transition-all group"
+                  >
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <div className="w-7 h-7 rounded-lg bg-gray-800 flex items-center justify-center text-xs font-bold text-gray-300 group-hover:bg-gray-700">
+                        {meta.icon}
+                      </div>
+                      <span className="text-sm font-medium text-gray-200 flex-1">{meta.name}</span>
+                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
+                    </div>
+                    <p className="text-[10px] text-gray-500 leading-tight">{meta.description}</p>
+                    <p className={`text-[10px] mt-1 ${connected ? 'text-green-400' : 'text-gray-600'}`}>
+                      {connected ? 'Connected' : 'Not configured'}
+                    </p>
+                  </button>
+                )
+              })}
             </div>
           </section>
 
@@ -923,6 +1016,63 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
           </div>
         </div>
       </div>
+
+      {/* API Key Modal */}
+      {editingProvider && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => setEditingProvider(null)}
+          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+        >
+          <div
+            className="w-full max-w-md mx-4 bg-gray-900 border border-gray-700 rounded-xl p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-8 h-8 rounded-lg bg-gray-800 flex items-center justify-center text-sm font-bold text-gray-300">
+                {PROVIDER_META[editingProvider]?.icon}
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-white">{PROVIDER_META[editingProvider]?.name} API Key</h3>
+                <p className="text-[10px] text-gray-500">{PROVIDER_META[editingProvider]?.description}</p>
+              </div>
+            </div>
+
+            <input
+              type="password"
+              value={editingKey}
+              onChange={(e) => setEditingKey(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleSaveKey(editingProvider, editingKey) }}
+              placeholder={PROVIDER_META[editingProvider]?.placeholder}
+              autoFocus
+              className="w-full px-3 py-2.5 bg-gray-950 text-gray-300 text-sm rounded-lg border border-gray-700
+                         focus:border-indigo-500 focus:outline-none placeholder-gray-600 mb-4"
+            />
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleSaveKey(editingProvider, editingKey)}
+                className="flex-1 py-2 bg-white hover:bg-gray-200 text-black font-medium rounded-lg transition-colors text-sm"
+              >
+                Save Key
+              </button>
+              {keys[editingProvider] && (
+                <button
+                  onClick={() => handleSaveKey(editingProvider, '')}
+                  className="px-4 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 font-medium rounded-lg transition-colors text-sm border border-red-600/30"
+                >
+                  Remove
+                </button>
+              )}
+              <button
+                onClick={() => setEditingProvider(null)}
+                className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium rounded-lg transition-colors text-sm"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

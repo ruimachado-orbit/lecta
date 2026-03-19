@@ -1,15 +1,10 @@
 import { ipcMain, BrowserWindow } from 'electron'
-import { AIService } from '../services/ai-service'
+import { getSharedAIService } from '../services/ai-singleton'
 import type Anthropic from '@anthropic-ai/sdk'
 import type { PresentationSnapshot, ChatStreamEvent } from '../../../packages/shared/src/types/chat'
 
-let aiService: AIService | null = null
-
-function getAIService(): AIService {
-  if (!aiService) {
-    aiService = new AIService()
-  }
-  return aiService
+function getAIService() {
+  return getSharedAIService()
 }
 
 // Map of pending confirmations: toolCallId -> resolve function

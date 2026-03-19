@@ -6,6 +6,7 @@ export interface SlideSnapshot {
   notesContent: string | null
   layout: string
   transition: string
+  renderedHtml?: string
 }
 
 export interface PresentationSnapshot {

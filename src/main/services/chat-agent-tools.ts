@@ -88,8 +88,48 @@ const getSlideContent: ToolDefinition = {
     if (slide.notesContent) {
       result += `\n\nSpeaker Notes:\n${slide.notesContent}`
     }
+    if (slide.renderedHtml) {
+      const html = slide.renderedHtml.length > 4000
+        ? slide.renderedHtml.slice(0, 4000) + '\n... (truncated)'
+        : slide.renderedHtml
+      result += `\n\nRendered HTML (what the user sees):\n${html}`
+    }
 
     return { success: true, result }
+  }
+}
+
+const getSlideHtml: ToolDefinition = {
+  schema: {
+    name: 'get_slide_html',
+    description:
+      'Get the rendered HTML of the current slide as displayed to the user. This shows the actual DOM structure including how tables, lists, and other elements are laid out. Only available for the currently viewed slide.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {},
+      required: []
+    }
+  },
+  isMutation: false,
+  execute: async (_input, context) => {
+    const idx = context.snapshot.currentSlideIndex
+    const slide = context.snapshot.slides[idx]
+    if (!slide) {
+      return { success: false, result: `Current slide ${idx} not found.` }
+    }
+    if (!slide.renderedHtml) {
+      return {
+        success: true,
+        result: `Rendered HTML not available. Here is the markdown source instead:\n${slide.markdownContent}`
+      }
+    }
+    const html = slide.renderedHtml.length > 6000
+      ? slide.renderedHtml.slice(0, 6000) + '\n... (truncated)'
+      : slide.renderedHtml
+    return {
+      success: true,
+      result: `Rendered HTML of slide ${idx + 1} (${slide.id}):\n${html}`
+    }
   }
 }
 
@@ -609,6 +649,7 @@ const generateSlides: ToolDefinition = {
 const allTools: ToolDefinition[] = [
   getPresentationInfo,
   getSlideContent,
+  getSlideHtml,
   navigateToSlide,
   editSlideContent,
   improveSlide,

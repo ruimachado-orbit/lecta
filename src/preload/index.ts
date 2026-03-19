@@ -116,6 +116,10 @@ const api = {
     ipcRenderer.invoke('ai:improve-slide', slideContent, deckTitle, userPrompt, artifactContext),
   hasApiKey: (): Promise<boolean> =>
     ipcRenderer.invoke('ai:has-api-key'),
+  getProviderStatuses: (): Promise<{ id: string; hasKey: boolean }[]> =>
+    ipcRenderer.invoke('ai:get-provider-statuses'),
+  setAIModel: (model: string): Promise<void> =>
+    ipcRenderer.invoke('ai:set-model', model),
   generateInlineText: (prompt: string, slideContent: string, deckTitle: string): Promise<string> =>
     ipcRenderer.invoke('ai:generate-inline-text', prompt, slideContent, deckTitle),
   runPrompt: (
@@ -201,6 +205,21 @@ const api = {
   sendPresenterPath: (rootPath: string): void => {
     ipcRenderer.send('presenter:send-path', rootPath)
   },
+  syncPresenterArtifact: (artifact: string | null): void => {
+    ipcRenderer.send('presenter:sync-artifact', artifact)
+  },
+  onPresenterArtifactSync: (callback: (artifact: string | null) => void): void => {
+    ipcRenderer.on('presenter:sync-artifact', (_event, artifact: string | null) => callback(artifact))
+  },
+  syncPresenterMouse: (pos: { x: number; y: number; area: string } | null): void => {
+    ipcRenderer.send('presenter:sync-mouse', pos)
+  },
+  onPresenterMouseSync: (callback: (pos: { x: number; y: number; area: string } | null) => void): void => {
+    ipcRenderer.on('presenter:sync-mouse', (_event, pos: { x: number; y: number; area: string } | null) => callback(pos))
+  },
+  onPresenterArtifactFrame: (callback: (base64: string, width: number, height: number) => void): void => {
+    ipcRenderer.on('presenter:artifact-frame', (_event, base64: string, width: number, height: number) => callback(base64, width, height))
+  },
 
   // File watcher
   onFileChanged: (callback: (filePath: string, content: string) => void): void => {
@@ -284,6 +303,40 @@ const api = {
     ipcRenderer.invoke('library:delete-slide', id),
   renameLibrarySlide: (id: string, newName: string): Promise<void> =>
     ipcRenderer.invoke('library:rename-slide', id, newName),
+
+  // Presentation Library
+  getLibrary: (): Promise<{ folders: any[]; entries: any[] }> =>
+    ipcRenderer.invoke('library:get'),
+  createLibraryFolder: (name: string, parentId: string | null, color?: string): Promise<any> =>
+    ipcRenderer.invoke('library:create-folder', name, parentId, color),
+  renameLibraryFolder: (folderId: string, name: string): Promise<void> =>
+    ipcRenderer.invoke('library:rename-folder', folderId, name),
+  deleteLibraryFolder: (folderId: string): Promise<void> =>
+    ipcRenderer.invoke('library:delete-folder', folderId),
+  setLibraryFolderColor: (folderId: string, color: string): Promise<void> =>
+    ipcRenderer.invoke('library:set-folder-color', folderId, color),
+  moveLibraryEntry: (entryId: string, folderId: string | null): Promise<void> =>
+    ipcRenderer.invoke('library:move-entry', entryId, folderId),
+  setLibraryEntryTags: (entryId: string, tags: string[]): Promise<void> =>
+    ipcRenderer.invoke('library:set-tags', entryId, tags),
+  addLibraryEntryTag: (entryId: string, tag: string): Promise<void> =>
+    ipcRenderer.invoke('library:add-tag', entryId, tag),
+  removeLibraryEntryTag: (entryId: string, tag: string): Promise<void> =>
+    ipcRenderer.invoke('library:remove-tag', entryId, tag),
+  deleteLibraryEntry: (entryId: string, deleteFile: boolean): Promise<void> =>
+    ipcRenderer.invoke('library:delete-entry', entryId, deleteFile),
+  renameLibraryEntry: (entryId: string, title: string): Promise<void> =>
+    ipcRenderer.invoke('library:rename-entry', entryId, title),
+  getAllLibraryTags: (): Promise<string[]> =>
+    ipcRenderer.invoke('library:get-all-tags'),
+  importLectaFiles: (): Promise<number> =>
+    ipcRenderer.invoke('library:import-lecta-files'),
+  getTagColors: (): Promise<Record<string, string>> =>
+    ipcRenderer.invoke('library:get-tag-colors'),
+  setTagColor: (tag: string, color: string): Promise<void> =>
+    ipcRenderer.invoke('library:set-tag-color', tag, color),
+  deleteFolderWithEntries: (folderId: string, deleteEntries: boolean): Promise<void> =>
+    ipcRenderer.invoke('library:delete-folder-with-entries', folderId, deleteEntries),
 
   // Remote control
   startRemote: (): Promise<string> =>

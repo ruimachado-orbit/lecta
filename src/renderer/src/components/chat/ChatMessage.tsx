@@ -37,6 +37,7 @@ export function ChatMessageComponent({ message }: { message: ChatMessageType }):
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div
+        data-chat-role={message.role}
         className={`max-w-[90%] rounded-lg px-3 py-2 ${
           isUser ? 'bg-indigo-600 text-white' : 'text-gray-300'
         }`}

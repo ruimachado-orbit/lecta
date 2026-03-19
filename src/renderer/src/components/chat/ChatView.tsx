@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from 'react'
 import { useChatStore, type ChatTab } from '../../stores/chat-store'
 import { ChatMessageComponent } from './ChatMessage'
 import { ConfirmationBanner, ActionModeToggle, ChatWelcome } from './ChatPanel'
+import { ModelSelector } from '../ai/ModelSelector'
+import { SelectionToolbar } from './SelectionToolbar'
 
 /**
  * Full-screen chat view — replaces HomeScreen when the user starts a conversation.
@@ -171,6 +173,8 @@ function ChatTabContent({
         )}
       </div>
 
+      <SelectionToolbar />
+
       {/* Confirmation */}
       {tab.pendingConfirmation && (
         <ConfirmationBanner />
@@ -178,29 +182,34 @@ function ChatTabContent({
 
       {/* Input */}
       <div className="border-t border-gray-800 p-3 flex-shrink-0">
-        <div className="max-w-2xl mx-auto flex items-end gap-2">
-          <ActionModeToggle />
-          <textarea
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Ask Lecta AI..."
-            rows={1}
-            className="flex-1 resize-none bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500 max-h-32 overflow-y-auto"
-            style={{ minHeight: '42px' }}
-            disabled={tab.isStreaming}
-          />
-          <button
-            onClick={handleSend}
-            disabled={!input.trim() || tab.isStreaming}
-            className="w-9 h-9 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-800 disabled:text-gray-600 text-white flex items-center justify-center transition-colors flex-shrink-0"
-            title="Send"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
-            </svg>
-          </button>
+        <div className="max-w-2xl mx-auto space-y-2">
+          <div className="flex items-center gap-2">
+            <ActionModeToggle />
+            <ModelSelector compact />
+          </div>
+          <div className="flex items-end gap-2">
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Ask Lecta AI..."
+              rows={1}
+              className="flex-1 resize-none bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500 max-h-32 overflow-y-auto"
+              style={{ minHeight: '42px' }}
+              disabled={tab.isStreaming}
+            />
+            <button
+              onClick={handleSend}
+              disabled={!input.trim() || tab.isStreaming}
+              className="w-9 h-9 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-800 disabled:text-gray-600 text-white flex items-center justify-center transition-colors flex-shrink-0"
+              title="Send"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
     </div>

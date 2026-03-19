@@ -75,25 +75,39 @@ function makeTab(title?: string): ChatTab {
   }
 }
 
+/** Capture a simplified HTML snapshot of the currently rendered slide DOM (page-agent inspired). */
+function captureSlideHtml(): string | undefined {
+  try {
+    const slideEl = document.querySelector('.slide-content')
+    if (!slideEl) return undefined
+    return slideEl.innerHTML
+  } catch {
+    return undefined
+  }
+}
+
 function buildSnapshot(): PresentationSnapshot {
   const presStore = usePresentationStore.getState()
   const presentation = presStore.presentation
   const slides = presStore.slides
+  const currentIdx = presStore.currentSlideIndex
+  const currentRenderedHtml = captureSlideHtml()
 
   return {
     title: presentation?.title || 'Untitled',
     author: presentation?.author || 'Unknown',
     theme: presentation?.theme || 'default',
     rootPath: presentation?.rootPath || '',
-    currentSlideIndex: presStore.currentSlideIndex,
-    slides: slides.map((s: any): SlideSnapshot => ({
+    currentSlideIndex: currentIdx,
+    slides: slides.map((s: any, i: number): SlideSnapshot => ({
       id: s.config.id,
       markdownContent: s.markdownContent || '',
       codeContent: s.codeContent || null,
       codeLanguage: s.codeLanguage || null,
       notesContent: s.notesContent || null,
       layout: s.config.layout || 'default',
-      transition: s.config.transition || 'none'
+      transition: s.config.transition || 'none',
+      ...(i === currentIdx && currentRenderedHtml ? { renderedHtml: currentRenderedHtml } : {})
     }))
   }
 }

@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { useChatStore } from '../../stores/chat-store'
 import { ChatMessageComponent } from './ChatMessage'
+import { ModelSelector } from '../ai/ModelSelector'
+import { SelectionToolbar } from './SelectionToolbar'
 
 const QUICK_ACTIONS = [
   { label: 'Improve this slide', message: 'Improve the current slide to be clearer and more impactful' },
@@ -205,33 +207,39 @@ export function ChatSidebarPanel(): JSX.Element {
         )}
       </div>
 
+      <SelectionToolbar />
       <ConfirmationBanner />
 
       {/* Input area */}
       <div className="border-t border-gray-800 p-2 flex-shrink-0">
-        <div className="flex items-end gap-1.5">
-          <ActionModeToggle />
-          <textarea
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Ask Lecta AI..."
-            rows={1}
-            className="flex-1 resize-none bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500 max-h-24 overflow-y-auto"
-            style={{ minHeight: '36px' }}
-            disabled={activeTab?.isStreaming}
-          />
-          <button
-            onClick={handleSend}
-            disabled={!input.trim() || activeTab?.isStreaming}
-            className="w-8 h-8 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-800 disabled:text-gray-600 text-white flex items-center justify-center transition-colors flex-shrink-0"
-            title="Send"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
-            </svg>
-          </button>
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-1.5">
+            <ActionModeToggle />
+            <ModelSelector compact />
+          </div>
+          <div className="flex items-end gap-1.5">
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Ask Lecta AI..."
+              rows={1}
+              className="flex-1 resize-none bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500 max-h-24 overflow-y-auto"
+              style={{ minHeight: '36px' }}
+              disabled={activeTab?.isStreaming}
+            />
+            <button
+              onClick={handleSend}
+              disabled={!input.trim() || activeTab?.isStreaming}
+              className="w-8 h-8 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-800 disabled:text-gray-600 text-white flex items-center justify-center transition-colors flex-shrink-0"
+              title="Send"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
     </div>

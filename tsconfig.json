@@ -10,6 +10,7 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "react-jsx",
+    "jsxImportSource": "react",
     "declaration": true,
     "sourceMap": true,
     "outDir": "./dist",
@@ -19,6 +20,7 @@
     }
   },
   "include": [
+    "src/global.d.ts",
     "packages/shared/src/**/*",
     "src/main/**/*",
     "src/preload/**/*",

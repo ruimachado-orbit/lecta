@@ -109,7 +109,18 @@ export function SlidePanel(): JSX.Element {
     )
   }
 
-  const activeMarkdown = subSlides[currentSubSlide]?.markdown ?? currentSlide.markdownContent
+  // Extract positioned image/textbox/shape comments from the full markdown
+  // so they appear on every sub-slide (they're global to the slide, not tied to a section)
+  const fullMd = currentSlide.markdownContent
+  const globalComments: string[] = []
+  fullMd.replace(/<!--\s*image\s[^>]*-->/gi, (m) => { globalComments.push(m); return '' })
+  fullMd.replace(/<!--\s*textbox[\s\S]*?\/textbox\s*-->/gi, (m) => { globalComments.push(m); return '' })
+  fullMd.replace(/<!--\s*shape\s[^>]*-->/gi, (m) => { globalComments.push(m); return '' })
+
+  const subSlideMarkdown = subSlides[currentSubSlide]?.markdown ?? currentSlide.markdownContent
+  const activeMarkdown = globalComments.length > 0
+    ? subSlideMarkdown + '\n' + globalComments.join('\n')
+    : subSlideMarkdown
 
   return (
     <div className="h-full flex flex-col bg-gray-950">
@@ -307,6 +318,47 @@ export function SlidePanel(): JSX.Element {
   )
 }
 
+/** Read-only overlay for positioned images — renders outside content scaling so images appear at correct slide coordinates */
+function PositionedImagesOverlay({ markdown, rootPath, pad }: { markdown: string; rootPath?: string; pad: number }): JSX.Element | null {
+  const regex = /<!--\s*image\s+x=(-?\d+)\s+y=(-?\d+)\s+w=(\d+)\s+src=([^\s]+)(?:\s+border=([^\s]+))?(?:\s+radius=(\d+))?\s*-->/gi
+  const images: { x: number; y: number; w: number; src: string; border?: string; radius?: number }[] = []
+  let match
+  while ((match = regex.exec(markdown)) !== null) {
+    images.push({
+      x: parseInt(match[1]), y: parseInt(match[2]), w: parseInt(match[3]),
+      src: match[4],
+      border: match[5]?.replace(/_/g, ' '),
+      radius: match[6] ? parseInt(match[6]) : undefined,
+    })
+  }
+  if (images.length === 0) return null
+
+  const resolve = (src: string) => {
+    if (src.startsWith('http') || src.startsWith('data:') || src.startsWith('lecta-file://')) return src
+    if (rootPath) return `lecta-file://${rootPath}/${src}`
+    return src
+  }
+
+  return (
+    <div className="absolute inset-0" style={{ padding: pad, zIndex: 8, pointerEvents: 'none' }}>
+      {images.map((img, i) => (
+        <img
+          key={`pimg-${i}`}
+          src={resolve(img.src)}
+          style={{
+            position: 'absolute',
+            left: img.x,
+            top: img.y,
+            width: img.w,
+            border: img.border || undefined,
+            borderRadius: img.radius || undefined,
+          }}
+        />
+      ))}
+    </div>
+  )
+}
+
 /** 16:9 slide canvas that auto-scales content to fit */
 function SlideCanvas({ markdown, rootPath, transition, layout, slideIndex, drawingMode, editable, onUpdateMarkdown, showGlobalLayers }: {
   markdown: string; rootPath?: string; transition?: string; layout?: string; slideIndex?: number; drawingMode?: boolean
@@ -409,7 +461,9 @@ function SlideCanvas({ markdown, rootPath, transition, layout, slideIndex, drawi
             <SlideRenderer markdown={markdown} rootPath={rootPath} />
           </div>
         </div>
-        {/* Draggable elements overlay (text boxes) */}
+        {/* Positioned images overlay — always visible, outside content scaling */}
+        <PositionedImagesOverlay markdown={markdown} rootPath={rootPath} pad={layout === 'blank' ? 0 : PAD} />
+        {/* Draggable elements overlay (text boxes, shapes, positioned images — editable) */}
         {editable && onUpdateMarkdown && (
           <div className="absolute inset-0 p-12" style={{ zIndex: 10 }}>
             <DraggableElements
@@ -417,6 +471,7 @@ function SlideCanvas({ markdown, rootPath, transition, layout, slideIndex, drawi
               canvasScale={canvasScale}
               onUpdateMarkdown={onUpdateMarkdown}
               editable={true}
+              rootPath={rootPath}
             />
           </div>
         )}
@@ -527,6 +582,18 @@ function EditableSlideCanvas({ slideIndex, breakOffsets, rootPath, layout, subSl
       >
         <div className={`relative ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
           <WysiwygEditor slideIndex={slideIndex} breakOffsets={breakOffsets} />
+        </div>
+        {/* Positioned images/textboxes overlay in editor mode */}
+        <div className="absolute inset-0 p-12" style={{ zIndex: 10, pointerEvents: 'none' }}>
+          <div style={{ pointerEvents: 'auto' }}>
+            <DraggableElements
+              markdown={markdown}
+              canvasScale={canvasScale}
+              onUpdateMarkdown={(newMd) => { updateMarkdownContent(slideIndex, newMd); saveSlideContent(slideIndex) }}
+              editable={true}
+              rootPath={rootPath}
+            />
+          </div>
         </div>
         {/* Layout guide overlay */}
         {layout && layout !== 'default' && layout !== 'blank' && (
@@ -710,7 +777,7 @@ function SubSlideStackEditor({ subSlides, currentSubSlide, setCurrentSubSlide, s
                   /* Other sub-slides: read-only preview */
                   <div className={`absolute inset-0 ${layout === 'blank' ? '' : 'p-12'} overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
                     <div className="slide-content max-w-none" style={{ width: layout === 'blank' ? SLIDE_W : SLIDE_W - 96 }}>
-                      <SlideRenderer markdown={sub.markdown} rootPath={presentation?.rootPath} />
+                      <SlideRenderer markdown={sub.markdown} rootPath={rootPath} />
                     </div>
                   </div>
                 )}

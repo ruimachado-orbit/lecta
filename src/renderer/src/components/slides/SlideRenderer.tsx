@@ -143,8 +143,29 @@ function processClickAnimations(md: string): { processed: string; totalClicks: n
   return { processed: result.join('\n'), totalClicks: clickCount }
 }
 
+/** Extract positioned images from markdown and return them separately */
+function extractPositionedImages(md: string, rootPath?: string): { cleaned: string; images: { x: number; y: number; w: number; src: string; border?: string; radius?: number }[] } {
+  const images: { x: number; y: number; w: number; src: string; border?: string; radius?: number }[] = []
+  const cleaned = md.replace(
+    /<!--\s*image\s+x=(-?\d+)\s+y=(-?\d+)\s+w=(\d+)\s+src=([^\s]+)(?:\s+border=([^\s]+))?(?:\s+radius=(\d+))?\s*-->/gi,
+    (_match, x, y, w, src, border, radius) => {
+      images.push({
+        x: parseInt(x), y: parseInt(y), w: parseInt(w),
+        src: resolveImageSrc(src, rootPath),
+        border: border?.replace(/_/g, ' '),
+        radius: radius ? parseInt(radius) : undefined,
+      })
+      return '' // Remove from markdown
+    }
+  )
+  return { cleaned, images }
+}
+
 export function SlideRenderer({ markdown, rootPath, clickStep = -1, onClickSteps }: SlideRendererProps): JSX.Element {
   const { processed: clickProcessed, totalClicks } = processClickAnimations(markdown)
+
+  // Extract positioned images before markdown processing
+  const { cleaned: mdWithoutImages, images: positionedImages } = extractPositionedImages(clickProcessed, rootPath)
 
   // Report total click steps to parent (only when count changes)
   const prevClickCount = useRef(totalClicks)
@@ -157,6 +178,22 @@ export function SlideRenderer({ markdown, rootPath, clickStep = -1, onClickSteps
 
   return (
     <div className="slide-content max-w-none relative">
+      {/* Positioned images rendered directly as React elements */}
+      {positionedImages.map((img, i) => (
+        <img
+          key={`pos-img-${i}`}
+          src={img.src}
+          style={{
+            position: 'absolute',
+            left: img.x,
+            top: img.y,
+            width: img.w,
+            border: img.border || undefined,
+            borderRadius: img.radius || undefined,
+            zIndex: 5,
+          }}
+        />
+      ))}
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeRaw]}
@@ -232,7 +269,7 @@ export function SlideRenderer({ markdown, rootPath, clickStep = -1, onClickSteps
           },
         }}
       >
-        {enhanceVisualPatterns(preprocessColumns(clickProcessed))}
+        {enhanceVisualPatterns(preprocessColumns(mdWithoutImages))}
       </ReactMarkdown>
     </div>
   )

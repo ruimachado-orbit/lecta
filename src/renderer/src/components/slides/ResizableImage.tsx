@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react'
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react'
+import { usePresentationStore } from '../../stores/presentation-store'
 
 const BORDER_COLORS = [
   { label: 'White', value: '#ffffff' },
@@ -37,18 +38,19 @@ export function ResizableImageView({ node, updateAttributes, deleteNode, selecte
   const currentBorderColor = borderMatch ? borderMatch[2] : '#ffffff'
   const currentBorderRadius = borderRadius || 0
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+  const handleResize = useCallback((e: React.MouseEvent, direction: 'se' | 'sw' | 'ne' | 'nw') => {
     e.preventDefault()
     e.stopPropagation()
     const imgEl = e.currentTarget.parentElement?.querySelector('img')
     if (!imgEl) return
 
+    const invertX = direction === 'sw' || direction === 'nw'
     startRef.current = { x: e.clientX, w: imgEl.offsetWidth }
     setIsResizing(true)
 
     const handleMouseMove = (ev: MouseEvent) => {
       const delta = ev.clientX - startRef.current.x
-      const newWidth = Math.max(80, startRef.current.w + delta)
+      const newWidth = Math.max(80, startRef.current.w + (invertX ? -delta : delta))
       updateAttributes({ width: newWidth })
     }
 
@@ -68,6 +70,38 @@ export function ResizableImageView({ node, updateAttributes, deleteNode, selecte
     } else {
       updateAttributes({ border: `${bw}px solid ${color}` })
     }
+  }
+
+  const handlePinToCanvas = () => {
+    // Convert inline image to positioned <!-- image --> comment in markdown
+    let imgSrc = src
+    if (imgSrc.startsWith('lecta-file://')) {
+      imgSrc = imgSrc.replace(/^lecta-file:\/\//, '')
+      const imagesIdx = imgSrc.indexOf('/images/')
+      if (imagesIdx !== -1) imgSrc = imgSrc.substring(imagesIdx + 1)
+    }
+
+    const imgWidth = width || 400
+    const borderAttr = border ? ` border=${border.replace(/\s+/g, '_')}` : ''
+    const radiusAttr = currentBorderRadius ? ` radius=${currentBorderRadius}` : ''
+    const centerX = Math.round((1280 - imgWidth) / 2 - 48)
+    const centerY = Math.round((720 - 300) / 2 - 48)
+    const comment = `\n<!-- image x=${centerX} y=${centerY} w=${imgWidth} src=${imgSrc}${borderAttr}${radiusAttr} -->\n`
+
+    // First delete the inline node (this triggers onUpdate which saves markdown without the image)
+    deleteNode()
+
+    // Wait for the editor's debounced save (500ms) to complete, then append the comment
+    setTimeout(() => {
+      const { slides, currentSlideIndex, updateMarkdownContent, saveSlideContent } = usePresentationStore.getState()
+      const currentMd = slides[currentSlideIndex]?.markdownContent ?? ''
+      // Only append if not already present (avoid duplicates)
+      if (!currentMd.includes(comment.trim())) {
+        updateMarkdownContent(currentSlideIndex, currentMd + comment)
+      }
+      // Force save to disk
+      saveSlideContent(currentSlideIndex)
+    }, 700)
   }
 
   const handleAIEdit = async () => {
@@ -137,6 +171,18 @@ export function ResizableImageView({ node, updateAttributes, deleteNode, selecte
             </svg>
           </button>
 
+          {/* Pin to canvas button */}
+          <button
+            onClick={(e) => { e.stopPropagation(); handlePinToCanvas() }}
+            className="w-6 h-6 bg-black/70 hover:bg-green-600 text-white rounded-full flex items-center justify-center"
+            title="Pin to canvas — free position"
+          >
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+            </svg>
+          </button>
+
           {/* AI Edit button */}
           <button
             onClick={(e) => { e.stopPropagation(); setShowAIEdit(!showAIEdit); setShowBorderConfig(false) }}
@@ -160,20 +206,26 @@ export function ResizableImageView({ node, updateAttributes, deleteNode, selecte
           </button>
         </div>
 
-        {/* Resize handle — bottom-right corner */}
-        <div
-          onMouseDown={handleMouseDown}
-          className={`absolute bottom-0 right-0 w-4 h-4 cursor-se-resize
-                      opacity-0 group-hover:opacity-100 transition-opacity ${
-            isResizing ? 'opacity-100' : ''
-          }`}
-        >
-          <svg className="w-4 h-4 text-white drop-shadow-lg" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M14 14H10V12H12V10H14V14Z" />
-            <path d="M14 8H12V6H14V8Z" opacity="0.5" />
-            <path d="M8 14H6V12H8V14Z" opacity="0.5" />
-          </svg>
-        </div>
+        {/* Resize handles — all four corners */}
+        {(['nw', 'ne', 'sw', 'se'] as const).map((dir) => {
+          const pos = {
+            nw: 'top-0 left-0 cursor-nw-resize',
+            ne: 'top-0 right-0 cursor-ne-resize',
+            sw: 'bottom-0 left-0 cursor-sw-resize',
+            se: 'bottom-0 right-0 cursor-se-resize',
+          }[dir]
+          return (
+            <div
+              key={dir}
+              onMouseDown={(e) => handleResize(e, dir)}
+              className={`absolute ${pos} w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity ${
+                isResizing ? 'opacity-100' : ''
+              }`}
+            >
+              <div className="w-2.5 h-2.5 bg-white rounded-sm shadow-md border border-gray-400" />
+            </div>
+          )
+        })}
       </div>
 
       {/* Border config popover */}

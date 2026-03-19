@@ -19,11 +19,21 @@ interface ShapeData {
   matchStart: number; matchEnd: number
 }
 
+interface ImageData {
+  index: number
+  x: number; y: number; w: number
+  src: string
+  border: string
+  borderRadius: number
+  matchStart: number; matchEnd: number
+}
+
 interface DraggableElementsProps {
   markdown: string
   canvasScale: number
   onUpdateMarkdown: (newMd: string) => void
   editable: boolean
+  rootPath?: string
 }
 
 const COLORS = [
@@ -70,6 +80,24 @@ function parseShapes(md: string): ShapeData[] {
   return shapes
 }
 
+function parseImages(md: string): ImageData[] {
+  // Matches: <!-- image x=N y=N w=N src=path [border=...] [radius=N] -->
+  const regex = /<!--\s*image\s+x=(-?\d+)\s+y=(-?\d+)\s+w=(\d+)\s+src=([^\s]+)(?:\s+border=([^\s]+))?(?:\s+radius=(\d+))?\s*-->/gi
+  const images: ImageData[] = []
+  let match, index = 0
+  while ((match = regex.exec(md)) !== null) {
+    images.push({
+      index: index++,
+      x: parseInt(match[1]), y: parseInt(match[2]), w: parseInt(match[3]),
+      src: match[4],
+      border: match[5] || '',
+      borderRadius: parseInt(match[6]) || 0,
+      matchStart: match.index, matchEnd: match.index + match[0].length
+    })
+  }
+  return images
+}
+
 /* ── Markdown helpers ── */
 
 function serializeTextBox(box: TextBoxData, overrides?: Partial<TextBoxData>): string {
@@ -91,23 +119,37 @@ function replaceShape(md: string, shape: ShapeData, updates: Partial<ShapeData>)
   return md.slice(0, shape.matchStart) + `<!-- shape type=${s.type} x=${Math.round(s.x)} y=${Math.round(s.y)} w=${Math.round(s.w)} h=${Math.round(s.h)} fill=${s.fill} stroke=${s.stroke} sw=${s.strokeWidth} -->` + md.slice(shape.matchEnd)
 }
 
+function serializeImage(img: ImageData, overrides?: Partial<ImageData>): string {
+  const i = { ...img, ...overrides }
+  let attrs = `x=${Math.round(i.x)} y=${Math.round(i.y)} w=${Math.round(i.w)} src=${i.src}`
+  if (i.border) attrs += ` border=${i.border}`
+  if (i.borderRadius) attrs += ` radius=${i.borderRadius}`
+  return `<!-- image ${attrs} -->`
+}
+
+function replaceImage(md: string, img: ImageData, overrides: Partial<ImageData>): string {
+  return md.slice(0, img.matchStart) + serializeImage(img, overrides) + md.slice(img.matchEnd)
+}
+
 function removeFromMd(md: string, start: number, end: number): string {
   return (md.slice(0, start) + md.slice(end)).replace(/\n{3,}/g, '\n\n').trim()
 }
 
 /* ── Main component ── */
 
-export function DraggableElements({ markdown, canvasScale, onUpdateMarkdown, editable }: DraggableElementsProps): JSX.Element | null {
+export function DraggableElements({ markdown, canvasScale, onUpdateMarkdown, editable, rootPath = '' }: DraggableElementsProps): JSX.Element | null {
   const textBoxes = parseTextBoxes(markdown)
   const shapes = parseShapes(markdown)
+  const images = parseImages(markdown)
   const [editingBox, setEditingBox] = useState<number | null>(null)
   const [selectedBox, setSelectedBox] = useState<number | null>(null)
   const [selectedShape, setSelectedShape] = useState<number | null>(null)
+  const [selectedImage, setSelectedImage] = useState<number | null>(null)
   const [showColorPicker, setShowColorPicker] = useState<'fill' | 'stroke' | 'fontColor' | null>(null)
 
-  if (!editable || (textBoxes.length === 0 && shapes.length === 0)) return null
+  if (textBoxes.length === 0 && shapes.length === 0 && images.length === 0) return null
 
-  const clearSelection = () => { setSelectedBox(null); setSelectedShape(null); setShowColorPicker(null); setEditingBox(null) }
+  const clearSelection = () => { setSelectedBox(null); setSelectedShape(null); setSelectedImage(null); setShowColorPicker(null); setEditingBox(null) }
 
   /* ── Drag helper ── */
   const startDrag = (e: React.MouseEvent, x: number, y: number, selector: string, onDone: (newX: number, newY: number) => void) => {
@@ -233,6 +275,67 @@ export function DraggableElements({ markdown, canvasScale, onUpdateMarkdown, edi
               }}
             />
             <div className="absolute inset-0 border-2 border-transparent group-hover:border-indigo-400/40 rounded pointer-events-none transition-colors" />
+          </div>
+        )
+      })}
+
+      {/* Positioned Images */}
+      {images.map((img) => {
+        const isSelected = selectedImage === img.index
+        const imgSrc = img.src.startsWith('lecta-file://') || img.src.startsWith('http')
+          ? img.src
+          : rootPath ? `lecta-file://${rootPath}/${img.src}` : img.src
+
+        return (
+          <div
+            key={`img-${img.index}`}
+            data-dragimage={img.index}
+            className={`absolute z-20 ${editable ? 'group pointer-events-auto' : 'pointer-events-none'}`}
+            style={{
+              left: img.x, top: img.y, width: img.w,
+              cursor: editable ? 'move' : 'default',
+              border: isSelected ? '2px solid rgba(168,85,247,0.6)' : '2px solid transparent',
+              borderRadius: img.borderRadius || 0,
+            }}
+            onMouseDown={editable ? (e) => {
+              setSelectedImage(img.index); setSelectedBox(null); setSelectedShape(null); setEditingBox(null); setShowColorPicker(null)
+              startDrag(e, img.x, img.y, `[data-dragimage="${img.index}"]`, (nx, ny) => onUpdateMarkdown(replaceImage(markdown, img, { x: nx, y: ny })))
+            } : undefined}
+          >
+            <img
+              src={imgSrc}
+              className="w-full h-auto block pointer-events-none"
+              style={{
+                borderRadius: img.borderRadius || undefined,
+                border: img.border || undefined,
+              }}
+              draggable={false}
+            />
+
+            {editable && (
+              <>
+                <DeleteBtn onDelete={(e) => { e.preventDefault(); e.stopPropagation(); clearSelection(); onUpdateMarkdown(removeFromMd(markdown, img.matchStart, img.matchEnd)) }} />
+
+                {/* Resize handle */}
+                <div className="absolute bottom-0 right-0 w-3 h-3 cursor-se-resize opacity-0 group-hover:opacity-100 transition-opacity"
+                  style={{ background: 'rgba(168,85,247,0.8)', borderRadius: 2 }}
+                  onMouseDown={(e) => {
+                    e.preventDefault(); e.stopPropagation()
+                    const startX = e.clientX, startW = img.w
+                    const move = (ev: MouseEvent) => {
+                      const el = document.querySelector(`[data-dragimage="${img.index}"]`) as HTMLElement
+                      if (el) el.style.width = `${Math.max(50, startW + (ev.clientX - startX) / canvasScale)}px`
+                    }
+                    const up = (ev: MouseEvent) => {
+                      onUpdateMarkdown(replaceImage(markdown, img, { w: Math.max(50, startW + (ev.clientX - startX) / canvasScale) }))
+                      window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up)
+                    }
+                    window.addEventListener('mousemove', move); window.addEventListener('mouseup', up)
+                  }}
+                />
+                <div className="absolute inset-0 border-2 border-transparent group-hover:border-purple-400/40 rounded pointer-events-none transition-colors" />
+              </>
+            )}
           </div>
         )
       })}

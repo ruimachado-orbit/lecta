@@ -636,6 +636,7 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
         const comments: string[] = []
         currentMd.replace(/<!--\s*textbox[\s\S]*?\/textbox\s*-->/gi, (m) => { comments.push(m); return '' })
         currentMd.replace(/<!--\s*shape\s[^>]*-->/gi, (m) => { comments.push(m); return '' })
+        currentMd.replace(/<!--\s*image\s[^>]*-->/gi, (m) => { comments.push(m); return '' })
         const preserved = comments.length > 0 ? md + '\n' + comments.join('\n') : md
         latestMdRef.current = preserved
         updateMarkdownContent(slideIndex, preserved)

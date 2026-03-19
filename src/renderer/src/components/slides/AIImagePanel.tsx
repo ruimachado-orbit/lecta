@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import type { Editor } from '@tiptap/react'
 import { useImageStore } from '../../stores/image-store'
+import { usePresentationStore } from '../../stores/presentation-store'
 
 interface AIImagePanelProps {
   editor: Editor
@@ -90,6 +91,25 @@ export function AIImagePanel({ editor, rootPath, onClose }: AIImagePanelProps): 
     useImageStore.getState().addImage({
       relativePath: previewPath,
       fullSrc,
+      source: 'generated',
+      provider: selectedProvider,
+      prompt: prompt.trim(),
+    })
+
+    onClose()
+  }
+
+  const handleInsertPositioned = () => {
+    if (!previewPath) return
+    const comment = `\n<!-- image x=100 y=100 w=400 src=${previewPath} -->\n`
+    const { slides, currentSlideIndex, updateMarkdownContent, saveSlideContent } = usePresentationStore.getState()
+    const currentMd = slides[currentSlideIndex]?.markdownContent ?? ''
+    updateMarkdownContent(currentSlideIndex, currentMd + comment)
+    saveSlideContent(currentSlideIndex)
+
+    useImageStore.getState().addImage({
+      relativePath: previewPath,
+      fullSrc: `lecta-file://${rootPath}/${previewPath}`,
       source: 'generated',
       provider: selectedProvider,
       prompt: prompt.trim(),
@@ -254,10 +274,17 @@ export function AIImagePanel({ editor, rootPath, onClose }: AIImagePanelProps): 
                   Regenerate
                 </button>
                 <button
+                  onClick={handleInsertPositioned}
+                  className="px-3 py-1.5 text-xs font-medium rounded-lg bg-green-700 hover:bg-green-600 text-white transition-colors"
+                  title="Insert as freely-positioned image on the canvas"
+                >
+                  Pin to Canvas
+                </button>
+                <button
                   onClick={handleInsert}
                   className="px-3 py-1.5 text-xs font-medium rounded-lg bg-purple-600 hover:bg-purple-500 text-white transition-colors"
                 >
-                  Insert
+                  Insert Inline
                 </button>
               </>
             ) : (

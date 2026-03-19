@@ -36,6 +36,10 @@ interface NotebookState {
 }
 
 function applyLoaded(loaded: LoadedNotebook, goToIndex?: number) {
+  // Pack .lecta archive after structural changes (fire-and-forget)
+  if (loaded.config?.rootPath) {
+    window.electronAPI.saveLecta(loaded.config.rootPath).catch(() => {})
+  }
   return {
     notebook: loaded.config,
     pages: loaded.pages,
@@ -119,6 +123,8 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
         page.config.content,
         page.markdownContent
       )
+      // Pack changes into .lecta file
+      await window.electronAPI.saveLecta(notebook.rootPath)
       set({ isSaving: false, lastSavedAt: new Date(), hasUnsavedChanges: false })
     } catch {
       set({ isSaving: false })

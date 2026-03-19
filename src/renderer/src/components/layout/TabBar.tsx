@@ -14,13 +14,14 @@ export function TabBar(): JSX.Element {
 
   return (
     <div className="h-8 bg-gray-900 border-b border-gray-800 flex items-center px-20 overflow-x-auto"
-         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+         style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
       {tabs.map((tab) => {
         const isActive = tab.id === activeTabId
         return (
           <div
             key={tab.id}
             onClick={() => switchTab(tab.id)}
+            style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
             className={`group flex items-center gap-1.5 px-3 h-full text-[11px] cursor-pointer border-r border-gray-800
                         transition-colors max-w-[180px] ${
               isActive

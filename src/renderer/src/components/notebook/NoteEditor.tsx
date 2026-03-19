@@ -95,6 +95,18 @@ turndown.addRule('strikethrough', {
   replacement: (content) => `~~${content}~~`
 })
 
+// Preserve empty paragraphs as blank line markers in markdown
+// Uses a zero-width space in a paragraph so the blank line survives markdown roundtrip
+turndown.addRule('empty-paragraph', {
+  filter: (node) => {
+    if (node.nodeName !== 'P') return false
+    const el = node as HTMLElement
+    const text = el.textContent?.trim() ?? ''
+    return text === '' || text === '\u00A0' || (el.innerHTML.trim() === '<br>')
+  },
+  replacement: () => '\n\n\u00A0\n\n'
+})
+
 turndown.addRule('image-with-width', {
   filter: (node) => node.nodeName === 'IMG',
   replacement: (_content, node) => {
@@ -123,6 +135,13 @@ function markdownToHtml(md: string, rootPath?: string): string {
 
   for (let i = 0; i < lines.length; i++) {
     let line = lines[i]
+
+    // Non-breaking space line = preserved empty line from editor
+    if (line.trim() === '\u00A0') {
+      if (inList) { html.push('</ul>'); inList = false }
+      html.push('<p><br></p>')
+      continue
+    }
 
     if (!line.trim()) {
       const nextNonEmpty = lines.slice(i + 1).find((l) => l.trim())

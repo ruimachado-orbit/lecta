@@ -122,22 +122,15 @@ export function loadThemeFonts(theme: PresentationTheme): void {
   fontsToLoad.forEach((f) => loadedFonts.add(f.googleFont!))
 }
 
-/** Apply a theme to the document */
+/** Apply a slide theme — only sets data-slide-theme for CSS scoping on slide canvases.
+ *  Does NOT change the app-level data-theme (dark/light) — that's controlled by user settings. */
 export function applySlideTheme(themeId: string): void {
   const theme = getTheme(themeId)
   if (!theme) return
 
-  // Set the slide theme attribute on html for global CSS scoping
+  // Set the slide theme attribute on html for global CSS variable scoping
   document.documentElement.setAttribute('data-slide-theme', themeId)
 
-  // Also set the app-level theme mode (dark/light) for the editor chrome
-  // Only for the default dark/light themes, custom themes handle this via CSS
-  if (themeId === 'dark' || themeId === 'light') {
-    document.documentElement.setAttribute('data-theme', themeId)
-  } else {
-    document.documentElement.setAttribute('data-theme', theme.mode)
-  }
-
-  // Load fonts
+  // Load fonts needed by this theme
   loadThemeFonts(theme)
 }

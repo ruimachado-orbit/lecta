@@ -237,6 +237,21 @@ export function Toolbar(): JSX.Element {
           <PdfIcon />
         </button>
 
+        {/* Export HTML */}
+        <button
+          onClick={async () => {
+            if (!presentation) return
+            const markdowns = slides.map((s) => s.markdownContent)
+            await window.electronAPI.exportHtml(markdowns, presentation.title, presentation.theme)
+          }}
+          className="p-1.5 rounded hover:bg-gray-800 text-gray-400 hover:text-gray-200 transition-colors"
+          title="Export as HTML (shareable)"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582" />
+          </svg>
+        </button>
+
         {/* Prettify deck with AI — only in edit mode */}
         {editingSlide && (
           <button

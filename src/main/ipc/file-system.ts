@@ -85,7 +85,7 @@ async function savePresentationYaml(presentation: Presentation): Promise<void> {
       if (s.code) slide.code = s.code
       if (s.video) slide.video = s.video
       if (s.webapp) slide.webapp = s.webapp
-      if (s.prompt) slide.prompt = s.prompt
+      if (s.prompts && s.prompts.length > 0) slide.prompts = s.prompts
       slide.artifacts = s.artifacts
       if (s.notes) slide.notes = s.notes
       if (s.transition && s.transition !== 'none') slide.transition = s.transition
@@ -336,6 +336,7 @@ export function registerFileSystemHandlers(): void {
       const newSlide: SlideConfig = {
         id: slideId,
         content: contentPath,
+        prompts: [],
         artifacts: []
       }
       config.slides.splice(afterIndex + 1, 0, newSlide)
@@ -494,6 +495,29 @@ export function registerFileSystemHandlers(): void {
     }
   )
 
+  // Add a prompt artifact to a slide
+  ipcMain.handle(
+    'fs:add-prompt',
+    async (_event, rootPath: string, slideIndex: number, prompt: string, label?: string): Promise<LoadedPresentation> => {
+      const configPath = join(rootPath, DECK_CONFIG_FILE)
+      const yamlContent = await readFile(configPath, 'utf-8')
+      const config = parsePresentationYaml(yamlContent, rootPath)
+
+      const slide = config.slides[slideIndex]
+      if (!slide) throw new Error(`Slide at index ${slideIndex} not found`)
+
+      if (!slide.prompts) slide.prompts = []
+      slide.prompts.push({ prompt, label })
+
+      await savePresentationYaml(config)
+
+      const reloaded = await readFile(configPath, 'utf-8')
+      const reloadedConfig = parsePresentationYaml(reloaded, rootPath)
+      const slides = await loadAllSlides(reloadedConfig, rootPath)
+      return { config: reloadedConfig, slides }
+    }
+  )
+
   // Add multiple slides at once (for AI bulk generation)
   ipcMain.handle(
     'fs:add-bulk-slides',
@@ -520,6 +544,7 @@ export function registerFileSystemHandlers(): void {
         newConfigs.push({
           id: slide.id,
           content: contentPath,
+          prompts: [],
           artifacts: []
         })
       }
@@ -724,7 +749,7 @@ export function registerFileSystemHandlers(): void {
       _event,
       rootPath: string,
       slideIndex: number,
-      type: 'code' | 'video' | 'webapp' | 'artifact',
+      type: 'code' | 'video' | 'webapp' | 'prompt' | 'artifact',
       artifactIndex?: number
     ): Promise<LoadedPresentation> => {
       const configPath = join(rootPath, DECK_CONFIG_FILE)
@@ -743,6 +768,11 @@ export function registerFileSystemHandlers(): void {
           break
         case 'webapp':
           delete slide.webapp
+          break
+        case 'prompt':
+          if (typeof artifactIndex === 'number' && slide.prompts) {
+            slide.prompts.splice(artifactIndex, 1)
+          }
           break
         case 'artifact':
           if (typeof artifactIndex === 'number') {

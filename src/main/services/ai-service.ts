@@ -431,6 +431,46 @@ Rules:
     return text.slice(0, 300)
   }
 
+  async runPrompt(
+    prompt: string,
+    slideContent: string,
+    deckTitle: string,
+    onChunk: (chunk: string) => void
+  ): Promise<void> {
+    const client = await this.getClient()
+
+    const stream = client.messages.stream({
+      model: this.model,
+      max_tokens: 2048,
+      system: `You are a helpful AI assistant embedded in a presentation tool called Lecta. The user has attached a "Prompt" artifact to a slide and is asking you a question or requesting content.
+
+Context:
+- You are viewing a presentation titled "${deckTitle}"
+- The current slide content is provided below for context
+
+Rules:
+- Be concise and direct
+- Use markdown formatting for clarity
+- If the question relates to the slide content, reference it naturally
+- Provide actionable, useful answers`,
+      messages: [
+        {
+          role: 'user',
+          content: `Current slide content:\n${slideContent}\n\nUser prompt: ${prompt}`
+        }
+      ]
+    })
+
+    for await (const event of stream) {
+      if (
+        event.type === 'content_block_delta' &&
+        event.delta.type === 'text_delta'
+      ) {
+        onChunk(event.delta.text)
+      }
+    }
+  }
+
   async hasApiKey(): Promise<boolean> {
     try {
       const apiKey = await loadAnthropicKey(currentDeckPath ?? undefined)

@@ -6,6 +6,7 @@ import { SlidePanel } from '../slides/SlidePanel'
 import { CodePanel } from '../code/CodePanel'
 import { VideoPanel } from '../video/VideoPanel'
 import { WebPanel } from '../web/WebPanel'
+import { PromptPanel } from '../prompt/PromptPanel'
 import { SpeakerNotes } from '../ai/SpeakerNotes'
 import { ArticlePanel } from '../ai/ArticlePanel'
 import { ArtifactDrawer } from '../artifacts/ArtifactDrawer'
@@ -31,14 +32,17 @@ export function AppShell(): JSX.Element {
   const hasCode = !!currentSlide?.config.code
   const hasVideo = !!currentSlide?.config.video
   const hasWebApp = !!currentSlide?.config.webapp
+  const promptCount = currentSlide?.config.prompts?.length ?? 0
   const hasFiles = (currentSlide?.config.artifacts.length ?? 0) > 0
 
   // Build list of available artifacts for this slide
-  type ArtifactType = 'code' | 'video' | 'webapp' | 'files'
+  // Each prompt gets its own entry: 'prompt-0', 'prompt-1', etc.
+  type ArtifactType = string
   const availableArtifacts: ArtifactType[] = []
   if (hasCode) availableArtifacts.push('code')
   if (hasVideo) availableArtifacts.push('video')
   if (hasWebApp) availableArtifacts.push('webapp')
+  for (let i = 0; i < promptCount; i++) availableArtifacts.push(`prompt-${i}`)
   if (hasFiles) availableArtifacts.push('files')
   const hasRightPane = availableArtifacts.length > 0
 
@@ -79,6 +83,11 @@ export function AppShell(): JSX.Element {
                 {activeArtifact === 'code' && hasCode && <CodePanel key={currentSlideIndex} />}
                 {activeArtifact === 'video' && hasVideo && <VideoPanel key={currentSlideIndex} video={currentSlide!.config.video!} />}
                 {activeArtifact === 'webapp' && hasWebApp && <WebPanel key={currentSlideIndex} webapp={currentSlide!.config.webapp!} />}
+                {activeArtifact?.startsWith('prompt-') && (() => {
+                  const idx = parseInt(activeArtifact.split('-')[1], 10)
+                  const p = currentSlide?.config.prompts?.[idx]
+                  return p ? <PromptPanel key={`${currentSlideIndex}-prompt-${idx}`} prompt={p} promptIndex={idx} /> : null
+                })()}
                 {activeArtifact === 'files' && hasFiles && <ArtifactDrawer />}
               </Panel>
             </>
@@ -191,6 +200,7 @@ function TransitionPicker(): JSX.Element {
 }
 
 function artifactIcon(type: string): string {
+  if (type.startsWith('prompt-')) return '✦'
   switch (type) {
     case 'code': return '{ }'
     case 'video': return '▶'
@@ -201,6 +211,10 @@ function artifactIcon(type: string): string {
 }
 
 function artifactLabel(type: string): string {
+  if (type.startsWith('prompt-')) {
+    const idx = parseInt(type.split('-')[1], 10)
+    return `AI Prompt ${idx + 1}`
+  }
   switch (type) {
     case 'code': return 'Code editor'
     case 'video': return 'Video'
@@ -223,7 +237,7 @@ function ArtifactIconStrip({
   artifactIcon: (t: string) => string
 }): JSX.Element {
   const [showAddMenu, setShowAddMenu] = useState(false)
-  const { addCodeToSlide, addArtifact, addVideo, addWebApp, slides, currentSlideIndex } = usePresentationStore()
+  const { addCodeToSlide, addArtifact, addVideo, addWebApp, addPrompt: storeAddPrompt, slides, currentSlideIndex } = usePresentationStore()
   const currentSlide = slides[currentSlideIndex]
   const [videoUrl, setVideoUrl] = useState('')
   const [webAppUrl, setWebAppUrl] = useState('')
@@ -249,54 +263,92 @@ function ArtifactIconStrip({
         {showAddMenu && (
           <>
             <div className="fixed inset-0 z-40" onClick={() => setShowAddMenu(false)} />
-            <div className="absolute top-0 right-full mr-1 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl w-52 overflow-hidden">
-              {!hasCode && (
-                <div className="px-2 pt-2 pb-1">
-                  <div className="text-[9px] uppercase tracking-wider text-gray-500 px-1 pb-1">Code</div>
-                  <select
-                    onChange={(e) => { if (e.target.value) { addCodeToSlide(e.target.value as any); setShowAddMenu(false) } }}
-                    defaultValue=""
-                    className="w-full px-2 py-1.5 bg-gray-950 text-gray-300 text-xs rounded border border-gray-700 focus:border-white focus:outline-none"
-                  >
-                    <option value="" disabled>Select language...</option>
-                    {['markdown', 'javascript', 'python', 'sql', 'typescript', 'bash', 'go', 'rust'].map((l) => (
-                      <option key={l} value={l}>{l}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              {!hasVideo && (
-                <div className="px-2 pt-2 pb-1 border-t border-gray-800">
-                  <div className="text-[9px] uppercase tracking-wider text-gray-500 px-1 pb-1">Video</div>
-                  <div className="flex gap-1">
-                    <input type="text" value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter' && videoUrl.trim()) { addVideo(videoUrl.trim()); setVideoUrl(''); setShowAddMenu(false) } }}
-                      placeholder="YouTube URL..."
-                      className="flex-1 px-2 py-1.5 bg-gray-950 text-gray-300 text-xs rounded border border-gray-700 focus:border-white focus:outline-none" />
-                    <button onClick={() => { if (videoUrl.trim()) { addVideo(videoUrl.trim()); setVideoUrl(''); setShowAddMenu(false) } }}
-                      disabled={!videoUrl.trim()}
-                      className="px-2 py-1.5 bg-white hover:bg-gray-200 disabled:opacity-40 text-black text-[10px] rounded">Add</button>
+            <div className="absolute top-0 right-full mr-2 z-50 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-56 overflow-hidden">
+              {/* Header */}
+              <div className="px-3 py-2 border-b border-gray-800">
+                <span className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">Add to slide</span>
+              </div>
+
+              {/* Quick actions — icon + label rows */}
+              <div className="py-1">
+                {!hasCode && (
+                  <div className="px-1">
+                    <div className="px-2 py-1.5 text-[10px] text-gray-500 font-medium">Code editor</div>
+                    <div className="flex flex-wrap gap-1 px-2 pb-2">
+                      {[
+                        { lang: 'javascript', label: 'JS', color: '#fbbf24' },
+                        { lang: 'typescript', label: 'TS', color: '#3b82f6' },
+                        { lang: 'python', label: 'PY', color: '#22c55e' },
+                        { lang: 'sql', label: 'SQL', color: '#a855f7' },
+                        { lang: 'markdown', label: 'MD', color: '#a3a3a3' },
+                        { lang: 'bash', label: 'SH', color: '#f97316' },
+                        { lang: 'go', label: 'GO', color: '#06b6d4' },
+                        { lang: 'rust', label: 'RS', color: '#ef4444' },
+                      ].map((l) => (
+                        <button key={l.lang}
+                          onClick={() => { addCodeToSlide(l.lang as any); setShowAddMenu(false) }}
+                          className="px-2 py-1 rounded text-[9px] font-bold bg-gray-800 hover:bg-gray-700 transition-colors"
+                          style={{ color: l.color }}
+                          title={l.lang}
+                        >{l.label}</button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
-              {!hasWebApp && (
-                <div className="px-2 pt-2 pb-1 border-t border-gray-800">
-                  <div className="text-[9px] uppercase tracking-wider text-gray-500 px-1 pb-1">Web App</div>
-                  <div className="flex gap-1">
-                    <input type="text" value={webAppUrl} onChange={(e) => setWebAppUrl(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter' && webAppUrl.trim()) { let u = webAppUrl.trim(); if (!u.match(/^https?:\/\//)) u = 'https://' + u; addWebApp(u); setWebAppUrl(''); setShowAddMenu(false) } }}
-                      placeholder="https://localhost:3000"
-                      className="flex-1 px-2 py-1.5 bg-gray-950 text-gray-300 text-xs rounded border border-gray-700 focus:border-white focus:outline-none" />
-                    <button onClick={() => { let u = webAppUrl.trim(); if (!u) return; if (!u.match(/^https?:\/\//)) u = 'https://' + u; addWebApp(u); setWebAppUrl(''); setShowAddMenu(false) }}
-                      disabled={!webAppUrl.trim()}
-                      className="px-2 py-1.5 bg-white hover:bg-gray-200 disabled:opacity-40 text-black text-[10px] rounded">Add</button>
+                )}
+
+                {!hasVideo && (
+                  <div className="px-1 border-t border-gray-800">
+                    <button className="w-full flex items-center gap-2.5 px-2 py-2 text-xs text-gray-300 hover:bg-gray-800 rounded transition-colors"
+                      onClick={() => {
+                        const url = prompt('YouTube URL:')
+                        if (url?.trim()) { addVideo(url.trim()); setShowAddMenu(false) }
+                      }}>
+                      <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />
+                      </svg>
+                      Embed video
+                    </button>
                   </div>
+                )}
+
+                {!hasWebApp && (
+                  <div className="px-1 border-t border-gray-800">
+                    <button className="w-full flex items-center gap-2.5 px-2 py-2 text-xs text-gray-300 hover:bg-gray-800 rounded transition-colors"
+                      onClick={() => {
+                        let url = prompt('Web app URL:')
+                        if (url?.trim()) {
+                          if (!url.match(/^https?:\/\//)) url = 'https://' + url
+                          addWebApp(url); setShowAddMenu(false)
+                        }
+                      }}>
+                      <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582" />
+                      </svg>
+                      Embed website
+                    </button>
+                  </div>
+                )}
+
+                <div className="px-1 border-t border-gray-800">
+                  <button onClick={() => { storeAddPrompt(''); setShowAddMenu(false) }}
+                    className="w-full flex items-center gap-2.5 px-2 py-2 text-xs text-gray-300 hover:bg-gray-800 rounded transition-colors">
+                    <svg className="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+                    </svg>
+                    AI Prompt
+                  </button>
                 </div>
-              )}
-              <button onClick={() => { addArtifact(); setShowAddMenu(false) }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-300 hover:bg-gray-800 transition-colors border-t border-gray-800">
-                Upload file
-              </button>
+
+                <div className="px-1 border-t border-gray-800">
+                  <button onClick={() => { addArtifact(); setShowAddMenu(false) }}
+                    className="w-full flex items-center gap-2.5 px-2 py-2 text-xs text-gray-300 hover:bg-gray-800 rounded transition-colors">
+                    <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
+                    </svg>
+                    Upload file
+                  </button>
+                </div>
+              </div>
             </div>
           </>
         )}
@@ -306,20 +358,29 @@ function ArtifactIconStrip({
       <div className="w-4 h-px bg-gray-600" />
 
       {/* Individual artifact type buttons */}
-      {availableArtifacts.map((type) => (
-        <button
-          key={type}
-          onClick={() => onSelectArtifact(type)}
-          className={`w-6 h-6 rounded flex items-center justify-center text-[8px] transition-colors ${
-            activeArtifact === type && showRightPane
-              ? 'text-white font-bold'
-              : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
-          }`}
-          title={artifactLabel(type)}
-        >
-          {artifactIcon(type)}
-        </button>
-      ))}
+      {availableArtifacts.map((type) => {
+        const isPrompt = type.startsWith('prompt-')
+        const promptIdx = isPrompt ? parseInt(type.split('-')[1], 10) : -1
+        return (
+          <button
+            key={type}
+            onClick={() => onSelectArtifact(type)}
+            className={`relative w-6 h-6 rounded flex items-center justify-center text-[8px] transition-colors ${
+              activeArtifact === type && showRightPane
+                ? 'text-white font-bold'
+                : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
+            }`}
+            title={artifactLabel(type)}
+          >
+            {isPrompt && (
+              <span className="absolute -top-0.5 right-0 min-w-[9px] h-[9px] flex items-center justify-center text-[6px] font-bold text-gray-200 bg-gray-600 rounded-full leading-none">
+                {promptIdx + 1}
+              </span>
+            )}
+            {artifactIcon(type)}
+          </button>
+        )
+      })}
 
       {/* Collapse/expand panel */}
       {availableArtifacts.length > 0 && (

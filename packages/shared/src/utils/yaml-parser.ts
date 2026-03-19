@@ -42,7 +42,7 @@ const SlideConfigSchema = z.object({
   code: CodeBlockConfigSchema.optional(),
   video: VideoConfigSchema.optional(),
   webapp: WebAppConfigSchema.optional(),
-  prompt: PromptConfigSchema.optional(),
+  prompts: z.array(PromptConfigSchema).default([]),
   artifacts: z.array(ArtifactConfigSchema).default([]),
   notes: z.string().optional(),
   transition: z.enum(['none', 'left', 'right', 'top', 'bottom']).optional(),

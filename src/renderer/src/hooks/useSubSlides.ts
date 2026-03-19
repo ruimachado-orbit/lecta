@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { usePresentationStore } from '../stores/presentation-store'
 
 /**
  * Split markdown into sub-slides that each fit within one 16:9 slide canvas.
@@ -99,28 +100,17 @@ export function useSubSlides(
   const [breakOffsets, setBreakOffsets] = useState<number[]>([])
   const measureRef = useRef<HTMLDivElement | null>(null)
 
-  // Read sub-slide state from the presentation store
-  let storeSubSlide = 0
-  let storeSetSubSlide: ((n: number) => void) | null = null
-  try {
-    const store = require('../stores/presentation-store')
-    const state = store.usePresentationStore?.getState?.()
-    if (state) {
-      storeSubSlide = state.currentSubSlide ?? 0
-      storeSetSubSlide = (n: number) => store.usePresentationStore.setState({ currentSubSlide: n })
-    }
-  } catch {}
+  // Read/write sub-slide state from the presentation store
+  const storeCurrentSubSlide = usePresentationStore((s) => s.currentSubSlide)
+  const currentSubSlide = storeCurrentSubSlide < 0 ? 0 : storeCurrentSubSlide
 
-  const [localSubSlide, setLocalSubSlide] = useState(0)
-  const currentSubSlide = storeSetSubSlide ? storeSubSlide : localSubSlide
   const setCurrentSubSlide = useCallback((n: number) => {
-    if (storeSetSubSlide) storeSetSubSlide(n)
-    else setLocalSubSlide(n)
+    usePresentationStore.setState({ currentSubSlide: n })
   }, [])
 
   // Reset on slide change
   useEffect(() => {
-    setCurrentSubSlide(0)
+    usePresentationStore.setState({ currentSubSlide: 0 })
   }, [slideIndex])
 
   const measure = useCallback(() => {
@@ -194,9 +184,18 @@ export function useSubSlides(
       })
     }
 
-    setSubSlides(pages.length > 0 ? pages : [{ markdown: '', index: 0 }])
+    const finalPages = pages.length > 0 ? pages : [{ markdown: '', index: 0 }]
+    setSubSlides(finalPages)
     setBreakOffsets(breaks)
-    setCurrentSubSlide((prev) => Math.min(prev, Math.max(0, pages.length - 1)))
+
+    // Sync total to store + handle -1 (go to last)
+    const storeState = usePresentationStore.getState()
+    usePresentationStore.setState({ totalSubSlides: finalPages.length })
+    if (storeState.currentSubSlide === -1) {
+      usePresentationStore.setState({ currentSubSlide: finalPages.length - 1 })
+    } else if (storeState.currentSubSlide >= finalPages.length) {
+      usePresentationStore.setState({ currentSubSlide: Math.max(0, finalPages.length - 1) })
+    }
   }, [markdown])
 
   useEffect(() => {

@@ -154,6 +154,31 @@ export function registerAiHandlers(): void {
   )
 
   ipcMain.handle(
+    'ai:run-prompt',
+    async (
+      _event,
+      prompt: string,
+      slideContent: string,
+      deckTitle: string,
+      responseChannel: string
+    ): Promise<void> => {
+      const service = getAIService()
+      const window = BrowserWindow.getFocusedWindow()
+
+      await service.runPrompt(
+        prompt,
+        slideContent,
+        deckTitle,
+        (chunk: string) => {
+          window?.webContents.send(responseChannel, chunk)
+        }
+      )
+
+      window?.webContents.send(responseChannel, '[DONE]')
+    }
+  )
+
+  ipcMain.handle(
     'ai:stream-article',
     async (
       _event,

@@ -45,7 +45,7 @@ const api = {
   toggleSkipSlide: (rootPath: string, slideIndex: number): Promise<LoadedPresentation> =>
     ipcRenderer.invoke('fs:toggle-skip', rootPath, slideIndex),
   removeAttachment: (
-    rootPath: string, slideIndex: number, type: 'code' | 'video' | 'webapp' | 'artifact', artifactIndex?: number
+    rootPath: string, slideIndex: number, type: 'code' | 'video' | 'webapp' | 'prompt' | 'artifact', artifactIndex?: number
   ): Promise<LoadedPresentation> =>
     ipcRenderer.invoke('fs:remove-attachment', rootPath, slideIndex, type, artifactIndex),
   writeFile: (filePath: string, content: string): Promise<void> =>
@@ -58,6 +58,8 @@ const api = {
     ipcRenderer.invoke('fs:add-video', rootPath, slideIndex, url, label),
   addWebApp: (rootPath: string, slideIndex: number, url: string, label?: string): Promise<LoadedPresentation> =>
     ipcRenderer.invoke('fs:add-webapp', rootPath, slideIndex, url, label),
+  addPrompt: (rootPath: string, slideIndex: number, prompt: string, label?: string): Promise<LoadedPresentation> =>
+    ipcRenderer.invoke('fs:add-prompt', rootPath, slideIndex, prompt, label),
 
   // Code execution
   executeNative: (
@@ -109,6 +111,16 @@ const api = {
     ipcRenderer.invoke('ai:has-api-key'),
   generateInlineText: (prompt: string, slideContent: string, deckTitle: string): Promise<string> =>
     ipcRenderer.invoke('ai:generate-inline-text', prompt, slideContent, deckTitle),
+  runPrompt: (
+    prompt: string,
+    slideContent: string,
+    deckTitle: string,
+    callback: (chunk: string) => void
+  ): void => {
+    const channel = `ai:prompt-stream-${Date.now()}`
+    ipcRenderer.on(channel, (_event, chunk: string) => callback(chunk))
+    ipcRenderer.invoke('ai:run-prompt', prompt, slideContent, deckTitle, channel)
+  },
   streamArticle: (
     deckTitle: string,
     author: string,

@@ -52,7 +52,7 @@ export interface SlideConfig {
   code?: CodeBlockConfig
   video?: VideoConfig
   webapp?: WebAppConfig
-  prompt?: PromptConfig
+  prompts: PromptConfig[]
   artifacts: ArtifactConfig[]
   notes?: string
   transition?: SlideTransition

@@ -11,6 +11,7 @@ import { ExecutionOutput } from '../code/ExecutionOutput'
 import { MarkdownPreview } from '../code/MarkdownPreview'
 import { WebPanel } from '../web/WebPanel'
 import { VideoPanel } from '../video/VideoPanel'
+import { useSubSlides } from '../../hooks/useSubSlides'
 
 type ArtifactType = 'code' | 'video' | 'webapp'
 
@@ -78,13 +79,20 @@ export function PresenterView(): JSX.Element {
     }
   }, [currentSlideIndex])
 
+  // Sub-slides — compute and sync with store
+  const { subSlides, currentSubSlide } = useSubSlides(
+    currentSlide?.markdownContent ?? '',
+    currentSlideIndex
+  )
+  const activeMarkdown = subSlides[currentSubSlide]?.markdown ?? currentSlide?.markdownContent ?? ''
+
   const handleRun = () => {
     if (currentSlide?.codeContent && currentSlide.config.code) {
       runCode(currentSlide.codeContent, currentSlide.config.code)
     }
   }
 
-  const slideMarkdown = currentSlide?.markdownContent ?? ''
+  const slideMarkdown = activeMarkdown
   const rootPath = presentation?.rootPath
 
   // Find the current slide's group
@@ -126,9 +134,12 @@ export function PresenterView(): JSX.Element {
             <span className="text-xs text-white/60 font-medium">{groupSlideIndex}/{currentGroup.slideIds.length}</span>
           </div>
         )}
-        {/* Slide name + total counter */}
+        {/* Slide name + counters */}
         <span className="text-gray-300 text-xs font-medium truncate max-w-[150px]">{currentSlide?.config.id}</span>
-        <span className="text-gray-500 text-[10px] font-mono">{currentSlideIndex + 1}/{slides.length}</span>
+        {subSlides.length > 1 && (
+          <span className="text-gray-500 text-[10px] font-mono">{currentSubSlide + 1}/{subSlides.length}</span>
+        )}
+        <span className="text-gray-600 text-[10px] font-mono">{currentSlideIndex + 1}/{slides.length}</span>
         <span className="text-gray-500 text-xs truncate flex-1">{presentation?.title}</span>
         <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           <button onClick={() => setShowNotes(!showNotes)}

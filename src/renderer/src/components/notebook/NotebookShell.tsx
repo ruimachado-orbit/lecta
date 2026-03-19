@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import { NotebookToolbar } from './NotebookToolbar'
 import { NotePanel } from './NotePanel'
@@ -16,8 +16,8 @@ import { useUIStore } from '../../stores/ui-store'
 
 type NotebookView = 'notes' | 'agenda'
 
-export function NotebookShell(): JSX.Element {
-  const { pages, currentPageIndex, notebook, isSaving, lastSavedAt, hasUnsavedChanges } = useNotebookStore()
+export function NotebookShell(): React.ReactElement {
+  const { pages, currentPageIndex, notebook } = useNotebookStore()
   const { showSlideMap, showRightPane } = useUIStore()
   const [activeView, setActiveView] = useState<NotebookView>('notes')
 
@@ -180,10 +180,8 @@ export function NotebookShell(): JSX.Element {
 }
 
 /** Add artifact button — same dropdown as presentation slides */
-function AddArtifactButton(): JSX.Element {
+function AddArtifactButton(): React.ReactElement {
   const [showMenu, setShowMenu] = useState(false)
-  const [videoUrl, setVideoUrl] = useState('')
-  const [webAppUrl, setWebAppUrl] = useState('')
   const { pages, currentPageIndex, addCodeToNote, addVideoToNote, addWebAppToNote } = useNotebookStore()
   const currentPage = pages[currentPageIndex]
 
@@ -207,68 +205,89 @@ function AddArtifactButton(): JSX.Element {
       {showMenu && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
-          <div className="absolute top-0 right-full mr-1 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl w-52 overflow-hidden">
-            {/* Code */}
-            {!hasCode && (
-              <div className="px-2 pt-2 pb-1">
-                <div className="text-[9px] uppercase tracking-wider text-gray-500 px-1 pb-1">Code</div>
-                <select
-                  onChange={(e) => { if (e.target.value) { addCodeToNote(e.target.value); setShowMenu(false) } }}
-                  defaultValue=""
-                  className="w-full px-2 py-1.5 bg-gray-950 text-gray-300 text-xs rounded border border-gray-700 focus:border-white focus:outline-none"
-                >
-                  <option value="" disabled>Select language...</option>
-                  {['markdown', 'javascript', 'python', 'sql', 'typescript', 'bash', 'go', 'rust'].map((l) => (
-                    <option key={l} value={l}>{l}</option>
-                  ))}
-                </select>
-              </div>
-            )}
+          <div className="absolute top-0 right-full mr-2 z-50 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-56 overflow-hidden">
+            {/* Header */}
+            <div className="px-3 py-2 border-b border-gray-800">
+              <span className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">Add to note</span>
+            </div>
 
-            {/* Video */}
-            {!hasVideo && (
-              <div className="px-2 pt-2 pb-1 border-t border-gray-800">
-                <div className="text-[9px] uppercase tracking-wider text-gray-500 px-1 pb-1">Video</div>
-                <div className="flex gap-1">
-                  <input type="text" value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' && videoUrl.trim()) { addVideoToNote(videoUrl.trim()); setVideoUrl(''); setShowMenu(false) } }}
-                    placeholder="YouTube URL..."
-                    className="flex-1 px-2 py-1.5 bg-gray-950 text-gray-300 text-xs rounded border border-gray-700 focus:border-white focus:outline-none" />
-                  <button onClick={() => { if (videoUrl.trim()) { addVideoToNote(videoUrl.trim()); setVideoUrl(''); setShowMenu(false) } }}
-                    disabled={!videoUrl.trim()}
-                    className="px-2 py-1.5 bg-white hover:bg-gray-200 disabled:opacity-40 text-black text-[10px] rounded">Add</button>
+            <div className="py-1">
+              {/* Code languages as colored pills */}
+              {!hasCode && (
+                <div className="px-1">
+                  <div className="px-2 py-1.5 text-[10px] text-gray-500 font-medium">Code editor</div>
+                  <div className="flex flex-wrap gap-1 px-2 pb-2">
+                    {[
+                      { lang: 'javascript', label: 'JS', color: '#fbbf24' },
+                      { lang: 'typescript', label: 'TS', color: '#3b82f6' },
+                      { lang: 'python', label: 'PY', color: '#22c55e' },
+                      { lang: 'sql', label: 'SQL', color: '#a855f7' },
+                      { lang: 'markdown', label: 'MD', color: '#a3a3a3' },
+                      { lang: 'bash', label: 'SH', color: '#f97316' },
+                      { lang: 'go', label: 'GO', color: '#06b6d4' },
+                      { lang: 'rust', label: 'RS', color: '#ef4444' },
+                    ].map((l) => (
+                      <button key={l.lang}
+                        onClick={() => { addCodeToNote(l.lang); setShowMenu(false) }}
+                        className="px-2 py-1 rounded text-[9px] font-bold bg-gray-800 hover:bg-gray-700 transition-colors"
+                        style={{ color: l.color }}
+                        title={l.lang}
+                      >{l.label}</button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Web App */}
-            {!hasWebApp && (
-              <div className="px-2 pt-2 pb-1 border-t border-gray-800">
-                <div className="text-[9px] uppercase tracking-wider text-gray-500 px-1 pb-1">Web App</div>
-                <div className="flex gap-1">
-                  <input type="text" value={webAppUrl} onChange={(e) => setWebAppUrl(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' && webAppUrl.trim()) { let u = webAppUrl.trim(); if (!u.match(/^https?:\/\//)) u = 'https://' + u; addWebAppToNote(u); setWebAppUrl(''); setShowMenu(false) } }}
-                    placeholder="https://..."
-                    className="flex-1 px-2 py-1.5 bg-gray-950 text-gray-300 text-xs rounded border border-gray-700 focus:border-white focus:outline-none" />
-                  <button onClick={() => { let u = webAppUrl.trim(); if (!u) return; if (!u.match(/^https?:\/\//)) u = 'https://' + u; addWebAppToNote(u); setWebAppUrl(''); setShowMenu(false) }}
-                    disabled={!webAppUrl.trim()}
-                    className="px-2 py-1.5 bg-white hover:bg-gray-200 disabled:opacity-40 text-black text-[10px] rounded">Add</button>
+              {/* Video */}
+              {!hasVideo && (
+                <div className="px-1 border-t border-gray-800">
+                  <button className="w-full flex items-center gap-2.5 px-2 py-2 text-xs text-gray-300 hover:bg-gray-800 rounded transition-colors"
+                    onClick={() => {
+                      const url = prompt('YouTube URL:')
+                      if (url?.trim()) { addVideoToNote(url.trim()); setShowMenu(false) }
+                    }}>
+                    <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />
+                    </svg>
+                    Embed video
+                  </button>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* File upload */}
-            <button onClick={async () => {
-              const { notebook: nb } = useNotebookStore.getState()
-              if (nb?.rootPath) await window.electronAPI.uploadImage(nb.rootPath)
-              setShowMenu(false)
-            }}
-              className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-gray-300 hover:bg-gray-800 transition-colors border-t border-gray-800">
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
-              </svg>
-              Upload file
-            </button>
+              {/* Web App */}
+              {!hasWebApp && (
+                <div className="px-1 border-t border-gray-800">
+                  <button className="w-full flex items-center gap-2.5 px-2 py-2 text-xs text-gray-300 hover:bg-gray-800 rounded transition-colors"
+                    onClick={() => {
+                      let url = prompt('Web app URL:')
+                      if (url?.trim()) {
+                        if (!url.match(/^https?:\/\//)) url = 'https://' + url
+                        addWebAppToNote(url); setShowMenu(false)
+                      }
+                    }}>
+                    <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582" />
+                    </svg>
+                    Embed website
+                  </button>
+                </div>
+              )}
+
+              {/* Upload file */}
+              <div className="px-1 border-t border-gray-800">
+                <button onClick={async () => {
+                  const { notebook: nb } = useNotebookStore.getState()
+                  if (nb?.rootPath) await window.electronAPI.uploadImage(nb.rootPath)
+                  setShowMenu(false)
+                }}
+                  className="w-full flex items-center gap-2.5 px-2 py-2 text-xs text-gray-300 hover:bg-gray-800 rounded transition-colors">
+                  <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
+                  </svg>
+                  Upload file
+                </button>
+              </div>
+            </div>
           </div>
         </>
       )}
@@ -277,7 +296,7 @@ function AddArtifactButton(): JSX.Element {
 }
 
 /** Status bar adapted for notebook context */
-function NotebookStatusBar(): JSX.Element {
+function NotebookStatusBar(): React.ReactElement {
   const { pages, currentPageIndex, isSaving, lastSavedAt, hasUnsavedChanges, notebook } = useNotebookStore()
   const currentPage = pages[currentPageIndex]
 

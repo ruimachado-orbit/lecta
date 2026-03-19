@@ -36,7 +36,7 @@ const api = {
     ipcRenderer.invoke('fs:reorder-slide', rootPath, fromIndex, toIndex),
   saveDrawings: (rootPath: string, slideIndex: number, drawingsJson: string): Promise<void> =>
     ipcRenderer.invoke('fs:save-drawings', rootPath, slideIndex, drawingsJson),
-  saveGroups: (rootPath: string, groups: { id: string; name: string; slideIds: string[] }[]): Promise<void> =>
+  saveGroups: (rootPath: string, groups: { id: string; name: string; slideIds: string[]; color?: string }[]): Promise<void> =>
     ipcRenderer.invoke('fs:save-groups', rootPath, groups),
   setSlideTransition: (rootPath: string, slideIndex: number, transition: string): Promise<LoadedPresentation> =>
     ipcRenderer.invoke('fs:set-transition', rootPath, slideIndex, transition),

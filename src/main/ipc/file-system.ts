@@ -95,7 +95,13 @@ async function savePresentationYaml(presentation: Presentation): Promise<void> {
     })
   }
   if (presentation.ai) toSerialize.ai = presentation.ai
-  if (presentation.groups && presentation.groups.length > 0) toSerialize.groups = presentation.groups
+  if (presentation.groups && presentation.groups.length > 0) {
+    toSerialize.groups = presentation.groups.map((g) => {
+      const group: Record<string, unknown> = { id: g.id, name: g.name, slideIds: g.slideIds }
+      if (g.color) group.color = g.color
+      return group
+    })
+  }
 
   await writeFile(configPath, stringifyYaml(toSerialize, { lineWidth: 120 }), 'utf-8')
 
@@ -639,7 +645,7 @@ export function registerFileSystemHandlers(): void {
   // Save slide groups
   ipcMain.handle(
     'fs:save-groups',
-    async (_event, rootPath: string, groups: { id: string; name: string; slideIds: string[] }[]): Promise<void> => {
+    async (_event, rootPath: string, groups: { id: string; name: string; slideIds: string[]; color?: string }[]): Promise<void> => {
       const configPath = join(rootPath, DECK_CONFIG_FILE)
       const yamlContent = await readFile(configPath, 'utf-8')
       const config = parsePresentationYaml(yamlContent, rootPath)

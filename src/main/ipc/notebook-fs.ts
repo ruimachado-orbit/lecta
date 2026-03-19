@@ -28,6 +28,8 @@ async function saveNotebookYaml(notebook: Notebook): Promise<void> {
     if (n.layout) note.layout = n.layout
     if (n.archivedAt) note.archivedAt = n.archivedAt
     if (n.code) note.code = n.code
+    if (n.video) note.video = n.video
+    if (n.webapp) note.webapp = n.webapp
     note.artifacts = n.artifacts
     if (n.children && n.children.length > 0) {
       note.children = n.children.map(serializeNote)
@@ -336,6 +338,106 @@ export function registerNotebookHandlers(): void {
       }
 
       unarchive(config.pages)
+      await saveNotebookYaml(config)
+
+      const reloaded = await readFile(configPath, 'utf-8')
+      const reloadedConfig = parseNotebookYaml(reloaded, rootPath)
+      const pages = await loadAllNotes(reloadedConfig)
+      return { config: reloadedConfig, pages }
+    }
+  )
+
+  // Add code to a note
+  ipcMain.handle(
+    'nb:add-code',
+    async (_event, rootPath: string, noteId: string, language: string): Promise<LoadedNotebook> => {
+      const configPath = join(rootPath, DECK_CONFIG_FILE)
+      const yamlContent = await readFile(configPath, 'utf-8')
+      const config = parseNotebookYaml(yamlContent, rootPath)
+
+      const extMap: Record<string, string> = {
+        javascript: '.js', typescript: '.ts', python: '.py', sql: '.sql',
+        html: '.html', css: '.css', json: '.json', bash: '.sh',
+        rust: '.rs', go: '.go', markdown: '.md'
+      }
+      const ext = extMap[language] || '.txt'
+      const codeFile = `code/${noteId}${ext}`
+
+      await mkdir(join(rootPath, 'code'), { recursive: true })
+      await writeFile(join(rootPath, codeFile), '', 'utf-8')
+
+      const engineMap: Record<string, string> = {
+        javascript: 'sandpack', typescript: 'sandpack', python: 'pyodide', sql: 'sql'
+      }
+
+      function addCode(notes: NoteConfig[]): boolean {
+        for (const note of notes) {
+          if (note.id === noteId) {
+            note.code = {
+              file: codeFile,
+              language: language as any,
+              execution: (engineMap[language] || 'none') as any
+            }
+            return true
+          }
+          if (note.children && addCode(note.children)) return true
+        }
+        return false
+      }
+
+      addCode(config.pages)
+      await saveNotebookYaml(config)
+
+      const reloaded = await readFile(configPath, 'utf-8')
+      const reloadedConfig = parseNotebookYaml(reloaded, rootPath)
+      const pages = await loadAllNotes(reloadedConfig)
+      return { config: reloadedConfig, pages }
+    }
+  )
+
+  // Add video to a note
+  ipcMain.handle(
+    'nb:add-video',
+    async (_event, rootPath: string, noteId: string, url: string): Promise<LoadedNotebook> => {
+      const configPath = join(rootPath, DECK_CONFIG_FILE)
+      const yamlContent = await readFile(configPath, 'utf-8')
+      const config = parseNotebookYaml(yamlContent, rootPath)
+
+      function addVid(notes: NoteConfig[]): boolean {
+        for (const note of notes) {
+          if (note.id === noteId) { (note as any).video = { url }; return true }
+          if (note.children && addVid(note.children)) return true
+        }
+        return false
+      }
+
+      addVid(config.pages)
+      await saveNotebookYaml(config)
+
+      const reloaded = await readFile(configPath, 'utf-8')
+      const reloadedConfig = parseNotebookYaml(reloaded, rootPath)
+      const pages = await loadAllNotes(reloadedConfig)
+      return { config: reloadedConfig, pages }
+    }
+  )
+
+  // Add webapp to a note
+  ipcMain.handle(
+    'nb:add-webapp',
+    async (_event, rootPath: string, noteId: string, url: string): Promise<LoadedNotebook> => {
+      const configPath = join(rootPath, DECK_CONFIG_FILE)
+      const yamlContent = await readFile(configPath, 'utf-8')
+      const config = parseNotebookYaml(yamlContent, rootPath)
+
+      function addWeb(notes: NoteConfig[]): boolean {
+        for (const note of notes) {
+          if (note.id === noteId) { (note as any).webapp = { url }; return true }
+          if (note.children && addWeb(note.children)) return true
+        }
+        return false
+      }
+
+      addWeb(config.pages)
       await saveNotebookYaml(config)
 
       const reloaded = await readFile(configPath, 'utf-8')

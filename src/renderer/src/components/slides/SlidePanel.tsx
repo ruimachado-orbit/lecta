@@ -327,6 +327,8 @@ function EditableSlideCanvas({ slideIndex, breakOffsets, rootPath, layout }: {
 }): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
   const [canvasScale, setCanvasScale] = useState(1)
+  const { slides, updateMarkdownContent, saveSlideContent } = usePresentationStore()
+  const markdown = slides[slideIndex]?.markdownContent ?? ''
 
   const SLIDE_W = 1280
   const SLIDE_H = 720
@@ -364,6 +366,18 @@ function EditableSlideCanvas({ slideIndex, breakOffsets, rootPath, layout }: {
         <div className="absolute inset-0 bg-black rounded" />
         <div className={`absolute inset-0 overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
           <WysiwygEditor slideIndex={slideIndex} breakOffsets={breakOffsets} />
+        </div>
+        {/* Draggable text boxes overlay — visible in editor mode */}
+        <div className="absolute inset-0 p-12" style={{ zIndex: 10 }}>
+          <DraggableElements
+            markdown={markdown}
+            canvasScale={canvasScale}
+            onUpdateMarkdown={(md) => {
+              updateMarkdownContent(slideIndex, md)
+              saveSlideContent(slideIndex)
+            }}
+            editable={true}
+          />
         </div>
         {/* Layout guide overlay */}
         {layout && layout !== 'default' && layout !== 'blank' && (

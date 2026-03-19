@@ -27,6 +27,9 @@ interface NotebookState {
   deleteNote: () => Promise<void>
   renameNote: (noteId: string, newId: string) => Promise<void>
   setNoteLayout: (layout: NoteLayout) => Promise<void>
+  addCodeToNote: (language: string) => Promise<void>
+  addVideoToNote: (url: string) => Promise<void>
+  addWebAppToNote: (url: string) => Promise<void>
   archiveNote: () => Promise<void>
   unarchiveNote: (noteId: string) => Promise<void>
   reset: () => void
@@ -197,6 +200,47 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
       )
       set(applyLoaded(loaded, currentPageIndex))
     } catch (error) {
+      set({ error: (error as Error).message })
+    }
+  },
+
+  addCodeToNote: async (language: string) => {
+    const { notebook, pages, currentPageIndex } = get()
+    if (!notebook) return
+    const page = pages[currentPageIndex]
+    if (!page) return
+    try {
+      const loaded: LoadedNotebook = await window.electronAPI.addCodeToNote(notebook.rootPath, page.config.id, language)
+      set(applyLoaded(loaded, currentPageIndex))
+    } catch (error) { set({ error: (error as Error).message }) }
+  },
+
+  addVideoToNote: async (url: string) => {
+    const { notebook, pages, currentPageIndex } = get()
+    if (!notebook) { console.error('addVideoToNote: no notebook'); return }
+    const page = pages[currentPageIndex]
+    if (!page) { console.error('addVideoToNote: no page'); return }
+    try {
+      console.log('addVideoToNote:', notebook.rootPath, page.config.id, url)
+      const loaded: LoadedNotebook = await window.electronAPI.addVideoToNote(notebook.rootPath, page.config.id, url)
+      set(applyLoaded(loaded, currentPageIndex))
+    } catch (error) {
+      console.error('addVideoToNote error:', error)
+      set({ error: (error as Error).message })
+    }
+  },
+
+  addWebAppToNote: async (url: string) => {
+    const { notebook, pages, currentPageIndex } = get()
+    if (!notebook) { console.error('addWebAppToNote: no notebook'); return }
+    const page = pages[currentPageIndex]
+    if (!page) { console.error('addWebAppToNote: no page'); return }
+    try {
+      console.log('addWebAppToNote:', notebook.rootPath, page.config.id, url)
+      const loaded: LoadedNotebook = await window.electronAPI.addWebAppToNote(notebook.rootPath, page.config.id, url)
+      set(applyLoaded(loaded, currentPageIndex))
+    } catch (error) {
+      console.error('addWebAppToNote error:', error)
       set({ error: (error as Error).message })
     }
   },

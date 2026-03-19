@@ -28,10 +28,9 @@ if (process.platform === 'darwin') {
   }
 }
 
-// Register custom protocols
+// Register custom protocol for serving local files (works in both dev and production)
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'lecta-file', privileges: { standard: false, secure: true, supportFetchAPI: true, stream: true } },
-  { scheme: 'lecta-asset', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } }
+  { scheme: 'lecta-file', privileges: { standard: false, secure: true, supportFetchAPI: true, stream: true } }
 ])
 
 let mainWindow: BrowserWindow | null = null
@@ -82,12 +81,12 @@ function createWindow(): void {
           `default-src 'self';` +
             ` script-src 'self' 'unsafe-eval' blob: https://cdn.jsdelivr.net https://unpkg.com https://esm.sh https://www.youtube.com https://s.ytimg.com;` +
             ` style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net;` +
-            ` connect-src 'self' lecta-asset: https://cdn.jsdelivr.net https://unpkg.com https://esm.sh https://api.anthropic.com${devConnect};` +
+            ` connect-src 'self' https://cdn.jsdelivr.net https://unpkg.com https://esm.sh https://api.anthropic.com${devConnect};` +
             ` worker-src 'self' blob:;` +
             ` child-src 'self' blob:;` +
             ` frame-src 'self' blob: https: http://localhost:* http://127.0.0.1:*;` +
-            ` img-src 'self' data: blob: https: file: lecta-file: lecta-asset:;` +
-            ` font-src 'self' data: file: blob: lecta-asset: https://cdn.jsdelivr.net https://unpkg.com;`
+            ` img-src 'self' data: blob: https: file: lecta-file:;` +
+            ` font-src 'self' data: file: blob: https://cdn.jsdelivr.net https://unpkg.com;`
         ]
       }
     })
@@ -112,33 +111,6 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   app.setAppUserModelId('com.lecta.app')
-
-  // Handle lecta-asset:// protocol — serves static assets from the renderer directory
-  // Used by Excalidraw to load font files
-  protocol.handle('lecta-asset', async (request) => {
-    const url = new URL(request.url)
-    // pathname is e.g. "/fonts/Excalifont/file.woff2"
-    const relativePath = decodeURIComponent(url.pathname)
-    const rendererDir = join(__dirname, '../renderer')
-    const filePath = join(rendererDir, relativePath)
-    try {
-      const data = await readFile(filePath)
-      const ext = filePath.split('.').pop()?.toLowerCase() || ''
-      const mimeMap: Record<string, string> = {
-        woff2: 'font/woff2', woff: 'font/woff', ttf: 'font/ttf', otf: 'font/otf',
-        png: 'image/png', jpg: 'image/jpeg', svg: 'image/svg+xml',
-        js: 'application/javascript', json: 'application/json'
-      }
-      return new Response(data, {
-        headers: {
-          'Content-Type': mimeMap[ext] || 'application/octet-stream',
-          'Access-Control-Allow-Origin': '*'
-        }
-      })
-    } catch {
-      return new Response('Not found', { status: 404 })
-    }
-  })
 
   // Handle lecta-file:// protocol — serves local files to the renderer
   // URL format: lecta-file:///absolute/path/to/file.png

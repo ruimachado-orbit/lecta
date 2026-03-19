@@ -24,6 +24,16 @@ const CodeBlockConfigSchema = z.object({
 const NoteLayoutSchema = z.enum(['lines', 'blank', 'agenda', 'grid'])
 
 // Recursive schema for notes with children
+const VideoConfigSchema = z.object({
+  url: z.string(),
+  label: z.string().optional()
+})
+
+const WebAppConfigSchema = z.object({
+  url: z.string(),
+  label: z.string().optional()
+})
+
 const BaseNoteConfigSchema = z.object({
   id: z.string(),
   content: z.string(),
@@ -31,7 +41,9 @@ const BaseNoteConfigSchema = z.object({
   createdAt: z.string().default(() => new Date().toISOString()),
   archivedAt: z.string().optional(),
   artifacts: z.array(ArtifactConfigSchema).default([]),
-  code: CodeBlockConfigSchema.optional()
+  code: CodeBlockConfigSchema.optional(),
+  video: VideoConfigSchema.optional(),
+  webapp: WebAppConfigSchema.optional()
 })
 
 type NoteConfigSchemaType = z.ZodType<NoteConfig>

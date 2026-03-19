@@ -6,10 +6,12 @@ import { NoteNavigator } from './NoteNavigator'
 import { NoteMap } from './NoteMap'
 import { AgendaView } from './AgendaView'
 import { TabBar } from '../layout/TabBar'
-import { CodePanel } from '../code/CodePanel'
 import { ArtifactDrawer } from '../artifacts/ArtifactDrawer'
-import { useNotebookStore } from '../../stores/notebook-store'
+import { CodePanel } from '../code/CodePanel'
+import { VideoPanel } from '../video/VideoPanel'
+import { WebPanel } from '../web/WebPanel'
 import { usePresentationStore } from '../../stores/presentation-store'
+import { useNotebookStore } from '../../stores/notebook-store'
 import { useUIStore } from '../../stores/ui-store'
 
 type NotebookView = 'notes' | 'agenda'
@@ -21,18 +23,55 @@ export function NotebookShell(): JSX.Element {
 
   const currentPage = pages[currentPageIndex]
   const hasCode = !!currentPage?.config.code
+  const hasVideo = !!currentPage?.config.video
+  const hasWebApp = !!currentPage?.config.webapp
   const hasFiles = (currentPage?.config.artifacts?.length ?? 0) > 0
-  const hasRightContent = hasCode || hasFiles
+  const hasRightContent = hasCode || hasVideo || hasWebApp || hasFiles
+
+  // Sync current note data into presentation store so CodePanel/VideoPanel/WebPanel work
+  useEffect(() => {
+    if (!notebook || !currentPage) return
+    const slideConfig = {
+      id: currentPage.config.id,
+      content: currentPage.config.content,
+      code: currentPage.config.code,
+      video: currentPage.config.video,
+      webapp: currentPage.config.webapp,
+      artifacts: currentPage.config.artifacts || [],
+    }
+    usePresentationStore.setState({
+      presentation: {
+        title: notebook.title,
+        author: notebook.author,
+        theme: notebook.theme,
+        slides: [slideConfig as any],
+        rootPath: notebook.rootPath,
+      },
+      slides: [{
+        config: slideConfig as any,
+        markdownContent: currentPage.markdownContent,
+        codeContent: currentPage.codeContent,
+        codeLanguage: currentPage.codeLanguage,
+        notesContent: null,
+      }],
+      currentSlideIndex: 0,
+    })
+    return () => {
+      // Clean up on unmount — don't leave stale presentation data
+    }
+  }, [notebook, currentPage, currentPageIndex])
 
   // Track what to show on the right pane
-  type RightPaneContent = 'code' | 'files' | null
+  type RightPaneContent = 'code' | 'video' | 'webapp' | 'files' | null
   const [rightPaneContent, setRightPaneContent] = useState<RightPaneContent>(null)
 
   useEffect(() => {
     if (hasCode) setRightPaneContent('code')
+    else if (hasVideo) setRightPaneContent('video')
+    else if (hasWebApp) setRightPaneContent('webapp')
     else if (hasFiles) setRightPaneContent('files')
     else setRightPaneContent(null)
-  }, [currentPageIndex, hasCode, hasFiles])
+  }, [currentPageIndex, hasCode, hasVideo, hasWebApp, hasFiles])
 
   if (!notebook) {
     return (
@@ -63,12 +102,9 @@ export function NotebookShell(): JSX.Element {
                 <PanelResizeHandle className="w-1 bg-gray-800 hover:bg-white transition-colors cursor-col-resize" />
                 <Panel defaultSize={34} minSize={15}>
                   {rightPaneContent === 'code' && hasCode && <CodePanel key={currentPageIndex} />}
+                  {rightPaneContent === 'video' && hasVideo && <VideoPanel key={currentPageIndex} video={currentPage!.config.video!} />}
+                  {rightPaneContent === 'webapp' && hasWebApp && <WebPanel key={currentPageIndex} webapp={currentPage!.config.webapp!} />}
                   {rightPaneContent === 'files' && hasFiles && <ArtifactDrawer />}
-                  {!hasCode && !hasFiles && (
-                    <div className="h-full flex items-center justify-center text-gray-600 bg-gray-950 text-sm">
-                      No artifacts for this note
-                    </div>
-                  )}
                 </Panel>
               </>
             )}
@@ -82,20 +118,30 @@ export function NotebookShell(): JSX.Element {
           {/* Add artifact button */}
           <AddArtifactButton />
 
+          {(hasCode || hasVideo || hasWebApp || hasFiles) && <div className="w-4 h-px bg-gray-700" />}
           {hasCode && (
-            <>
-              <div className="w-4 h-px bg-gray-700" />
-              <button onClick={() => { setRightPaneContent('code'); useUIStore.setState({ showRightPane: true }) }}
-                className={`w-6 h-6 rounded flex items-center justify-center text-[8px] transition-colors ${
-                  rightPaneContent === 'code' && showRightPane ? 'text-white font-bold' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
-                }`} title="Code editor">{'{ }'}</button>
-            </>
+            <button onClick={() => { setRightPaneContent('code'); useUIStore.setState({ showRightPane: true }) }}
+              className={`w-6 h-6 rounded flex items-center justify-center text-[8px] transition-colors ${
+                rightPaneContent === 'code' && showRightPane ? 'text-white font-bold' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
+              }`} title="Code editor">{'{ }'}</button>
+          )}
+          {hasVideo && (
+            <button onClick={() => { setRightPaneContent('video'); useUIStore.setState({ showRightPane: true }) }}
+              className={`w-6 h-6 rounded flex items-center justify-center text-[8px] transition-colors ${
+                rightPaneContent === 'video' && showRightPane ? 'text-white font-bold' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
+              }`} title="Video">▶</button>
+          )}
+          {hasWebApp && (
+            <button onClick={() => { setRightPaneContent('webapp'); useUIStore.setState({ showRightPane: true }) }}
+              className={`w-6 h-6 rounded flex items-center justify-center text-[8px] transition-colors ${
+                rightPaneContent === 'webapp' && showRightPane ? 'text-white font-bold' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
+              }`} title="Web browser">◎</button>
           )}
           {hasFiles && (
             <button onClick={() => { setRightPaneContent('files'); useUIStore.setState({ showRightPane: true }) }}
               className={`w-6 h-6 rounded flex items-center justify-center text-[8px] transition-colors ${
                 rightPaneContent === 'files' && showRightPane ? 'text-white font-bold' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
-              }`} title="File artifacts">{'\u{1F4CE}'}</button>
+              }`} title="File artifacts">📎</button>
           )}
           {hasRightContent && (
             <>
@@ -133,14 +179,17 @@ export function NotebookShell(): JSX.Element {
   )
 }
 
-/** Add artifact button with dropdown */
+/** Add artifact button — same dropdown as presentation slides */
 function AddArtifactButton(): JSX.Element {
   const [showMenu, setShowMenu] = useState(false)
-  const { addCodeToSlide, addArtifact, addVideo, addWebApp, slides, currentSlideIndex } = usePresentationStore()
-  // For notebooks we use the notebook store's presentation-compatible APIs
-  // But artifacts are slide-level concepts — notebooks reuse the same IPC
-  // For now, provide a simple "attach file" option
-  const { notebook } = useNotebookStore()
+  const [videoUrl, setVideoUrl] = useState('')
+  const [webAppUrl, setWebAppUrl] = useState('')
+  const { pages, currentPageIndex, addCodeToNote, addVideoToNote, addWebAppToNote } = useNotebookStore()
+  const currentPage = pages[currentPageIndex]
+
+  const hasCode = !!currentPage?.config.code
+  const hasVideo = !!currentPage?.config.video
+  const hasWebApp = !!currentPage?.config.webapp
 
   return (
     <div className="relative">
@@ -158,41 +207,67 @@ function AddArtifactButton(): JSX.Element {
       {showMenu && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
-          <div className="absolute top-0 right-full mr-1 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl w-44 overflow-hidden">
-            <button
-              onClick={async () => {
-                if (notebook?.rootPath) {
-                  // Use presentation store's addArtifact which opens file dialog
-                  // This works because it uses the same IPC handler
-                  await window.electronAPI.uploadImage(notebook.rootPath)
-                }
-                setShowMenu(false)
-              }}
-              className="w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-gray-800 transition-colors flex items-center gap-2"
-            >
+          <div className="absolute top-0 right-full mr-1 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl w-52 overflow-hidden">
+            {/* Code */}
+            {!hasCode && (
+              <div className="px-2 pt-2 pb-1">
+                <div className="text-[9px] uppercase tracking-wider text-gray-500 px-1 pb-1">Code</div>
+                <select
+                  onChange={(e) => { if (e.target.value) { addCodeToNote(e.target.value); setShowMenu(false) } }}
+                  defaultValue=""
+                  className="w-full px-2 py-1.5 bg-gray-950 text-gray-300 text-xs rounded border border-gray-700 focus:border-white focus:outline-none"
+                >
+                  <option value="" disabled>Select language...</option>
+                  {['markdown', 'javascript', 'python', 'sql', 'typescript', 'bash', 'go', 'rust'].map((l) => (
+                    <option key={l} value={l}>{l}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Video */}
+            {!hasVideo && (
+              <div className="px-2 pt-2 pb-1 border-t border-gray-800">
+                <div className="text-[9px] uppercase tracking-wider text-gray-500 px-1 pb-1">Video</div>
+                <div className="flex gap-1">
+                  <input type="text" value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && videoUrl.trim()) { addVideoToNote(videoUrl.trim()); setVideoUrl(''); setShowMenu(false) } }}
+                    placeholder="YouTube URL..."
+                    className="flex-1 px-2 py-1.5 bg-gray-950 text-gray-300 text-xs rounded border border-gray-700 focus:border-white focus:outline-none" />
+                  <button onClick={() => { if (videoUrl.trim()) { addVideoToNote(videoUrl.trim()); setVideoUrl(''); setShowMenu(false) } }}
+                    disabled={!videoUrl.trim()}
+                    className="px-2 py-1.5 bg-white hover:bg-gray-200 disabled:opacity-40 text-black text-[10px] rounded">Add</button>
+                </div>
+              </div>
+            )}
+
+            {/* Web App */}
+            {!hasWebApp && (
+              <div className="px-2 pt-2 pb-1 border-t border-gray-800">
+                <div className="text-[9px] uppercase tracking-wider text-gray-500 px-1 pb-1">Web App</div>
+                <div className="flex gap-1">
+                  <input type="text" value={webAppUrl} onChange={(e) => setWebAppUrl(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && webAppUrl.trim()) { let u = webAppUrl.trim(); if (!u.match(/^https?:\/\//)) u = 'https://' + u; addWebAppToNote(u); setWebAppUrl(''); setShowMenu(false) } }}
+                    placeholder="https://..."
+                    className="flex-1 px-2 py-1.5 bg-gray-950 text-gray-300 text-xs rounded border border-gray-700 focus:border-white focus:outline-none" />
+                  <button onClick={() => { let u = webAppUrl.trim(); if (!u) return; if (!u.match(/^https?:\/\//)) u = 'https://' + u; addWebAppToNote(u); setWebAppUrl(''); setShowMenu(false) }}
+                    disabled={!webAppUrl.trim()}
+                    className="px-2 py-1.5 bg-white hover:bg-gray-200 disabled:opacity-40 text-black text-[10px] rounded">Add</button>
+                </div>
+              </div>
+            )}
+
+            {/* File upload */}
+            <button onClick={async () => {
+              const { notebook: nb } = useNotebookStore.getState()
+              if (nb?.rootPath) await window.electronAPI.uploadImage(nb.rootPath)
+              setShowMenu(false)
+            }}
+              className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-gray-300 hover:bg-gray-800 transition-colors border-t border-gray-800">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3 3.75h18A2.25 2.25 0 0 1 23.25 6v12a2.25 2.25 0 0 1-2.25 2.25H3A2.25 2.25 0 0 1 .75 18V6A2.25 2.25 0 0 1 3 3.75Z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
               </svg>
-              Upload image
-            </button>
-            <button
-              onClick={() => {
-                // TODO: Add code artifact to notebook note
-                setShowMenu(false)
-              }}
-              className="w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-gray-800 transition-colors flex items-center gap-2 border-t border-gray-800"
-            >
-              <span className="text-[9px] font-mono">{'{ }'}</span>
-              Add code
-            </button>
-            <button
-              onClick={() => {
-                // TODO: Add file artifact to notebook note
-                setShowMenu(false)
-              }}
-              className="w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-gray-800 transition-colors flex items-center gap-2 border-t border-gray-800"
-            >
-              📎 Attach file
+              Upload file
             </button>
           </div>
         </>

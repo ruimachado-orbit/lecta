@@ -25,6 +25,7 @@ import Underline from '@tiptap/extension-underline'
 import { ResizableImage } from '../../extensions/resizable-image'
 import TurndownService from 'turndown'
 import { usePresentationStore } from '../../stores/presentation-store'
+import { useUIStore } from '../../stores/ui-store'
 
 const SHAPES = [
   '■', '□', '▪', '▫', '●', '○', '◆', '◇',
@@ -121,54 +122,42 @@ turndown.addRule('image-with-width', {
 function markdownToHtml(md: string, rootPath?: string): string {
   const lines = md.split('\n')
   const html: string[] = []
-  let inList = false
+  let listDepth = 0
+  const closeTo = (d: number) => { while (listDepth > d) { html.push('</ul>'); listDepth-- } }
 
   for (let i = 0; i < lines.length; i++) {
-    let line = lines[i]
+    const line = lines[i]
 
-    // Skip blank lines (don't create empty elements)
     if (!line.trim()) {
-      // If in a list and next line is also a list item, continue the list
-      const nextNonEmpty = lines.slice(i + 1).find((l) => l.trim())
-      if (inList && nextNonEmpty && nextNonEmpty.match(/^[-*+] /)) continue
-      if (inList) { html.push('</ul>'); inList = false }
+      const next = lines.slice(i + 1).find((l) => l.trim())
+      if (listDepth > 0 && next && next.match(/^\s*\\?[-*+] /)) continue
+      closeTo(0)
       continue
     }
 
-    // Images
     const imgMatch = line.match(/^!\[([^\]]*)\]\(([^)]+)\)$/)
-    if (imgMatch) {
-      if (inList) { html.push('</ul>'); inList = false }
-      const resolved = resolveImageSrc(imgMatch[2], rootPath)
-      html.push(`<img alt="${imgMatch[1]}" src="${resolved}" />`)
-      continue
-    }
+    if (imgMatch) { closeTo(0); html.push(`<img alt="${imgMatch[1]}" src="${resolveImageSrc(imgMatch[2], rootPath)}" />`); continue }
 
-    // Headings
-    const h3 = line.match(/^### (.+)$/)
-    if (h3) { if (inList) { html.push('</ul>'); inList = false }; html.push(`<h3>${processInline(h3[1])}</h3>`); continue }
-    const h2 = line.match(/^## (.+)$/)
-    if (h2) { if (inList) { html.push('</ul>'); inList = false }; html.push(`<h2>${processInline(h2[1])}</h2>`); continue }
-    const h1 = line.match(/^# (.+)$/)
-    if (h1) { if (inList) { html.push('</ul>'); inList = false }; html.push(`<h1>${processInline(h1[1])}</h1>`); continue }
+    const h3 = line.match(/^### (.+)$/); if (h3) { closeTo(0); html.push(`<h3>${processInline(h3[1])}</h3>`); continue }
+    const h2 = line.match(/^## (.+)$/); if (h2) { closeTo(0); html.push(`<h2>${processInline(h2[1])}</h2>`); continue }
+    const h1 = line.match(/^# (.+)$/); if (h1) { closeTo(0); html.push(`<h1>${processInline(h1[1])}</h1>`); continue }
+    if (line.match(/^---+$/)) { closeTo(0); html.push('<hr>'); continue }
 
-    // Horizontal rule
-    if (line.match(/^---+$/)) { if (inList) { html.push('</ul>'); inList = false }; html.push('<hr>'); continue }
-
-    // List items (-, *, +)
-    const li = line.match(/^[-*+] (.+)$/)
+    // List items with nesting via indent
+    const li = line.match(/^(\s*)\\?[-*+] (.+)$/)
     if (li) {
-      if (!inList) { html.push('<ul>'); inList = true }
-      html.push(`<li>${processInline(li[1])}</li>`)
+      const target = Math.floor(li[1].length / 2) + 1
+      while (listDepth < target) { html.push('<ul>'); listDepth++ }
+      while (listDepth > target) { html.push('</ul>'); listDepth-- }
+      html.push(`<li>${processInline(li[2])}</li>`)
       continue
     }
 
-    // Paragraph
-    if (inList) { html.push('</ul>'); inList = false }
+    closeTo(0)
     html.push(`<p>${processInline(line)}</p>`)
   }
 
-  if (inList) html.push('</ul>')
+  closeTo(0)
   return html.join('')
 }
 
@@ -349,7 +338,7 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
     onUpdate: ({ editor }) => {
       if (isInternalUpdate.current) return
       const html = editor.getHTML()
-      const md = turndown.turndown(html)
+      const md = turndown.turndown(html).replace(/^(\s*)\\-/gm, '$1-')
       updateMarkdownContent(slideIndex, md)
 
       // Check overflow after update
@@ -612,11 +601,13 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [] }: WysiwygEditorPr
           </svg>
         </WBtn>
         <WBtn onClick={() => editor.chain().focus().setHorizontalRule().run()}>—</WBtn>
-        <WBtn title="Text box" onClick={() => {
-          editor.chain().focus().insertContent(
-            '<p><!-- textbox x=100 y=400 w=300 -->Your text<!-- /textbox --></p>'
-          ).run()
-        }}>T▢</WBtn>
+        <WBtn title="Text box — adds a draggable text box to the slide" onClick={() => {
+          const { slides, currentSlideIndex, updateMarkdownContent, saveSlideContent } = usePresentationStore.getState()
+          const current = slides[currentSlideIndex]?.markdownContent ?? ''
+          const textbox = '\n<!-- textbox x=100 y=300 w=300 -->Your text here<!-- /textbox -->\n'
+          updateMarkdownContent(currentSlideIndex, current + textbox)
+          saveSlideContent(currentSlideIndex)
+        }}><svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M8 8h8M12 8v8" strokeLinecap="round" /></svg></WBtn>
         <Sep />
         {/* Shapes picker */}
         <div className="relative">

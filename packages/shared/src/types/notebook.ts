@@ -1,4 +1,4 @@
-import type { ArtifactConfig, CodeBlockConfig, SupportedLanguage } from './presentation'
+import type { ArtifactConfig, CodeBlockConfig, VideoConfig, WebAppConfig, SupportedLanguage } from './presentation'
 
 export type NoteLayout = 'lines' | 'blank' | 'agenda' | 'grid'
 
@@ -10,6 +10,8 @@ export interface NoteConfig {
   archivedAt?: string // ISO 8601 — if set, note is archived
   artifacts: ArtifactConfig[]
   code?: CodeBlockConfig
+  video?: VideoConfig
+  webapp?: WebAppConfig
   children?: NoteConfig[] // subnotes (recursive tree)
 }
 

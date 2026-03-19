@@ -137,21 +137,22 @@ html[data-theme="light"] .presenter-slide-frame {
   box-shadow: 0 0 0 1px rgba(0,0,0,0.08), 0 4px 24px rgba(0,0,0,0.12), 0 0 80px rgba(0,0,0,0.06);
 }
 
+/* Light mode slide content — no !important on color so inline styles from editor win */
 html[data-theme="light"] .slide-content h1,
-html[data-theme="light"] .slide-content h2 { color: #0f172a !important; }
-html[data-theme="light"] .slide-content h3 { color: #1e293b !important; }
+html[data-theme="light"] .slide-content h2 { color: #0f172a; }
+html[data-theme="light"] .slide-content h3 { color: #1e293b; }
 html[data-theme="light"] .slide-content p,
 html[data-theme="light"] .slide-content li,
 html[data-theme="light"] .slide-content ul,
-html[data-theme="light"] .slide-content ol { color: #334155 !important; }
-html[data-theme="light"] .slide-content code { background-color: #f1f5f9 !important; color: #171717 !important; }
-html[data-theme="light"] .slide-content pre { background-color: #f1f5f9 !important; }
-html[data-theme="light"] .slide-content pre code { background-color: transparent !important; color: inherit !important; }
-html[data-theme="light"] .slide-content th { background-color: #f1f5f9 !important; border-color: #e2e8f0 !important; color: #1e293b !important; }
-html[data-theme="light"] .slide-content td { border-color: #e2e8f0 !important; color: #334155 !important; }
-html[data-theme="light"] .slide-content blockquote { color: #64748b !important; }
-html[data-theme="light"] .slide-content a { color: #171717 !important; }
-html[data-theme="light"] .slide-content hr { border-color: #e2e8f0 !important; }
+html[data-theme="light"] .slide-content ol { color: #334155; }
+html[data-theme="light"] .slide-content code { background-color: #f1f5f9; color: #171717; }
+html[data-theme="light"] .slide-content pre { background-color: #f1f5f9; }
+html[data-theme="light"] .slide-content pre code { background-color: transparent; color: inherit; }
+html[data-theme="light"] .slide-content th { background-color: #f1f5f9; border-color: #e2e8f0; color: #1e293b; }
+html[data-theme="light"] .slide-content td { border-color: #e2e8f0; color: #334155; }
+html[data-theme="light"] .slide-content blockquote { color: #64748b; }
+html[data-theme="light"] .slide-content a { color: #171717; }
+html[data-theme="light"] .slide-content hr { border-color: #e2e8f0; }
 
 /* Presentation-quality slide styling */
 .slide-content h1 {

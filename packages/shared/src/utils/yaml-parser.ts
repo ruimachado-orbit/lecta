@@ -57,7 +57,8 @@ const AIConfigSchema = z.object({
 const SlideGroupConfigSchema = z.object({
   id: z.string(),
   name: z.string(),
-  slideIds: z.array(z.string())
+  slideIds: z.array(z.string()),
+  color: z.string().optional()
 })
 
 const PresentationSchema = z.object({

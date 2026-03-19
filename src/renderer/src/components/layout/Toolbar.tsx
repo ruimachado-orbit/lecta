@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useExecutionStore } from '../../stores/execution-store'
@@ -15,6 +15,13 @@ export function Toolbar(): JSX.Element {
   const [showAddMenu, setShowAddMenu] = useState(false)
   const [prettifying, setPrettifying] = useState(false)
   const [prettifyProgress, setPrettifyProgress] = useState({ current: 0, total: 0 })
+  const [prettifyReview, setPrettifyReview] = useState<{
+    slideIndex: number
+    original: string
+    improved: string
+  } | null>(null)
+  const prettifyQueueRef = useRef<{ index: number; original: string; improved: string }[]>([])
+  const [prettifyQueuePos, setPrettifyQueuePos] = useState(0)
   const [videoUrl, setVideoUrl] = useState('')
   const [webAppUrl, setWebAppUrl] = useState('')
 
@@ -190,47 +197,55 @@ export function Toolbar(): JSX.Element {
           <PdfIcon />
         </button>
 
-        {/* Prettify deck with AI */}
-        <button
-          onClick={async () => {
-            if (prettifying || !presentation) return
-            const title = presentation.title || 'Untitled'
-            const total = slides.length
-            setPrettifying(true)
-            setPrettifyProgress({ current: 0, total })
-            try {
-              for (let i = 0; i < total; i++) {
-                setPrettifyProgress({ current: i + 1, total })
-                const slide = slides[i]
-                if (!slide?.markdownContent?.trim()) continue
-                try {
-                  const improved = await window.electronAPI.beautifySlide(slide.markdownContent, title)
-                  if (improved?.trim()) {
-                    usePresentationStore.getState().updateMarkdownContent(i, improved)
-                    await usePresentationStore.getState().saveSlideContent(i)
-                  }
-                } catch {
-                  // Skip individual slide errors
+        {/* Prettify deck with AI — only in edit mode */}
+        {editingSlide && (
+          <button
+            onClick={async () => {
+              if (prettifying || !presentation) return
+              const title = presentation.title || 'Untitled'
+              const total = slides.length
+              setPrettifying(true)
+              setPrettifyProgress({ current: 0, total })
+              const queue: { index: number; original: string; improved: string }[] = []
+              try {
+                for (let i = 0; i < total; i++) {
+                  setPrettifyProgress({ current: i + 1, total })
+                  const slide = slides[i]
+                  if (!slide?.markdownContent?.trim()) continue
+                  try {
+                    const improved = await window.electronAPI.beautifySlide(slide.markdownContent, title)
+                    if (improved?.trim() && improved.trim() !== slide.markdownContent.trim()) {
+                      queue.push({ index: i, original: slide.markdownContent, improved })
+                    }
+                  } catch { /* skip */ }
                 }
+              } finally {
+                setPrettifying(false)
+                setPrettifyProgress({ current: 0, total: 0 })
               }
-            } finally {
-              setPrettifying(false)
-              setPrettifyProgress({ current: 0, total: 0 })
-            }
-          }}
-          disabled={prettifying || !presentation}
-          className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5 ${
-            prettifying
-              ? 'bg-indigo-600 text-white cursor-wait'
-              : 'bg-gray-800 hover:bg-indigo-600 text-gray-300 hover:text-white'
-          }`}
-          title="Polish all slides with AI — enforces 7×7 rule, cleans formatting, adds bold keywords"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
-          </svg>
-          {prettifying ? `Prettifying ${prettifyProgress.current}/${prettifyProgress.total}` : 'Prettify'}
-        </button>
+              // Start review flow
+              if (queue.length > 0) {
+                prettifyQueueRef.current = queue
+                setPrettifyQueuePos(0)
+                const first = queue[0]
+                usePresentationStore.getState().goToSlide(first.index)
+                setPrettifyReview({ slideIndex: first.index, original: first.original, improved: first.improved })
+              }
+            }}
+            disabled={prettifying || !presentation}
+            className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5 ${
+              prettifying
+                ? 'bg-indigo-600 text-white cursor-wait'
+                : 'bg-gray-800 hover:bg-indigo-600 text-gray-300 hover:text-white'
+            }`}
+            title="Polish all slides with AI — review changes per slide"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
+            </svg>
+            {prettifying ? `Analyzing ${prettifyProgress.current}/${prettifyProgress.total}` : 'Prettify'}
+          </button>
+        )}
 
         {/* Present mode */}
         <button
@@ -245,6 +260,97 @@ export function Toolbar(): JSX.Element {
           <PlayIcon />
           Present
         </button>
+      </div>
+
+      {/* Prettify review modal */}
+      {prettifyReview && (
+        <PrettifyReviewModal
+          slideIndex={prettifyReview.slideIndex}
+          original={prettifyReview.original}
+          improved={prettifyReview.improved}
+          queuePos={prettifyQueuePos}
+          queueTotal={prettifyQueueRef.current.length}
+          onAccept={() => {
+            const r = prettifyReview
+            usePresentationStore.getState().updateMarkdownContent(r.slideIndex, r.improved)
+            usePresentationStore.getState().saveSlideContent(r.slideIndex)
+            // Next in queue
+            const next = prettifyQueuePos + 1
+            if (next < prettifyQueueRef.current.length) {
+              const item = prettifyQueueRef.current[next]
+              setPrettifyQueuePos(next)
+              usePresentationStore.getState().goToSlide(item.index)
+              setPrettifyReview({ slideIndex: item.index, original: item.original, improved: item.improved })
+            } else {
+              setPrettifyReview(null)
+            }
+          }}
+          onReject={() => {
+            const next = prettifyQueuePos + 1
+            if (next < prettifyQueueRef.current.length) {
+              const item = prettifyQueueRef.current[next]
+              setPrettifyQueuePos(next)
+              usePresentationStore.getState().goToSlide(item.index)
+              setPrettifyReview({ slideIndex: item.index, original: item.original, improved: item.improved })
+            } else {
+              setPrettifyReview(null)
+            }
+          }}
+          onSkipAll={() => setPrettifyReview(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+function PrettifyReviewModal({ slideIndex, original, improved, queuePos, queueTotal, onAccept, onReject, onSkipAll }: {
+  slideIndex: number; original: string; improved: string
+  queuePos: number; queueTotal: number
+  onAccept: () => void; onReject: () => void; onSkipAll: () => void
+}): JSX.Element {
+  const { slides } = usePresentationStore()
+  const slideName = slides[slideIndex]?.config.id || `Slide ${slideIndex + 1}`
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-[90vw] max-w-4xl max-h-[80vh] flex flex-col">
+        {/* Header */}
+        <div className="px-5 py-3 border-b border-gray-800 flex items-center gap-3">
+          <svg className="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+          </svg>
+          <div className="flex-1">
+            <span className="text-sm font-semibold text-white">{slideName}</span>
+            <span className="text-xs text-gray-500 ml-2">{queuePos + 1} of {queueTotal} changes</span>
+          </div>
+          <button onClick={onSkipAll} className="text-xs text-gray-500 hover:text-gray-300 transition-colors">
+            Skip all remaining
+          </button>
+        </div>
+
+        {/* Diff view */}
+        <div className="flex-1 min-h-0 overflow-auto grid grid-cols-2 divide-x divide-gray-800">
+          <div className="p-4">
+            <div className="text-[10px] uppercase tracking-wider text-red-400/70 mb-2 font-medium">Before</div>
+            <pre className="text-xs text-gray-400 whitespace-pre-wrap font-mono leading-relaxed">{original}</pre>
+          </div>
+          <div className="p-4">
+            <div className="text-[10px] uppercase tracking-wider text-green-400/70 mb-2 font-medium">After</div>
+            <pre className="text-xs text-gray-200 whitespace-pre-wrap font-mono leading-relaxed">{improved}</pre>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="px-5 py-3 border-t border-gray-800 flex items-center gap-3 justify-end">
+          <button onClick={onReject}
+            className="px-4 py-2 text-sm rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors">
+            Reject
+          </button>
+          <button onClick={onAccept}
+            className="px-4 py-2 text-sm rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium transition-colors">
+            Accept
+          </button>
+        </div>
       </div>
     </div>
   )

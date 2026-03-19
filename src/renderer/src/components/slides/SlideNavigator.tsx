@@ -5,10 +5,11 @@ import { useUIStore } from '../../stores/ui-store'
 export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCount?: number; currentSubSlide?: number }): JSX.Element {
   const { slides, currentSlideIndex, goToSlide, addSlide, deleteSlide, reorderSlide, renameSlide, setSlideTransition, setSlideLayout, toggleSkipSlide } =
     usePresentationStore()
-  const { slideGroups, addSlideGroup, removeSlideGroup, toggleGroupCollapsed, addSlideToGroup, removeSlideFromGroup } =
+  const { slideGroups, addSlideGroup, removeSlideGroup, toggleGroupCollapsed, addSlideToGroup, removeSlideFromGroup, setGroupColor } =
     useUIStore()
 
   const [dragIndex, setDragIndex] = useState<number | null>(null)
+  const [groupContextMenu, setGroupContextMenu] = useState<{ x: number; y: number; groupId: string } | null>(null)
   const [dropTarget, setDropTarget] = useState<number | null>(null)
   const [dropGroupId, setDropGroupId] = useState<string | null>(null)
   const dragRef = useRef<number | null>(null)
@@ -132,9 +133,11 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
               onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setDropGroupId(group.id) }}
               onDragLeave={(e) => { e.preventDefault(); setDropGroupId(null) }}
               onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleDropOnGroup(e, group.id) }}
+              onContextMenu={(e) => { e.preventDefault(); setGroupContextMenu({ x: e.clientX, y: e.clientY, groupId: group.id }) }}
               className={`group/chip flex items-center gap-1 px-2 py-1 text-[9px] rounded transition-colors flex-shrink-0 ${
                 dropGroupId === group.id ? 'bg-white text-black ring-2 ring-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-              }`}>
+              }`}
+              style={group.color ? { borderLeft: `3px solid ${group.color}` } : undefined}>
               <span onClick={() => toggleGroupCollapsed(group.id)} className="flex items-center gap-1 cursor-pointer" style={dragIndex !== null ? { pointerEvents: 'none' } : {}}>
                 <span className={`transition-transform ${group.collapsed ? '' : 'rotate-90'}`}>▸</span>
                 {group.name} <span className={dropGroupId === group.id ? 'text-gray-300' : 'text-gray-600'}>({group.slideIds.length})</span>
@@ -164,14 +167,19 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
                 {index > 0 && <div className="w-2 flex-shrink-0" />}
                 <button
                   onClick={() => toggleGroupCollapsed(group.id)}
-                  className="flex-shrink-0 h-10 px-3 rounded-md border-2 border-dashed border-gray-600
-                             bg-gray-900 text-gray-400 hover:border-gray-500 hover:text-gray-300
+                  className="flex-shrink-0 h-10 px-3 rounded-md border-2 border-dashed
+                             bg-gray-900 hover:text-gray-300
                              transition-colors text-[9px] flex items-center gap-1.5"
+                  style={{
+                    borderColor: group.color ? `${group.color}60` : '#4b5563',
+                    color: group.color || '#9ca3af'
+                  }}
                   title={`${group.name} — ${group.slideIds.length} slides (click to expand)`}
                 >
+                  {group.color && <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: group.color }} />}
                   <span>▸</span>
                   <span className="font-medium">{group.name}</span>
-                  <span className="text-gray-600">{group.slideIds.length}</span>
+                  <span style={{ opacity: 0.5 }}>{group.slideIds.length}</span>
                 </button>
               </div>
             )
@@ -218,7 +226,7 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
                 : 'border-gray-500 bg-gray-900 text-gray-300 hover:border-gray-400 hover:text-gray-200'
               }`}
               title="Shift+click to multi-select">
-              {group && <span className="absolute -top-2 left-1 text-[7px] px-1 bg-gray-600 text-gray-200 rounded-sm leading-none">{group.name}</span>}
+              {group && <span className="absolute -top-2.5 left-1 text-[7px] px-1.5 py-px rounded leading-none font-medium" style={{ backgroundColor: group.color || '#4b5563', color: '#fff' }}>{group.name}</span>}
               {isSelected && selectedIndices.size > 1 && <span className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-white text-black text-[8px] font-bold rounded-full flex items-center justify-center z-10">✓</span>}
               <span className="block truncate font-medium">{index + 1}. {slide.config.id}</span>
               {/* Transition arrow — top right */}
@@ -289,8 +297,25 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
                 <div className="text-[9px] uppercase tracking-wider text-gray-600 px-3 py-0.5">Move to group</div>
                 {slideGroups.map((g) => (
                   <button key={g.id} onClick={() => handleGroupSelected(g.id)}
-                    className="w-full text-left px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-800 transition-colors">{g.name}</button>
+                    className="w-full text-left px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-800 transition-colors flex items-center gap-2">
+                    {g.color && <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: g.color }} />}
+                    {g.name}
+                  </button>
                 ))}
+                {/* Remove from group — only if selected slides are in a group */}
+                {selectedSlideIds.some((sid) => slideGroups.some((g) => g.slideIds.includes(sid))) && (
+                  <button onClick={() => {
+                    for (const sid of selectedSlideIds) {
+                      slideGroups.forEach((g) => {
+                        if (g.slideIds.includes(sid)) removeSlideFromGroup(g.id, sid)
+                      })
+                    }
+                    setSelectedIndices(new Set()); setContextMenu(null)
+                  }}
+                    className="w-full text-left px-3 py-1.5 text-xs text-orange-400 hover:bg-gray-800 transition-colors">
+                    Remove from group
+                  </button>
+                )}
               </>
             )}
 
@@ -421,9 +446,48 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
           </div>
         </>
       )}
+
+      {/* Group context menu — color picker */}
+      {groupContextMenu && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setGroupContextMenu(null)} />
+          <div className="fixed z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl py-2 px-3 w-44"
+            style={{ left: groupContextMenu.x, bottom: window.innerHeight - groupContextMenu.y, maxHeight: `${groupContextMenu.y - 8}px` }}>
+            <div className="text-[9px] text-gray-500 uppercase tracking-wider mb-2">Group Color</div>
+            <div className="flex flex-wrap gap-1.5">
+              {GROUP_COLORS.map((c) => {
+                const group = slideGroups.find((g) => g.id === groupContextMenu.groupId)
+                const isActive = group?.color === c.value
+                return (
+                  <button key={c.value} onClick={() => { setGroupColor(groupContextMenu.groupId, c.value); setGroupContextMenu(null) }}
+                    className={`w-6 h-6 rounded-full border-2 transition-all ${isActive ? 'ring-2 ring-white ring-offset-1 ring-offset-gray-900' : 'hover:scale-110'}`}
+                    style={{ backgroundColor: c.value, borderColor: isActive ? c.value : 'transparent' }}
+                    title={c.label} />
+                )
+              })}
+              {/* Reset / no color */}
+              <button onClick={() => { setGroupColor(groupContextMenu.groupId, ''); setGroupContextMenu(null) }}
+                className="w-6 h-6 rounded-full border-2 border-gray-600 hover:border-gray-400 transition-all flex items-center justify-center text-gray-500 text-[8px]"
+                title="No color">✕</button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }
+
+const GROUP_COLORS = [
+  { label: 'Red', value: '#ef4444' },
+  { label: 'Orange', value: '#f97316' },
+  { label: 'Yellow', value: '#eab308' },
+  { label: 'Green', value: '#22c55e' },
+  { label: 'Teal', value: '#14b8a6' },
+  { label: 'Blue', value: '#3b82f6' },
+  { label: 'Indigo', value: '#6366f1' },
+  { label: 'Purple', value: '#a855f7' },
+  { label: 'Pink', value: '#ec4899' },
+]
 
 const SLIDE_LAYOUTS = [
   { value: 'default', label: 'Default' },

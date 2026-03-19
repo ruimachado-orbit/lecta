@@ -17,6 +17,7 @@ export interface SlideGroup {
   name: string
   slideIds: string[]
   collapsed: boolean
+  color?: string
 }
 
 interface UIState {
@@ -59,8 +60,9 @@ interface UIState {
   toggleGroupCollapsed: (groupId: string) => void
   addSlideToGroup: (groupId: string, slideId: string) => void
   removeSlideFromGroup: (groupId: string, slideId: string) => void
+  setGroupColor: (groupId: string, color: string) => void
   checkAiEnabled: () => Promise<void>
-  loadGroupsFromPresentation: (groups: { id: string; name: string; slideIds: string[] }[]) => void
+  loadGroupsFromPresentation: (groups: { id: string; name: string; slideIds: string[]; color?: string }[]) => void
 }
 
 /** Persist groups to lecta.yaml via IPC */
@@ -69,7 +71,7 @@ function persistGroups(groups: SlideGroup[]) {
   import('./presentation-store').then(({ usePresentationStore }) => {
     const rootPath = usePresentationStore.getState().presentation?.rootPath
     if (rootPath) {
-      const toSave = groups.map((g) => ({ id: g.id, name: g.name, slideIds: g.slideIds }))
+      const toSave = groups.map((g) => ({ id: g.id, name: g.name, slideIds: g.slideIds, ...(g.color ? { color: g.color } : {}) }))
       window.electronAPI.saveGroups(rootPath, toSave)
     }
   })
@@ -151,6 +153,13 @@ export const useUIStore = create<UIState>((set, get) => ({
   removeSlideFromGroup: (groupId, slideId) => {
     const newGroups = get().slideGroups.map((g) =>
       g.id === groupId ? { ...g, slideIds: g.slideIds.filter((id) => id !== slideId) } : g
+    )
+    set({ slideGroups: newGroups })
+    persistGroups(newGroups)
+  },
+  setGroupColor: (groupId, color) => {
+    const newGroups = get().slideGroups.map((g) =>
+      g.id === groupId ? { ...g, color } : g
     )
     set({ slideGroups: newGroups })
     persistGroups(newGroups)

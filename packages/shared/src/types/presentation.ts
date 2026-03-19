@@ -2,6 +2,7 @@ export interface SlideGroupConfig {
   id: string
   name: string
   slideIds: string[]
+  color?: string
 }
 
 export interface Presentation {

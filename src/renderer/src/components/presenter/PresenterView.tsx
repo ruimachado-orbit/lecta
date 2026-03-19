@@ -59,6 +59,15 @@ export function PresenterView(): JSX.Element {
   const slideMarkdown = currentSlide?.markdownContent ?? ''
   const rootPath = presentation?.rootPath
 
+  // Find the current slide's group
+  const { slideGroups } = useUIStore.getState()
+  const currentGroup = currentSlide
+    ? slideGroups.find((g) => g.slideIds.includes(currentSlide.config.id))
+    : null
+  const groupSlideIndex = currentGroup
+    ? currentGroup.slideIds.indexOf(currentSlide?.config.id ?? '') + 1
+    : 0
+
   return (
     <div className="h-screen w-screen flex flex-col bg-black">
       {/* Top bar — spans full width for consistent background */}
@@ -81,6 +90,13 @@ export function PresenterView(): JSX.Element {
             </svg>
           </button>
         </div>
+        {/* Group label */}
+        {currentGroup && (
+          <div className="flex items-center gap-2 px-3 py-1 bg-white rounded-full">
+            <span className="text-xs text-black font-semibold">{currentGroup.name}</span>
+            <span className="text-xs text-gray-500 font-medium">{groupSlideIndex}/{currentGroup.slideIds.length}</span>
+          </div>
+        )}
         <span className="text-gray-500 text-xs truncate flex-1">{presentation?.title}</span>
         <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           <button onClick={() => setTimerRunning(!timerRunning)}

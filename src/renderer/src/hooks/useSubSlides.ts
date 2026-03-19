@@ -6,6 +6,13 @@ import { usePresentationStore } from '../stores/presentation-store'
  * Also exports character offsets for drawing divider lines in the editor.
  */
 
+/** Check if a line is a horizontal rule (sub-slide break) */
+function isHrLine(line: string): boolean {
+  const t = line.trim()
+  return t === '---' || t === '***' || t === '* * *' || t === '___' ||
+    /^-{3,}$/.test(t) || /^\*\s*\*\s*\*$/.test(t) || /^_{3,}$/.test(t)
+}
+
 // Content height inside the 1280x720 slide with p-12 (48px each side)
 // Use 82% of actual height as safety margin — measurement HTML approximates real rendering
 // but doesn't perfectly match SlideRenderer's tables, mermaid, blockquotes, etc.
@@ -127,14 +134,12 @@ export function useSubSlides(
   const measure = useCallback(() => {
     // Check for manual sub-slide breaks (--- or * * * or *** on its own line)
     // If found, use those as explicit break points instead of auto-calculating
-    const hasManualBreaks = markdown.split('\n').some((line) => {
-      const t = line.trim()
-      return t === '---' || t === '***' || t === '* * *' || t === '___' || t.match(/^-{3,}$/) || t.match(/^\*\s*\*\s*\*$/)
-    })
+    const hasManualBreaks = markdown.split('\n').some(isHrLine)
 
     if (hasManualBreaks) {
       // Split on horizontal rule delimiters (---, ***, * * *, ___)
-      const sections = markdown.split(/\n(?:---+|\*\s*\*\s*\*|___+)\n/)
+      // Use \n? to handle rules at start/end of content
+      const sections = markdown.split(/\n?(?:---+|\*\s*\*\s*\*|___+)\n?/)
       const pages: SubSlide[] = sections.map((section, i) => ({
         markdown: section.trim(),
         index: i
@@ -144,8 +149,7 @@ export function useSubSlides(
       let charPos = 0
       const lines = markdown.split('\n')
       for (const line of lines) {
-        const t = line.trim()
-        if (t === '---' || t === '***' || t === '* * *' || t === '___' || t.match(/^-{3,}$/) || t.match(/^\*\s*\*\s*\*$/)) {
+        if (isHrLine(line)) {
           breaks.push(charPos)
         }
         charPos += line.length + 1

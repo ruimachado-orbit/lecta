@@ -225,7 +225,7 @@ export function HomeScreen(): JSX.Element {
                     Recent Notebooks
                   </h3>
                   <div className="grid grid-cols-2 gap-3">
-                    {notebooks.map((deck) => (
+                    {notebooks.slice(0, 4).map((deck) => (
                       <RecentCard key={deck.path} deck={deck} onClick={() => handleOpenRecent(deck)} />
                     ))}
                   </div>
@@ -239,7 +239,7 @@ export function HomeScreen(): JSX.Element {
                     Recent Presentations
                   </h3>
                   <div className="grid grid-cols-2 gap-3">
-                    {presentations.map((deck) => (
+                    {presentations.slice(0, 4).map((deck) => (
                       <RecentCard key={deck.path} deck={deck} onClick={() => handleOpenRecent(deck)} />
                     ))}
                   </div>

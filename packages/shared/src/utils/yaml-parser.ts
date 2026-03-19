@@ -72,6 +72,7 @@ const PresentationSchema = z.object({
   title: z.string(),
   author: z.string(),
   theme: z.string().default('dark'),
+  lastViewedIndex: z.number().optional(),
   slides: z.array(SlideConfigSchema),
   ai: AIConfigSchema.optional(),
   groups: z.array(SlideGroupConfigSchema).optional()

@@ -9,6 +9,7 @@ export interface Presentation {
   title: string
   author: string
   theme: string
+  lastViewedIndex?: number
   slides: SlideConfig[]
   rootPath: string
   ai?: AIConfig

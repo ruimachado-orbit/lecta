@@ -57,6 +57,7 @@ const NotebookSchema = z.object({
   author: z.string().default(''),
   theme: z.string().default('dark'),
   defaultLayout: NoteLayoutSchema.default('lines'),
+  lastViewedIndex: z.number().optional(),
   pages: z.array(NoteConfigSchema)
 })
 

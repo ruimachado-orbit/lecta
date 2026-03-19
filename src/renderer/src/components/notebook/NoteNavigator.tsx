@@ -178,7 +178,7 @@ export function NoteNavigator(): JSX.Element {
                       }
                     }}
                     onContextMenu={(e) => handleContextMenu(e, pageIndex)}
-                    className={`flex-shrink-0 rounded-md border-2 transition-all text-left px-2 py-1 relative ${
+                    className={`group/card flex-shrink-0 rounded-md border-2 transition-all text-left px-2 py-1 relative ${
                       isSubnote ? 'h-8 w-16' : 'h-10 w-20'
                     } ${
                       isActive
@@ -187,6 +187,22 @@ export function NoteNavigator(): JSX.Element {
                     }`}
                     title={page.config.id}
                   >
+                    {/* Delete button — top right on hover */}
+                    {pages.length > 1 && (
+                      <span
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          goToPage(pageIndex)
+                          deleteNote()
+                        }}
+                        className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover/card:opacity-100 transition-opacity cursor-pointer hover:bg-red-400 z-10"
+                        title="Delete note"
+                      >
+                        <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                        </svg>
+                      </span>
+                    )}
                     <span className={`block truncate font-medium ${isSubnote ? 'text-[7px]' : 'text-[8px]'}`}>
                       {page.markdownContent?.replace(/<[^>]+>/g, '').replace(/^#+\s*/, '').trim().split('\n')[0]?.slice(0, 30) || page.config.id}
                     </span>

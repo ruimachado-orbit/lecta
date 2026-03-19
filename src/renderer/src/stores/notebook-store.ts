@@ -70,7 +70,10 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
     set({ isLoading: true, error: null })
     try {
       const loaded: LoadedNotebook = await window.electronAPI.loadNotebook(folderPath)
-      set(applyLoaded(loaded))
+      // Restore last viewed page index
+      const lastIdx = loaded.config.lastViewedIndex
+      const restoreIdx = (lastIdx != null && lastIdx > 0 && lastIdx < loaded.pages.length) ? lastIdx : 0
+      set(applyLoaded(loaded, restoreIdx))
       // Clear presentation store so App.tsx doesn't render AppShell
       const { usePresentationStore } = await import('./presentation-store')
       usePresentationStore.getState().reset()
@@ -80,23 +83,28 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
   },
 
   goToPage: (index: number) => {
-    const { pages } = get()
+    const { pages, notebook } = get()
     if (index >= 0 && index < pages.length) {
       set({ currentPageIndex: index })
+      if (notebook) set({ notebook: { ...notebook, lastViewedIndex: index } })
     }
   },
 
   nextPage: () => {
-    const { currentPageIndex, pages } = get()
+    const { currentPageIndex, pages, notebook } = get()
     if (currentPageIndex < pages.length - 1) {
-      set({ currentPageIndex: currentPageIndex + 1 })
+      const newIdx = currentPageIndex + 1
+      set({ currentPageIndex: newIdx })
+      if (notebook) set({ notebook: { ...notebook, lastViewedIndex: newIdx } })
     }
   },
 
   prevPage: () => {
-    const { currentPageIndex } = get()
+    const { currentPageIndex, notebook } = get()
     if (currentPageIndex > 0) {
-      set({ currentPageIndex: currentPageIndex - 1 })
+      const newIdx = currentPageIndex - 1
+      set({ currentPageIndex: newIdx })
+      if (notebook) set({ notebook: { ...notebook, lastViewedIndex: newIdx } })
     }
   },
 

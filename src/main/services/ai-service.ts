@@ -433,8 +433,8 @@ Rules:
 
   async runPrompt(
     prompt: string,
-    slideContent: string,
-    deckTitle: string,
+    _slideContent: string,
+    _deckTitle: string,
     onChunk: (chunk: string) => void
   ): Promise<void> {
     const client = await this.getClient()
@@ -442,21 +442,11 @@ Rules:
     const stream = client.messages.stream({
       model: this.model,
       max_tokens: 2048,
-      system: `You are a helpful AI assistant embedded in a presentation tool called Lecta. The user has attached a "Prompt" artifact to a slide and is asking you a question or requesting content.
-
-Context:
-- You are viewing a presentation titled "${deckTitle}"
-- The current slide content is provided below for context
-
-Rules:
-- Be concise and direct
-- Use markdown formatting for clarity
-- If the question relates to the slide content, reference it naturally
-- Provide actionable, useful answers`,
+      system: `You are a helpful AI assistant. Be concise and direct. Use markdown formatting for clarity. Provide actionable, useful answers.`,
       messages: [
         {
           role: 'user',
-          content: `Current slide content:\n${slideContent}\n\nUser prompt: ${prompt}`
+          content: prompt
         }
       ]
     })

@@ -518,6 +518,39 @@ export function registerFileSystemHandlers(): void {
     }
   )
 
+  // Update a prompt's text and/or response
+  ipcMain.handle(
+    'fs:update-prompt',
+    async (
+      _event,
+      rootPath: string,
+      slideIndex: number,
+      promptIndex: number,
+      promptText: string,
+      response?: string
+    ): Promise<LoadedPresentation> => {
+      const configPath = join(rootPath, DECK_CONFIG_FILE)
+      const yamlContent = await readFile(configPath, 'utf-8')
+      const config = parsePresentationYaml(yamlContent, rootPath)
+
+      const slide = config.slides[slideIndex]
+      if (!slide) throw new Error(`Slide at index ${slideIndex} not found`)
+      if (!slide.prompts?.[promptIndex]) throw new Error(`Prompt at index ${promptIndex} not found`)
+
+      slide.prompts[promptIndex].prompt = promptText
+      if (response !== undefined) {
+        slide.prompts[promptIndex].response = response
+      }
+
+      await savePresentationYaml(config)
+
+      const reloaded = await readFile(configPath, 'utf-8')
+      const reloadedConfig = parsePresentationYaml(reloaded, rootPath)
+      const slides = await loadAllSlides(reloadedConfig, rootPath)
+      return { config: reloadedConfig, slides }
+    }
+  )
+
   // Add multiple slides at once (for AI bulk generation)
   ipcMain.handle(
     'fs:add-bulk-slides',

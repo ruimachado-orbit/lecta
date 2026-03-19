@@ -28,6 +28,7 @@ export interface WebAppConfig {
 export interface PromptConfig {
   prompt: string
   label?: string
+  response?: string
 }
 
 export type SlideTransition = 'none' | 'left' | 'right' | 'top' | 'bottom'

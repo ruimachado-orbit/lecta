@@ -60,6 +60,8 @@ const api = {
     ipcRenderer.invoke('fs:add-webapp', rootPath, slideIndex, url, label),
   addPrompt: (rootPath: string, slideIndex: number, prompt: string, label?: string): Promise<LoadedPresentation> =>
     ipcRenderer.invoke('fs:add-prompt', rootPath, slideIndex, prompt, label),
+  updatePrompt: (rootPath: string, slideIndex: number, promptIndex: number, promptText: string, response?: string): Promise<LoadedPresentation> =>
+    ipcRenderer.invoke('fs:update-prompt', rootPath, slideIndex, promptIndex, promptText, response),
 
   // Code execution
   executeNative: (

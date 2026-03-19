@@ -39,6 +39,7 @@ interface PresentationState {
   addVideo: (url: string, label?: string) => Promise<void>
   addWebApp: (url: string, label?: string) => Promise<void>
   addPrompt: (prompt: string, label?: string) => Promise<void>
+  updatePrompt: (promptIndex: number, promptText: string, response?: string) => Promise<void>
   toggleSkipSlide: (slideIndex: number) => void
   setSlideTransition: (transition: string) => Promise<void>
   setSlideLayout: (layout: string) => Promise<void>

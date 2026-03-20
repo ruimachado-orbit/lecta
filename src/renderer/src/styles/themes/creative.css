@@ -1,13 +1,13 @@
-/* Creative — Stripe/Linear/Vercel inspired. Dark canvas, vibrant purple-to-pink
-   gradients, bold weights, generous rounding. Modern SaaS energy. */
+/* Creative — Stripe/Vercel/Linear energy. Dark canvas, violet-to-pink gradients,
+   extra bold type, generous rounding, glow effects. Tech startup vibes. */
 [data-slide-theme="creative"] {
-  --slide-bg: #0c0c14;
+  --slide-bg: #0a0a14;
   --slide-font-heading: "Inter", -apple-system, sans-serif;
   --slide-font-body: "Inter", -apple-system, sans-serif;
 
   --slide-color-h1: #ffffff;
-  --slide-color-h2: #ededf5;
-  --slide-color-h3: #b8b8d0;
+  --slide-color-h2: #e8e8f8;
+  --slide-color-h3: #b0b0cc;
   --slide-h1-size: 2.5rem;
   --slide-h1-weight: 800;
   --slide-h1-tracking: -0.03em;
@@ -16,12 +16,13 @@
   --slide-h3-size: 1.375rem;
   --slide-h3-weight: 600;
 
-  --slide-color-body: #c8c8dc;
-  --slide-color-muted: #8888a4;
-  --slide-color-dimmed: #58586e;
+  --slide-color-body: #b8b8d4;
+  --slide-color-muted: #808098;
+  --slide-color-dimmed: #505066;
   --slide-body-size: 1.15rem;
   --slide-list-size: 1.05rem;
 
+  /* Purple-to-pink gradient accent — the signature */
   --slide-accent: #8b5cf6;
   --slide-accent-light: #a78bfa;
   --slide-accent-gradient: linear-gradient(135deg, #8b5cf6, #ec4899);
@@ -29,59 +30,60 @@
   --slide-link-color: #a78bfa;
   --slide-link-hover: #c4b5fd;
 
-  --slide-table-border: rgba(139,92,246,0.12);
-  --slide-table-header-bg: linear-gradient(135deg, rgba(139,92,246,0.12), rgba(236,72,153,0.08));
-  --slide-table-header-color: #ededf5;
-  --slide-table-header-border: rgba(139,92,246,0.25);
-  --slide-table-cell-color: #c8c8dc;
-  --slide-table-cell-border: rgba(255,255,255,0.04);
-  --slide-table-row-hover: rgba(139,92,246,0.05);
+  --slide-table-border: rgba(139,92,246,0.1);
+  --slide-table-header-bg: rgba(139,92,246,0.06);
+  --slide-table-header-color: #e8e8f8;
+  --slide-table-header-border: rgba(139,92,246,0.2);
+  --slide-table-cell-color: #b8b8d4;
+  --slide-table-cell-border: rgba(255,255,255,0.03);
+  --slide-table-row-hover: rgba(139,92,246,0.04);
   --slide-table-radius: 0.75rem;
 
   --slide-quote-border: #8b5cf6;
-  --slide-quote-bg: rgba(139,92,246,0.05);
-  --slide-quote-color: #c8c8dc;
+  --slide-quote-bg: rgba(139,92,246,0.04);
+  --slide-quote-color: #b8b8d4;
   --slide-quote-radius: 0 0.75rem 0.75rem 0;
 
-  --slide-code-bg: rgba(139,92,246,0.08);
+  --slide-code-bg: rgba(139,92,246,0.06);
   --slide-code-color: #c4b5fd;
-  --slide-pre-bg: #08080e;
+  --slide-pre-bg: #060610;
 
-  --slide-badge-green-bg: rgba(52,211,153,0.12);
+  --slide-badge-green-bg: rgba(52,211,153,0.1);
   --slide-badge-green-color: #34d399;
-  --slide-badge-green-border: rgba(52,211,153,0.25);
-  --slide-badge-yellow-bg: rgba(251,191,36,0.12);
+  --slide-badge-green-border: rgba(52,211,153,0.2);
+  --slide-badge-yellow-bg: rgba(251,191,36,0.1);
   --slide-badge-yellow-color: #fbbf24;
-  --slide-badge-yellow-border: rgba(251,191,36,0.25);
-  --slide-badge-red-bg: rgba(251,113,133,0.12);
+  --slide-badge-yellow-border: rgba(251,191,36,0.2);
+  --slide-badge-red-bg: rgba(251,113,133,0.1);
   --slide-badge-red-color: #fb7185;
-  --slide-badge-red-border: rgba(251,113,133,0.25);
+  --slide-badge-red-border: rgba(251,113,133,0.2);
 
-  --slide-progress-bg: rgba(255,255,255,0.06);
+  --slide-progress-bg: rgba(255,255,255,0.04);
   --slide-progress-fill: linear-gradient(90deg, #8b5cf6, #ec4899);
 
-  --slide-metric-bg: rgba(139,92,246,0.04);
-  --slide-metric-border: rgba(139,92,246,0.12);
+  --slide-metric-bg: rgba(139,92,246,0.03);
+  --slide-metric-border: rgba(139,92,246,0.1);
   --slide-metric-value-color: #ffffff;
-  --slide-metric-context-color: #8888a4;
+  --slide-metric-context-color: #808098;
 
   --slide-section-bar: linear-gradient(180deg, #8b5cf6, #ec4899);
   --slide-big-number-gradient: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 30%, #ec4899 70%, #f97316 100%);
   --slide-quote-mark-color: #8b5cf6;
-  --slide-title-subtitle-color: #8888a4;
+  --slide-title-subtitle-color: #808098;
 
   --slide-element-radius: 0.75rem;
-  --slide-textbox-border: rgba(139,92,246,0.12);
-  --slide-textbox-color: #c8c8dc;
+  --slide-textbox-border: rgba(139,92,246,0.1);
+  --slide-textbox-color: #b8b8d4;
 }
 
-/* Creative — vibrant gradient underline on H1 */
+/* Creative — purple-to-pink gradient underline on H1 */
 [data-slide-theme="creative"] .slide-content h1 {
   padding-bottom: 0.5rem;
   background-image: linear-gradient(90deg, #8b5cf6, #ec4899, transparent);
   background-repeat: no-repeat;
   background-size: 50% 2px;
   background-position: bottom left;
+  text-shadow: 0 0 60px rgba(139,92,246,0.08);
 }
 [data-slide-theme="creative"] .slide-layout-title .slide-content h1,
 [data-slide-theme="creative"] .slide-layout-big-number .slide-content h1,
@@ -90,10 +92,10 @@
   padding-bottom: 0;
 }
 
-/* Creative — generous rounding everywhere */
+/* Creative — generous rounding */
 [data-slide-theme="creative"] .slide-content table {
   border-radius: 0.75rem;
-  border: 1px solid rgba(139,92,246,0.1);
+  border: 1px solid rgba(139,92,246,0.08);
 }
 [data-slide-theme="creative"] .slide-content pre {
   border-radius: 0.75rem;
@@ -105,9 +107,4 @@
 /* Creative — purple bullet markers */
 [data-slide-theme="creative"] .slide-content ul li::marker {
   color: #a78bfa;
-}
-
-/* Creative — subtle glow on headings */
-[data-slide-theme="creative"] .slide-content h1 {
-  text-shadow: 0 0 60px rgba(139,92,246,0.1);
 }

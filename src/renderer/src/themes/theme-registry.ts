@@ -4,9 +4,9 @@ const themes: PresentationTheme[] = [
   {
     id: 'dark',
     name: 'Default Dark',
-    description: 'Deep navy-black with indigo accents',
+    description: 'Deep navy with soft indigo accents',
     mode: 'dark',
-    previewColors: { bg: '#0a0a12', text: '#f0f0ff', accent: '#6366f1', muted: '#8888a0' },
+    previewColors: { bg: '#08081a', text: '#eeeeff', accent: '#6366f1', muted: '#7878a0' },
     fonts: {
       heading: { family: '-apple-system, SF Pro Display, sans-serif', weights: [600, 700] },
       body: { family: '-apple-system, SF Pro Text, sans-serif', weights: [400] },
@@ -17,7 +17,7 @@ const themes: PresentationTheme[] = [
     name: 'Default Light',
     description: 'Clean white with indigo accents',
     mode: 'light',
-    previewColors: { bg: '#ffffff', text: '#0f172a', accent: '#4f46e5', muted: '#64748b' },
+    previewColors: { bg: '#ffffff', text: '#111827', accent: '#4f46e5', muted: '#6b7280' },
     fonts: {
       heading: { family: '-apple-system, SF Pro Display, sans-serif', weights: [600, 700] },
       body: { family: '-apple-system, SF Pro Text, sans-serif', weights: [400] },
@@ -26,9 +26,9 @@ const themes: PresentationTheme[] = [
   {
     id: 'executive',
     name: 'Executive',
-    description: 'Premium dark with rich gold accents',
+    description: 'Premium dark with champagne gold',
     mode: 'dark',
-    previewColors: { bg: '#08080a', text: '#ffffff', accent: '#c9a227', muted: '#707078' },
+    previewColors: { bg: '#07070a', text: '#f5f5f0', accent: '#c4a035', muted: '#686862' },
     fonts: {
       heading: { family: 'Inter, sans-serif', googleFont: 'Inter', weights: [600, 700] },
       body: { family: 'Inter, sans-serif', googleFont: 'Inter', weights: [400, 500] },
@@ -37,9 +37,9 @@ const themes: PresentationTheme[] = [
   {
     id: 'minimal',
     name: 'Minimal',
-    description: 'Apple Keynote style. Pure black on white',
+    description: 'Pure black on white. Zero decoration',
     mode: 'light',
-    previewColors: { bg: '#ffffff', text: '#000000', accent: '#000000', muted: '#bbbbbb' },
+    previewColors: { bg: '#ffffff', text: '#000000', accent: '#171717', muted: '#a3a3a3' },
     fonts: {
       heading: { family: '-apple-system, SF Pro Display, Inter, sans-serif', weights: [600, 700] },
       body: { family: '-apple-system, SF Pro Text, Inter, sans-serif', weights: [400] },
@@ -48,9 +48,9 @@ const themes: PresentationTheme[] = [
   {
     id: 'corporate',
     name: 'Corporate',
-    description: 'Professional navy and blue for business',
+    description: 'Enterprise navy and blue',
     mode: 'light',
-    previewColors: { bg: '#ffffff', text: '#0f2044', accent: '#1d4ed8', muted: '#6b7280' },
+    previewColors: { bg: '#ffffff', text: '#0c1a3a', accent: '#1d4ed8', muted: '#64748b' },
     fonts: {
       heading: { family: 'Inter, sans-serif', googleFont: 'Inter', weights: [600, 700] },
       body: { family: 'Inter, sans-serif', googleFont: 'Inter', weights: [400] },
@@ -59,9 +59,9 @@ const themes: PresentationTheme[] = [
   {
     id: 'creative',
     name: 'Creative',
-    description: 'Vibrant purple-to-pink gradients',
+    description: 'Vibrant violet-to-pink gradients',
     mode: 'dark',
-    previewColors: { bg: '#0c0c14', text: '#ffffff', accent: '#8b5cf6', muted: '#8888a4' },
+    previewColors: { bg: '#0a0a14', text: '#ffffff', accent: '#8b5cf6', muted: '#808098' },
     fonts: {
       heading: { family: 'Inter, sans-serif', googleFont: 'Inter', weights: [700, 800] },
       body: { family: 'Inter, sans-serif', googleFont: 'Inter', weights: [400] },
@@ -70,9 +70,9 @@ const themes: PresentationTheme[] = [
   {
     id: 'keynote-dark',
     name: 'Keynote Dark',
-    description: 'True black with electric cyan glow',
+    description: 'True black with electric cyan neon',
     mode: 'dark',
-    previewColors: { bg: '#000000', text: '#ffffff', accent: '#00d4ff', muted: '#666666' },
+    previewColors: { bg: '#000000', text: '#ffffff', accent: '#00d4ff', muted: '#606060' },
     fonts: {
       heading: { family: '-apple-system, SF Pro Display, Inter, sans-serif', weights: [600, 700] },
       body: { family: '-apple-system, SF Pro Text, Inter, sans-serif', weights: [400] },
@@ -81,9 +81,9 @@ const themes: PresentationTheme[] = [
   {
     id: 'paper',
     name: 'Paper',
-    description: 'Warm cream with serif fonts and sienna accents',
+    description: 'Warm cream, serif fonts, sienna ink',
     mode: 'light',
-    previewColors: { bg: '#faf7f2', text: '#1a0f08', accent: '#8b3a0e', muted: '#6b5545' },
+    previewColors: { bg: '#faf7f0', text: '#1c110a', accent: '#8a3a10', muted: '#6a5545' },
     fonts: {
       heading: { family: 'Playfair Display, Georgia, serif', googleFont: 'Playfair Display', weights: [600, 700] },
       body: { family: 'Source Serif 4, Georgia, serif', googleFont: 'Source Serif 4', weights: [400, 500] },

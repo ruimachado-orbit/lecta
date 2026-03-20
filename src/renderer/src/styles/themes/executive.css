@@ -1,13 +1,13 @@
-/* Executive — Premium consulting deck. Near-black canvas, rich gold accent,
-   tight Inter typography. Think McKinsey, BCG, Goldman Sachs annual reports. */
+/* Executive — Premium consulting dark. Near-black with warm champagne gold.
+   Think McKinsey deck, Goldman annual report, luxury brand. Restrained, expensive. */
 [data-slide-theme="executive"] {
-  --slide-bg: #08080a;
+  --slide-bg: #07070a;
   --slide-font-heading: "Inter", -apple-system, sans-serif;
   --slide-font-body: "Inter", -apple-system, sans-serif;
 
-  --slide-color-h1: #ffffff;
-  --slide-color-h2: #e8e8ec;
-  --slide-color-h3: #b0b0b8;
+  --slide-color-h1: #f5f5f0;
+  --slide-color-h2: #ddddd5;
+  --slide-color-h3: #a0a098;
   --slide-h1-size: 2.5rem;
   --slide-h1-weight: 700;
   --slide-h1-tracking: -0.025em;
@@ -15,67 +15,66 @@
   --slide-h2-weight: 600;
   --slide-h3-size: 1.375rem;
 
-  --slide-color-body: #a0a0a8;
-  --slide-color-muted: #707078;
-  --slide-color-dimmed: #4a4a52;
+  --slide-color-body: #95958d;
+  --slide-color-muted: #686862;
+  --slide-color-dimmed: #44443f;
   --slide-body-size: 1.15rem;
   --slide-list-size: 1.05rem;
 
-  --slide-accent: #c9a227;
-  --slide-accent-light: #e2be3f;
-  --slide-accent-gradient: linear-gradient(135deg, #e2be3f, #c9a227, #9a7b18);
+  --slide-accent: #c4a035;
+  --slide-accent-light: #dab84a;
+  --slide-accent-gradient: linear-gradient(135deg, #dab84a, #c4a035, #8a7020);
 
-  --slide-link-color: #e2be3f;
-  --slide-link-hover: #f0d060;
+  --slide-link-color: #dab84a;
+  --slide-link-hover: #eece60;
 
-  --slide-table-border: rgba(201,162,39,0.12);
-  --slide-table-header-bg: rgba(201,162,39,0.06);
-  --slide-table-header-color: #e2be3f;
-  --slide-table-header-border: rgba(201,162,39,0.25);
-  --slide-table-cell-color: #a0a0a8;
-  --slide-table-cell-border: rgba(255,255,255,0.04);
-  --slide-table-row-hover: rgba(201,162,39,0.03);
+  --slide-table-border: rgba(196,160,53,0.08);
+  --slide-table-header-bg: rgba(196,160,53,0.05);
+  --slide-table-header-color: #dab84a;
+  --slide-table-header-border: rgba(196,160,53,0.2);
+  --slide-table-cell-color: #95958d;
+  --slide-table-cell-border: rgba(255,255,255,0.03);
+  --slide-table-row-hover: rgba(196,160,53,0.03);
 
-  --slide-quote-border: #c9a227;
-  --slide-quote-bg: rgba(201,162,39,0.03);
-  --slide-quote-color: #b0b0b8;
+  --slide-quote-border: #c4a035;
+  --slide-quote-bg: rgba(196,160,53,0.03);
+  --slide-quote-color: #a0a098;
 
-  --slide-code-bg: rgba(201,162,39,0.06);
-  --slide-code-color: #e2be3f;
-  --slide-pre-bg: #050507;
+  --slide-code-bg: rgba(196,160,53,0.05);
+  --slide-code-color: #dab84a;
+  --slide-pre-bg: #040408;
 
-  --slide-badge-green-bg: rgba(34,197,94,0.1);
+  --slide-badge-green-bg: rgba(34,197,94,0.08);
   --slide-badge-green-color: #4ade80;
-  --slide-badge-green-border: rgba(34,197,94,0.2);
-  --slide-badge-yellow-bg: rgba(201,162,39,0.12);
-  --slide-badge-yellow-color: #e2be3f;
-  --slide-badge-yellow-border: rgba(201,162,39,0.25);
-  --slide-badge-red-bg: rgba(239,68,68,0.1);
+  --slide-badge-green-border: rgba(34,197,94,0.16);
+  --slide-badge-yellow-bg: rgba(196,160,53,0.1);
+  --slide-badge-yellow-color: #dab84a;
+  --slide-badge-yellow-border: rgba(196,160,53,0.2);
+  --slide-badge-red-bg: rgba(239,68,68,0.08);
   --slide-badge-red-color: #f87171;
-  --slide-badge-red-border: rgba(239,68,68,0.2);
+  --slide-badge-red-border: rgba(239,68,68,0.16);
 
-  --slide-progress-bg: rgba(255,255,255,0.06);
-  --slide-progress-fill: linear-gradient(90deg, #c9a227, #e2be3f);
+  --slide-progress-bg: rgba(255,255,255,0.04);
+  --slide-progress-fill: linear-gradient(90deg, #c4a035, #dab84a);
 
-  --slide-metric-bg: rgba(201,162,39,0.04);
-  --slide-metric-border: rgba(201,162,39,0.12);
-  --slide-metric-value-color: #ffffff;
-  --slide-metric-context-color: #707078;
+  --slide-metric-bg: rgba(196,160,53,0.03);
+  --slide-metric-border: rgba(196,160,53,0.08);
+  --slide-metric-value-color: #f5f5f0;
+  --slide-metric-context-color: #686862;
 
-  --slide-section-bar: linear-gradient(180deg, #e2be3f, #9a7b18);
-  --slide-big-number-gradient: linear-gradient(135deg, #f0d060 0%, #c9a227 50%, #8a6b10 100%);
-  --slide-quote-mark-color: #c9a227;
-  --slide-title-subtitle-color: #707078;
+  --slide-section-bar: linear-gradient(180deg, #dab84a, #8a7020);
+  --slide-big-number-gradient: linear-gradient(135deg, #eece60 0%, #c4a035 50%, #8a7020 100%);
+  --slide-quote-mark-color: #c4a035;
+  --slide-title-subtitle-color: #686862;
 
-  --slide-h1-decoration: linear-gradient(90deg, #c9a227, transparent);
-  --slide-textbox-border: rgba(201,162,39,0.1);
-  --slide-textbox-color: #b0b0b8;
+  --slide-textbox-border: rgba(196,160,53,0.08);
+  --slide-textbox-color: #a0a098;
 }
 
-/* Executive — gold underline rule on H1 */
+/* Executive — thin gold rule under H1 */
 [data-slide-theme="executive"] .slide-content h1 {
   padding-bottom: 0.5rem;
-  border-bottom: 2px solid rgba(201,162,39,0.2);
+  border-bottom: 1px solid rgba(196,160,53,0.15);
 }
 [data-slide-theme="executive"] .slide-layout-title .slide-content h1,
 [data-slide-theme="executive"] .slide-layout-big-number .slide-content h1,
@@ -84,15 +83,12 @@
   padding-bottom: 0;
 }
 
-/* Executive bullets — em-dash for formal feel */
+/* Executive — em-dash bullets for formal feel */
 [data-slide-theme="executive"] .slide-content ul li {
   list-style-type: "—  ";
 }
 
-/* Executive — gold-tinted table header separator */
-[data-slide-theme="executive"] .slide-content table {
-  border: 1px solid rgba(201,162,39,0.08);
-}
+/* Executive — gold table header separator */
 [data-slide-theme="executive"] .slide-content th {
-  border-bottom: 2px solid rgba(201,162,39,0.2);
+  border-bottom: 1px solid rgba(196,160,53,0.15);
 }

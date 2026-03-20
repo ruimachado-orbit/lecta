@@ -1,27 +1,15 @@
-/* Default Light — Clean white canvas, soft slate text, indigo accents.
-   The light counterpart to Default Dark — same accent family, inverted palette. */
+/* Default Light — Pure white canvas, cool gray text, soft indigo accents.
+   The light counterpart to Default Dark. Clean, modern, unfussy. */
 [data-slide-theme="light"] {
   --slide-bg: #ffffff;
-  --slide-font-heading: -apple-system, "SF Pro Display", "Inter", "Helvetica Neue", sans-serif;
-  --slide-font-body: -apple-system, "SF Pro Text", "Inter", "Helvetica Neue", sans-serif;
 
-  --slide-color-h1: #0f172a;
-  --slide-color-h2: #1e293b;
-  --slide-color-h3: #334155;
-  --slide-h1-size: 2.25rem;
-  --slide-h1-weight: 700;
-  --slide-h1-tracking: -0.01em;
-  --slide-h2-size: 1.875rem;
-  --slide-h2-weight: 600;
-  --slide-h3-size: 1.5rem;
-  --slide-h3-weight: 500;
+  --slide-color-h1: #111827;
+  --slide-color-h2: #1f2937;
+  --slide-color-h3: #374151;
 
-  --slide-color-body: #475569;
-  --slide-color-muted: #64748b;
-  --slide-color-dimmed: #94a3b8;
-  --slide-body-size: 1.25rem;
-  --slide-body-line-height: 1.625;
-  --slide-list-size: 1.125rem;
+  --slide-color-body: #4b5563;
+  --slide-color-muted: #6b7280;
+  --slide-color-dimmed: #9ca3af;
 
   --slide-accent: #4f46e5;
   --slide-accent-light: #6366f1;
@@ -30,53 +18,49 @@
   --slide-link-color: #4f46e5;
   --slide-link-hover: #6366f1;
 
-  --slide-table-border: rgba(79,70,229,0.1);
-  --slide-table-header-bg: #f8fafc;
-  --slide-table-header-color: #0f172a;
-  --slide-table-header-border: rgba(0,0,0,0.1);
-  --slide-table-cell-color: #475569;
-  --slide-table-cell-border: #e2e8f0;
+  --slide-table-border: #e5e7eb;
+  --slide-table-header-bg: #f9fafb;
+  --slide-table-header-color: #111827;
+  --slide-table-header-border: #d1d5db;
+  --slide-table-cell-color: #4b5563;
+  --slide-table-cell-border: #f3f4f6;
   --slide-table-row-hover: rgba(79,70,229,0.03);
-  --slide-table-radius: 0.5rem;
 
   --slide-quote-border: #4f46e5;
-  --slide-quote-border-width: 3px;
   --slide-quote-bg: rgba(79,70,229,0.03);
-  --slide-quote-color: #475569;
-  --slide-quote-radius: 0 0.5rem 0.5rem 0;
+  --slide-quote-color: #4b5563;
 
-  --slide-code-bg: #f1f5f9;
-  --slide-code-color: #3730a3;
-  --slide-pre-bg: #f8fafc;
+  --slide-code-bg: #f3f4f6;
+  --slide-code-color: #312e81;
+  --slide-pre-bg: #f9fafb;
 
-  --slide-badge-green-bg: rgba(34,197,94,0.1);
+  --slide-badge-green-bg: rgba(22,163,74,0.08);
   --slide-badge-green-color: #16a34a;
-  --slide-badge-green-border: rgba(34,197,94,0.2);
-  --slide-badge-yellow-bg: rgba(234,179,8,0.1);
+  --slide-badge-green-border: rgba(22,163,74,0.18);
+  --slide-badge-yellow-bg: rgba(202,138,4,0.08);
   --slide-badge-yellow-color: #b45309;
-  --slide-badge-yellow-border: rgba(234,179,8,0.2);
-  --slide-badge-red-bg: rgba(239,68,68,0.1);
+  --slide-badge-yellow-border: rgba(202,138,4,0.18);
+  --slide-badge-red-bg: rgba(220,38,38,0.08);
   --slide-badge-red-color: #dc2626;
-  --slide-badge-red-border: rgba(239,68,68,0.2);
+  --slide-badge-red-border: rgba(220,38,38,0.18);
 
-  --slide-progress-bg: #e2e8f0;
+  --slide-progress-bg: #e5e7eb;
   --slide-progress-fill: linear-gradient(90deg, #6366f1, #4f46e5);
 
   --slide-metric-bg: rgba(79,70,229,0.03);
   --slide-metric-border: rgba(79,70,229,0.1);
-  --slide-metric-value-color: #0f172a;
-  --slide-metric-context-color: #64748b;
+  --slide-metric-value-color: #111827;
+  --slide-metric-context-color: #6b7280;
 
   --slide-section-bar: linear-gradient(180deg, #6366f1 0%, #4f46e5 100%);
   --slide-big-number-gradient: linear-gradient(135deg, #818cf8 0%, #6366f1 50%, #4f46e5 100%);
   --slide-quote-mark-color: #4f46e5;
-  --slide-title-subtitle-color: #64748b;
+  --slide-title-subtitle-color: #6b7280;
 
-  --slide-textbox-border: rgba(0,0,0,0.08);
-  --slide-textbox-color: #334155;
+  --slide-textbox-border: #e5e7eb;
+  --slide-textbox-color: #374151;
 }
 
-/* Default Light — subtle accent marker on bullets */
 [data-slide-theme="light"] .slide-content ul li::marker {
   color: #6366f1;
 }

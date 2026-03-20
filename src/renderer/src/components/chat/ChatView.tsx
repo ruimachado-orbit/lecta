@@ -211,14 +211,14 @@ function ChatTabContent({
               onKeyDown={handleKeyDown}
               placeholder={noProviders ? 'Configure an AI provider in Settings' : 'Ask Lecta AI...'}
               rows={1}
-              className="flex-1 resize-none bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-gray-300 placeholder-gray-500 focus:outline-none focus:border-gray-600 max-h-32 overflow-y-auto disabled:cursor-not-allowed shadow-sm"
+              className="flex-1 resize-none bg-gray-900 border border-gray-700 rounded-full px-4 py-2.5 text-sm text-gray-300 placeholder-gray-500 focus:outline-none focus:border-gray-600 max-h-32 overflow-y-auto disabled:cursor-not-allowed shadow-sm"
               style={{ minHeight: '42px' }}
               disabled={isDisabled}
             />
             <button
               onClick={handleSend}
               disabled={!input.trim() || isDisabled}
-              className="w-9 h-9 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-800 disabled:text-gray-600 text-white flex items-center justify-center transition-colors flex-shrink-0"
+              className="w-9 h-9 rounded-full bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800 disabled:text-gray-600 text-white flex items-center justify-center transition-colors flex-shrink-0"
               title="Send"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">

@@ -173,7 +173,7 @@ const editSlideContent: ToolDefinition = {
   schema: {
     name: 'edit_slide_content',
     description:
-      "Directly replace a slide's markdown content with new content. Use this for precise edits.",
+      "Directly replace a slide's markdown content with new content. Use this for precise edits. Note: text alignment (left, center, right) is controlled by the slide layout, NOT the markdown. To change alignment, use the change_layout tool instead (e.g. 'default' for left-aligned, 'center' for centered).",
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -567,7 +567,7 @@ const changeLayout: ToolDefinition = {
   schema: {
     name: 'change_layout',
     description:
-      'Change a slide\'s layout. Available layouts: default, center, title, section, two-col, two-col-wide-left, two-col-wide-right, three-col, top-bottom, big-number, quote, blank.',
+      'Change a slide\'s layout. This controls text alignment and content arrangement. Available layouts: default (left-aligned), center (centered text), title (centered, vertically centered — for title slides), section (section divider), two-col, two-col-wide-left, two-col-wide-right, three-col, top-bottom, big-number, quote, blank. Use "default" to left-align content, "center" to center it.',
     input_schema: {
       type: 'object' as const,
       properties: {

@@ -98,7 +98,7 @@ export function HomeScreen(): JSX.Element {
   }
 
   return (
-    <div className="h-screen flex flex-col relative" style={{ WebkitAppRegion: 'drag', background: '#f5f1eb', color: '#1a1a1a' } as React.CSSProperties}>
+    <div className="h-screen flex flex-col relative bg-gray-950 text-white" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
       {/* Tab bar — show open presentation tabs so user can switch back */}
       <HomeTabBar />
 
@@ -107,8 +107,8 @@ export function HomeScreen(): JSX.Element {
         {/* Logo / Title */}
         <div className="text-center mb-8">
           <h1
-            className="text-5xl tracking-tight mb-3"
-            style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontStyle: 'italic', fontWeight: 700, color: '#1a1a1a' }}
+            className="text-5xl text-white tracking-tight mb-3"
+            style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontStyle: 'italic', fontWeight: 700 }}
           >
             lecta
             <sup className="text-[10px] font-sans not-italic font-semibold tracking-widest uppercase text-indigo-400 ml-1.5 align-super">beta</sup>
@@ -141,9 +141,9 @@ export function HomeScreen(): JSX.Element {
           {!showCreate ? (
             <button
               onClick={() => setShowCreate(true)}
-              className="flex-1 py-2.5 px-4 bg-white hover:bg-gray-100
-                         text-gray-700 font-medium rounded-full transition-colors text-sm
-                         flex items-center justify-center gap-2 border border-gray-300"
+              className="flex-1 py-2.5 px-4 bg-gray-900 hover:bg-gray-800
+                         text-gray-300 font-medium rounded-full transition-colors text-sm
+                         flex items-center justify-center gap-2 border border-gray-700"
             >
               <PlusIcon />
               New
@@ -151,9 +151,9 @@ export function HomeScreen(): JSX.Element {
           ) : (
             <button
               onClick={() => setShowCreate(true)}
-              className="flex-1 py-2.5 px-4 bg-white hover:bg-gray-100
-                         text-gray-700 font-medium rounded-full transition-colors text-sm
-                         flex items-center justify-center gap-2 border border-gray-300"
+              className="flex-1 py-2.5 px-4 bg-gray-900 hover:bg-gray-800
+                         text-gray-300 font-medium rounded-full transition-colors text-sm
+                         flex items-center justify-center gap-2 border border-gray-700"
             >
               <PlusIcon />
               New
@@ -161,31 +161,27 @@ export function HomeScreen(): JSX.Element {
           )}
           </div>
 
-          {/* AI Generate button */}
-          <button
-            onClick={() => setShowAIGenerate(true)}
-            className="w-full py-2.5 px-4 bg-white hover:bg-gray-100
-                       text-gray-700 hover:text-gray-900 font-medium rounded-full transition-all text-sm
-                       flex items-center justify-center gap-2 border border-gray-300"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
-            </svg>
-            Generate with AI
-          </button>
-
-          {/* My Presentations button */}
-          <button
-            onClick={() => setShowLibrary(true)}
-            className="w-full py-2.5 px-4 bg-white hover:bg-gray-100
-                       text-gray-700 hover:text-gray-900 font-medium rounded-full transition-all text-sm
-                       flex items-center justify-center gap-2 border border-gray-300"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
-            </svg>
-            My Presentations
-          </button>
+          {/* Secondary actions */}
+          <div className="flex items-center justify-center gap-4 mt-1">
+            <button
+              onClick={() => setShowAIGenerate(true)}
+              className="text-xs text-gray-400 hover:text-gray-300 transition-colors flex items-center gap-1.5"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
+              </svg>
+              Generate with AI
+            </button>
+<button
+              onClick={() => setShowLibrary(true)}
+              className="text-xs text-gray-400 hover:text-gray-300 transition-colors flex items-center gap-1.5"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
+              </svg>
+              My Presentations
+            </button>
+          </div>
 
           {showCreate && (
             <div className="space-y-2">
@@ -193,11 +189,11 @@ export function HomeScreen(): JSX.Element {
               <div className="flex gap-1 justify-center">
                 <button onClick={() => setCreateType('presentation')}
                   className={`px-3 py-1 text-[11px] rounded-full transition-colors ${
-                    createType === 'presentation' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-700'
+                    createType === 'presentation' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-300'
                   }`}>Presentation</button>
                 <button onClick={() => setCreateType('notebook')}
                   className={`px-3 py-1 text-[11px] rounded-full transition-colors ${
-                    createType === 'notebook' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-700'
+                    createType === 'notebook' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-300'
                   }`}>Notebook</button>
               </div>
               {/* Inline input + create */}
@@ -207,7 +203,7 @@ export function HomeScreen(): JSX.Element {
                   onKeyDown={(e) => { if (e.key === 'Enter') handleCreateLecta(); if (e.key === 'Escape') { setShowCreate(false); setNewName('') } }}
                   placeholder={createType === 'notebook' ? 'Notebook name' : 'Presentation name'}
                   autoFocus
-                  className="flex-1 px-3 py-2 bg-white text-gray-900 text-sm rounded-full border border-gray-300
+                  className="flex-1 px-3 py-2 bg-gray-900 text-white text-sm rounded-full border border-gray-700
                              focus:border-gray-900 focus:outline-none placeholder-gray-400" />
                 <button onClick={handleCreateLecta} disabled={!newName.trim()}
                   className="px-4 py-2 bg-gray-900 hover:bg-gray-800 disabled:opacity-30
@@ -222,7 +218,7 @@ export function HomeScreen(): JSX.Element {
           )}
 
           {(error && !createError) && (
-            <div className="bg-white border border-gray-200 text-gray-700 rounded-lg px-4 py-3 text-sm">
+            <div className="bg-gray-900 border border-gray-800 text-gray-300 rounded-lg px-4 py-3 text-sm">
               {error}
             </div>
           )}
@@ -305,8 +301,8 @@ export function HomeScreen(): JSX.Element {
                   <button
                     key={deck.path}
                     onClick={() => loadPresentation(deck.path)}
-                    className="group text-left rounded-xl border border-gray-200 bg-white hover:border-gray-400
-                               hover:shadow-md transition-all overflow-hidden"
+                    className="group text-left rounded-xl border border-gray-800 bg-gray-900 hover:border-gray-600
+                               hover:bg-gray-800 transition-all overflow-hidden"
                   >
                     {/* First slide preview */}
                     <div className="h-28 bg-black p-3 border-b border-gray-800 overflow-hidden">
@@ -332,14 +328,14 @@ export function HomeScreen(): JSX.Element {
                         </div>
                       ) : (
                         <div className="h-full flex items-center justify-center">
-                          <span className="text-gray-700 text-2xl font-bold">{deck.title.charAt(0).toUpperCase()}</span>
+                          <span className="text-gray-300 text-2xl font-bold">{deck.title.charAt(0).toUpperCase()}</span>
                         </div>
                       )}
                     </div>
 
                     {/* Info */}
                     <div className="p-3">
-                      <div className="text-sm text-gray-800 font-medium truncate group-hover:text-gray-900">
+                      <div className="text-sm text-gray-200 font-medium truncate group-hover:text-white">
                         {deck.title}
                       </div>
                       <div className="flex items-center gap-2 mt-1.5">
@@ -388,7 +384,7 @@ export function HomeScreen(): JSX.Element {
       {/* Settings gear — bottom left */}
       <button
         onClick={() => setShowSettings(true)}
-        className="fixed bottom-6 left-6 z-50 p-2 rounded-lg text-gray-600 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+        className="fixed bottom-6 left-6 z-50 p-2 rounded-lg text-gray-600 hover:text-gray-300 hover:bg-gray-800 transition-colors"
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         title="Settings"
       >
@@ -411,8 +407,7 @@ function HomeTabBar(): JSX.Element {
 
   return (
     <div
-      className="h-8 border-b border-gray-200 flex items-center px-20 flex-shrink-0"
-      style={{ background: '#eee9e2' }}
+      className="h-8 bg-gray-900 border-b border-gray-800 flex items-center px-20 flex-shrink-0"
       style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
     >
       {/* All tabs */}
@@ -423,12 +418,11 @@ function HomeTabBar(): JSX.Element {
           <div
             key={tab.id}
             onClick={() => { if (!isActive) switchTab(tab.id) }}
-            className={`group flex items-center gap-1.5 px-3 h-full text-[11px] cursor-pointer border-r border-gray-200 transition-colors max-w-[180px] ${
+            className={`group flex items-center gap-1.5 px-3 h-full text-[11px] cursor-pointer border-r border-gray-800 transition-colors max-w-[180px] ${
               isActive
-                ? 'text-gray-900 border-b-2 border-b-gray-900'
-                : 'text-gray-500 hover:text-gray-700'
+                ? 'text-white border-b-2 border-b-gray-900'
+                : 'text-gray-500 hover:text-gray-300'
             }`}
-            style={isActive ? { background: '#f5f1eb' } : {}}
           >
             {isHome && (
               <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -439,7 +433,7 @@ function HomeTabBar(): JSX.Element {
             {tabs.length > 1 && (
               <button
                 onClick={(e) => { e.stopPropagation(); closeTab(tab.id) }}
-                className="hidden group-hover:flex w-4 h-4 items-center justify-center rounded hover:bg-gray-200 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
+                className="hidden group-hover:flex w-4 h-4 items-center justify-center rounded hover:bg-gray-700 text-gray-400 hover:text-gray-400 transition-colors flex-shrink-0"
               >
                 <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -453,7 +447,7 @@ function HomeTabBar(): JSX.Element {
       {/* Add new tab */}
       <button
         onClick={newHomeTab}
-        className="h-full px-2 text-gray-600 hover:text-gray-600 hover:bg-gray-100 transition-colors flex items-center"
+        className="h-full px-2 text-gray-600 hover:text-gray-400 hover:bg-gray-800 transition-colors flex items-center"
         title="New tab"
       >
         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -479,7 +473,7 @@ function ChatInput(): JSX.Element {
 
   return (
     <div className={`mb-6 space-y-2 ${noProviders ? 'opacity-50' : ''}`}>
-      <div className={`flex items-center gap-2 bg-white border border-gray-300 rounded-full px-4 py-2 transition-colors ${noProviders ? 'cursor-not-allowed' : 'focus-within:border-indigo-500'}`}>
+      <div className={`flex items-center gap-2 bg-gray-900 border border-gray-700 rounded-full px-4 py-2 transition-colors ${noProviders ? 'cursor-not-allowed' : 'focus-within:border-indigo-500'}`}>
         <svg className={`w-4 h-4 flex-shrink-0 ${noProviders ? 'text-gray-400' : 'text-indigo-400'}`} fill="currentColor" viewBox="0 0 24 24">
           <path d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
         </svg>
@@ -489,14 +483,14 @@ function ChatInput(): JSX.Element {
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') handleSend() }}
           placeholder={noProviders ? 'Configure an AI provider in Settings to use chat' : 'Ask Lecta AI anything...'}
-          className="flex-1 bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none disabled:cursor-not-allowed"
+          className="flex-1 bg-transparent text-sm text-gray-300 placeholder-gray-400 focus:outline-none disabled:cursor-not-allowed"
           disabled={noProviders}
         />
         <ModelSelector compact />
         <button
           onClick={handleSend}
           disabled={!value.trim() || noProviders}
-          className="w-7 h-7 rounded-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-200 disabled:text-gray-400 text-white flex items-center justify-center transition-colors flex-shrink-0"
+          className="w-7 h-7 rounded-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-800 disabled:text-gray-400 text-white flex items-center justify-center transition-colors flex-shrink-0"
         >
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
@@ -593,13 +587,13 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
   }, [prompt, title, slideCount, sourceFile, onGenerated])
 
   return (
-    <div className="h-screen flex flex-col" style={{ WebkitAppRegion: 'drag', background: '#f5f1eb', color: '#1a1a1a' } as React.CSSProperties}>
+    <div className="h-screen flex flex-col" className="h-screen flex flex-col bg-gray-950 text-white" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
       {/* Header */}
       <div className="flex items-center gap-3 px-6 pt-12 pb-6" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         <button
           onClick={onBack}
           disabled={isGenerating}
-          className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors disabled:opacity-30"
+          className="p-1.5 rounded hover:bg-gray-800 text-gray-400 hover:text-gray-300 transition-colors disabled:opacity-30"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
@@ -609,7 +603,7 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
           <svg className="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
           </svg>
-          <h2 className="text-lg font-medium text-gray-900">Generate Presentation with AI</h2>
+          <h2 className="text-lg font-medium text-white">Generate Presentation with AI</h2>
         </div>
       </div>
 
@@ -626,7 +620,7 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Q1 2026 Business Review"
               disabled={isGenerating}
-              className="w-full px-3 py-2 bg-white text-gray-700 text-sm rounded-lg border border-gray-300
+              className="w-full px-3 py-2 bg-gray-900 text-gray-300 text-sm rounded-lg border border-gray-700
                          focus:border-indigo-500 focus:outline-none placeholder-gray-600 disabled:opacity-50"
             />
           </div>
@@ -640,7 +634,7 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
               placeholder={"e.g. Create a quarterly business review presentation covering:\n- Revenue performance and growth metrics\n- Product roadmap updates\n- Team hiring progress\n- Key risks and mitigations\n- Next quarter priorities"}
               disabled={isGenerating}
               rows={6}
-              className="w-full px-3 py-2 bg-white text-gray-700 text-sm rounded-lg border border-gray-300
+              className="w-full px-3 py-2 bg-gray-900 text-gray-300 text-sm rounded-lg border border-gray-700
                          focus:border-indigo-500 focus:outline-none placeholder-gray-600 resize-none disabled:opacity-50"
             />
           </div>
@@ -650,14 +644,14 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
             <label className="text-sm text-gray-300 block mb-1.5">Source file (optional)</label>
             <p className="text-[10px] text-gray-600 mb-2">Upload a document to generate slides from its content — supports .txt, .md, .pdf, .csv, .json</p>
             {sourceFile ? (
-              <div className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg border border-gray-300">
+              <div className="flex items-center gap-2 px-3 py-2 bg-gray-900 rounded-lg border border-gray-700">
                 <svg className="w-4 h-4 text-indigo-400 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
                 </svg>
                 <span className="text-sm text-gray-300 truncate flex-1">{sourceFileName}</span>
                 <button onClick={() => { setSourceFile(null); setSourceFileName(null) }}
                   disabled={isGenerating}
-                  className="p-0.5 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700 disabled:opacity-30">
+                  className="p-0.5 rounded hover:bg-gray-800 text-gray-500 hover:text-gray-300 disabled:opacity-30">
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
                   </svg>
@@ -667,7 +661,7 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
               <button
                 onClick={handleSelectFile}
                 disabled={isGenerating}
-                className="w-full px-3 py-3 bg-white hover:bg-gray-50 text-gray-500 hover:text-gray-700
+                className="w-full px-3 py-3 bg-gray-900 hover:bg-gray-800 text-gray-500 hover:text-gray-300
                            text-sm rounded-lg border border-dashed border-gray-700 hover:border-gray-500
                            transition-colors flex items-center justify-center gap-2 disabled:opacity-30"
               >
@@ -692,7 +686,7 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
               <button
                 onClick={() => setSlideCount(Math.max(1, slideCount - 1))}
                 disabled={isGenerating}
-                className="w-7 h-7 rounded bg-gray-100 hover:bg-gray-200 text-gray-500 text-sm flex items-center justify-center disabled:opacity-30"
+                className="w-7 h-7 rounded bg-gray-800 hover:bg-gray-700 text-gray-500 text-sm flex items-center justify-center disabled:opacity-30"
               >-</button>
               <input
                 type="number"
@@ -704,14 +698,14 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
                   if (!isNaN(v)) setSlideCount(Math.max(1, Math.min(50, v)))
                 }}
                 disabled={isGenerating}
-                className="w-10 text-center text-sm text-gray-700 bg-white border border-gray-300 rounded py-0.5
+                className="w-10 text-center text-sm text-gray-300 bg-gray-900 border border-gray-700 rounded py-0.5
                            focus:border-indigo-500 focus:outline-none disabled:opacity-30
                            [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               />
               <button
                 onClick={() => setSlideCount(Math.min(50, slideCount + 1))}
                 disabled={isGenerating}
-                className="w-7 h-7 rounded bg-gray-100 hover:bg-gray-200 text-gray-500 text-sm flex items-center justify-center disabled:opacity-30"
+                className="w-7 h-7 rounded bg-gray-800 hover:bg-gray-700 text-gray-500 text-sm flex items-center justify-center disabled:opacity-30"
               >+</button>
             </div>
           </div>
@@ -731,8 +725,8 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
                   key={preset.label}
                   onClick={() => { setPrompt(preset.prompt); setSlideCount(preset.count); if (!title) setTitle(preset.label) }}
                   disabled={isGenerating}
-                  className="px-2.5 py-1 text-[11px] rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500
-                             hover:text-gray-700 transition-colors border border-gray-300 disabled:opacity-30"
+                  className="px-2.5 py-1 text-[11px] rounded-full bg-gray-800 hover:bg-gray-700 text-gray-500
+                             hover:text-gray-300 transition-colors border border-gray-700 disabled:opacity-30"
                 >
                   {preset.label}
                 </button>
@@ -757,7 +751,7 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
                 </svg>
                 <span className="text-sm text-gray-300">{progress.status}</span>
               </div>
-              <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+              <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-500"
                   style={{ width: `${progress.total > 0 ? (progress.slideIndex / progress.total) * 100 : 0}%` }}
@@ -878,18 +872,18 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
   }
 
   return (
-    <div className="h-screen flex flex-col" style={{ WebkitAppRegion: 'drag', background: '#f5f1eb', color: '#1a1a1a' } as React.CSSProperties}>
+    <div className="h-screen flex flex-col" className="h-screen flex flex-col bg-gray-950 text-white" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
       {/* Header */}
       <div className="flex items-center gap-3 px-6 pt-12 pb-6" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         <button
           onClick={onBack}
-          className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"
+          className="p-1.5 rounded hover:bg-gray-800 text-gray-400 hover:text-gray-300 transition-colors"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
           </svg>
         </button>
-        <h2 className="text-lg font-medium text-gray-900">Settings</h2>
+        <h2 className="text-lg font-medium text-white">Settings</h2>
       </div>
 
       {/* Settings content */}
@@ -902,11 +896,11 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <label className="text-sm text-gray-300">Theme</label>
-                <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5 border border-gray-200">
+                <div className="flex gap-1 bg-gray-800 rounded-lg p-0.5 border border-gray-800">
                   <button
                     onClick={() => setTheme('dark')}
                     className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
-                      theme === 'dark' ? 'bg-white text-black' : 'text-gray-400 hover:text-gray-700'
+                      theme === 'dark' ? 'bg-white text-black' : 'text-gray-400 hover:text-gray-300'
                     }`}
                   >
                     Dark
@@ -914,7 +908,7 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
                   <button
                     onClick={() => setTheme('light')}
                     className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
-                      theme === 'light' ? 'bg-white text-black' : 'text-gray-400 hover:text-gray-700'
+                      theme === 'light' ? 'bg-white text-black' : 'text-gray-400 hover:text-gray-300'
                     }`}
                   >
                     Light
@@ -944,14 +938,14 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setFontSize(Math.max(12, fontSize - 1))}
-                    className="w-7 h-7 rounded bg-gray-100 hover:bg-gray-200 text-gray-500 text-sm flex items-center justify-center"
+                    className="w-7 h-7 rounded bg-gray-800 hover:bg-gray-700 text-gray-500 text-sm flex items-center justify-center"
                   >
                     -
                   </button>
                   <span className="text-sm text-gray-300 w-6 text-center">{fontSize}</span>
                   <button
                     onClick={() => setFontSize(Math.min(24, fontSize + 1))}
-                    className="w-7 h-7 rounded bg-gray-100 hover:bg-gray-200 text-gray-500 text-sm flex items-center justify-center"
+                    className="w-7 h-7 rounded bg-gray-800 hover:bg-gray-700 text-gray-500 text-sm flex items-center justify-center"
                   >
                     +
                   </button>
@@ -987,15 +981,15 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
                 return (
                   <div
                     key={id}
-                    className="text-left p-3 rounded-xl border border-gray-200 bg-white hover:border-gray-400
-                               hover:shadow-md transition-all group cursor-pointer"
+                    className="text-left p-3 rounded-xl border border-gray-800 bg-gray-900 hover:border-gray-600
+                               hover:bg-gray-800 transition-all group cursor-pointer"
                     onClick={() => openKeyModal(id)}
                   >
                     <div className="flex items-center gap-2 mb-1.5">
-                      <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-600 group-hover:bg-gray-200">
+                      <div className="w-7 h-7 rounded-lg bg-gray-800 flex items-center justify-center text-xs font-bold text-gray-300 group-hover:bg-gray-700">
                         {meta.icon}
                       </div>
-                      <span className="text-sm font-medium text-gray-800 flex-1">{meta.name}</span>
+                      <span className="text-sm font-medium text-gray-200 flex-1">{meta.name}</span>
                       {hasKey && !validating && (
                         <button
                           onClick={(e) => { e.stopPropagation(); handleSaveKey(id, '') }}
@@ -1007,7 +1001,7 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
                           </svg>
                         </button>
                       )}
-                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${validating ? 'bg-gray-500 animate-pulse' : dotColor}`} />
+                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${validating ? 'bg-gray-9500 animate-pulse' : dotColor}`} />
                     </div>
                     <p className="text-[10px] text-gray-500 leading-tight">{meta.description}</p>
                     <p className={`text-[10px] mt-1 ${validating ? 'text-gray-500' : labelColor}`}>
@@ -1059,15 +1053,15 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         >
           <div
-            className="w-full max-w-md mx-4 bg-white border border-gray-200 rounded-xl p-6 shadow-2xl"
+            className="w-full max-w-md mx-4 bg-gray-900 border border-gray-800 rounded-xl p-6 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-sm font-bold text-gray-600">
+              <div className="w-8 h-8 rounded-lg bg-gray-800 flex items-center justify-center text-sm font-bold text-gray-600">
                 {PROVIDER_META[editingProvider]?.icon}
               </div>
               <div>
-                <h3 className="text-sm font-medium text-gray-900">{PROVIDER_META[editingProvider]?.name} API Key</h3>
+                <h3 className="text-sm font-medium text-white">{PROVIDER_META[editingProvider]?.name} API Key</h3>
                 <p className="text-[10px] text-gray-500">{PROVIDER_META[editingProvider]?.description}</p>
               </div>
             </div>
@@ -1079,7 +1073,7 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
               onKeyDown={(e) => { if (e.key === 'Enter') handleSaveKey(editingProvider, editingKey) }}
               placeholder={PROVIDER_META[editingProvider]?.placeholder}
               autoFocus
-              className="w-full px-3 py-2.5 bg-gray-50 text-gray-700 text-sm rounded-lg border border-gray-300
+              className="w-full px-3 py-2.5 bg-gray-950 text-gray-300 text-sm rounded-lg border border-gray-700
                          focus:border-indigo-500 focus:outline-none placeholder-gray-600 mb-4"
             />
 
@@ -1100,7 +1094,7 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
               )}
               <button
                 onClick={() => setEditingProvider(null)}
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors text-sm"
+                className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium rounded-lg transition-colors text-sm"
               >
                 Cancel
               </button>
@@ -1136,17 +1130,17 @@ function RecentCard({ deck, onClick, onRemove }: { deck: RecentDeck; onClick: ()
     return (
       <button
         onClick={onClick}
-        className="group text-left rounded-xl border border-gray-200 bg-white hover:border-gray-400
-                   hover:shadow-md transition-all overflow-hidden"
+        className="group text-left rounded-xl border border-gray-800 bg-gray-900 hover:border-gray-600
+                   hover:bg-gray-800 transition-all overflow-hidden"
       >
         {/* Notebook-style preview — lined paper look */}
-        <div className="h-28 px-3 pb-3 pt-7 border-b border-gray-200 overflow-hidden relative"
+        <div className="h-28 px-3 pb-3 pt-7 border-b border-gray-800 overflow-hidden relative"
           style={{
             background: 'linear-gradient(to bottom, transparent 23px, rgba(0,0,0,0.03) 23px)',
             backgroundSize: '100% 24px'
           }}
         >
-          <span className="absolute top-2 right-2 text-[8px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">
+          <span className="absolute top-2 right-2 text-[8px] px-1.5 py-0.5 rounded-full bg-gray-800 text-gray-500">
             Notebook
           </span>
           {onRemove && (
@@ -1168,7 +1162,7 @@ function RecentCard({ deck, onClick, onRemove }: { deck: RecentDeck; onClick: ()
                 const text = stripMarkdown(line)
                 return (
                   <div key={i} className={`truncate ${
-                    i === 0 ? 'text-[11px] font-semibold text-gray-800' : 'text-[9px] text-gray-500'
+                    i === 0 ? 'text-[11px] font-semibold text-gray-200' : 'text-[9px] text-gray-500'
                   }`}>{text}</div>
                 )
               })}
@@ -1182,7 +1176,7 @@ function RecentCard({ deck, onClick, onRemove }: { deck: RecentDeck; onClick: ()
           )}
         </div>
         <div className="p-3">
-          <div className="text-sm text-gray-800 font-medium truncate group-hover:text-gray-900">{deck.title}</div>
+          <div className="text-sm text-gray-200 font-medium truncate group-hover:text-white">{deck.title}</div>
           <div className="flex items-center gap-2 mt-1.5">
             {deck.slideCount && (
               <span className="text-[10px] text-gray-500">{deck.slideCount} notes</span>
@@ -1201,10 +1195,10 @@ function RecentCard({ deck, onClick, onRemove }: { deck: RecentDeck; onClick: ()
   return (
     <button
       onClick={onClick}
-      className="group text-left rounded-xl border border-gray-200 bg-white hover:border-gray-400
-                 hover:shadow-md transition-all overflow-hidden"
+      className="group text-left rounded-xl border border-gray-800 bg-gray-900 hover:border-gray-600
+                 hover:bg-gray-800 transition-all overflow-hidden"
     >
-      <div className="h-28 bg-gray-900 px-3 pb-3 pt-7 border-b border-gray-200 overflow-hidden relative">
+      <div className="h-28 bg-gray-900 px-3 pb-3 pt-7 border-b border-gray-800 overflow-hidden relative">
         <span className="absolute top-2 right-2 text-[8px] px-1.5 py-0.5 rounded-full bg-gray-800 text-gray-400">
           Slides
         </span>
@@ -1241,12 +1235,12 @@ function RecentCard({ deck, onClick, onRemove }: { deck: RecentDeck; onClick: ()
           </div>
         ) : (
           <div className="h-full flex items-center justify-center">
-            <span className="text-gray-700 text-2xl font-bold">{deck.title.charAt(0).toUpperCase()}</span>
+            <span className="text-gray-300 text-2xl font-bold">{deck.title.charAt(0).toUpperCase()}</span>
           </div>
         )}
       </div>
       <div className="p-3">
-        <div className="text-sm text-gray-800 font-medium truncate group-hover:text-gray-900">{deck.title}</div>
+        <div className="text-sm text-gray-200 font-medium truncate group-hover:text-white">{deck.title}</div>
         <div className="flex items-center gap-2 mt-1.5">
           {deck.artifacts?.map((a) => (
             <span key={a} className="text-[8px] text-gray-400">

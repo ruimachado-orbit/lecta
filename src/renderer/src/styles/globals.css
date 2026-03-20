@@ -106,31 +106,31 @@ html, body, * {
    oklch color variables that Tailwind generates.
    ============================================================ */
 html[data-theme="light"] {
-  /* Remap gray scale: dark grays become light, light grays become dark */
-  --color-gray-950: #ffffff;
-  --color-gray-900: #f8fafc;
-  --color-gray-800: #f1f5f9;
-  --color-gray-700: #e2e8f0;
-  --color-gray-600: #cbd5e1;
-  --color-gray-500: #94a3b8;
-  --color-gray-400: #64748b;
-  --color-gray-300: #475569;
-  --color-gray-200: #334155;
-  --color-gray-100: #1e293b;
-  --color-white: #0f172a;
+  /* Remap gray scale: dark grays become warm cream lights, light grays become dark */
+  --color-gray-950: #f5f1eb;
+  --color-gray-900: #ebe7e0;
+  --color-gray-800: #e0dbd3;
+  --color-gray-700: #d1cbc2;
+  --color-gray-600: #a8a29e;
+  --color-gray-500: #78716c;
+  --color-gray-400: #57534e;
+  --color-gray-300: #44403c;
+  --color-gray-200: #292524;
+  --color-gray-100: #1c1917;
+  --color-white: #1a1a1a;
   --color-black: #ffffff;
 
   /* Theme tokens */
   --color-surface: #ffffff;
-  --color-surface-light: #f1f5f9;
-  --color-surface-lighter: #e2e8f0;
-  --color-border: #e2e8f0;
-  --color-border-light: #cbd5e1;
+  --color-surface-light: #f5f1eb;
+  --color-surface-lighter: #ebe7e0;
+  --color-border: #d1cbc2;
+  --color-border-light: #e0dbd3;
 }
 
 html[data-theme="light"] body {
-  background-color: #f8fafc;
-  color: #1e293b;
+  background-color: #f5f1eb;
+  color: #1c1917;
 }
 
 /* Light mode slide content — needs explicit overrides since

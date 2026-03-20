@@ -41,6 +41,11 @@ export function ArticlePanel(): JSX.Element {
             setIsGenerating(false)
             return
           }
+          if (chunk.startsWith('[ERROR]')) {
+            setIsGenerating(false)
+            showAIError(new Error(chunk.replace('[ERROR]', '').trim()))
+            return
+          }
           accumulated += chunk
           setArticleContent(accumulated)
           contentRef.current?.scrollTo({ top: contentRef.current.scrollHeight })

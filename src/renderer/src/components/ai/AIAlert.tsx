@@ -56,11 +56,15 @@ export function showAIError(err: unknown): void {
   const msg = err instanceof Error ? err.message : String(err)
   if (msg.includes('API key') || msg.includes('api key') || msg.includes('No Anthropic') || msg.includes('No OpenAI') || msg.includes('No Google') || msg.includes('not found')) {
     setAiAlert('No API key configured for the selected model.')
+  } else if (msg.includes('credit balance') || msg.includes('too low') || msg.includes('purchase credits')) {
+    setAiAlert('API credit balance is too low. Please top up your account or switch provider.')
   } else if (msg.includes('401') || msg.includes('Unauthorized') || msg.includes('invalid')) {
     setAiAlert('API key is invalid or expired. Check your key in settings.')
   } else if (msg.includes('429') || msg.includes('rate limit')) {
     setAiAlert('Rate limit reached. Please wait a moment and try again.')
+  } else if (msg.includes('500') || msg.includes('502') || msg.includes('503') || msg.includes('overloaded')) {
+    setAiAlert('AI service is temporarily unavailable. Please try again shortly.')
   } else {
-    setAiAlert(`AI request failed: ${msg.slice(0, 100)}`)
+    setAiAlert(`AI request failed: ${msg.slice(0, 120)}`)
   }
 }

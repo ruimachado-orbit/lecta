@@ -37,18 +37,23 @@ export function registerAiHandlers(): void {
       const service = getAIService()
       const window = BrowserWindow.getFocusedWindow()
 
-      await service.streamNotes(
-        slideContent,
-        codeContent,
-        deckTitle,
-        slideIndex,
-        (chunk: string) => {
-          window?.webContents.send(responseChannel, chunk)
-        }
-      )
+      try {
+        await service.streamNotes(
+          slideContent,
+          codeContent,
+          deckTitle,
+          slideIndex,
+          (chunk: string) => {
+            window?.webContents.send(responseChannel, chunk)
+          }
+        )
 
-      // Signal completion
-      window?.webContents.send(responseChannel, '[DONE]')
+        // Signal completion
+        window?.webContents.send(responseChannel, '[DONE]')
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        window?.webContents.send(responseChannel, `[ERROR]${msg}`)
+      }
     }
   )
 
@@ -176,16 +181,21 @@ export function registerAiHandlers(): void {
       const service = getAIService()
       const window = BrowserWindow.getFocusedWindow()
 
-      await service.runPrompt(
-        prompt,
-        slideContent,
-        deckTitle,
-        (chunk: string) => {
-          window?.webContents.send(responseChannel, chunk)
-        }
-      )
+      try {
+        await service.runPrompt(
+          prompt,
+          slideContent,
+          deckTitle,
+          (chunk: string) => {
+            window?.webContents.send(responseChannel, chunk)
+          }
+        )
 
-      window?.webContents.send(responseChannel, '[DONE]')
+        window?.webContents.send(responseChannel, '[DONE]')
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        window?.webContents.send(responseChannel, `[ERROR]${msg}`)
+      }
     }
   )
 
@@ -288,17 +298,22 @@ export function registerAiHandlers(): void {
       const service = getAIService()
       const window = BrowserWindow.getFocusedWindow()
 
-      await service.streamArticle(
-        deckTitle,
-        author,
-        slidesContent,
-        rules,
-        (chunk: string) => {
-          window?.webContents.send(responseChannel, chunk)
-        }
-      )
+      try {
+        await service.streamArticle(
+          deckTitle,
+          author,
+          slidesContent,
+          rules,
+          (chunk: string) => {
+            window?.webContents.send(responseChannel, chunk)
+          }
+        )
 
-      window?.webContents.send(responseChannel, '[DONE]')
+        window?.webContents.send(responseChannel, '[DONE]')
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        window?.webContents.send(responseChannel, `[ERROR]${msg}`)
+      }
     }
   )
 }

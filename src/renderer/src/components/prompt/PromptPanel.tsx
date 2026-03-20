@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { usePresentationStore } from '../../stores/presentation-store'
+import { showAIError } from '../ai/AIAlert'
 import type { PromptConfig } from '../../../../../packages/shared/src/types/presentation'
 
 interface PromptPanelProps {
@@ -43,6 +44,11 @@ export function PromptPanel({ prompt, promptIndex }: PromptPanelProps): JSX.Elem
           setIsStreaming(false)
           // Save prompt text and response to file
           updatePrompt(promptIndex, inputValue.trim(), accumulated)
+          return
+        }
+        if (chunk.startsWith('[ERROR]')) {
+          setIsStreaming(false)
+          showAIError(new Error(chunk.replace('[ERROR]', '').trim()))
           return
         }
         accumulated += chunk

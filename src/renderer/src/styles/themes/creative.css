@@ -77,7 +77,7 @@
 }
 
 /* Creative — purple-to-pink gradient underline on H1 */
-[data-slide-theme="creative"] .slide-content h1 {
+[data-slide-theme="creative"] :is(.slide-content, .wysiwyg-content) h1 {
   padding-bottom: 0.5rem;
   background-image: linear-gradient(90deg, #8b5cf6, #ec4899, transparent);
   background-repeat: no-repeat;
@@ -85,19 +85,19 @@
   background-position: bottom left;
   text-shadow: 0 0 60px rgba(139,92,246,0.08);
 }
-[data-slide-theme="creative"] .slide-layout-title .slide-content h1,
-[data-slide-theme="creative"] .slide-layout-big-number .slide-content h1,
-[data-slide-theme="creative"] .slide-layout-center .slide-content h1 {
+[data-slide-theme="creative"] .slide-layout-title :is(.slide-content, .wysiwyg-content) h1,
+[data-slide-theme="creative"] .slide-layout-big-number :is(.slide-content, .wysiwyg-content) h1,
+[data-slide-theme="creative"] .slide-layout-center :is(.slide-content, .wysiwyg-content) h1 {
   background-image: none;
   padding-bottom: 0;
 }
 
 /* Creative — generous rounding */
-[data-slide-theme="creative"] .slide-content table {
+[data-slide-theme="creative"] :is(.slide-content, .wysiwyg-content) table {
   border-radius: 0.75rem;
   border: 1px solid rgba(139,92,246,0.08);
 }
-[data-slide-theme="creative"] .slide-content pre {
+[data-slide-theme="creative"] :is(.slide-content, .wysiwyg-content) pre {
   border-radius: 0.75rem;
 }
 [data-slide-theme="creative"] .slide-badge {
@@ -105,6 +105,6 @@
 }
 
 /* Creative — purple bullet markers */
-[data-slide-theme="creative"] .slide-content ul li::marker {
+[data-slide-theme="creative"] :is(.slide-content, .wysiwyg-content) ul li::marker {
   color: #a78bfa;
 }

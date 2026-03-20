@@ -83,29 +83,29 @@
 }
 
 /* Paper — thin editorial rule under H1 */
-[data-slide-theme="paper"] .slide-content h1 {
+[data-slide-theme="paper"] :is(.slide-content, .wysiwyg-content) h1 {
   padding-bottom: 0.75rem;
   border-bottom: 1px solid rgba(138,58,16,0.12);
 }
-[data-slide-theme="paper"] .slide-layout-title .slide-content h1,
-[data-slide-theme="paper"] .slide-layout-big-number .slide-content h1,
-[data-slide-theme="paper"] .slide-layout-center .slide-content h1 {
+[data-slide-theme="paper"] .slide-layout-title :is(.slide-content, .wysiwyg-content) h1,
+[data-slide-theme="paper"] .slide-layout-big-number :is(.slide-content, .wysiwyg-content) h1,
+[data-slide-theme="paper"] .slide-layout-center :is(.slide-content, .wysiwyg-content) h1 {
   border-bottom: none;
   padding-bottom: 0;
 }
 
 /* Paper — em-dash bullets for editorial feel */
-[data-slide-theme="paper"] .slide-content ul li {
+[data-slide-theme="paper"] :is(.slide-content, .wysiwyg-content) ul li {
   list-style-type: "— ";
 }
-[data-slide-theme="paper"] .slide-content ul li::marker {
+[data-slide-theme="paper"] :is(.slide-content, .wysiwyg-content) ul li::marker {
   color: #968070;
 }
 
 /* Paper — no rounding anywhere */
-[data-slide-theme="paper"] .slide-content table {
+[data-slide-theme="paper"] :is(.slide-content, .wysiwyg-content) table {
   border-radius: 0;
 }
-[data-slide-theme="paper"] .slide-content pre {
+[data-slide-theme="paper"] :is(.slide-content, .wysiwyg-content) pre {
   border-radius: 0;
 }

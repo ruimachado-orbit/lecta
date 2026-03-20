@@ -82,23 +82,23 @@
 }
 
 /* Minimal — zero decoration */
-[data-slide-theme="minimal"] .slide-content h1 {
+[data-slide-theme="minimal"] :is(.slide-content, .wysiwyg-content) h1 {
   border-bottom: none;
 }
 
 /* Minimal — open circle bullets for airy feel */
-[data-slide-theme="minimal"] .slide-content ul li {
+[data-slide-theme="minimal"] :is(.slide-content, .wysiwyg-content) ul li {
   list-style-type: circle;
 }
-[data-slide-theme="minimal"] .slide-content ul li::marker {
+[data-slide-theme="minimal"] :is(.slide-content, .wysiwyg-content) ul li::marker {
   color: #a3a3a3;
 }
 
 /* Minimal — hairline header border only */
-[data-slide-theme="minimal"] .slide-content table {
+[data-slide-theme="minimal"] :is(.slide-content, .wysiwyg-content) table {
   border: none;
 }
-[data-slide-theme="minimal"] .slide-content td {
+[data-slide-theme="minimal"] :is(.slide-content, .wysiwyg-content) td {
   border-left: none;
   border-right: none;
 }

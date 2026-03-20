@@ -75,19 +75,19 @@
 }
 
 /* Keynote Dark — cyan glow on H1 */
-[data-slide-theme="keynote-dark"] .slide-content h1 {
+[data-slide-theme="keynote-dark"] :is(.slide-content, .wysiwyg-content) h1 {
   text-shadow: 0 0 50px rgba(0,212,255,0.1), 0 0 120px rgba(0,212,255,0.03);
 }
 
 /* Keynote Dark — neon cyan bullet markers */
-[data-slide-theme="keynote-dark"] .slide-content ul li::marker {
+[data-slide-theme="keynote-dark"] :is(.slide-content, .wysiwyg-content) ul li::marker {
   color: #00d4ff;
 }
 
 /* Keynote Dark — accent-lined tables */
-[data-slide-theme="keynote-dark"] .slide-content table {
+[data-slide-theme="keynote-dark"] :is(.slide-content, .wysiwyg-content) table {
   border: 1px solid rgba(0,212,255,0.08);
 }
-[data-slide-theme="keynote-dark"] .slide-content th {
+[data-slide-theme="keynote-dark"] :is(.slide-content, .wysiwyg-content) th {
   border-bottom: 1px solid rgba(0,212,255,0.2);
 }

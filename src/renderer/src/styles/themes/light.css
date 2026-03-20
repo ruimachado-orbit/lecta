@@ -61,6 +61,6 @@
   --slide-textbox-color: #374151;
 }
 
-[data-slide-theme="light"] .slide-content ul li::marker {
+[data-slide-theme="light"] :is(.slide-content, .wysiwyg-content) ul li::marker {
   color: #6366f1;
 }

@@ -122,14 +122,13 @@ export function loadThemeFonts(theme: PresentationTheme): void {
   fontsToLoad.forEach((f) => loadedFonts.add(f.googleFont!))
 }
 
-/** Apply a slide theme — only sets data-slide-theme for CSS scoping on slide canvases.
- *  Does NOT change the app-level data-theme (dark/light) — that's controlled by user settings. */
+/** Apply a slide theme — loads fonts needed by the theme.
+ *  Does NOT set data-slide-theme on <html> to avoid leaking slide styles
+ *  into non-slide UI (e.g. notebook editor). Slide canvases set data-slide-theme
+ *  locally on their container divs in SlidePanel/PresenterView. */
 export function applySlideTheme(themeId: string): void {
   const theme = getTheme(themeId)
   if (!theme) return
-
-  // Set the slide theme attribute on html for global CSS variable scoping
-  document.documentElement.setAttribute('data-slide-theme', themeId)
 
   // Load fonts needed by this theme
   loadThemeFonts(theme)

@@ -758,6 +758,21 @@ html[data-theme="light"]:not([data-slide-theme]) .slide-content td { border-bott
   align-items: center;
   justify-content: center;
 }
+
+/* Propagate vertical centering through WYSIWYG intermediate containers.
+   WysiwygEditor structure: div.flex-col > div.p-12 > .wysiwyg-content
+   Use :has(.wysiwyg-content) to only target the editor path, not the SlideRenderer path. */
+:is(.slide-layout-title, .slide-layout-center, .slide-layout-quote, .slide-layout-big-number) > div:has(.wysiwyg-content) {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 100%;
+}
+:is(.slide-layout-title, .slide-layout-center, .slide-layout-quote, .slide-layout-big-number) > div:has(.wysiwyg-content) > div {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
 .slide-layout-title :is(.slide-content, .wysiwyg-content) h1 {
   font-size: 4rem !important;
   margin-bottom: 1rem !important;

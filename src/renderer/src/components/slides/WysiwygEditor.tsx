@@ -1173,11 +1173,11 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
   )
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col h-full">
       {headerSlot ? createPortal(toolbarSection, headerSlot) : toolbarSection}
 
       {/* Editor */}
-      <div className="p-12 relative" ref={editorContainerRef}>
+      <div className="p-12 relative flex-1" ref={editorContainerRef}>
         {/* Overflow is fine — content auto-splits into sub-slides */}
         <EditorContent editor={editor} />
         {/* Inline AI button — appears after 2s idle near cursor */}

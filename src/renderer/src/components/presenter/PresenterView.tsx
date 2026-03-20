@@ -693,9 +693,14 @@ function RemoteControlButton(): JSX.Element {
 
   const toggleRemote = async () => {
     if (remoteUrl) {
-      await window.electronAPI.stopRemote()
-      setRemoteUrl(null)
-      setShowQR(false)
+      // If popup is hidden, show it; otherwise stop the remote
+      if (!showQR) {
+        setShowQR(true)
+      } else {
+        await window.electronAPI.stopRemote()
+        setRemoteUrl(null)
+        setShowQR(false)
+      }
     } else {
       const url = await window.electronAPI.startRemote()
       setRemoteUrl(url)
@@ -720,14 +725,20 @@ function RemoteControlButton(): JSX.Element {
       {showQR && remoteUrl && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setShowQR(false)} />
-          <div className="absolute bottom-full right-0 mb-2 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-4 w-56">
+          <div className="absolute top-full right-0 mt-2 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-4 w-56">
             <div className="text-[10px] text-gray-400 uppercase tracking-wider mb-2">Remote Control</div>
             <div className="text-xs text-white font-mono mb-2 break-all">{remoteUrl}</div>
             <div className="text-[9px] text-gray-500">Open this URL on your phone to control the presentation</div>
-            <button onClick={() => { navigator.clipboard.writeText(remoteUrl); setShowQR(false) }}
-              className="mt-2 w-full px-2 py-1 text-[10px] bg-gray-800 hover:bg-gray-700 text-gray-300 rounded transition-colors">
-              Copy URL
-            </button>
+            <div className="flex gap-1.5 mt-2">
+              <button onClick={() => { navigator.clipboard.writeText(remoteUrl) }}
+                className="flex-1 px-2 py-1 text-[10px] bg-gray-800 hover:bg-gray-700 text-gray-300 rounded transition-colors">
+                Copy URL
+              </button>
+              <button onClick={async () => { await window.electronAPI.stopRemote(); setRemoteUrl(null); setShowQR(false) }}
+                className="px-2 py-1 text-[10px] bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded transition-colors">
+                Stop
+              </button>
+            </div>
           </div>
         </>
       )}

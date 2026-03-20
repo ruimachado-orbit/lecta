@@ -536,15 +536,16 @@ function EditableSlideCanvas({ slideIndex, breakOffsets, rootPath, layout, subSl
         className="relative rounded mx-auto"
         style={{
           width: SLIDE_W,
-          minHeight: SLIDE_H,
+          height: SLIDE_H,
           zoom: canvasScale,
           marginTop: 16,
           marginBottom: 16,
           background: 'var(--slide-bg)',
-          boxShadow: '0 0 0 1px rgba(255,255,255,0.15), 0 4px 24px rgba(0,0,0,0.6), 0 0 80px rgba(0,0,0,0.4)'
+          boxShadow: '0 0 0 1px rgba(255,255,255,0.15), 0 4px 24px rgba(0,0,0,0.6), 0 0 80px rgba(0,0,0,0.4)',
+          overflow: 'hidden',
         }}
       >
-        <div className={`relative ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
+        <div className={`relative h-full ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
           <WysiwygEditor slideIndex={slideIndex} breakOffsets={breakOffsets} headerSlot={wysiwygHeaderSlot} />
         </div>
         {/* Positioned images/textboxes overlay in editor mode */}
@@ -722,17 +723,18 @@ function SubSlideStackEditor({ subSlides, currentSubSlide, setCurrentSubSlide, s
                 data-slide-theme={slideTheme}
                 style={{
                   width: SLIDE_W,
-                  minHeight: SLIDE_H,
+                  height: SLIDE_H,
                   transform: `scale(${canvasScale})`,
                   transformOrigin: 'top left',
                   background: 'var(--slide-bg)',
                   boxShadow: '0 0 0 1px rgba(255,255,255,0.15), 0 4px 24px rgba(0,0,0,0.6)',
                   borderRadius: 4,
+                  overflow: 'hidden',
                 }}
               >
                 {i === currentSubSlide ? (
                   /* Selected sub-slide: full WYSIWYG editor */
-                  <div className={`relative ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
+                  <div className={`relative h-full ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
                     <WysiwygEditor
                       slideIndex={slideIndex}
                       subSlideMarkdown={sub.markdown}

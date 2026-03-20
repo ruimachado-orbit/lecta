@@ -16,16 +16,16 @@ html, body, * {
   --color-brand: #ffffff;
   --color-brand-light: #e5e5e5;
   --color-brand-dark: #d4d4d4;
-  --color-surface: #0a0a0a;
-  --color-surface-light: #171717;
-  --color-surface-lighter: #262626;
-  --color-border: #262626;
-  --color-border-light: #404040;
-  --color-gray-950: #000000;
-  --color-gray-900: #0a0a0a;
-  --color-gray-800: #171717;
-  --color-gray-700: #262626;
-  --color-gray-600: #404040;
+  --color-surface: #1a1a1a;
+  --color-surface-light: #272727;
+  --color-surface-lighter: #3a3a3a;
+  --color-border: #3a3a3a;
+  --color-border-light: #525252;
+  --color-gray-950: #0c0c0c;
+  --color-gray-900: #1a1a1a;
+  --color-gray-800: #272727;
+  --color-gray-700: #3a3a3a;
+  --color-gray-600: #525252;
   --color-gray-500: #737373;
   --color-gray-400: #a3a3a3;
   --color-gray-300: #d4d4d4;
@@ -108,9 +108,9 @@ html, body, * {
 html[data-theme="light"] {
   /* Remap gray scale: dark grays become warm cream lights, light grays become dark */
   --color-gray-950: #f5f1eb;
-  --color-gray-900: #ebe7e0;
-  --color-gray-800: #e0dbd3;
-  --color-gray-700: #d1cbc2;
+  --color-gray-900: #ffffff;
+  --color-gray-800: #ebe7e0;
+  --color-gray-700: #d6d0c8;
   --color-gray-600: #a8a29e;
   --color-gray-500: #78716c;
   --color-gray-400: #57534e;

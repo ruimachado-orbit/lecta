@@ -111,7 +111,7 @@ export function HomeScreen(): JSX.Element {
             style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontStyle: 'italic', fontWeight: 700 }}
           >
             lecta
-            <sup className="text-[10px] font-sans not-italic font-semibold tracking-widest uppercase text-indigo-400 ml-1.5 align-super">beta</sup>
+            <sup className="text-[10px] font-sans not-italic font-semibold tracking-widest uppercase ml-1.5 align-super bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-400 bg-clip-text text-transparent">beta</sup>
           </h1>
         </div>
 
@@ -269,7 +269,10 @@ export function HomeScreen(): JSX.Element {
               {/* Recent Presentations */}
               {presentations.length > 0 && (
                 <div className="mt-10">
-                  <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider mb-4">
+                  <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 0 0 6 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0 1 18 16.5h-2.25m-7.5 0h7.5m-7.5 0-1 3m8.5-3 1 3m0 0 .5 1.5m-.5-1.5h-9.5m0 0-.5 1.5" />
+                    </svg>
                     Recent Presentations
                   </h3>
                   <div className="grid grid-cols-2 gap-3">
@@ -1131,21 +1134,14 @@ function RecentCard({ deck, onClick, onRemove }: { deck: RecentDeck; onClick: ()
       <button
         onClick={onClick}
         className="group text-left rounded-xl border border-gray-800 bg-gray-900 hover:border-gray-600
-                   hover:bg-gray-800 transition-all overflow-visible relative"
+                   hover:bg-gray-800 transition-all overflow-hidden"
       >
-        {/* Spiral binding */}
-        <div className="absolute left-0 top-0 bottom-0 w-4 z-10 flex flex-col items-center justify-evenly py-3 pointer-events-none">
-          {[...Array(5)].map((_, i) => (
-            <svg key={i} width="10" height="14" viewBox="0 0 10 14" className="text-gray-500">
-              <path d="M8 2 C8 1, 7 0, 5 0 C3 0, 2 1, 2 2 L2 12 C2 13, 3 14, 5 14 C7 14, 8 13, 8 12" fill="none" stroke="currentColor" strokeWidth="1.5" />
-            </svg>
-          ))}
-        </div>
+        {/* Indigo accent top bar */}
+        <div className="h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-400" />
         {/* Notebook preview */}
-        <div className="h-28 pl-5 pr-3 pb-3 pt-7 border-b border-gray-800 overflow-hidden relative"
+        <div className="h-28 px-3 pb-3 pt-6 overflow-hidden relative"
           style={{
-            background: 'linear-gradient(to bottom, transparent 23px, rgba(255,255,255,0.02) 23px)',
-            backgroundSize: '100% 24px'
+            backgroundImage: 'repeating-linear-gradient(transparent, transparent 23px, rgba(255,255,255,0.04) 23px, rgba(255,255,255,0.04) 24px)',
           }}
         >
           <span className="absolute top-2 right-2 text-[8px] px-1.5 py-0.5 rounded-full bg-gray-800 text-gray-500">
@@ -1154,7 +1150,7 @@ function RecentCard({ deck, onClick, onRemove }: { deck: RecentDeck; onClick: ()
           {onRemove && (
             <button
               onClick={(e) => { e.stopPropagation(); onRemove() }}
-              className="absolute top-2 left-5 w-5 h-5 rounded-full bg-gray-800/80 hover:bg-red-600 text-gray-500 hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all z-20"
+              className="absolute top-2 left-2 w-5 h-5 rounded-full bg-gray-800/80 hover:bg-red-600 text-gray-500 hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
               title="Remove from recent"
             >
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -1181,7 +1177,7 @@ function RecentCard({ deck, onClick, onRemove }: { deck: RecentDeck; onClick: ()
             </div>
           )}
         </div>
-        <div className="pl-5 pr-3 p-3">
+        <div className="border-t border-gray-800 p-3">
           <div className="text-sm text-gray-200 font-medium truncate group-hover:text-white">{deck.title}</div>
           <div className="flex items-center gap-2 mt-1.5">
             {deck.slideCount && (

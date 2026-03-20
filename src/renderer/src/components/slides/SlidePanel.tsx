@@ -607,9 +607,10 @@ function SubSlideStackEditor({ subSlides, currentSubSlide, setCurrentSubSlide, s
     const updateScale = () => {
       const cw = container.clientWidth
       const ch = container.clientHeight
-      const margin = 24
-      // Fit both width and height so the first sub-slide is fully visible
-      const s = Math.min((cw - margin * 2) / SLIDE_W, (ch - margin * 2) / SLIDE_H, 1)
+      const hMargin = 24
+      // Vertical: account for sub-slide badge (~28px), zoom row (~28px), padding (32px), gap
+      const vExtra = 100
+      const s = Math.min((cw - hMargin * 2) / SLIDE_W, (ch - vExtra) / SLIDE_H, 1)
       setBaseScale(Math.max(0.15, s))
     }
     updateScale()

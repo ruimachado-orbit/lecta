@@ -36,6 +36,7 @@ pnpm dev
 3. **Required reviews**: All PRs must be approved by at least one code owner before merging:
    - [@ruimachado-orbit](https://github.com/ruimachado-orbit) (Rui Machado)
    - [@DiogoAntunesOliveira](https://github.com/DiogoAntunesOliveira) (Diogo Antunes Oliveira)
+   - [@PedroFerreira](https://github.com/PedroFerreira) (Pedro Ferreira)
 4. **No direct pushes to `main`**: All changes must go through a PR.
 5. **Passing checks**: All CI checks must pass before merging.
 6. **Fill out the PR template**: Provide a clear description, motivation, and test plan.

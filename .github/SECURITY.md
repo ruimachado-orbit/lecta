@@ -16,6 +16,7 @@ Instead, please email the maintainers directly:
 
 - **Rui Machado** — [@ruimachado-orbit](https://github.com/ruimachado-orbit)
 - **Diogo Antunes Oliveira** — [@DiogoAntunesOliveira](https://github.com/DiogoAntunesOliveira)
+- **Pedro Ferreira** — [@PedroFerreira](https://github.com/PedroFerreira)
 
 You can also use [GitHub's private vulnerability reporting](https://github.com/ruimachado-orbit/lecta/security/advisories/new) if enabled on this repository.
 

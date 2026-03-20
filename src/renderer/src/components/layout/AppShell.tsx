@@ -79,6 +79,15 @@ export function AppShell(): JSX.Element {
     }
   }, [currentSlideIndex, availableArtifacts.join(',')])
 
+  // Open specific artifact when requested (e.g. after adding code/video/file)
+  const pendingArtifactOpen = useUIStore((s) => s.pendingArtifactOpen)
+  useEffect(() => {
+    if (pendingArtifactOpen && availableArtifacts.includes(pendingArtifactOpen)) {
+      setActiveArtifact(pendingArtifactOpen)
+      useUIStore.setState({ pendingArtifactOpen: null })
+    }
+  }, [pendingArtifactOpen, availableArtifacts.join(',')])
+
   if (isPresenting) {
     return <PresenterView />
   }

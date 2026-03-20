@@ -4,11 +4,14 @@
       "Bash(npx vite:*)",
       "Bash(ls out/renderer/assets/*.css)",
       "Bash(ls -la *.tsx)",
-      "Bash(find \"/Users/ruimachado/Desktop/Personal Projects/Lecta/node_modules\" -name \"* 2\" -type d -exec rm -rf {} +)"
+      "Bash(find \"/Users/ruimachado/Desktop/Personal Projects/Lecta/node_modules\" -name \"* 2\" -type d -exec rm -rf {} +)",
+      "Read(//Users/ruimachado/**)",
+      "Bash(zip -r /Users/ruimachado/Downloads/dog-breeds.lecta lecta.yaml slides/)"
     ],
     "additionalDirectories": [
       "/var/folders/cx/hkm1s2xd5rb3bwzd4dxk95xr0000gn/T/lecta-workspace-Orbit_Tech_Nation_Status_Update-L1VzZXJz",
-      "/private/var/folders/cx/hkm1s2xd5rb3bwzd4dxk95xr0000gn/T/lecta-workspace-Orbit_Tech_Nation_Status_Update-L1VzZXJz"
+      "/private/var/folders/cx/hkm1s2xd5rb3bwzd4dxk95xr0000gn/T/lecta-workspace-Orbit_Tech_Nation_Status_Update-L1VzZXJz",
+      "/tmp/dog-breeds-lecta"
     ]
   }
 }

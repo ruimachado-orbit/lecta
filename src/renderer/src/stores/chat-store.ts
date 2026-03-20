@@ -152,14 +152,26 @@ function dispatchRendererAction(action: string, params: Record<string, unknown>)
       const slides = params.slides as { id: string; markdown: string }[]
       const rootPath = presStore.presentation?.rootPath
       const afterIdx = presStore.currentSlideIndex
-      if (rootPath && slides.length > 0) {
-        window.electronAPI.addBulkSlides(rootPath, slides, afterIdx).then((loaded: any) => {
-          usePresentationStore.setState({
-            presentation: loaded.config,
-            slides: loaded.slides,
-            currentSlideIndex: afterIdx + 1
+      if (slides.length > 0) {
+        if (rootPath) {
+          // Presentation is open — add slides to it
+          window.electronAPI.addBulkSlides(rootPath, slides, afterIdx).then((loaded: any) => {
+            usePresentationStore.setState({
+              presentation: loaded.config,
+              slides: loaded.slides,
+              currentSlideIndex: afterIdx + 1
+            })
           })
-        })
+        } else {
+          // No presentation open — create one, add slides, and open it
+          const title = slides[0]?.markdown?.match(/^#\s+(.+)/m)?.[1] || 'AI Generated Presentation'
+          window.electronAPI.createPresentation(title).then(async (newPath) => {
+            if (!newPath) return
+            const loaded = await window.electronAPI.addBulkSlides(newPath, slides, 0)
+            const { useTabsStore } = await import('./tabs-store')
+            useTabsStore.getState().openInNewTab(newPath)
+          })
+        }
       }
       break
     }

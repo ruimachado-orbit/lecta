@@ -36,9 +36,19 @@ let sqlJsInstance: any = null
 async function loadSqlJs(): Promise<any> {
   if (sqlJsInstance) return sqlJsInstance
 
-  const initSqlJs = (await import(
-    /* @vite-ignore */ 'https://cdn.jsdelivr.net/npm/sql.js@1.12.0/dist/sql-wasm.js'
-  )).default
+  // sql.js UMD script sets window.initSqlJs — dynamic import().default doesn't work reliably
+  await new Promise<void>((resolve, reject) => {
+    const script = document.createElement('script')
+    script.src = 'https://cdn.jsdelivr.net/npm/sql.js@1.12.0/dist/sql-wasm.js'
+    script.onload = () => resolve()
+    script.onerror = () => reject(new Error('Failed to load sql.js'))
+    document.head.appendChild(script)
+  })
+
+  const initSqlJs = (window as any).initSqlJs
+  if (typeof initSqlJs !== 'function') {
+    throw new Error('sql.js failed to initialize — initSqlJs not found on window')
+  }
 
   sqlJsInstance = await initSqlJs({
     locateFile: (file: string) =>

@@ -48,6 +48,7 @@ interface UIState {
   providerStatuses: ProviderStatus[]
   pendingGeneratePrompt: string | null
   aiAlert: string | null
+  pendingArtifactOpen: string | null
 
   // Actions
   setTheme: (theme: 'dark' | 'light') => void
@@ -77,6 +78,7 @@ interface UIState {
   refreshProviderStatuses: () => Promise<void>
   setPendingGeneratePrompt: (prompt: string | null) => void
   setAiAlert: (message: string | null) => void
+  setPendingArtifactOpen: (type: string | null) => void
   loadGroupsFromPresentation: (groups: { id: string; name: string; slideIds: string[]; color?: string }[]) => void
 }
 
@@ -120,6 +122,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   providerStatuses: [],
   pendingGeneratePrompt: null,
   aiAlert: null,
+  pendingArtifactOpen: null,
 
   setTheme: (theme) => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -219,4 +222,5 @@ export const useUIStore = create<UIState>((set, get) => ({
   },
   setPendingGeneratePrompt: (prompt) => set({ pendingGeneratePrompt: prompt }),
   setAiAlert: (message) => set({ aiAlert: message }),
+  setPendingArtifactOpen: (type) => set({ pendingArtifactOpen: type }),
 }))

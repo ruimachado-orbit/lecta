@@ -104,7 +104,7 @@ export function HomeScreen(): JSX.Element {
       <HomeTabBar />
 
       <div className="flex-1 overflow-y-auto flex items-start justify-center pt-20">
-      <div className="max-w-xl w-full px-8 pb-16" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+      <div className="max-w-xl w-full px-8 pb-28" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         {/* Logo / Title */}
         <div className="text-center mb-8">
           <h1
@@ -477,8 +477,8 @@ function ChatInput(): JSX.Element {
 
   return (
     <div className={`mb-6 space-y-2 ${noProviders ? 'opacity-50' : ''}`}>
-      <div className={`flex items-center gap-2 bg-gray-900 border border-gray-700 rounded-full px-4 py-2 transition-colors ${noProviders ? 'cursor-not-allowed' : 'focus-within:border-indigo-500'}`}>
-        <svg className={`w-4 h-4 flex-shrink-0 ${noProviders ? 'text-gray-400' : 'text-indigo-400'}`} fill="currentColor" viewBox="0 0 24 24">
+      <div className={`flex items-center gap-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-full px-4 py-2.5 shadow-sm transition-colors ${noProviders ? 'cursor-not-allowed' : 'focus-within:border-gray-400 dark:focus-within:border-indigo-500'}`}>
+        <svg className={`w-4 h-4 flex-shrink-0 ${noProviders ? 'text-gray-300 dark:text-gray-400' : 'text-gray-400 dark:text-indigo-400'}`} fill="currentColor" viewBox="0 0 24 24">
           <path d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
         </svg>
         <input
@@ -486,15 +486,15 @@ function ChatInput(): JSX.Element {
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') handleSend() }}
-          placeholder={noProviders ? 'Configure an AI provider in Settings to use chat' : 'Ask Lecta AI anything...'}
-          className="flex-1 bg-transparent text-sm text-gray-300 placeholder-gray-400 focus:outline-none disabled:cursor-not-allowed"
+          placeholder={noProviders ? 'Configure an AI provider in Settings to use chat' : 'Ask Lecta AI...'}
+          className="flex-1 bg-transparent text-sm text-gray-800 dark:text-gray-300 placeholder-gray-400 focus:outline-none disabled:cursor-not-allowed"
           disabled={noProviders}
         />
         <ModelSelector compact />
         <button
           onClick={handleSend}
           disabled={!value.trim() || noProviders}
-          className="w-7 h-7 rounded-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-800 disabled:text-gray-400 text-white flex items-center justify-center transition-colors flex-shrink-0"
+          className="w-7 h-7 rounded-full bg-gray-900 dark:bg-indigo-600 hover:bg-gray-700 dark:hover:bg-indigo-500 disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white flex items-center justify-center transition-colors flex-shrink-0"
         >
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />

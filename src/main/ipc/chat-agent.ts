@@ -47,7 +47,17 @@ export function registerChatAgentHandlers(): void {
         )
         return updatedMessages
       } catch (err) {
-        sendEvent({ type: 'error', message: (err as Error).message })
+        const raw = (err as Error).message || String(err)
+        // Extract user-friendly message from API error JSON
+        let friendly = raw
+        try {
+          const jsonMatch = raw.match(/\{[\s\S]*\}/)
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0])
+            friendly = parsed?.error?.message || parsed?.message || raw
+          }
+        } catch { /* use raw */ }
+        sendEvent({ type: 'error', message: friendly })
         sendEvent({ type: 'done' })
         return messages
       }

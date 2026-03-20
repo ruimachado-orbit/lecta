@@ -3,10 +3,10 @@ import type { ChatMessage as ChatMessageType, ToolCallInfo } from '../../stores/
 
 function ToolCallBadge({ toolCall }: { toolCall: ToolCallInfo }): JSX.Element {
   const statusColors = {
-    pending: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/30',
-    executing: 'text-blue-400 bg-blue-400/10 border-blue-400/30',
-    success: 'text-green-400 bg-green-400/10 border-green-400/30',
-    error: 'text-red-400 bg-red-400/10 border-red-400/30'
+    pending: 'text-yellow-600 dark:text-yellow-400 bg-yellow-500/10 border-yellow-500/20',
+    executing: 'text-blue-600 dark:text-blue-400 bg-blue-500/10 border-blue-500/20',
+    success: 'text-green-600 dark:text-green-400 bg-green-500/10 border-green-500/20',
+    error: 'text-red-600 dark:text-red-400 bg-red-500/10 border-red-500/20'
   }
 
   const statusIcons = {
@@ -20,7 +20,7 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCallInfo }): JSX.Element {
 
   return (
     <div
-      className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-medium border mt-1 mr-1 ${statusColors[toolCall.status]}`}
+      className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium border mt-1 mr-1 ${statusColors[toolCall.status]}`}
     >
       <span>{statusIcons[toolCall.status]}</span>
       <span>{friendlyName}</span>
@@ -38,8 +38,10 @@ export function ChatMessageComponent({ message }: { message: ChatMessageType }):
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div
         data-chat-role={message.role}
-        className={`max-w-[90%] rounded-lg px-3 py-2 ${
-          isUser ? 'bg-indigo-600 text-white' : 'text-gray-800 dark:text-gray-300'
+        className={`max-w-[90%] rounded-2xl px-3.5 py-2 ${
+          isUser
+            ? 'bg-gray-900 dark:bg-indigo-600 text-white'
+            : 'bg-gray-100 dark:bg-transparent text-gray-800 dark:text-gray-300'
         }`}
       >
         {isUser ? (

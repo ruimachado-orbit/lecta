@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { LoadedPresentation, LoadedSlide, Presentation, SupportedLanguage } from '../../../../packages/shared/src/types/presentation'
+import { useUIStore } from './ui-store'
 
 interface PresentationState {
   presentation: Presentation | null
@@ -337,6 +338,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
         language
       )
       set(applyLoaded(loaded, currentSlideIndex))
+      useUIStore.setState({ pendingArtifactOpen: 'code', showRightPane: true })
     } catch (error) {
       set({ error: (error as Error).message })
     }
@@ -352,6 +354,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
       )
       if (loaded) {
         set(applyLoaded(loaded, currentSlideIndex))
+        useUIStore.setState({ pendingArtifactOpen: 'files', showRightPane: true })
       }
     } catch (error) {
       set({ error: (error as Error).message })
@@ -369,6 +372,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
         label
       )
       set(applyLoaded(loaded, currentSlideIndex))
+      useUIStore.setState({ pendingArtifactOpen: 'video', showRightPane: true })
     } catch (error) {
       set({ error: (error as Error).message })
     }
@@ -385,15 +389,17 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
         label
       )
       set(applyLoaded(loaded, currentSlideIndex))
+      useUIStore.setState({ pendingArtifactOpen: 'webapp', showRightPane: true })
     } catch (error) {
       set({ error: (error as Error).message })
     }
   },
 
   addPrompt: async (prompt: string, label?: string) => {
-    const { presentation, currentSlideIndex } = get()
+    const { presentation, currentSlideIndex, slides } = get()
     if (!presentation) return
     try {
+      const promptCount = slides[currentSlideIndex]?.config.prompts?.length ?? 0
       const loaded = await window.electronAPI.addPrompt(
         presentation.rootPath,
         currentSlideIndex,
@@ -401,6 +407,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
         label
       )
       set(applyLoaded(loaded, currentSlideIndex))
+      useUIStore.setState({ pendingArtifactOpen: `prompt-${promptCount}`, showRightPane: true })
     } catch (error) {
       set({ error: (error as Error).message })
     }

@@ -75,7 +75,8 @@ const PresentationSchema = z.object({
   lastViewedIndex: z.number().optional(),
   slides: z.array(SlideConfigSchema),
   ai: AIConfigSchema.optional(),
-  groups: z.array(SlideGroupConfigSchema).optional()
+  groups: z.array(SlideGroupConfigSchema).optional(),
+  presenterNotes: z.string().optional()
 })
 
 export function parsePresentationYaml(yamlContent: string, rootPath: string): Presentation {

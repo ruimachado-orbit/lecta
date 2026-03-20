@@ -14,6 +14,7 @@ export interface Presentation {
   rootPath: string
   ai?: AIConfig
   groups?: SlideGroupConfig[]
+  presenterNotes?: string
 }
 
 export interface VideoConfig {

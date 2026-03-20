@@ -47,6 +47,8 @@ const api = {
     ipcRenderer.invoke('fs:set-layout', rootPath, slideIndex, layout),
   setTheme: (rootPath: string, themeId: string): Promise<void> =>
     ipcRenderer.invoke('fs:set-theme', rootPath, themeId),
+  updatePresenterNotes: (rootPath: string, notes: string): Promise<void> =>
+    ipcRenderer.invoke('fs:update-presenter-notes', rootPath, notes),
   toggleSkipSlide: (rootPath: string, slideIndex: number): Promise<LoadedPresentation> =>
     ipcRenderer.invoke('fs:toggle-skip', rootPath, slideIndex),
   removeAttachment: (

@@ -267,10 +267,6 @@ export function PresenterView(): JSX.Element {
             {audienceOpen ? 'Audience On' : 'Audience'}
           </button>
           <RemoteControlButton />
-          <button onClick={() => setTimerRunning(!timerRunning)}
-            className="text-xs font-mono px-2 py-1 rounded bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors">
-            {formatTime(timer)}
-          </button>
           <button onClick={endPresentation}
             className="px-3 py-1 text-xs bg-red-500 hover:bg-red-400 text-white rounded font-medium transition-colors">
             End
@@ -279,30 +275,15 @@ export function PresenterView(): JSX.Element {
       </div>
 
       {/* Main area */}
-      <div className="flex-1 min-h-0 flex overflow-hidden">
-        {/* Left: slides + artifacts area — mouse tracked for audience cursor */}
-        <div ref={mainAreaRef} className="flex-1 min-w-0 flex">
-          {activeArtifact && artifactExpanded ? (
-            <div className="flex-1 min-w-0" data-artifact-capture>
-              <ArtifactPanel
-                activeArtifact={activeArtifact}
-                currentSlide={currentSlide}
-                presentation={presentation}
-                isExecuting={isExecuting}
-                isMarkdown={!!isMarkdown}
-                onRun={handleRun}
-                onCancel={cancelCode}
-              />
-            </div>
-          ) : activeArtifact ? (
-            <PanelGroup direction="horizontal" className="flex-1 min-w-0"
-              onLayout={(sizes) => { if (sizes[1] !== undefined) { setPanelSize(sizes[1]); if (activeArtifact) typeSizeMemory.current[activeArtifact] = sizes[1] } }}>
-              <Panel defaultSize={100 - panelSize} minSize={30}>
-                <PresenterSlide markdown={slideMarkdown} rootPath={rootPath} layout={layout} theme={presentation?.theme || 'dark'} />
-              </Panel>
-              <PanelResizeHandle className="w-1.5 bg-gray-800 hover:bg-indigo-500 transition-colors" />
-              <Panel defaultSize={panelSize} minSize={15} id="artifact-panel">
-                <div className="h-full" data-artifact-capture>
+      <PanelGroup direction="horizontal" className="flex-1 min-h-0">
+        {/* Left column: slide + artifacts + speaker notes below */}
+        <Panel defaultSize={78} minSize={40}>
+        <PanelGroup direction="vertical" className="h-full">
+          <Panel defaultSize={65} minSize={25}>
+          {/* Slide + artifacts area — mouse tracked for audience cursor */}
+          <div ref={mainAreaRef} className="h-full flex">
+            {activeArtifact && artifactExpanded ? (
+              <div className="flex-1 min-w-0" data-artifact-capture>
                 <ArtifactPanel
                   activeArtifact={activeArtifact}
                   currentSlide={currentSlide}
@@ -312,110 +293,153 @@ export function PresenterView(): JSX.Element {
                   onRun={handleRun}
                   onCancel={cancelCode}
                 />
-                </div>
-              </Panel>
-            </PanelGroup>
-          ) : (
-            <PresenterSlide markdown={slideMarkdown} rootPath={rootPath} layout={layout} theme={presentation?.theme || 'dark'} />
-          )}
+              </div>
+            ) : activeArtifact ? (
+              <PanelGroup direction="horizontal" className="flex-1 min-w-0"
+                onLayout={(sizes) => { if (sizes[1] !== undefined) { setPanelSize(sizes[1]); if (activeArtifact) typeSizeMemory.current[activeArtifact] = sizes[1] } }}>
+                <Panel defaultSize={100 - panelSize} minSize={30}>
+                  <PresenterSlide markdown={slideMarkdown} rootPath={rootPath} layout={layout} theme={presentation?.theme || 'dark'} />
+                </Panel>
+                <PanelResizeHandle className="w-1.5 bg-gray-800 hover:bg-indigo-500 transition-colors" />
+                <Panel defaultSize={panelSize} minSize={15} id="artifact-panel">
+                  <div className="h-full" data-artifact-capture>
+                  <ArtifactPanel
+                    activeArtifact={activeArtifact}
+                    currentSlide={currentSlide}
+                    presentation={presentation}
+                    isExecuting={isExecuting}
+                    isMarkdown={!!isMarkdown}
+                    onRun={handleRun}
+                    onCancel={cancelCode}
+                  />
+                  </div>
+                </Panel>
+              </PanelGroup>
+            ) : (
+              <PresenterSlide markdown={slideMarkdown} rootPath={rootPath} layout={layout} theme={presentation?.theme || 'dark'} />
+            )}
 
-          {/* Artifact sidebar */}
-          {hasAnyArtifact && (
-            <div className="flex flex-col items-center py-2 gap-1 w-9 flex-shrink-0 bg-gray-900 border-l border-gray-800">
-              {hasCode && (
-                <SidebarBtn active={activeArtifact === 'code'} onClick={() => {
-                  const opening = activeArtifact !== 'code'
-                  setActiveArtifact(opening ? 'code' : null); setArtifactExpanded(false)
-                  if (opening) setPanelSize(typeSizeMemory.current.code)
-                }} title="Code">
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
-                  </svg>
-                </SidebarBtn>
-              )}
-              {hasVideo && (
-                <SidebarBtn active={activeArtifact === 'video'} onClick={() => {
-                  const opening = activeArtifact !== 'video'
-                  setActiveArtifact(opening ? 'video' : null); setArtifactExpanded(false)
-                  if (opening) setPanelSize(typeSizeMemory.current.video)
-                }} title="Video">
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />
-                  </svg>
-                </SidebarBtn>
-              )}
-              {hasWebApp && (
-                <SidebarBtn active={activeArtifact === 'webapp'} onClick={() => {
-                  const opening = activeArtifact !== 'webapp'
-                  setActiveArtifact(opening ? 'webapp' : null); setArtifactExpanded(false)
-                  if (opening) setPanelSize(typeSizeMemory.current.webapp)
-                }} title="Web">
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0 1 12 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 0 1 3 12c0-1.605.42-3.113 1.157-4.418" />
-                  </svg>
-                </SidebarBtn>
-              )}
-              {hasPrompts && (
-                <SidebarBtn active={activeArtifact === 'prompt'} onClick={() => {
-                  const opening = activeArtifact !== 'prompt'
-                  setActiveArtifact(opening ? 'prompt' : null); setArtifactExpanded(false)
-                  if (opening) setPanelSize(typeSizeMemory.current.prompt)
-                }} title="AI Prompt">
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
-                  </svg>
-                </SidebarBtn>
-              )}
-              {hasArtifacts && (
-                <SidebarBtn active={activeArtifact === 'artifact'} onClick={() => {
-                  const opening = activeArtifact !== 'artifact'
-                  setActiveArtifact(opening ? 'artifact' : null); setArtifactExpanded(false)
-                  if (opening) setPanelSize(typeSizeMemory.current.artifact)
-                }} title="Files">
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-                  </svg>
-                </SidebarBtn>
-              )}
-              {activeArtifact && (
-                <>
-                  <div className="w-5 h-px bg-gray-700 my-0.5" />
-                  <SidebarBtn active={artifactExpanded} onClick={() => setArtifactExpanded(!artifactExpanded)}
-                    title={artifactExpanded ? 'Split view' : 'Expand artifact'}>
-                    {artifactExpanded ? (
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25" />
-                      </svg>
-                    ) : (
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
-                      </svg>
-                    )}
-                  </SidebarBtn>
-                  {/* Close artifact */}
-                  <SidebarBtn active={false} onClick={() => { setActiveArtifact(null); setArtifactExpanded(false) }}
-                    title="Close artifact">
+            {/* Artifact sidebar */}
+            {hasAnyArtifact && (
+              <div className="flex flex-col items-center py-2 gap-1 w-9 flex-shrink-0 bg-gray-900 border-l border-gray-800">
+                {hasCode && (
+                  <SidebarBtn active={activeArtifact === 'code'} onClick={() => {
+                    const opening = activeArtifact !== 'code'
+                    setActiveArtifact(opening ? 'code' : null); setArtifactExpanded(false)
+                    if (opening) setPanelSize(typeSizeMemory.current.code)
+                  }} title="Code">
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
                     </svg>
                   </SidebarBtn>
-                </>
+                )}
+                {hasVideo && (
+                  <SidebarBtn active={activeArtifact === 'video'} onClick={() => {
+                    const opening = activeArtifact !== 'video'
+                    setActiveArtifact(opening ? 'video' : null); setArtifactExpanded(false)
+                    if (opening) setPanelSize(typeSizeMemory.current.video)
+                  }} title="Video">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />
+                    </svg>
+                  </SidebarBtn>
+                )}
+                {hasWebApp && (
+                  <SidebarBtn active={activeArtifact === 'webapp'} onClick={() => {
+                    const opening = activeArtifact !== 'webapp'
+                    setActiveArtifact(opening ? 'webapp' : null); setArtifactExpanded(false)
+                    if (opening) setPanelSize(typeSizeMemory.current.webapp)
+                  }} title="Web">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0 1 12 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 0 1 3 12c0-1.605.42-3.113 1.157-4.418" />
+                    </svg>
+                  </SidebarBtn>
+                )}
+                {hasPrompts && (
+                  <SidebarBtn active={activeArtifact === 'prompt'} onClick={() => {
+                    const opening = activeArtifact !== 'prompt'
+                    setActiveArtifact(opening ? 'prompt' : null); setArtifactExpanded(false)
+                    if (opening) setPanelSize(typeSizeMemory.current.prompt)
+                  }} title="AI Prompt">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
+                    </svg>
+                  </SidebarBtn>
+                )}
+                {hasArtifacts && (
+                  <SidebarBtn active={activeArtifact === 'artifact'} onClick={() => {
+                    const opening = activeArtifact !== 'artifact'
+                    setActiveArtifact(opening ? 'artifact' : null); setArtifactExpanded(false)
+                    if (opening) setPanelSize(typeSizeMemory.current.artifact)
+                  }} title="Files">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                    </svg>
+                  </SidebarBtn>
+                )}
+                {activeArtifact && (
+                  <>
+                    <div className="w-5 h-px bg-gray-700 my-0.5" />
+                    <SidebarBtn active={artifactExpanded} onClick={() => setArtifactExpanded(!artifactExpanded)}
+                      title={artifactExpanded ? 'Split view' : 'Expand artifact'}>
+                      {artifactExpanded ? (
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25" />
+                        </svg>
+                      ) : (
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                        </svg>
+                      )}
+                    </SidebarBtn>
+                    {/* Close artifact */}
+                    <SidebarBtn active={false} onClick={() => { setActiveArtifact(null); setArtifactExpanded(false) }}
+                      title="Close artifact">
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                      </svg>
+                    </SidebarBtn>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+          </Panel>
+          <PanelResizeHandle className="h-1.5 bg-gray-800 hover:bg-indigo-500 transition-colors cursor-row-resize" />
+          <Panel defaultSize={35} minSize={15}>
+          {/* Speaker notes — below the slide, resizable, prominent and scrollable */}
+          <div className="h-full flex flex-col bg-gray-950">
+            <div className="px-4 py-2 flex items-center gap-2 flex-shrink-0 border-b border-gray-800/50">
+              <svg className="w-3.5 h-3.5 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+              </svg>
+              <span className="text-[10px] text-gray-500 uppercase tracking-wider font-medium">Speaker Notes</span>
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto px-5 pb-4 pt-3">
+              {currentSlide?.notesContent ? (
+                <p className="text-gray-200 text-lg leading-relaxed whitespace-pre-wrap">{currentSlide.notesContent}</p>
+              ) : (
+                <p className="text-gray-600 text-sm italic">No notes for this slide</p>
               )}
             </div>
-          )}
-        </div>
-
-        {/* Right panel: next slide preview + notes */}
-        <div className="w-80 flex-shrink-0 bg-gray-950 border-l border-gray-800 flex flex-col">
+          </div>
+          </Panel>
+        </PanelGroup>
+        </Panel>
+        <PanelResizeHandle className="w-1.5 bg-gray-800 hover:bg-indigo-500 transition-colors cursor-col-resize" />
+        {/* Right panel: next slide preview + timer/clock — resizable */}
+        <Panel defaultSize={22} minSize={15} maxSize={45}>
+        <PanelGroup direction="vertical" className="h-full bg-gray-950">
+          <Panel defaultSize={55} minSize={20}>
           {/* Next slide preview */}
-          <div className="flex-shrink-0 border-b border-gray-800">
-            <div className="px-3 py-1.5 flex items-center gap-2">
+          <div className="h-full flex flex-col">
+            <div className="px-3 py-1.5 flex items-center gap-2 flex-shrink-0">
               <span className="text-[10px] text-gray-500 uppercase tracking-wider font-medium">Next</span>
               {nextSlideData && (
                 <span className="text-[10px] text-gray-600 font-mono">{currentSlideIndex + 2}/{slides.length}</span>
               )}
             </div>
-            <div className="px-3 pb-3">
+            <div className="flex-1 min-h-0 px-3 pb-3 flex items-center justify-center">
               {nextSlideData ? (
                 <MiniSlide
                   markdown={nextSlideData.markdownContent || ''}
@@ -424,28 +448,51 @@ export function PresenterView(): JSX.Element {
                   theme={presentation?.theme || 'dark'}
                 />
               ) : (
-                <div className="aspect-video rounded bg-gray-900 flex items-center justify-center">
+                <div className="w-full aspect-video rounded bg-gray-900 flex items-center justify-center">
                   <span className="text-gray-600 text-xs">End of presentation</span>
                 </div>
               )}
             </div>
           </div>
-
-          {/* Speaker notes — prominent, scrollable, fills remaining space */}
-          <div className="flex-1 min-h-0 flex flex-col">
-            <div className="px-3 py-1.5 flex items-center gap-2 flex-shrink-0">
-              <span className="text-[10px] text-gray-500 uppercase tracking-wider font-medium">Speaker Notes</span>
+          </Panel>
+          <PanelResizeHandle className="h-1.5 bg-gray-800 hover:bg-indigo-500 transition-colors cursor-row-resize" />
+          <Panel defaultSize={25} minSize={10}>
+          {/* Timer + clock */}
+          <div className="h-full flex flex-col items-center justify-center px-4">
+            <button
+              onClick={() => setTimerRunning(!timerRunning)}
+              className="text-white font-mono text-4xl font-bold tracking-wider hover:text-gray-300 transition-colors cursor-pointer"
+              title={timerRunning ? 'Pause timer' : 'Resume timer'}
+            >
+              {formatTime(timer)}
+            </button>
+            <div className="text-gray-500 text-xs font-mono mt-2">
+              <CurrentTime />
             </div>
-            <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4">
-              {currentSlide?.notesContent ? (
-                <p className="text-gray-200 text-sm leading-relaxed whitespace-pre-wrap">{currentSlide.notesContent}</p>
-              ) : (
-                <p className="text-gray-600 text-sm italic">No notes for this slide</p>
-              )}
-            </div>
+            <button
+              onClick={() => { setTimer(0); setTimerRunning(true) }}
+              className="mt-2 text-[10px] text-gray-600 hover:text-gray-400 uppercase tracking-wider transition-colors"
+            >
+              Reset
+            </button>
           </div>
-        </div>
-      </div>
+          </Panel>
+          <PanelResizeHandle className="h-1.5 bg-gray-800 hover:bg-indigo-500 transition-colors cursor-row-resize" />
+          <Panel defaultSize={20} minSize={10}>
+          {/* Presenter live notes */}
+          <div className="h-full flex flex-col">
+            <div className="px-3 py-1.5 flex items-center gap-2 flex-shrink-0 border-b border-gray-800/50">
+              <svg className="w-3 h-3 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Z" />
+              </svg>
+              <span className="text-[10px] text-gray-500 uppercase tracking-wider font-medium">Action Notes</span>
+            </div>
+            <PresenterLiveNotes />
+          </div>
+          </Panel>
+        </PanelGroup>
+        </Panel>
+      </PanelGroup>
     </div>
   )
 }
@@ -686,4 +733,168 @@ function RemoteControlButton(): JSX.Element {
       )}
     </div>
   )
+}
+
+function CurrentTime(): JSX.Element {
+  const [now, setNow] = useState(new Date())
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(id)
+  }, [])
+  return (
+    <span>
+      {now.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+      {' '}
+      {now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+    </span>
+  )
+}
+
+function PresenterLiveNotes(): JSX.Element {
+  const { presentation, updatePresenterNotes } = usePresentationStore()
+  const [lines, setLines] = useState<string[]>(() => parseNoteLines(presentation?.presenterNotes ?? ''))
+  const saveRef = useRef<ReturnType<typeof setTimeout>>(null)
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([])
+  const focusIdx = useRef<number | null>(null)
+
+  useEffect(() => {
+    setLines(parseNoteLines(presentation?.presenterNotes ?? ''))
+  }, [presentation?.presenterNotes])
+
+  useEffect(() => {
+    if (focusIdx.current !== null) {
+      inputRefs.current[focusIdx.current]?.focus()
+      focusIdx.current = null
+    }
+  })
+
+  const persist = (newLines: string[]) => {
+    setLines(newLines)
+    if (saveRef.current) clearTimeout(saveRef.current)
+    saveRef.current = setTimeout(() => {
+      updatePresenterNotes(newLines.filter(l => l.trim()).join('\n'))
+    }, 800)
+  }
+
+  const toggleCheck = (i: number) => {
+    const line = lines[i]
+    const next = [...lines]
+    if (line.startsWith('- [x] ')) next[i] = '- [ ] ' + line.slice(6)
+    else if (line.startsWith('- [ ] ')) next[i] = '- [x] ' + line.slice(6)
+    persist(next)
+  }
+
+  const handleContentChange = (i: number, content: string) => {
+    const line = lines[i]
+    let prefix = ''
+    if (line.startsWith('- [x] ')) prefix = '- [x] '
+    else if (line.startsWith('- [ ] ')) prefix = '- [ ] '
+    else if (line.startsWith('- ')) prefix = '- '
+    const next = [...lines]
+    next[i] = prefix + content
+    persist(next)
+  }
+
+  const handleKeyDown = (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    const line = lines[i]
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      let prefix = ''
+      if (line.startsWith('- [x] ') || line.startsWith('- [ ] ')) prefix = '- [ ] '
+      else if (line.startsWith('- ')) prefix = '- '
+      const next = [...lines]
+      next.splice(i + 1, 0, prefix)
+      focusIdx.current = i + 1
+      persist(next)
+    } else if (e.key === 'Backspace' && getNoteContent(line) === '') {
+      e.preventDefault()
+      if (lines.length > 1) {
+        const next = [...lines]
+        next.splice(i, 1)
+        focusIdx.current = Math.max(0, i - 1)
+        persist(next)
+      } else {
+        persist([''])
+      }
+    } else if (e.key === 'ArrowUp' && i > 0) {
+      e.preventDefault()
+      inputRefs.current[i - 1]?.focus()
+    } else if (e.key === 'ArrowDown' && i < lines.length - 1) {
+      e.preventDefault()
+      inputRefs.current[i + 1]?.focus()
+    }
+  }
+
+  const addLine = (prefix: string) => {
+    const next = [...lines, prefix]
+    focusIdx.current = next.length - 1
+    persist(next)
+  }
+
+  return (
+    <div className="flex-1 min-h-0 flex flex-col">
+      {/* Quick-add buttons */}
+      <div className="flex items-center gap-1 px-2 py-1 flex-shrink-0">
+        <button onClick={() => addLine('- [ ] ')}
+          className="px-1.5 py-0.5 text-[9px] text-gray-600 hover:text-gray-300 hover:bg-gray-800 rounded transition-colors"
+          title="Add todo">☑ Todo</button>
+        <button onClick={() => addLine('- ')}
+          className="px-1.5 py-0.5 text-[9px] text-gray-600 hover:text-gray-300 hover:bg-gray-800 rounded transition-colors"
+          title="Add bullet">• Bullet</button>
+        <button onClick={() => addLine('')}
+          className="px-1.5 py-0.5 text-[9px] text-gray-600 hover:text-gray-300 hover:bg-gray-800 rounded transition-colors"
+          title="Add text">+ Text</button>
+      </div>
+      {/* Lines */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-2">
+        {lines.map((line, i) => {
+          const isChecked = line.startsWith('- [x] ')
+          const isUnchecked = line.startsWith('- [ ] ')
+          const isBullet = !isChecked && !isUnchecked && line.startsWith('- ')
+          const content = getNoteContent(line)
+          return (
+            <div key={i} className="flex items-center gap-1.5 py-px">
+              {(isChecked || isUnchecked) && (
+                <button onClick={() => toggleCheck(i)} className="flex-shrink-0">
+                  {isChecked ? (
+                    <svg className="w-3.5 h-3.5 text-green-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-3.5 h-3.5 text-gray-600" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                    </svg>
+                  )}
+                </button>
+              )}
+              {isBullet && <span className="w-1 h-1 rounded-full bg-gray-500 flex-shrink-0" />}
+              <input
+                ref={(el) => { inputRefs.current[i] = el }}
+                type="text"
+                value={content}
+                onChange={(e) => handleContentChange(i, e.target.value)}
+                onKeyDown={(e) => handleKeyDown(i, e)}
+                className={`flex-1 min-w-0 bg-transparent text-xs outline-none ${
+                  isChecked ? 'text-gray-600 line-through' : 'text-gray-300'
+                } placeholder-gray-700`}
+                placeholder={isChecked || isUnchecked ? 'Action item...' : isBullet ? 'Note...' : 'Text...'}
+              />
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function parseNoteLines(text: string): string[] {
+  if (!text.trim()) return ['']
+  return text.split('\n')
+}
+
+function getNoteContent(line: string): string {
+  if (line.startsWith('- [x] ')) return line.slice(6)
+  if (line.startsWith('- [ ] ')) return line.slice(6)
+  if (line.startsWith('- ')) return line.slice(2)
+  return line
 }

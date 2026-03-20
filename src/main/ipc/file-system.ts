@@ -110,6 +110,7 @@ async function savePresentationYaml(presentation: Presentation): Promise<void> {
     })
   }
   if (presentation.ai) toSerialize.ai = presentation.ai
+  if (presentation.presenterNotes) toSerialize.presenterNotes = presentation.presenterNotes
   if (presentation.groups && presentation.groups.length > 0) {
     toSerialize.groups = presentation.groups.map((g) => {
       const group: Record<string, unknown> = { id: g.id, name: g.name, slideIds: g.slideIds }
@@ -834,6 +835,18 @@ export function registerFileSystemHandlers(): void {
       const yamlContent = await readFile(configPath, 'utf-8')
       const config = parsePresentationYaml(yamlContent, rootPath)
       config.theme = themeId
+      await savePresentationYaml(config)
+    }
+  )
+
+  // Update presenter notes (notes taken during the presentation)
+  ipcMain.handle(
+    'fs:update-presenter-notes',
+    async (_event, rootPath: string, notes: string): Promise<void> => {
+      const configPath = join(rootPath, DECK_CONFIG_FILE)
+      const yamlContent = await readFile(configPath, 'utf-8')
+      const config = parsePresentationYaml(yamlContent, rootPath)
+      config.presenterNotes = notes || undefined
       await savePresentationYaml(config)
     }
   )

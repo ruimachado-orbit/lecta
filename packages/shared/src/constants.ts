@@ -37,7 +37,8 @@ export const SUPPORTED_ARTIFACT_TYPES = {
   pdf: ['.pdf'],
   excel: ['.xlsx', '.xls', '.csv'],
   image: ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp'],
-  document: ['.doc', '.docx', '.txt', '.md']
+  document: ['.doc', '.docx', '.txt', '.md'],
+  notebook: ['.ipynb']
 } as const
 
 export const DEFAULT_AI_MODEL = 'claude-sonnet-4-20250514'

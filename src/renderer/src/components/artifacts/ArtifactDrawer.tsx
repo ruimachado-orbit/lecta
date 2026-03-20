@@ -1,4 +1,8 @@
 import { useState, useEffect } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import rehypeRaw from 'rehype-raw'
+import rehypeHighlight from 'rehype-highlight'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore } from '../../stores/ui-store'
 import type { ArtifactConfig, SupportedLanguage } from '../../../../../packages/shared/src/types/presentation'
@@ -149,6 +153,7 @@ function ArtifactPreview({ artifact, fullPath }: { artifact: ArtifactConfig; ful
   const isPdf = fullPath.match(/\.pdf$/i)
   const isImage = fullPath.match(/\.(png|jpe?g|gif|svg|webp)$/i)
   const isText = fullPath.match(/\.(txt|md|json|yaml|yml|csv|js|ts|py|sql|html|css)$/i)
+  const isNotebook = fullPath.match(/\.ipynb$/i)
 
   useEffect(() => {
     setImageUrl(null)
@@ -166,7 +171,7 @@ function ArtifactPreview({ artifact, fullPath }: { artifact: ArtifactConfig; ful
           }
           const blob = new Blob([buffer], { type: mimeMap[ext || ''] || 'image/png' })
           setImageUrl(URL.createObjectURL(blob))
-        } else if (isText) {
+        } else if (isNotebook || isText) {
           const text = await window.electronAPI.readFile(fullPath)
           setTextContent(text)
         }
@@ -217,13 +222,17 @@ function ArtifactPreview({ artifact, fullPath }: { artifact: ArtifactConfig; ful
           </div>
         )}
 
-        {isText && textContent !== null && (
+        {isNotebook && textContent !== null && (
+          <NotebookInlinePreview content={textContent} />
+        )}
+
+        {isText && !isNotebook && textContent !== null && (
           <pre className="text-gray-300 text-xs font-mono whitespace-pre-wrap bg-gray-900 rounded-lg p-3 leading-relaxed">
             {textContent}
           </pre>
         )}
 
-        {!isImage && !isPdf && !isText && (
+        {!isImage && !isPdf && !isText && !isNotebook && (
           <div className="flex flex-col items-center justify-center h-full gap-3">
             <span className="text-gray-500 text-sm">Preview not available</span>
             <button
@@ -336,6 +345,98 @@ function AddMenu({
   )
 }
 
+/** Inline .ipynb preview for the artifact sidebar */
+function NotebookInlinePreview({ content }: { content: string }): JSX.Element {
+  let cells: any[] = []
+  let kernelLang = 'python'
+  try {
+    const nb = JSON.parse(content)
+    cells = nb.cells ?? []
+    kernelLang = nb.metadata?.kernelspec?.language ?? nb.metadata?.language_info?.name ?? 'python'
+  } catch {
+    return <pre className="text-red-400 text-xs">Failed to parse notebook</pre>
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="text-[9px] text-gray-500 uppercase tracking-wider">
+        {kernelLang} &middot; {cells.length} cells
+      </div>
+      {cells.map((cell: any, i: number) => {
+        const source = Array.isArray(cell.source) ? cell.source.join('') : (cell.source ?? '')
+        if (!source.trim()) return null
+
+        if (cell.cell_type === 'markdown') {
+          return (
+            <div key={i} className="rounded border border-gray-800 bg-gray-900 px-3 py-2">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                rehypePlugins={[rehypeRaw]}
+                components={{
+                  h1: ({ children }) => <h1 className="text-base font-bold text-white mb-1">{children}</h1>,
+                  h2: ({ children }) => <h2 className="text-sm font-bold text-white mb-1">{children}</h2>,
+                  h3: ({ children }) => <h3 className="text-xs font-semibold text-white mb-0.5">{children}</h3>,
+                  p: ({ children }) => <p className="text-xs text-gray-300 my-0.5">{children}</p>,
+                  ul: ({ children }) => <ul className="text-xs text-gray-300 list-disc pl-4 my-0.5">{children}</ul>,
+                  ol: ({ children }) => <ol className="text-xs text-gray-300 list-decimal pl-4 my-0.5">{children}</ol>,
+                  strong: ({ children }) => <strong className="font-bold text-white">{children}</strong>,
+                  code: ({ children }) => <code className="bg-gray-800 px-0.5 rounded text-[10px] font-mono">{children}</code>,
+                  table: ({ children }) => <table className="text-[10px] border-collapse my-1 w-full">{children}</table>,
+                  th: ({ children }) => <th className="border border-gray-700 bg-gray-800 px-1.5 py-0.5 text-left text-gray-300">{children}</th>,
+                  td: ({ children }) => <td className="border border-gray-700 px-1.5 py-0.5 text-gray-400">{children}</td>,
+                }}
+              >
+                {source}
+              </ReactMarkdown>
+            </div>
+          )
+        }
+
+        if (cell.cell_type === 'code') {
+          const outputs = cell.outputs ?? []
+          const fenced = '```' + kernelLang + '\n' + source + '\n```'
+          return (
+            <div key={i} className="rounded border border-gray-800 bg-gray-950">
+              <div className="px-2 py-0.5 border-b border-gray-800 flex items-center gap-1.5">
+                <span className="text-[8px] font-bold text-green-400">{kernelLang.toUpperCase()}</span>
+                <span className="text-[8px] text-gray-600">[{i + 1}]</span>
+              </div>
+              <div className="[&_pre]:!bg-transparent [&_pre]:!m-0 [&_pre]:!p-3 [&_pre]:text-[10px] [&_code]:text-[10px] [&_code]:!bg-transparent overflow-x-auto">
+                <ReactMarkdown rehypePlugins={[rehypeHighlight]}>{fenced}</ReactMarkdown>
+              </div>
+              {outputs.length > 0 && (
+                <div className="border-t border-gray-800 px-3 py-1.5">
+                  {outputs.map((out: any, oi: number) => {
+                    if (out.output_type === 'stream') {
+                      const text = Array.isArray(out.text) ? out.text.join('') : (out.text ?? '')
+                      return <pre key={oi} className="text-[10px] text-gray-400 whitespace-pre-wrap">{text}</pre>
+                    }
+                    if (out.output_type === 'execute_result' || out.output_type === 'display_data') {
+                      const plain = out.data?.['text/plain']
+                      const text = Array.isArray(plain) ? plain.join('') : (plain ?? '')
+                      return <pre key={oi} className="text-[10px] text-gray-400 whitespace-pre-wrap">{text}</pre>
+                    }
+                    if (out.output_type === 'error') {
+                      return <pre key={oi} className="text-[10px] text-red-400 whitespace-pre-wrap">{out.evalue ?? 'Error'}</pre>
+                    }
+                    return null
+                  })}
+                </div>
+              )}
+            </div>
+          )
+        }
+
+        return (
+          <div key={i} className="rounded border border-gray-800 bg-gray-900 px-3 py-2">
+            <pre className="text-[10px] text-gray-400 whitespace-pre-wrap">{source}</pre>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function PaperclipIcon(): JSX.Element {
   return (
     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -350,6 +451,7 @@ function getTypeLabel(path: string): string {
   if (path.match(/\.(png|jpe?g|gif|svg|webp)$/i)) return 'IMG'
   if (path.match(/\.(txt|md)$/i)) return 'TXT'
   if (path.match(/\.(js|ts|py|sql|html|css|json)$/i)) return 'SRC'
+  if (path.match(/\.ipynb$/i)) return 'NB'
   return 'FILE'
 }
 

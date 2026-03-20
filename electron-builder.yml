@@ -17,7 +17,11 @@ files:
 
 extraResources:
   - from: packages/mcp-server/dist
-    to: mcp-server
+    to: mcp-server/dist
+    filter:
+      - "**/*"
+  - from: packages/mcp-server/node_modules
+    to: mcp-server/node_modules
     filter:
       - "**/*"
 

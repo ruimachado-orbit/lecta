@@ -1,4 +1,9 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import rehypeRaw from 'rehype-raw'
+import rehypeHighlight from 'rehype-highlight'
+import Editor from '@monaco-editor/react'
 import { useNotebookStore } from '../../stores/notebook-store'
 import { useCodeExecution } from '../../hooks/useCodeExecution'
 import { CellOutputRenderer } from './CellOutputRenderer'
@@ -243,30 +248,22 @@ function MarkdownCell({ pageIndex, content, isActive }: MarkdownCellProps): Reac
   const { updateMarkdownContent, savePageContent } = useNotebookStore()
   const [editing, setEditing] = useState(false)
   const [localContent, setLocalContent] = useState(content)
-  const textareaRef = useAutoResize(localContent)
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+
+  // Auto-resize textarea to fit content
+  useEffect(() => {
+    const el = textareaRef.current
+    if (!el || !editing) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [localContent, editing])
 
   // Sync with store if content changes externally
   useEffect(() => {
-    if (!editing) {
-      setLocalContent(content)
-    }
+    if (!editing) setLocalContent(content)
   }, [content, editing])
 
-  const handleChange = useCallback(
-    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      const val = e.target.value
-      setLocalContent(val)
-      updateMarkdownContent(pageIndex, val)
-    },
-    [pageIndex, updateMarkdownContent]
-  )
-
-  const handleBlur = useCallback(() => {
-    setEditing(false)
-    savePageContent(pageIndex)
-  }, [pageIndex, savePageContent])
-
-  // Stop editing when cell becomes inactive
+  // Exit editing when cell becomes inactive
   useEffect(() => {
     if (!isActive && editing) {
       setEditing(false)
@@ -274,35 +271,27 @@ function MarkdownCell({ pageIndex, content, isActive }: MarkdownCellProps): Reac
     }
   }, [isActive])
 
-  // Enter edit mode: single click when active, or double-click anytime
-  const handleClick = useCallback(() => {
-    if (isActive && !editing) setEditing(true)
-  }, [isActive, editing])
-
   // Editing mode — raw markdown textarea
   if (editing) {
     return (
       <textarea
         ref={textareaRef}
         value={localContent}
-        onChange={handleChange}
-        onBlur={() => {
-          // Small delay so clicking within the same cell doesn't kill editing
-          setTimeout(() => {
-            setEditing(false)
-            savePageContent(pageIndex)
-          }, 150)
+        onChange={(e) => {
+          setLocalContent(e.target.value)
+          updateMarkdownContent(pageIndex, e.target.value)
         }}
-        autoFocus
         onKeyDown={(e) => {
           if (e.key === 'Escape') {
+            e.preventDefault()
             setEditing(false)
             savePageContent(pageIndex)
           }
         }}
+        autoFocus
         className="w-full resize-none bg-transparent text-gray-200 text-sm leading-relaxed px-4 py-3 focus:outline-none font-sans placeholder-gray-600"
+        style={{ minHeight: `${Math.max(3, localContent.split('\n').length + 1) * 1.5}em` }}
         placeholder="Markdown content..."
-        rows={1}
       />
     )
   }
@@ -310,82 +299,48 @@ function MarkdownCell({ pageIndex, content, isActive }: MarkdownCellProps): Reac
   // Rendered markdown preview — click to edit (when active), double-click anytime
   return (
     <div
-      className="px-4 py-3 text-sm text-gray-300 leading-relaxed cursor-text min-h-8 prose prose-invert prose-sm max-w-none"
-      onClick={handleClick}
+      className="px-4 py-3 cursor-text min-h-8 max-w-none jupyter-md-preview"
+      onClick={() => { if (isActive) setEditing(true) }}
       onDoubleClick={() => setEditing(true)}
-      dangerouslySetInnerHTML={{ __html: simpleMarkdownToHtml(localContent) }}
-    />
+    >
+      {localContent.trim() ? (
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          rehypePlugins={[rehypeRaw, rehypeHighlight]}
+          components={{
+            h1: ({ children }) => <h1 className="text-2xl font-bold text-white mt-1 mb-2">{children}</h1>,
+            h2: ({ children }) => <h2 className="text-xl font-bold text-white mt-1 mb-2">{children}</h2>,
+            h3: ({ children }) => <h3 className="text-lg font-semibold text-white mt-1 mb-1">{children}</h3>,
+            h4: ({ children }) => <h4 className="text-base font-semibold text-gray-200 mt-1 mb-1">{children}</h4>,
+            p: ({ children }) => <p className="text-sm text-gray-300 leading-relaxed my-1">{children}</p>,
+            ul: ({ children }) => <ul className="text-sm text-gray-300 list-disc pl-5 my-1 space-y-0.5">{children}</ul>,
+            ol: ({ children }) => <ol className="text-sm text-gray-300 list-decimal pl-5 my-1 space-y-0.5">{children}</ol>,
+            li: ({ children }) => <li className="text-sm text-gray-300">{children}</li>,
+            strong: ({ children }) => <strong className="font-bold text-white">{children}</strong>,
+            em: ({ children }) => <em className="italic text-gray-200">{children}</em>,
+            code: ({ className, children }) => {
+              const isBlock = className?.includes('language-')
+              if (isBlock) {
+                return <code className="block bg-gray-950 rounded px-3 py-2 text-xs text-gray-300 font-mono overflow-x-auto my-2">{children}</code>
+              }
+              return <code className="bg-gray-800 text-gray-200 px-1 py-0.5 rounded text-xs font-mono">{children}</code>
+            },
+            pre: ({ children }) => <pre className="bg-gray-950 rounded-md overflow-x-auto my-2">{children}</pre>,
+            blockquote: ({ children }) => <blockquote className="border-l-2 border-gray-600 pl-3 my-2 text-gray-400 italic">{children}</blockquote>,
+            hr: () => <hr className="border-gray-700 my-3" />,
+            a: ({ href, children }) => <a href={href} className="text-blue-400 underline">{children}</a>,
+            table: ({ children }) => <table className="text-xs border-collapse my-2 w-full">{children}</table>,
+            th: ({ children }) => <th className="border border-gray-700 bg-gray-900 px-2 py-1 text-left text-gray-300 font-semibold">{children}</th>,
+            td: ({ children }) => <td className="border border-gray-700 px-2 py-1 text-gray-400">{children}</td>,
+          }}
+        >
+          {localContent}
+        </ReactMarkdown>
+      ) : (
+        <p className="text-gray-600 italic text-sm">Empty markdown cell</p>
+      )}
+    </div>
   )
-}
-
-/** Lightweight markdown-to-HTML for preview rendering. Not a full parser. */
-function simpleMarkdownToHtml(md: string): string {
-  if (!md.trim()) return '<p class="text-gray-600 italic">Empty markdown cell</p>'
-
-  const lines = md.split('\n')
-  const html: string[] = []
-  let inList = false
-
-  for (const line of lines) {
-    // Headings
-    const h3 = line.match(/^### (.+)$/)
-    if (h3) {
-      if (inList) { html.push('</ul>'); inList = false }
-      html.push(`<h3>${inlineFormat(h3[1])}</h3>`)
-      continue
-    }
-    const h2 = line.match(/^## (.+)$/)
-    if (h2) {
-      if (inList) { html.push('</ul>'); inList = false }
-      html.push(`<h2>${inlineFormat(h2[1])}</h2>`)
-      continue
-    }
-    const h1 = line.match(/^# (.+)$/)
-    if (h1) {
-      if (inList) { html.push('</ul>'); inList = false }
-      html.push(`<h1>${inlineFormat(h1[1])}</h1>`)
-      continue
-    }
-
-    // Horizontal rule
-    if (line.match(/^---+$/)) {
-      if (inList) { html.push('</ul>'); inList = false }
-      html.push('<hr/>')
-      continue
-    }
-
-    // List items
-    const li = line.match(/^[-*+] (.+)$/)
-    if (li) {
-      if (!inList) { html.push('<ul>'); inList = true }
-      html.push(`<li>${inlineFormat(li[1])}</li>`)
-      continue
-    }
-
-    // Empty line
-    if (!line.trim()) {
-      if (inList) { html.push('</ul>'); inList = false }
-      continue
-    }
-
-    // Paragraph
-    if (inList) { html.push('</ul>'); inList = false }
-    html.push(`<p>${inlineFormat(line)}</p>`)
-  }
-
-  if (inList) html.push('</ul>')
-  return html.join('')
-}
-
-function inlineFormat(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/`(.+?)`/g, '<code class="bg-gray-800 px-1 rounded text-xs">$1</code>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/~~(.+?)~~/g, '<s>$1</s>')
 }
 
 // ── Code cell content ────────────────────────────────────────────────
@@ -407,6 +362,13 @@ interface CodeCellProps {
   onRun?: () => void
 }
 
+// Monaco language mapping
+const MONACO_LANG: Record<string, string> = {
+  python: 'python', javascript: 'javascript', typescript: 'typescript',
+  sql: 'sql', bash: 'shell', go: 'go', rust: 'rust',
+  html: 'html', css: 'css', json: 'json', markdown: 'markdown',
+}
+
 function CodeCell({
   pageIndex,
   content,
@@ -419,30 +381,28 @@ function CodeCell({
 }: CodeCellProps): React.ReactElement {
   const { pages, notebook } = useNotebookStore()
   const [localContent, setLocalContent] = useState(content ?? '')
-  const textareaRef = useAutoResize(localContent)
+  const editorRef = useRef<any>(null)
 
   useEffect(() => {
     setLocalContent(content ?? '')
   }, [content])
 
-  const handleChange = useCallback(
-    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      const val = e.target.value
-      setLocalContent(val)
-      // Update code content in the store
-      useNotebookStore.setState((state) => {
-        const newPages = [...state.pages]
-        if (newPages[pageIndex]) {
-          newPages[pageIndex] = { ...newPages[pageIndex], codeContent: val }
-        }
-        return { pages: newPages }
-      })
-    },
-    [pageIndex]
-  )
+  const lineCount = Math.max(3, (localContent || '').split('\n').length)
+  const editorHeight = Math.min(lineCount * 19 + 10, 500) // 19px per line, max 500px
 
-  const handleBlur = useCallback(() => {
-    // Save code file to disk
+  const handleEditorChange = useCallback((value: string | undefined) => {
+    const val = value ?? ''
+    setLocalContent(val)
+    useNotebookStore.setState((state) => {
+      const newPages = [...state.pages]
+      if (newPages[pageIndex]) {
+        newPages[pageIndex] = { ...newPages[pageIndex], codeContent: val }
+      }
+      return { pages: newPages }
+    })
+  }, [pageIndex])
+
+  const saveToFile = useCallback(() => {
     const page = pages[pageIndex]
     if (!page?.config.code || !notebook) return
     const codePath = `${notebook.rootPath}/${page.config.code.file}`
@@ -450,44 +410,18 @@ function CodeCell({
     window.electronAPI.saveLecta(notebook.rootPath).catch(() => {})
   }, [pageIndex, pages, notebook, localContent])
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      // Shift+Enter -> run cell
-      if (e.key === 'Enter' && e.shiftKey) {
-        e.preventDefault()
-        handleBlur() // save first
-        if (onRun) onRun()
-        return
-      }
-      // Tab -> insert 2 spaces
-      if (e.key === 'Tab') {
-        e.preventDefault()
-        const ta = e.currentTarget
-        const start = ta.selectionStart
-        const end = ta.selectionEnd
-        const val = ta.value
-        const newVal = val.substring(0, start) + '  ' + val.substring(end)
-        setLocalContent(newVal)
-        useNotebookStore.setState((state) => {
-          const newPages = [...state.pages]
-          if (newPages[pageIndex]) {
-            newPages[pageIndex] = { ...newPages[pageIndex], codeContent: newVal }
-          }
-          return { pages: newPages }
-        })
-        requestAnimationFrame(() => {
-          ta.selectionStart = start + 2
-          ta.selectionEnd = start + 2
-        })
-      }
-    },
-    [pageIndex, handleBlur, onRun]
-  )
+  // Shift+Enter to run
+  const handleEditorMount = useCallback((editor: any) => {
+    editorRef.current = editor
+    editor.addCommand(1024 + 3 /* Shift+Enter */, () => {
+      saveToFile()
+      if (onRun) onRun()
+    })
+  }, [saveToFile, onRun])
 
   return (
     <div className="flex flex-col">
-      {/* Code input */}
-      <div className="bg-gray-950 rounded-md border border-gray-800">
+      <div className="bg-gray-950 rounded-md border border-gray-800 overflow-hidden">
         <div className="flex items-center px-3 py-1 border-b border-gray-800">
           <span className="text-[9px] text-gray-600 uppercase tracking-wider">
             {language ?? 'code'}
@@ -496,20 +430,35 @@ function CodeCell({
             <span className="ml-2 text-[9px] text-yellow-500 animate-pulse">Running...</span>
           )}
         </div>
-        <textarea
-          ref={textareaRef}
+        <Editor
+          height={editorHeight}
+          language={MONACO_LANG[language ?? 'python'] ?? 'plaintext'}
           value={localContent}
-          onChange={handleChange}
-          onBlur={handleBlur}
-          onKeyDown={handleKeyDown}
-          spellCheck={false}
-          className="w-full resize-none bg-transparent text-gray-200 text-xs leading-relaxed px-4 py-3 focus:outline-none font-mono placeholder-gray-700"
-          placeholder="# Enter code..."
-          rows={1}
+          onChange={handleEditorChange}
+          onMount={handleEditorMount}
+          theme="vs-dark"
+          options={{
+            minimap: { enabled: false },
+            lineNumbers: 'on',
+            lineNumbersMinChars: 3,
+            scrollBeyondLastLine: false,
+            fontSize: 13,
+            fontFamily: 'JetBrains Mono, Menlo, Monaco, monospace',
+            tabSize: 2,
+            renderLineHighlight: 'none',
+            overviewRulerLanes: 0,
+            hideCursorInOverviewRuler: true,
+            scrollbar: { vertical: 'hidden', horizontal: 'auto' },
+            padding: { top: 8, bottom: 8 },
+            wordWrap: 'on',
+            automaticLayout: true,
+            contextmenu: false,
+            folding: false,
+            glyphMargin: false,
+          }}
         />
       </div>
 
-      {/* Outputs */}
       {outputs && outputs.length > 0 && (
         <div className="mt-1">
           <CellOutputRenderer outputs={outputs} rootPath={rootPath} />

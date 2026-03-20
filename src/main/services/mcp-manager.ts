@@ -22,7 +22,7 @@ function getMcpServerPath(): string {
   if (isDev()) {
     return join(app.getAppPath(), 'packages', 'mcp-server', 'dist', 'index.js')
   }
-  return join(process.resourcesPath, 'mcp-server', 'index.js')
+  return join(process.resourcesPath, 'mcp-server', 'dist', 'index.js')
 }
 
 /**

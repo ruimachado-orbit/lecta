@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import DownloadButton from './DownloadButton'
 
 interface Props {
   variant?: 'dark' | 'cream'
@@ -37,9 +38,9 @@ export default function InstallSteps({ variant = 'dark' }: Props) {
         </div>
       ) : (
         <div className="installPanel">
-          <p className={muted}>After downloading the DMG and dragging Lecta to Applications, run:</p>
+          <DownloadButton variant={variant} />
+          <p className={muted} style={{ marginTop: '1.25rem' }}>After dragging Lecta to Applications, run this to clear the macOS quarantine flag:</p>
           <CopyBlock text={XATTR_CMD} />
-          <p className={muted}>This clears the macOS quarantine flag so the app opens normally.</p>
         </div>
       )}
     </div>

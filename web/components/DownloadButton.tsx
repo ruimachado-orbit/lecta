@@ -11,9 +11,11 @@ interface Props {
   label?: string
   /** When true, the version/arch note is not rendered (caller renders it separately) */
   hideNote?: boolean
+  /** When set, button scrolls to this anchor instead of downloading */
+  scrollTo?: string
 }
 
-export default function DownloadButton({ variant = 'dark', label, hideNote = false }: Props) {
+export default function DownloadButton({ variant = 'dark', label, hideNote = false, scrollTo }: Props) {
   const [platform, setPlatform] = useState<Platform>(null)
   const [arch, setArch] = useState<Arch>('unknown')
 
@@ -39,6 +41,14 @@ export default function DownloadButton({ variant = 'dark', label, hideNote = fal
 
   const cls = variant === 'cream' ? 'btnCream' : 'btnDark'
   const archLabel = arch === 'arm64' ? 'Apple Silicon' : arch === 'x64' ? 'Intel' : ''
+
+  if (scrollTo) {
+    return (
+      <a className={cls} href={scrollTo}>
+        <DownloadIcon />{label ?? 'Download for macOS'}
+      </a>
+    )
+  }
 
   if (platform === null) {
     return <button className={cls} disabled><DownloadIcon />{label ?? 'Download for macOS'}</button>

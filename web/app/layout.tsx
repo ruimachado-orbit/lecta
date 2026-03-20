@@ -29,6 +29,10 @@ export const metadata: Metadata = {
   title: 'lecta — Presentations that come to life',
   description:
     'An open-source desktop app for technical presentations with live code execution in JavaScript, Python, SQL, and native. Free for macOS.',
+  icons: {
+    icon: '/icon.png',
+    apple: '/icon.png',
+  },
   openGraph: {
     title: 'lecta',
     description: 'Presentations that come to life.',

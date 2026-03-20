@@ -29,7 +29,7 @@ export default function Hero() {
         <p className="heroTagline">Presentations that come to life.</p>
 
         <div className="heroCtas">
-          <DownloadButton variant="dark" hideNote />
+          <DownloadButton variant="dark" hideNote scrollTo="#download" />
           <a className="btnGhost" href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
             GitHub &rarr;
           </a>

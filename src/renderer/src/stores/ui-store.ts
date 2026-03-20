@@ -24,6 +24,7 @@ export interface ProviderStatus {
   id: string
   hasKey: boolean
   status?: 'connected' | 'invalid' | 'not_configured'
+  keySource?: 'env-file' | 'settings' | 'env-var' | null
 }
 
 interface UIState {

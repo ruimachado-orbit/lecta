@@ -134,7 +134,7 @@ export function registerAiHandlers(): void {
 
   ipcMain.handle(
     'ai:get-provider-statuses',
-    async (): Promise<{ id: string; hasKey: boolean }[]> => {
+    async () => {
       const service = getAIService()
       return service.getProviderStatuses()
     }

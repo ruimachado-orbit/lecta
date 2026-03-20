@@ -290,6 +290,42 @@ export async function loadProviderKey(
   return null
 }
 
+export type KeySource = 'env-file' | 'settings' | 'env-var' | null
+
+/**
+ * Determine where a provider's key is coming from.
+ */
+export async function getProviderKeySource(
+  providerId: string,
+  deckRootPath?: string
+): Promise<KeySource> {
+  const mapping = PROVIDER_KEY_MAP[providerId]
+  if (!mapping) return null
+
+  // 1. Check deck's .env file
+  if (deckRootPath) {
+    try {
+      const envContent = await readFile(join(deckRootPath, '.env'), 'utf-8')
+      const regex = new RegExp(`${mapping.envVar}\\s*=\\s*(.+)`)
+      const match = envContent.match(regex)
+      if (match && match[1]?.trim().replace(/^["']|["']$/g, '')) return 'env-file'
+    } catch {}
+  }
+
+  // 2. Check app settings
+  try {
+    const settingsPath = join(app.getPath('userData'), 'settings.json')
+    const settingsContent = await readFile(settingsPath, 'utf-8')
+    const settings = JSON.parse(settingsContent)
+    if (settings[mapping.settingsField]) return 'settings'
+  } catch {}
+
+  // 3. Check process env
+  if (process.env[mapping.envVar]) return 'env-var'
+
+  return null
+}
+
 /**
  * Load the selected image generation provider from settings.
  * Returns 'gemini' | 'openai', defaults to 'openai'.

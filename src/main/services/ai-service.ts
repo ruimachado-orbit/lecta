@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import OpenAI from 'openai'
 import { GoogleGenAI } from '@google/genai'
-import { loadAnthropicKey, loadOpenAIKey, loadGeminiKey, loadAIModel, loadProviderKey } from './env-loader'
+import { loadAnthropicKey, loadOpenAIKey, loadGeminiKey, loadAIModel, loadProviderKey, getProviderKeySource } from './env-loader'
 import { DEFAULT_AI_MODEL, getProviderForModel, type AIProviderID } from '../../../packages/shared/src/constants'
 import type { PresentationSnapshot, ChatStreamEvent } from '../../../packages/shared/src/types/chat'
 import { getToolSchemas, findTool, type ToolExecutionContext } from './chat-agent-tools'
@@ -831,49 +831,54 @@ Generate exactly ${slideCount} slides.`
 
   /** Validate an API key by making a lightweight request to the provider */
   private async validateProviderKey(providerId: string, apiKey: string): Promise<boolean> {
+    const timeout = (ms: number) => new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))
     try {
-      switch (providerId) {
-        case 'anthropic': {
-          const client = new Anthropic({ apiKey })
-          await client.models.list({ limit: 1 })
-          return true
+      const validate = async (): Promise<boolean> => {
+        switch (providerId) {
+          case 'anthropic': {
+            const client = new Anthropic({ apiKey })
+            await client.models.list({ limit: 1 })
+            return true
+          }
+          case 'openai': {
+            const client = new OpenAI({ apiKey })
+            await client.models.list()
+            return true
+          }
+          case 'google': {
+            const client = new GoogleGenAI({ apiKey })
+            await client.models.list()
+            return true
+          }
+          case 'mistral':
+          case 'meta':
+          case 'xai':
+          case 'perplexity': {
+            const baseURL = AIService.COMPAT_BASE_URLS[providerId]
+            if (!baseURL) return false
+            const client = new OpenAI({ apiKey, baseURL })
+            await client.models.list()
+            return true
+          }
+          default:
+            return false
         }
-        case 'openai': {
-          const client = new OpenAI({ apiKey })
-          await client.models.list()
-          return true
-        }
-        case 'google': {
-          const client = new GoogleGenAI({ apiKey })
-          await client.models.list()
-          return true
-        }
-        case 'mistral':
-        case 'meta':
-        case 'xai':
-        case 'perplexity': {
-          const baseURL = AIService.COMPAT_BASE_URLS[providerId]
-          if (!baseURL) return false
-          const client = new OpenAI({ apiKey, baseURL })
-          await client.models.list()
-          return true
-        }
-        default:
-          return false
       }
+      return await Promise.race([validate(), timeout(5000)])
     } catch {
       return false
     }
   }
 
   /** Get status of all providers with actual API key validation */
-  async getProviderStatuses(): Promise<{ id: string; hasKey: boolean; status: 'connected' | 'invalid' | 'not_configured' }[]> {
+  async getProviderStatuses(): Promise<{ id: string; hasKey: boolean; status: 'connected' | 'invalid' | 'not_configured'; keySource: 'env-file' | 'settings' | 'env-var' | null }[]> {
     return Promise.all(
       AIService.ALL_PROVIDER_IDS.map(async (id) => {
         const key = await loadProviderKey(id, currentDeckPath ?? undefined)
-        if (!key) return { id, hasKey: false, status: 'not_configured' as const }
+        const keySource = await getProviderKeySource(id, currentDeckPath ?? undefined)
+        if (!key) return { id, hasKey: false, status: 'not_configured' as const, keySource }
         const valid = await this.validateProviderKey(id, key)
-        return { id, hasKey: valid, status: valid ? 'connected' as const : 'invalid' as const }
+        return { id, hasKey: true, status: valid ? 'connected' as const : 'invalid' as const, keySource }
       })
     )
   }

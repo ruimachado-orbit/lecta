@@ -6,6 +6,7 @@ import { useChatStore } from '../../stores/chat-store'
 import { useTabsStore } from '../../stores/tabs-store'
 import { ModelSelector } from '../ai/ModelSelector'
 import { MyPresentations } from '../library/MyPresentations'
+import { AI_PROVIDERS, getProviderForModel } from '../../../../../packages/shared/src/constants'
 
 interface RecentDeck {
   path: string
@@ -817,7 +818,8 @@ const PROVIDER_KEY_FIELDS: Record<string, string> = {
 const ALL_PROVIDER_IDS = ['anthropic', 'openai', 'google', 'mistral', 'meta', 'xai', 'perplexity']
 
 function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
-  const { theme, setTheme, palette, setPalette, fontSize, setFontSize, refreshProviderStatuses, providerStatuses } = useUIStore()
+  const { theme, setTheme, palette, setPalette, fontSize, setFontSize, refreshProviderStatuses, providerStatuses, aiModel, setAiModel } = useUIStore()
+  const activeProviderId = getProviderForModel(aiModel)?.id ?? 'anthropic'
   const [nativeExec, setNativeExec] = useState(false)
   const [saved, setSaved] = useState(false)
   const [editingProvider, setEditingProvider] = useState<string | null>(null)
@@ -980,22 +982,74 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
                   : 'Not configured'
 
                 const hasKey = providerStatus !== 'not_configured'
+                const isActive = activeProviderId === id
+                const isConnected = providerStatus === 'connected'
+                const keySource = status?.keySource ?? null
+                const isFromEnv = keySource === 'env-file' || keySource === 'env-var'
+
+                const selectThisProvider = (): void => {
+                  const providerDef = AI_PROVIDERS.find((p) => p.id === id)
+                  if (providerDef && providerDef.models.length > 0) {
+                    setAiModel(providerDef.models[0].id)
+                  }
+                }
+
+                const handleSelectProvider = (e: React.MouseEvent): void => {
+                  e.stopPropagation()
+                  if (!hasKey && providerStatus === 'not_configured') return
+                  selectThisProvider()
+                }
 
                 return (
                   <div
                     key={id}
-                    className="text-left p-3 rounded-xl border border-gray-800 bg-gray-900 hover:border-gray-600
-                               hover:bg-gray-800 transition-all group cursor-pointer"
-                    onClick={() => openKeyModal(id)}
+                    className={`text-left p-3 rounded-xl border transition-all group cursor-pointer ${
+                      isActive
+                        ? 'border-blue-500/50 bg-blue-500/5 ring-1 ring-blue-500/20'
+                        : 'border-gray-800 bg-gray-900 hover:border-gray-600 hover:bg-gray-800'
+                    }`}
+                    onClick={(e) => {
+                      if ((e.target as HTMLElement).closest('button')) return
+                      // If key is from .env or env var, clicking selects the provider
+                      if (isFromEnv && hasKey) {
+                        selectThisProvider()
+                        return
+                      }
+                      // If has key from settings, also select
+                      if (hasKey && !isFromEnv) {
+                        const providerDef = AI_PROVIDERS.find((p) => p.id === id)
+                        if (providerDef && providerDef.models.length > 0) {
+                          setAiModel(providerDef.models[0].id)
+                        }
+                        return
+                      }
+                      openKeyModal(id)
+                    }}
                   >
                     <div className="flex items-center gap-2 mb-1.5">
+                      {/* Radio indicator */}
+                      <button
+                        onClick={handleSelectProvider}
+                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                          isActive
+                            ? 'border-blue-500 bg-blue-500'
+                            : isConnected
+                              ? 'border-gray-500 hover:border-gray-400'
+                              : 'border-gray-700 opacity-40'
+                        }`}
+                        title={isConnected ? `Set ${meta.name} as active provider` : 'Configure API key first'}
+                      >
+                        {isActive && (
+                          <div className="w-2 h-2 rounded-full bg-white" />
+                        )}
+                      </button>
                       <div className="w-7 h-7 rounded-lg bg-gray-800 flex items-center justify-center text-xs font-bold text-gray-300 group-hover:bg-gray-700">
                         {meta.icon}
                       </div>
                       <span className="text-sm font-medium text-gray-200 flex-1">{meta.name}</span>
-                      {hasKey && !validating && (
+                      {hasKey && !validating && !isFromEnv && (
                         <button
-                          onClick={(e) => { e.stopPropagation(); handleSaveKey(id, '') }}
+                          onClick={() => handleSaveKey(id, '')}
                           className="w-5 h-5 rounded-md flex items-center justify-center text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"
                           title="Clear key"
                         >
@@ -1008,7 +1062,17 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
                     </div>
                     <p className="text-[10px] text-gray-500 leading-tight">{meta.description}</p>
                     <p className={`text-[10px] mt-1 ${validating ? 'text-gray-500' : labelColor}`}>
-                      {validating ? 'Validating...' : labelText}
+                      {validating ? 'Validating...' : (
+                        <>
+                          {isActive && 'Active · '}
+                          {labelText}
+                          {isFromEnv && hasKey && (
+                            <span className="text-gray-500 ml-1">
+                              (from {keySource === 'env-file' ? '.env' : 'env var'})
+                            </span>
+                          )}
+                        </>
+                      )}
                     </p>
                   </div>
                 )

@@ -151,7 +151,6 @@ export function SlidePanel(): JSX.Element {
         </div>
       )}
       {/* Editor toolbar */}
-<<<<<<< Updated upstream
       {editingSlide && (
         <>
           <div className="h-7 bg-gray-900 border-b border-gray-800 flex items-center px-3 gap-2">
@@ -186,6 +185,7 @@ export function SlidePanel(): JSX.Element {
             <AIChangeBar />
           </div>
           {editorMode === 'markdown' && !drawingMode && <SlideEditToolbar editorRef={editorRef} />}
+          {editorMode === 'wysiwyg' && !drawingMode && <div ref={setWysiwygHeaderSlot} className="bg-gray-900 border-b border-gray-800 shrink-0" />}
         </>
       )}
 
@@ -196,41 +196,6 @@ export function SlidePanel(): JSX.Element {
           <AIImproveBar />
         </div>
       )}
-=======
-      <div className="h-7 bg-gray-900 border-b border-gray-800 flex items-center px-3 gap-2">
-        <button
-          onClick={() => { setEditorMode('wysiwyg'); setDrawingMode(false) }}
-          className={`text-[10px] px-2 py-0.5 rounded transition-colors ${
-            editorMode === 'wysiwyg' && !drawingMode ? 'bg-white text-black' : 'text-gray-500 hover:text-gray-300'
-          }`}
-        >
-          Visual
-        </button>
-        <button
-          onClick={() => { setEditorMode('markdown'); setDrawingMode(false) }}
-          className={`text-[10px] px-2 py-0.5 rounded transition-colors ${
-            editorMode === 'markdown' && !drawingMode ? 'bg-white text-black' : 'text-gray-500 hover:text-gray-300'
-          }`}
-        >
-          Markdown
-        </button>
-        <button
-          onClick={() => setDrawingMode(!drawingMode)}
-          className={`text-[10px] px-2 py-0.5 rounded transition-colors flex items-center gap-1 ${
-            drawingMode ? 'bg-white text-black' : 'text-gray-500 hover:text-gray-300'
-          }`}
-        >
-          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
-          </svg>
-          Draw
-        </button>
-        <div className="flex-1" />
-        <AIChangeBar />
-      </div>
-      {editorMode === 'markdown' && !drawingMode && <SlideEditToolbar editorRef={editorRef} />}
-      {editorMode === 'wysiwyg' && !drawingMode && <div ref={setWysiwygHeaderSlot} className="bg-gray-900 border-b border-gray-800 shrink-0" />}
->>>>>>> Stashed changes
 
       {/* Main content */}
       <div className="flex-1 min-h-0 overflow-hidden flex flex-col">

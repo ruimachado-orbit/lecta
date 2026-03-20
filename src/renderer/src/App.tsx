@@ -53,11 +53,8 @@ export default function App(): JSX.Element {
   }
 
   return (
-    <div className="h-screen w-screen bg-black p-[1px] overflow-hidden relative">
-      <div className="glow-border" />
-      <div className="relative z-10 h-full w-full rounded-[8px] overflow-hidden">
-        <HomeScreen />
-      </div>
+    <div className="h-screen w-screen overflow-hidden relative" style={{ background: '#f5f1eb' }}>
+      <HomeScreen />
     </div>
   )
 }

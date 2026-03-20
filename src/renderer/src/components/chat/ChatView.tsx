@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useChatStore, type ChatTab } from '../../stores/chat-store'
+import { useUIStore } from '../../stores/ui-store'
 import { ChatMessageComponent } from './ChatMessage'
 import { ConfirmationBanner, ActionModeToggle, ChatWelcome } from './ChatPanel'
 import { ModelSelector } from '../ai/ModelSelector'
@@ -115,6 +116,9 @@ function ChatTabContent({
   const [input, setInput] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const providerStatuses = useUIStore((s) => s.providerStatuses)
+  const noProviders = !providerStatuses.some((s) => s.hasKey)
+  const isDisabled = noProviders || tab.isStreaming
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -128,7 +132,7 @@ function ChatTabContent({
 
   const handleSend = (): void => {
     const text = input.trim()
-    if (!text || tab.isStreaming) return
+    if (!text || isDisabled) return
     setInput('')
     onSend(text)
   }
@@ -149,7 +153,19 @@ function ChatTabContent({
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
         {tab.messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center">
-            <ChatWelcome onQuickAction={(msg) => { if (!tab.isStreaming) onSend(msg) }} />
+            {noProviders ? (
+              <div className="flex flex-col items-center justify-center px-4 py-8 text-center">
+                <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center mb-3">
+                  <svg className="w-5 h-5 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+                  </svg>
+                </div>
+                <p className="text-xs text-gray-500">No AI providers configured.</p>
+                <p className="text-xs text-gray-600">Add API keys in Settings to use chat.</p>
+              </div>
+            ) : (
+              <ChatWelcome onQuickAction={(msg) => { if (!tab.isStreaming) onSend(msg) }} />
+            )}
           </div>
         ) : (
           <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
@@ -181,7 +197,7 @@ function ChatTabContent({
       )}
 
       {/* Input */}
-      <div className="border-t border-gray-800 p-3 flex-shrink-0">
+      <div className={`border-t border-gray-800 p-3 flex-shrink-0 ${noProviders ? 'opacity-50' : ''}`}>
         <div className="max-w-2xl mx-auto space-y-2">
           <div className="flex items-center gap-2">
             <ActionModeToggle />
@@ -193,15 +209,15 @@ function ChatTabContent({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask Lecta AI..."
+              placeholder={noProviders ? 'Configure an AI provider in Settings' : 'Ask Lecta AI...'}
               rows={1}
-              className="flex-1 resize-none bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500 max-h-32 overflow-y-auto"
+              className="flex-1 resize-none bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500 max-h-32 overflow-y-auto disabled:cursor-not-allowed"
               style={{ minHeight: '42px' }}
-              disabled={tab.isStreaming}
+              disabled={isDisabled}
             />
             <button
               onClick={handleSend}
-              disabled={!input.trim() || tab.isStreaming}
+              disabled={!input.trim() || isDisabled}
               className="w-9 h-9 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-800 disabled:text-gray-600 text-white flex items-center justify-center transition-colors flex-shrink-0"
               title="Send"
             >

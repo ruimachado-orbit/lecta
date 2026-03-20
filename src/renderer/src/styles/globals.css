@@ -537,6 +537,72 @@ html[data-theme="light"] .slide-content hr { border-color: #e2e8f0; }
   color: rgba(99, 102, 241, 1);
 }
 
+/* WYSIWYG editor theme — inherit slide theme CSS variables (must beat html[data-theme] specificity) */
+[data-slide-theme] .wysiwyg-content {
+  color: var(--slide-color-body) !important;
+  font-family: var(--slide-font-body);
+}
+[data-slide-theme] .wysiwyg-content h1 {
+  font-family: var(--slide-font-heading);
+  font-size: var(--slide-h1-size);
+  font-weight: var(--slide-h1-weight);
+  letter-spacing: var(--slide-h1-tracking);
+  color: var(--slide-color-h1) !important;
+  margin-bottom: var(--slide-heading-mb);
+  line-height: 1.15;
+}
+[data-slide-theme] .wysiwyg-content h2 {
+  font-family: var(--slide-font-heading);
+  font-size: var(--slide-h2-size);
+  font-weight: var(--slide-h2-weight);
+  color: var(--slide-color-h2) !important;
+  margin-bottom: 1rem;
+  line-height: 1.2;
+}
+[data-slide-theme] .wysiwyg-content h3 {
+  font-family: var(--slide-font-heading);
+  font-size: var(--slide-h3-size);
+  font-weight: var(--slide-h3-weight, 500);
+  color: var(--slide-color-h3) !important;
+  margin-bottom: 0.75rem;
+  line-height: 1.25;
+}
+[data-slide-theme] .wysiwyg-content p {
+  font-family: var(--slide-font-body);
+  font-size: var(--slide-body-size);
+  line-height: var(--slide-body-line-height);
+  color: var(--slide-color-body) !important;
+  margin-bottom: var(--slide-paragraph-mb);
+}
+[data-slide-theme] .wysiwyg-content ul,
+[data-slide-theme] .wysiwyg-content ol {
+  font-family: var(--slide-font-body);
+  font-size: var(--slide-list-size);
+  line-height: var(--slide-body-line-height);
+  color: var(--slide-color-body) !important;
+  margin-bottom: 1rem;
+  margin-left: 1.5rem;
+}
+[data-slide-theme] .wysiwyg-content li {
+  margin-bottom: 0.5rem;
+  color: var(--slide-color-body) !important;
+}
+[data-slide-theme] .wysiwyg-content strong {
+  color: var(--slide-color-bold, inherit) !important;
+}
+[data-slide-theme] .wysiwyg-content blockquote {
+  border-left-color: var(--slide-accent, #6366f1) !important;
+  color: var(--slide-color-muted) !important;
+}
+[data-slide-theme] .wysiwyg-content code {
+  font-family: var(--slide-font-mono);
+  color: var(--slide-color-code, var(--slide-accent, #a5b4fc)) !important;
+  background: var(--slide-code-bg) !important;
+}
+[data-slide-theme] .wysiwyg-content pre {
+  background: var(--slide-pre-bg) !important;
+}
+
 /* Light mode overrides — handled by per-theme CSS variables now.
    Keep minimal fallback for the default "light" theme. */
 html[data-theme="light"]:not([data-slide-theme]) .slide-content table { border-color: rgba(0,0,0,0.1); }

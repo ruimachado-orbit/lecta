@@ -116,7 +116,7 @@ const api = {
     ipcRenderer.invoke('ai:improve-slide', slideContent, deckTitle, userPrompt, artifactContext),
   hasApiKey: (): Promise<boolean> =>
     ipcRenderer.invoke('ai:has-api-key'),
-  getProviderStatuses: (): Promise<{ id: string; hasKey: boolean }[]> =>
+  getProviderStatuses: (): Promise<{ id: string; hasKey: boolean; status?: 'connected' | 'invalid' | 'not_configured' }[]> =>
     ipcRenderer.invoke('ai:get-provider-statuses'),
   setAIModel: (model: string): Promise<void> =>
     ipcRenderer.invoke('ai:set-model', model),

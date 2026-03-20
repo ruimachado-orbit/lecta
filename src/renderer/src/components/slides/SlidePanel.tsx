@@ -680,7 +680,7 @@ function SubSlideStackEditor({ subSlides, currentSubSlide, setCurrentSubSlide, s
       </div>
       <div className="flex flex-col items-center gap-6 px-4">
         {subSlides.map((sub, i) => (
-          <div key={`sub-${sub.index}`} className="w-full flex flex-col items-center">
+          <div key={`slide-${slideIndex}-sub-${sub.index}`} className="w-full flex flex-col items-center">
             {/* Sub-slide label */}
             <div className="flex items-center gap-2 mb-1.5">
               <span className={`text-[10px] font-mono px-2 py-0.5 rounded ${
@@ -719,6 +719,7 @@ function SubSlideStackEditor({ subSlides, currentSubSlide, setCurrentSubSlide, s
                 </button>
               )}
               <div
+                data-slide-theme={slideTheme}
                 style={{
                   width: SLIDE_W,
                   minHeight: SLIDE_H,

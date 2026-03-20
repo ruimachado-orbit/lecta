@@ -835,11 +835,7 @@ Generate exactly ${slideCount} slides.`
       switch (providerId) {
         case 'anthropic': {
           const client = new Anthropic({ apiKey })
-          await client.messages.create({
-            model: 'claude-haiku-4-5-20251001',
-            max_tokens: 1,
-            messages: [{ role: 'user', content: 'hi' }]
-          })
+          await client.models.list({ limit: 1 })
           return true
         }
         case 'openai': {

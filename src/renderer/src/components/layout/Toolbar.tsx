@@ -17,6 +17,7 @@ export function Toolbar(): JSX.Element {
 
   const [showAddMenu, setShowAddMenu] = useState(false)
   const [showThemePicker, setShowThemePicker] = useState(false)
+  const [showExportMenu, setShowExportMenu] = useState(false)
   const [prettifying, setPrettifying] = useState(false)
   const [prettifyProgress, setPrettifyProgress] = useState({ current: 0, total: 0 })
   const [prettifyReview, setPrettifyReview] = useState<{
@@ -185,44 +186,67 @@ export function Toolbar(): JSX.Element {
           {showThemePicker && <ThemePicker onClose={() => setShowThemePicker(false)} />}
         </div>
 
-        {/* Article generator toggle */}
-        <button
-          onClick={toggleArticlePanel}
-          className={`p-1.5 rounded transition-colors ${
-            showArticlePanel ? 'bg-white text-black' : 'hover:bg-gray-800 text-gray-400'
-          }`}
-          title="Generate article from presentation"
-        >
-          <ArticleIcon />
-        </button>
-
-        {/* Export PDF */}
-        <button
-          onClick={async () => {
-            if (!presentation) return
-            const htmls = slides.map((s) => markdownToSlideHtml(s.markdownContent))
-            await window.electronAPI.exportPdf(presentation.rootPath, htmls, presentation.title)
-          }}
-          className="p-1.5 rounded hover:bg-gray-800 text-gray-400 hover:text-gray-200 transition-colors"
-          title="Export as PDF"
-        >
-          <PdfIcon />
-        </button>
-
-        {/* Export HTML */}
-        <button
-          onClick={async () => {
-            if (!presentation) return
-            const markdowns = slides.map((s) => s.markdownContent)
-            await window.electronAPI.exportHtml(markdowns, presentation.title, presentation.theme)
-          }}
-          className="p-1.5 rounded hover:bg-gray-800 text-gray-400 hover:text-gray-200 transition-colors"
-          title="Export as HTML (shareable)"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582" />
-          </svg>
-        </button>
+        {/* Export dropdown */}
+        <div className="relative">
+          <button
+            onClick={() => setShowExportMenu(!showExportMenu)}
+            className={`p-1.5 rounded transition-colors flex items-center gap-0.5 ${showExportMenu ? 'bg-gray-700 text-white' : 'hover:bg-gray-800 text-gray-400 hover:text-gray-200'}`}
+            title="Export"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+            </svg>
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+            </svg>
+          </button>
+          {showExportMenu && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setShowExportMenu(false)} />
+              <div className="absolute right-0 top-full mt-1 z-50 w-52 bg-gray-900 border border-gray-700 rounded-lg shadow-xl py-1">
+                <button
+                  onClick={async () => {
+                    setShowExportMenu(false)
+                    if (!presentation) return
+                    const htmls = slides.map((s) => markdownToSlideHtml(s.markdownContent))
+                    await window.electronAPI.exportPdf(presentation.rootPath, htmls, presentation.title)
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
+                >
+                  <PdfIcon />
+                  Export as PDF
+                </button>
+                <button
+                  onClick={async () => {
+                    setShowExportMenu(false)
+                    if (!presentation) return
+                    const markdowns = slides.map((s) => s.markdownContent)
+                    await window.electronAPI.exportHtml(markdowns, presentation.title, presentation.theme)
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582" />
+                  </svg>
+                  Export as HTML
+                </button>
+                <div className="h-px bg-gray-800 my-1" />
+                <button
+                  onClick={() => {
+                    setShowExportMenu(false)
+                    toggleArticlePanel()
+                  }}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors ${
+                    showArticlePanel ? 'text-white bg-gray-800' : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                  }`}
+                >
+                  <ArticleIcon />
+                  Generate Article
+                </button>
+              </div>
+            </>
+          )}
+        </div>
 
         {/* Prettify deck with AI */}
         <button

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useChatStore } from '../../stores/chat-store'
+import { useUIStore } from '../../stores/ui-store'
 import { ChatMessageComponent } from './ChatMessage'
 import { ModelSelector } from '../ai/ModelSelector'
 import { SelectionToolbar } from './SelectionToolbar'
@@ -120,6 +121,8 @@ export function ActionModeToggle(): JSX.Element {
 export function ChatSidebarPanel(): JSX.Element {
   const { tabs, activeTabId, sendMessage, clearActiveTab, closeSidebar } = useChatStore()
   const activeTab = tabs.find((t) => t.id === activeTabId)
+  const providerStatuses = useUIStore((s) => s.providerStatuses)
+  const noProviders = !providerStatuses.some((s) => s.hasKey)
 
   const [input, setInput] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -135,9 +138,11 @@ export function ChatSidebarPanel(): JSX.Element {
     setTimeout(() => inputRef.current?.focus(), 100)
   }, [])
 
+  const isDisabled = noProviders || activeTab?.isStreaming
+
   const handleSend = (): void => {
     const text = input.trim()
-    if (!text || activeTab?.isStreaming) return
+    if (!text || isDisabled) return
     setInput('')
     sendMessage(text)
   }
@@ -184,9 +189,21 @@ export function ChatSidebarPanel(): JSX.Element {
       {/* Messages area */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-3">
         {!activeTab || activeTab.messages.length === 0 ? (
-          <ChatWelcome onQuickAction={(msg) => {
-            if (!activeTab?.isStreaming) sendMessage(msg)
-          }} />
+          noProviders ? (
+            <div className="flex flex-col items-center justify-center px-4 py-8 text-center">
+              <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center mb-3">
+                <svg className="w-5 h-5 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+                </svg>
+              </div>
+              <p className="text-xs text-gray-500">No AI providers configured.</p>
+              <p className="text-xs text-gray-600">Add API keys in Settings to use chat.</p>
+            </div>
+          ) : (
+            <ChatWelcome onQuickAction={(msg) => {
+              if (!activeTab?.isStreaming) sendMessage(msg)
+            }} />
+          )
         ) : (
           activeTab.messages.map((msg) => (
             <ChatMessageComponent key={msg.id} message={msg} />
@@ -211,7 +228,7 @@ export function ChatSidebarPanel(): JSX.Element {
       <ConfirmationBanner />
 
       {/* Input area */}
-      <div className="border-t border-gray-800 p-2 flex-shrink-0">
+      <div className={`border-t border-gray-800 p-2 flex-shrink-0 ${noProviders ? 'opacity-50' : ''}`}>
         <div className="space-y-1.5">
           <div className="flex items-center gap-1.5">
             <ActionModeToggle />
@@ -223,15 +240,15 @@ export function ChatSidebarPanel(): JSX.Element {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask Lecta AI..."
+              placeholder={noProviders ? 'Configure an AI provider in Settings' : 'Ask Lecta AI...'}
               rows={1}
-              className="flex-1 resize-none bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500 max-h-24 overflow-y-auto"
+              className="flex-1 resize-none bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500 max-h-24 overflow-y-auto disabled:cursor-not-allowed"
               style={{ minHeight: '36px' }}
-              disabled={activeTab?.isStreaming}
+              disabled={!!isDisabled}
             />
             <button
               onClick={handleSend}
-              disabled={!input.trim() || activeTab?.isStreaming}
+              disabled={!input.trim() || !!isDisabled}
               className="w-8 h-8 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-800 disabled:text-gray-600 text-white flex items-center justify-center transition-colors flex-shrink-0"
               title="Send"
             >

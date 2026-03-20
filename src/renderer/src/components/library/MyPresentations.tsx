@@ -403,7 +403,7 @@ export function MyPresentations({ onBack }: { onBack: () => void }): JSX.Element
                                  hover:bg-gray-800 transition-all overflow-hidden"
                     >
                       {/* Preview */}
-                      <div className="h-24 bg-black p-3 border-b border-gray-800 overflow-hidden relative">
+                      <div className="h-24 bg-black px-3 pb-3 pt-6 border-b border-gray-800 overflow-hidden relative">
                         {previewLines.length > 0 ? (
                           <div className="space-y-1">
                             {previewLines.map((line, i) => {

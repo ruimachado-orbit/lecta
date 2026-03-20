@@ -268,6 +268,7 @@ const PROVIDER_KEY_MAP: Record<string, { envVar: string; settingsField: string }
   meta:        { envVar: 'LLAMA_API_KEY',        settingsField: 'llamaApiKey' },
   xai:         { envVar: 'XAI_API_KEY',          settingsField: 'xaiApiKey' },
   perplexity:  { envVar: 'PERPLEXITY_API_KEY',   settingsField: 'perplexityApiKey' },
+  ollama:      { envVar: 'OLLAMA_BASE_URL',      settingsField: 'ollamaBaseUrl' },
 }
 
 /**

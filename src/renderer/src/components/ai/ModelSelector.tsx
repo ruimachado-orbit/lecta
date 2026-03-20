@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useUIStore } from '../../stores/ui-store'
 import { AI_PROVIDERS, getProviderForModel, getModelDef } from '../../../../../packages/shared/src/constants'
+import type { AIModelDef } from '../../../../../packages/shared/src/constants'
 
 /**
  * Compact model selector dropdown. Shows current model with provider icon.
@@ -14,6 +15,16 @@ export function ModelSelector({ compact = false }: { compact?: boolean; directio
   const buttonRef = useRef<HTMLButtonElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const [style, setStyle] = useState<React.CSSProperties>({})
+  const [ollamaModels, setOllamaModels] = useState<AIModelDef[]>([])
+
+  // Fetch Ollama models when Ollama is configured
+  const ollamaConfigured = providerStatuses.some((s) => s.id === 'ollama' && s.hasKey)
+  useEffect(() => {
+    if (!ollamaConfigured) { setOllamaModels([]); return }
+    window.electronAPI.ollamaModels().then((models: { id: string; name: string }[]) => {
+      setOllamaModels(models.map((m: { id: string; name: string }) => ({ id: m.id, name: m.name, provider: 'ollama' as const, capabilities: ['text' as const, 'code' as const] })))
+    })
+  }, [ollamaConfigured])
 
   // Compute position when opening — auto-detect best direction
   const updatePosition = useCallback(() => {
@@ -67,14 +78,20 @@ export function ModelSelector({ compact = false }: { compact?: boolean; directio
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
 
-  const currentModel = getModelDef(aiModel)
-  const currentProvider = getProviderForModel(aiModel)
+  const currentModel = getModelDef(aiModel) ?? ollamaModels.find((m) => m.id === aiModel)
+  const currentProvider = getProviderForModel(aiModel) ?? (ollamaModels.some((m) => m.id === aiModel) ? AI_PROVIDERS.find((p) => p.id === 'ollama') : undefined)
 
   const configuredProviderIds = new Set(
     providerStatuses.filter((s) => s.hasKey).map((s) => s.id)
   )
 
-  const availableProviders = AI_PROVIDERS.filter((p) => configuredProviderIds.has(p.id))
+  // Build available providers, injecting dynamic Ollama models
+  const availableProviders = AI_PROVIDERS.filter((p) => configuredProviderIds.has(p.id)).map((p) => {
+    if (p.id === 'ollama' && ollamaModels.length > 0) {
+      return { ...p, models: ollamaModels }
+    }
+    return p
+  })
   const noProviders = availableProviders.length === 0
 
   const displayName = noProviders ? 'No AI configured' : (currentModel?.name ?? aiModel)
@@ -99,24 +116,30 @@ export function ModelSelector({ compact = false }: { compact?: boolean; directio
               </span>
               <span className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">{provider.name}</span>
             </div>
-            {provider.models.map((model) => (
-              <button
-                key={model.id}
-                onClick={() => { setAiModel(model.id); setOpen(false) }}
-                className={`w-full px-3 py-1.5 text-left text-xs transition-colors flex items-center gap-2 ${
-                  model.id === aiModel
-                    ? 'bg-indigo-600/20 text-indigo-300'
-                    : 'text-gray-300 hover:bg-gray-800'
-                }`}
-              >
-                <span className="flex-1 pl-5">{model.name}</span>
-                {model.id === aiModel && (
-                  <svg className="w-3 h-3 text-indigo-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                  </svg>
-                )}
-              </button>
-            ))}
+            {provider.models.length === 0 && provider.id === 'ollama' ? (
+              <div className="px-3 py-1.5 pl-8 text-[10px] text-gray-500 italic">
+                No models found. Is Ollama running?
+              </div>
+            ) : (
+              provider.models.map((model) => (
+                <button
+                  key={model.id}
+                  onClick={() => { setAiModel(model.id); setOpen(false) }}
+                  className={`w-full px-3 py-1.5 text-left text-xs transition-colors flex items-center gap-2 ${
+                    model.id === aiModel
+                      ? 'bg-indigo-600/20 text-indigo-300'
+                      : 'text-gray-300 hover:bg-gray-800'
+                  }`}
+                >
+                  <span className="flex-1 pl-5">{model.name}</span>
+                  {model.id === aiModel && (
+                    <svg className="w-3 h-3 text-indigo-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                    </svg>
+                  )}
+                </button>
+              ))
+            )}
           </div>
         ))
       )}

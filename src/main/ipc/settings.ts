@@ -21,6 +21,7 @@ const DEFAULTS: Record<string, unknown> = {
   llamaApiKey: '',
   xaiApiKey: '',
   perplexityApiKey: '',
+  ollamaBaseUrl: '',
   imageProvider: 'openai',
   mcpServerEnabled: false,
   recentDecks: []

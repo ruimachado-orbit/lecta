@@ -838,6 +838,7 @@ const PROVIDER_META: Record<string, { name: string; placeholder: string; icon: s
   meta:        { name: 'Meta Llama',   placeholder: 'LA-...',     icon: 'L', description: 'Llama 4 Maverick, Scout, 3.3' },
   xai:         { name: 'xAI',          placeholder: 'xai-...',    icon: 'X', description: 'Grok 3, Grok 3 Mini' },
   perplexity:  { name: 'Perplexity',   placeholder: 'pplx-...',   icon: 'P', description: 'Sonar Pro, Sonar Reasoning' },
+  ollama:      { name: 'Ollama',       placeholder: 'http://localhost:11434', icon: '🦙', description: 'Local models via Ollama' },
 }
 
 const PROVIDER_KEY_FIELDS: Record<string, string> = {
@@ -848,9 +849,10 @@ const PROVIDER_KEY_FIELDS: Record<string, string> = {
   meta:        'llamaApiKey',
   xai:         'xaiApiKey',
   perplexity:  'perplexityApiKey',
+  ollama:      'ollamaBaseUrl',
 }
 
-const ALL_PROVIDER_IDS = ['anthropic', 'openai', 'google', 'mistral', 'meta', 'xai', 'perplexity']
+const ALL_PROVIDER_IDS = ['anthropic', 'openai', 'google', 'mistral', 'meta', 'xai', 'perplexity', 'ollama']
 
 function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
   const { theme, setTheme, palette, setPalette, fontSize, setFontSize, refreshProviderStatuses, providerStatuses, aiModel, setAiModel } = useUIStore()
@@ -1036,7 +1038,14 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
                 const keySource = status?.keySource ?? null
                 const isFromEnv = keySource === 'env-file' || keySource === 'env-var'
 
-                const selectThisProvider = (): void => {
+                const selectThisProvider = async (): Promise<void> => {
+                  if (id === 'ollama') {
+                    const models = await window.electronAPI.ollamaModels()
+                    if (models.length > 0) {
+                      setAiModel(models[0].id)
+                    }
+                    return
+                  }
                   const providerDef = AI_PROVIDERS.find((p) => p.id === id)
                   if (providerDef && providerDef.models.length > 0) {
                     setAiModel(providerDef.models[0].id)
@@ -1228,13 +1237,15 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
                 {PROVIDER_META[editingProvider]?.icon}
               </div>
               <div>
-                <h3 className="text-sm font-medium text-white">{PROVIDER_META[editingProvider]?.name} API Key</h3>
+                <h3 className="text-sm font-medium text-white">
+                  {editingProvider === 'ollama' ? `${PROVIDER_META[editingProvider]?.name} Base URL` : `${PROVIDER_META[editingProvider]?.name} API Key`}
+                </h3>
                 <p className="text-[10px] text-gray-500">{PROVIDER_META[editingProvider]?.description}</p>
               </div>
             </div>
 
             <input
-              type="password"
+              type={editingProvider === 'ollama' ? 'url' : 'password'}
               value={editingKey}
               onChange={(e) => setEditingKey(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') handleSaveKey(editingProvider, editingKey) }}
@@ -1249,7 +1260,7 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
                 onClick={() => handleSaveKey(editingProvider, editingKey)}
                 className="flex-1 py-2 bg-white hover:bg-gray-200 text-black font-medium rounded-lg transition-colors text-sm"
               >
-                Save Key
+                {editingProvider === 'ollama' ? 'Save URL' : 'Save Key'}
               </button>
               {keys[editingProvider] && (
                 <button

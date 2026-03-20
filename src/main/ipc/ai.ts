@@ -286,6 +286,14 @@ export function registerAiHandlers(): void {
   )
 
   ipcMain.handle(
+    'ai:ollama-models',
+    async (): Promise<{ id: string; name: string }[]> => {
+      const service = getAIService()
+      return service.fetchOllamaModels()
+    }
+  )
+
+  ipcMain.handle(
     'ai:stream-article',
     async (
       _event,

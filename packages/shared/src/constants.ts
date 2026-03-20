@@ -47,7 +47,7 @@ export const DECK_CONFIG_FILE = 'lecta.yaml'
 
 // ── Multi-provider AI definitions ──
 
-export type AIProviderID = 'anthropic' | 'openai' | 'google' | 'mistral' | 'meta' | 'xai' | 'perplexity'
+export type AIProviderID = 'anthropic' | 'openai' | 'google' | 'mistral' | 'meta' | 'xai' | 'perplexity' | 'ollama'
 
 export interface AIProviderDef {
   id: AIProviderID
@@ -153,6 +153,14 @@ export const AI_PROVIDERS: AIProviderDef[] = [
       { id: 'sonar-reasoning-pro', name: 'Sonar Reasoning Pro', provider: 'perplexity', capabilities: ['text', 'code'] },
       { id: 'sonar-reasoning', name: 'Sonar Reasoning', provider: 'perplexity', capabilities: ['text', 'code'] },
     ]
+  },
+  {
+    id: 'ollama',
+    name: 'Ollama',
+    icon: '🦙',
+    keyEnvVar: 'OLLAMA_BASE_URL',
+    keySettingsField: 'ollamaBaseUrl',
+    models: [] // Models are fetched dynamically from the running Ollama instance
   },
 ]
 

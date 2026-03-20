@@ -76,7 +76,8 @@ export class AIService {
 
   private getProviderForCurrentModel(): AIProviderID {
     const provider = getProviderForModel(this.model)
-    return provider?.id ?? 'anthropic'
+    // If not found in static providers, assume it's an Ollama model
+    return provider?.id ?? 'ollama'
   }
 
   // ── Provider clients ──
@@ -122,6 +123,14 @@ export class AIService {
   private async getOpenAICompatClient(providerId: string): Promise<OpenAI> {
     const cached = this.openaiCompatClients.get(providerId)
     if (cached) return cached
+
+    // Ollama: the "key" is actually the base URL, no real API key needed
+    if (providerId === 'ollama') {
+      const ollamaBaseUrl = await loadProviderKey('ollama', currentDeckPath ?? undefined) || 'http://localhost:11434'
+      const client = new OpenAI({ apiKey: 'ollama', baseURL: `${ollamaBaseUrl.replace(/\/+$/, '')}/v1` })
+      this.openaiCompatClients.set(providerId, client)
+      return client
+    }
 
     const apiKey = await loadProviderKey(providerId, currentDeckPath ?? undefined)
     if (!apiKey) {
@@ -206,7 +215,8 @@ export class AIService {
       case 'mistral':
       case 'meta':
       case 'xai':
-      case 'perplexity': {
+      case 'perplexity':
+      case 'ollama': {
         const client = await this.getOpenAICompatClient(provider)
         const response = await client.chat.completions.create({
           model: this.model,
@@ -304,7 +314,8 @@ export class AIService {
       case 'mistral':
       case 'meta':
       case 'xai':
-      case 'perplexity': {
+      case 'perplexity':
+      case 'ollama': {
         const client = await this.getOpenAICompatClient(provider)
         const stream = await client.chat.completions.create({
           model: this.model,
@@ -818,7 +829,7 @@ Generate exactly ${slideCount} slides.`
     }
   }
 
-  private static readonly ALL_PROVIDER_IDS = ['anthropic', 'openai', 'google', 'mistral', 'meta', 'xai', 'perplexity']
+  private static readonly ALL_PROVIDER_IDS = ['anthropic', 'openai', 'google', 'mistral', 'meta', 'xai', 'perplexity', 'ollama']
 
   /** Check if any provider has an API key configured */
   async hasAnyApiKey(): Promise<boolean> {
@@ -849,6 +860,12 @@ Generate exactly ${slideCount} slides.`
             const client = new GoogleGenAI({ apiKey })
             await client.models.list()
             return true
+          }
+          case 'ollama': {
+            // For Ollama, apiKey is the base URL; validate by checking reachability
+            const baseUrl = apiKey || 'http://localhost:11434'
+            const resp = await fetch(`${baseUrl.replace(/\/+$/, '')}/api/tags`)
+            return resp.ok
           }
           case 'mistral':
           case 'meta':
@@ -881,6 +898,19 @@ Generate exactly ${slideCount} slides.`
         return { id, hasKey: true, status: valid ? 'connected' as const : 'invalid' as const, keySource }
       })
     )
+  }
+
+  /** Fetch installed models from a running Ollama instance */
+  async fetchOllamaModels(baseUrl?: string): Promise<{ id: string; name: string }[]> {
+    const url = baseUrl || await loadProviderKey('ollama', currentDeckPath ?? undefined) || 'http://localhost:11434'
+    try {
+      const resp = await fetch(`${url.replace(/\/+$/, '')}/api/tags`)
+      if (!resp.ok) return []
+      const data = await resp.json() as { models?: { name: string; model: string }[] }
+      return (data.models || []).map((m) => ({ id: m.name, name: m.name }))
+    } catch {
+      return []
+    }
   }
 
   async streamArticle(

@@ -122,6 +122,8 @@ const api = {
     ipcRenderer.invoke('ai:get-provider-statuses'),
   setAIModel: (model: string): Promise<void> =>
     ipcRenderer.invoke('ai:set-model', model),
+  ollamaModels: (): Promise<{ id: string; name: string }[]> =>
+    ipcRenderer.invoke('ai:ollama-models'),
   generateInlineText: (prompt: string, slideContent: string, deckTitle: string): Promise<string> =>
     ipcRenderer.invoke('ai:generate-inline-text', prompt, slideContent, deckTitle),
   runPrompt: (

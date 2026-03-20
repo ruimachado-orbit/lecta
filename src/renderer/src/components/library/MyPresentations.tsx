@@ -65,6 +65,9 @@ export function MyPresentations({ onBack }: { onBack: () => void }): JSX.Element
   // Folder delete confirmation
   const [deletingFolder, setDeletingFolder] = useState<LibraryFolder | null>(null)
 
+  // Drag and drop
+  const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null)
+
   const refresh = useCallback(async () => {
     const data = await window.electronAPI.getLibrary()
     setLibrary(data)
@@ -183,6 +186,20 @@ export function MyPresentations({ onBack }: { onBack: () => void }): JSX.Element
     setColorPickerTag(null)
   }
 
+  const handleDrop = async (e: React.DragEvent, folderId: string | null) => {
+    e.preventDefault()
+    setDragOverFolderId(null)
+    const entryId = e.dataTransfer.getData('text/entry-id')
+    if (!entryId) return
+    await handleMoveEntry(entryId, folderId)
+  }
+
+  const handleDragOver = (e: React.DragEvent, folderId: string | null) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDragOverFolderId(folderId)
+  }
+
   const getTagColor = (tag: string) => tagColors[tag] || '#6366f1'
 
   const folderEntryCount = (folderId: string) => library.entries.filter((e) => e.folderId === folderId).length
@@ -244,10 +261,17 @@ export function MyPresentations({ onBack }: { onBack: () => void }): JSX.Element
             {rootFolders.map((folder) => {
               const count = folderEntryCount(folder.id)
               return (
-                <div key={folder.id} className="group flex items-center">
+                <div
+                  key={folder.id}
+                  className="group flex items-center"
+                  onDragOver={(e) => handleDragOver(e, folder.id)}
+                  onDragLeave={() => setDragOverFolderId(null)}
+                  onDrop={(e) => handleDrop(e, folder.id)}
+                >
                   <button
                     onClick={() => { setSelectedFolderId(folder.id); setSelectedTag(null) }}
                     className={`flex-1 text-left px-2 py-1.5 rounded-l text-xs transition-colors flex items-center gap-2 min-w-0 ${
+                      dragOverFolderId === folder.id ? 'bg-indigo-600/30 text-indigo-300 ring-1 ring-indigo-500' :
                       selectedFolderId === folder.id ? 'bg-gray-800 text-white' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-900'
                     }`}
                   >
@@ -296,7 +320,11 @@ export function MyPresentations({ onBack }: { onBack: () => void }): JSX.Element
               return (
                 <button
                   onClick={() => { setSelectedFolderId('__unfiled__'); setSelectedTag(null) }}
+                  onDragOver={(e) => handleDragOver(e, '__unfiled__')}
+                  onDragLeave={() => setDragOverFolderId(null)}
+                  onDrop={(e) => handleDrop(e, null)}
                   className={`w-full text-left px-2 py-1.5 rounded text-xs transition-colors flex items-center gap-2 ${
+                    dragOverFolderId === '__unfiled__' ? 'bg-indigo-600/30 text-indigo-300 ring-1 ring-indigo-500' :
                     selectedFolderId === '__unfiled__' ? 'bg-gray-800 text-white' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-900'
                   }`}
                 >
@@ -397,6 +425,11 @@ export function MyPresentations({ onBack }: { onBack: () => void }): JSX.Element
                   return (
                     <div
                       key={entry.id}
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('text/entry-id', entry.id)
+                        e.dataTransfer.effectAllowed = 'move'
+                      }}
                       onClick={() => handleOpen(entry)}
                       onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, entry }) }}
                       className="group cursor-pointer rounded-xl border border-gray-800 bg-gray-900 hover:border-gray-600

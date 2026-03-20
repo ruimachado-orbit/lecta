@@ -5,6 +5,7 @@ import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import Color from '@tiptap/extension-color'
 import { TextStyle } from '@tiptap/extension-text-style'
+import { requireAI, showAIError } from '../ai/AIAlert'
 
 const FontSize = TextStyle.extend({
   addAttributes() {
@@ -776,6 +777,7 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
 
   const handleAIGenerate = async (): Promise<void> => {
     if (!aiPrompt.trim() || !presentation || !slide || !editorRef.current) return
+    if (!requireAI()) return
     setAILoading(true)
     try {
       const result = await window.electronAPI.generateInlineText(
@@ -787,7 +789,7 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
         editorRef.current.chain().focus().insertContent(result).run()
       }
     } catch (err) {
-      console.error('AI inline generation failed:', err)
+      showAIError(err)
     } finally {
       setAILoading(false)
       setShowAIPrompt(false)

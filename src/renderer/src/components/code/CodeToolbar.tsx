@@ -3,6 +3,7 @@ import { usePresentationStore } from '../../stores/presentation-store'
 import { useExecutionStore } from '../../stores/execution-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useCodeExecution } from '../../hooks/useCodeExecution'
+import { requireAI, showAIError } from '../ai/AIAlert'
 
 const FONT_SIZES = [
   { label: 'S', value: 12 },
@@ -42,6 +43,7 @@ export function CodeToolbar(): JSX.Element {
 
   const handleAIGenerate = async () => {
     if (!aiPrompt.trim() || !codeConfig || !presentation) return
+    if (!requireAI()) return
     setIsGenerating(true)
     try {
       const code = await window.electronAPI.generateCode(
@@ -55,7 +57,7 @@ export function CodeToolbar(): JSX.Element {
       setAIPrompt('')
       setShowAIPrompt(false)
     } catch (err) {
-      console.error('AI code generation failed:', err)
+      showAIError(err)
     } finally {
       setIsGenerating(false)
     }

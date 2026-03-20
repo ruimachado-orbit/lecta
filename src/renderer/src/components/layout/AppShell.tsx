@@ -15,6 +15,7 @@ import { SlideMap } from '../slides/SlideMap'
 import { TabBar } from './TabBar'
 import { PresenterView } from '../presenter/PresenterView'
 import { ChatSidebarPanel } from '../chat/ChatPanel'
+import { AIAlert } from '../ai/AIAlert'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useChatStore } from '../../stores/chat-store'
@@ -84,6 +85,7 @@ export function AppShell(): JSX.Element {
 
   return (
     <div className="h-screen flex flex-col bg-gray-950">
+      <AIAlert />
       <TabBar />
       <Toolbar />
 

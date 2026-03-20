@@ -4,6 +4,7 @@ import { useUIStore } from '../../stores/ui-store'
 import { NoteEditor } from './NoteEditor'
 import { DrawingOverlay, DrawingToolbar } from '../slides/DrawingOverlay'
 import Editor, { type OnMount } from '@monaco-editor/react'
+import { requireAI, showAIError } from '../ai/AIAlert'
 
 export function NotePanel(): JSX.Element {
   const { pages, currentPageIndex, notebook, updateMarkdownContent, savePageContent } = useNotebookStore()
@@ -23,6 +24,7 @@ export function NotePanel(): JSX.Element {
 
   const handleAIGenerate = async () => {
     if (!aiPrompt.trim() || !notebook || !currentPage) return
+    if (!requireAI()) return
     setAILoading(true)
     try {
       const result = await window.electronAPI.generateInlineText(
@@ -36,7 +38,7 @@ export function NotePanel(): JSX.Element {
         savePageContent(currentPageIndex)
       }
     } catch (err) {
-      console.error('AI generation failed:', err)
+      showAIError(err)
     } finally {
       setAILoading(false)
       setShowAI(false)

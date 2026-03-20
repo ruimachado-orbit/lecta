@@ -12,6 +12,11 @@ html, body, * {
   font-family: -apple-system, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 
+@keyframes aiAlertIn {
+  from { opacity: 0; transform: translateY(-12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 @theme {
   --font-sans: -apple-system, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
   --color-brand: #ffffff;

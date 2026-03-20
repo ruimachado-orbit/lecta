@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore } from '../../stores/ui-store'
 import { ModelSelector } from '../ai/ModelSelector'
+import { requireAI, showAIError } from '../ai/AIAlert'
 
 export function AIGeneratePanel(): JSX.Element {
   const { presentation, slides, currentSlideIndex, addSlide } = usePresentationStore()
@@ -33,6 +34,7 @@ export function AIGeneratePanel(): JSX.Element {
 
   const handleGenerate = async () => {
     if (!prompt.trim() || !presentation) return
+    if (!requireAI()) return
     setIsGenerating(true)
     try {
       const existingContent = slides.map((s) => s.markdownContent)
@@ -72,7 +74,7 @@ export function AIGeneratePanel(): JSX.Element {
 
       setPrompt('')
     } catch (err) {
-      console.error('Bulk generation failed:', err)
+      showAIError(err)
     } finally {
       setIsGenerating(false)
     }
@@ -219,6 +221,7 @@ export function AIImproveBar(): JSX.Element {
 
   const handleImprove = async () => {
     if (!prompt.trim() || !presentation || !currentSlide) return
+    if (!requireAI()) return
     setIsImproving(true)
     try {
       const result = await window.electronAPI.improveSlide(
@@ -231,7 +234,7 @@ export function AIImproveBar(): JSX.Element {
       saveSlideContent(currentSlideIndex)
       setPrompt('')
     } catch (err) {
-      console.error('Improve failed:', err)
+      showAIError(err)
     } finally {
       setIsImproving(false)
     }
@@ -294,6 +297,7 @@ export function AIChangeBar(): JSX.Element {
 
   const handleSubmit = async () => {
     if (!prompt.trim() || !presentation || !currentSlide) return
+    if (!requireAI()) return
     setIsProcessing(true)
 
     try {
@@ -319,7 +323,7 @@ export function AIChangeBar(): JSX.Element {
       // Show review bar (accept saves to disk, reject restores original)
       setReview({ original, improved: result })
     } catch (err) {
-      console.error('AI change failed:', err)
+      showAIError(err)
     } finally {
       setIsProcessing(false)
     }

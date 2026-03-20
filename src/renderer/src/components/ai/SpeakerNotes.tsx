@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { usePresentationStore } from '../../stores/presentation-store'
+import { requireAI, showAIError } from './AIAlert'
 
 export function SpeakerNotes(): JSX.Element {
   const { slides, currentSlideIndex, presentation, updateNotesContent, saveSlideContent } =
@@ -29,6 +30,7 @@ export function SpeakerNotes(): JSX.Element {
 
   const handleGenerate = useCallback(async () => {
     if (!currentSlide || !presentation) return
+    if (!requireAI()) return
 
     setIsGenerating(true)
 
@@ -46,12 +48,18 @@ export function SpeakerNotes(): JSX.Element {
             saveSlideContent(currentSlideIndex)
             return
           }
+          if (chunk.startsWith('[ERROR]')) {
+            setIsGenerating(false)
+            showAIError(new Error(chunk.replace('[ERROR]', '').trim()))
+            return
+          }
           accumulated += chunk
           updateNotesContent(currentSlideIndex, accumulated)
         }
       )
-    } catch {
+    } catch (err) {
       setIsGenerating(false)
+      showAIError(err)
     }
   }, [currentSlide, presentation, currentSlideIndex, updateNotesContent, saveSlideContent])
 

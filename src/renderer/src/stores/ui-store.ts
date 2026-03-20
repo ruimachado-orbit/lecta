@@ -46,6 +46,7 @@ interface UIState {
   aiModel: string
   providerStatuses: ProviderStatus[]
   pendingGeneratePrompt: string | null
+  aiAlert: string | null
 
   // Actions
   setTheme: (theme: 'dark' | 'light') => void
@@ -74,6 +75,7 @@ interface UIState {
   setAiModel: (model: string) => void
   refreshProviderStatuses: () => Promise<void>
   setPendingGeneratePrompt: (prompt: string | null) => void
+  setAiAlert: (message: string | null) => void
   loadGroupsFromPresentation: (groups: { id: string; name: string; slideIds: string[]; color?: string }[]) => void
 }
 
@@ -116,6 +118,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   aiModel: 'claude-sonnet-4-20250514',
   providerStatuses: [],
   pendingGeneratePrompt: null,
+  aiAlert: null,
 
   setTheme: (theme) => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -214,4 +217,5 @@ export const useUIStore = create<UIState>((set, get) => ({
     }
   },
   setPendingGeneratePrompt: (prompt) => set({ pendingGeneratePrompt: prompt }),
+  setAiAlert: (message) => set({ aiAlert: message }),
 }))

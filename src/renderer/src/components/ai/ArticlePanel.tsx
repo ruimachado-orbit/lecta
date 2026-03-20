@@ -2,6 +2,7 @@ import { useState, useCallback, useRef } from 'react'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore } from '../../stores/ui-store'
 import ReactMarkdown from 'react-markdown'
+import { requireAI, showAIError } from './AIAlert'
 
 export function ArticlePanel(): JSX.Element {
   const { presentation, slides } = usePresentationStore()
@@ -15,6 +16,7 @@ export function ArticlePanel(): JSX.Element {
 
   const handleGenerate = useCallback(async () => {
     if (!presentation || slides.length === 0) return
+    if (!requireAI()) return
 
     setIsGenerating(true)
     setArticleContent('')
@@ -44,8 +46,9 @@ export function ArticlePanel(): JSX.Element {
           contentRef.current?.scrollTo({ top: contentRef.current.scrollHeight })
         }
       )
-    } catch {
+    } catch (err) {
       setIsGenerating(false)
+      showAIError(err)
     }
   }, [presentation, slides, rules])
 

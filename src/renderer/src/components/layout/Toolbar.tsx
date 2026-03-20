@@ -6,6 +6,7 @@ import { useTabsStore } from '../../stores/tabs-store'
 import { useChatStore } from '../../stores/chat-store'
 import { ThemePicker } from '../slides/ThemePicker'
 import type { SupportedLanguage } from '../../../../../packages/shared/src/types/presentation'
+import { requireAI, showAIError } from '../ai/AIAlert'
 
 export function Toolbar(): JSX.Element {
   const { presentation, currentSlideIndex, slides, nextSlide, prevSlide, addSlide, addCodeToSlide, addArtifact, addVideo, addWebApp, saveSlideContent, hasUnsavedChanges } =
@@ -252,11 +253,13 @@ export function Toolbar(): JSX.Element {
         <button
             onClick={async () => {
               if (prettifying || !presentation) return
+              if (!requireAI()) return
               const title = presentation.title || 'Untitled'
               const total = slides.length
               setPrettifying(true)
               setPrettifyProgress({ current: 0, total })
               const queue: { index: number; original: string; improved: string }[] = []
+              let firstError: unknown = null
               try {
                 for (let i = 0; i < total; i++) {
                   setPrettifyProgress({ current: i + 1, total })
@@ -267,11 +270,17 @@ export function Toolbar(): JSX.Element {
                     if (improved?.trim() && improved.trim() !== slide.markdownContent.trim()) {
                       queue.push({ index: i, original: slide.markdownContent, improved })
                     }
-                  } catch { /* skip */ }
+                  } catch (err) {
+                    if (!firstError) firstError = err
+                  }
                 }
               } finally {
                 setPrettifying(false)
                 setPrettifyProgress({ current: 0, total: 0 })
+              }
+              if (queue.length === 0 && firstError) {
+                showAIError(firstError)
+                return
               }
               // Start review flow
               if (queue.length > 0) {

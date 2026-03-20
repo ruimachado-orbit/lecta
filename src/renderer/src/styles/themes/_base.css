@@ -1,12 +1,13 @@
 /* ============================================================
    SLIDE THEME BASE — CSS Custom Properties
+   Default Dark: Deep navy-black with indigo/violet accents.
    All slide visual styling flows through these variables.
    Themes override them via [data-slide-theme="..."] selectors.
    ============================================================ */
 
 :root {
   /* Canvas */
-  --slide-bg: #000000;
+  --slide-bg: #0a0a12;
 
   /* Typography — fonts */
   --slide-font-heading: -apple-system, "SF Pro Display", "Inter", "Helvetica Neue", sans-serif;
@@ -14,9 +15,9 @@
   --slide-font-mono: "JetBrains Mono", "Fira Code", "SF Mono", monospace;
 
   /* Typography — headings */
-  --slide-color-h1: #ffffff;
-  --slide-color-h2: #ffffff;
-  --slide-color-h3: #e5e5e5;
+  --slide-color-h1: #f0f0ff;
+  --slide-color-h2: #e0e0f0;
+  --slide-color-h3: #c0c0d8;
   --slide-h1-size: 2.25rem;
   --slide-h1-weight: 700;
   --slide-h1-tracking: -0.01em;
@@ -26,9 +27,9 @@
   --slide-h3-weight: 500;
 
   /* Typography — body */
-  --slide-color-body: #d4d4d4;
-  --slide-color-muted: #a3a3a3;
-  --slide-color-dimmed: #737373;
+  --slide-color-body: #b8b8cc;
+  --slide-color-muted: #8888a0;
+  --slide-color-dimmed: #606078;
   --slide-body-size: 1.25rem;
   --slide-body-line-height: 1.625;
   --slide-list-size: 1.125rem;
@@ -39,30 +40,30 @@
   --slide-accent-gradient: linear-gradient(135deg, #818cf8, #6366f1);
 
   /* Links */
-  --slide-link-color: #ffffff;
-  --slide-link-hover: #d4d4d4;
+  --slide-link-color: #a5b4fc;
+  --slide-link-hover: #c7d2fe;
 
   /* Tables */
-  --slide-table-border: rgba(255,255,255,0.1);
-  --slide-table-header-bg: rgba(255,255,255,0.08);
-  --slide-table-header-color: #e5e5e5;
-  --slide-table-header-border: rgba(255,255,255,0.15);
-  --slide-table-cell-color: #d4d4d4;
-  --slide-table-cell-border: rgba(255,255,255,0.06);
-  --slide-table-row-hover: rgba(255,255,255,0.03);
+  --slide-table-border: rgba(99,102,241,0.12);
+  --slide-table-header-bg: rgba(99,102,241,0.08);
+  --slide-table-header-color: #e0e0f0;
+  --slide-table-header-border: rgba(99,102,241,0.2);
+  --slide-table-cell-color: #b8b8cc;
+  --slide-table-cell-border: rgba(255,255,255,0.05);
+  --slide-table-row-hover: rgba(99,102,241,0.04);
   --slide-table-radius: 0.5rem;
 
   /* Blockquotes */
-  --slide-quote-border: #ffffff;
+  --slide-quote-border: #6366f1;
   --slide-quote-border-width: 3px;
-  --slide-quote-bg: rgba(255,255,255,0.04);
-  --slide-quote-color: #d4d4d4;
+  --slide-quote-bg: rgba(99,102,241,0.04);
+  --slide-quote-color: #b8b8cc;
   --slide-quote-radius: 0 0.5rem 0.5rem 0;
 
   /* Code */
-  --slide-code-bg: rgba(255,255,255,0.08);
-  --slide-code-color: #e5e5e5;
-  --slide-pre-bg: #0a0a0a;
+  --slide-code-bg: rgba(99,102,241,0.08);
+  --slide-code-color: #c7d2fe;
+  --slide-pre-bg: #06060c;
 
   /* Badges */
   --slide-badge-green-bg: rgba(34,197,94,0.15);
@@ -76,22 +77,22 @@
   --slide-badge-red-border: rgba(239,68,68,0.3);
 
   /* Progress */
-  --slide-progress-bg: rgba(255,255,255,0.08);
-  --slide-progress-fill: linear-gradient(90deg, #4ade80, #22c55e);
+  --slide-progress-bg: rgba(255,255,255,0.06);
+  --slide-progress-fill: linear-gradient(90deg, #818cf8, #6366f1);
 
   /* Metrics */
-  --slide-metric-bg: rgba(255,255,255,0.05);
-  --slide-metric-border: rgba(255,255,255,0.1);
-  --slide-metric-value-color: #ffffff;
+  --slide-metric-bg: rgba(99,102,241,0.05);
+  --slide-metric-border: rgba(99,102,241,0.12);
+  --slide-metric-value-color: #f0f0ff;
   --slide-metric-value-size: 2.5rem;
-  --slide-metric-context-color: #a3a3a3;
+  --slide-metric-context-color: #8888a0;
 
   /* Layout accents */
   --slide-section-bar: linear-gradient(180deg, #818cf8 0%, #6366f1 100%);
   --slide-big-number-gradient: linear-gradient(135deg, #818cf8 0%, #6366f1 50%, #a855f7 100%);
   --slide-big-number-size: 7rem;
   --slide-quote-mark-color: #6366f1;
-  --slide-title-subtitle-color: #a3a3a3;
+  --slide-title-subtitle-color: #8888a0;
   --slide-title-h1-size: 4rem;
 
   /* Spacing */
@@ -106,6 +107,6 @@
   --slide-element-radius: 0.5rem;
 
   /* Textbox */
-  --slide-textbox-border: rgba(255,255,255,0.15);
-  --slide-textbox-color: #e2e8f0;
+  --slide-textbox-border: rgba(99,102,241,0.15);
+  --slide-textbox-color: #c0c0d8;
 }

@@ -1,12 +1,13 @@
-/* Keynote Dark — High contrast, neon accents, tech vibe */
+/* Keynote Dark — High-impact tech presentations. True black canvas,
+   electric cyan accent, neon glow effects. Think WWDC, product launches, dev conferences. */
 [data-slide-theme="keynote-dark"] {
-  --slide-bg: #0a0a0a;
+  --slide-bg: #000000;
   --slide-font-heading: -apple-system, "SF Pro Display", "Inter", sans-serif;
   --slide-font-body: -apple-system, "SF Pro Text", "Inter", sans-serif;
 
   --slide-color-h1: #ffffff;
-  --slide-color-h2: #f5f5f5;
-  --slide-color-h3: #d4d4d8;
+  --slide-color-h2: #f0f0f0;
+  --slide-color-h3: #cccccc;
   --slide-h1-size: 2.75rem;
   --slide-h1-weight: 700;
   --slide-h1-tracking: -0.02em;
@@ -14,72 +15,76 @@
   --slide-h2-weight: 600;
   --slide-h3-size: 1.5rem;
 
-  --slide-color-body: #a1a1aa;
-  --slide-color-muted: #71717a;
-  --slide-color-dimmed: #52525b;
+  --slide-color-body: #999999;
+  --slide-color-muted: #666666;
+  --slide-color-dimmed: #444444;
   --slide-body-size: 1.2rem;
   --slide-list-size: 1.1rem;
 
   --slide-accent: #00d4ff;
-  --slide-accent-light: #38e8ff;
-  --slide-accent-gradient: linear-gradient(135deg, #00d4ff, #0099cc);
+  --slide-accent-light: #4ce8ff;
+  --slide-accent-gradient: linear-gradient(135deg, #4ce8ff, #00b8d9);
 
   --slide-link-color: #00d4ff;
-  --slide-link-hover: #38e8ff;
+  --slide-link-hover: #4ce8ff;
 
-  --slide-table-border: rgba(0,212,255,0.12);
-  --slide-table-header-bg: rgba(0,212,255,0.08);
+  --slide-table-border: rgba(0,212,255,0.1);
+  --slide-table-header-bg: rgba(0,212,255,0.06);
   --slide-table-header-color: #00d4ff;
-  --slide-table-header-border: rgba(0,212,255,0.3);
-  --slide-table-cell-color: #a1a1aa;
+  --slide-table-header-border: rgba(0,212,255,0.25);
+  --slide-table-cell-color: #999999;
   --slide-table-cell-border: rgba(255,255,255,0.04);
-  --slide-table-row-hover: rgba(0,212,255,0.04);
+  --slide-table-row-hover: rgba(0,212,255,0.03);
 
   --slide-quote-border: #00d4ff;
-  --slide-quote-bg: rgba(0,212,255,0.04);
-  --slide-quote-color: #a1a1aa;
+  --slide-quote-bg: rgba(0,212,255,0.03);
+  --slide-quote-color: #999999;
 
-  --slide-code-bg: rgba(0,212,255,0.08);
-  --slide-code-color: #38e8ff;
+  --slide-code-bg: rgba(0,212,255,0.06);
+  --slide-code-color: #4ce8ff;
   --slide-pre-bg: #050505;
 
-  --slide-badge-green-bg: rgba(57,255,20,0.12);
+  --slide-badge-green-bg: rgba(57,255,20,0.1);
   --slide-badge-green-color: #39ff14;
-  --slide-badge-green-border: rgba(57,255,20,0.25);
-  --slide-badge-yellow-bg: rgba(255,215,0,0.12);
+  --slide-badge-green-border: rgba(57,255,20,0.2);
+  --slide-badge-yellow-bg: rgba(255,215,0,0.1);
   --slide-badge-yellow-color: #ffd700;
-  --slide-badge-yellow-border: rgba(255,215,0,0.25);
-  --slide-badge-red-bg: rgba(255,50,50,0.12);
+  --slide-badge-yellow-border: rgba(255,215,0,0.2);
+  --slide-badge-red-bg: rgba(255,50,50,0.1);
   --slide-badge-red-color: #ff3232;
-  --slide-badge-red-border: rgba(255,50,50,0.25);
+  --slide-badge-red-border: rgba(255,50,50,0.2);
 
-  --slide-progress-fill: linear-gradient(90deg, #00d4ff, #0099cc);
+  --slide-progress-bg: rgba(255,255,255,0.05);
+  --slide-progress-fill: linear-gradient(90deg, #00d4ff, #00b8d9);
 
-  --slide-metric-bg: rgba(0,212,255,0.04);
-  --slide-metric-border: rgba(0,212,255,0.12);
+  --slide-metric-bg: rgba(0,212,255,0.03);
+  --slide-metric-border: rgba(0,212,255,0.1);
   --slide-metric-value-color: #00d4ff;
-  --slide-metric-context-color: #71717a;
+  --slide-metric-context-color: #666666;
 
-  --slide-section-bar: linear-gradient(180deg, #00d4ff, #0099cc);
-  --slide-big-number-gradient: linear-gradient(135deg, #00d4ff 0%, #0099cc 50%, #0066aa 100%);
+  --slide-section-bar: linear-gradient(180deg, #00d4ff, #0088aa);
+  --slide-big-number-gradient: linear-gradient(135deg, #4ce8ff 0%, #00d4ff 50%, #0088aa 100%);
   --slide-quote-mark-color: #00d4ff;
-  --slide-title-subtitle-color: #71717a;
+  --slide-title-subtitle-color: #666666;
 
-  --slide-textbox-border: rgba(0,212,255,0.1);
-  --slide-textbox-color: #d4d4d8;
+  --slide-textbox-border: rgba(0,212,255,0.08);
+  --slide-textbox-color: #cccccc;
 }
 
-/* Keynote Dark — subtle glow on accent elements */
+/* Keynote Dark — cyan glow on headings */
 [data-slide-theme="keynote-dark"] .slide-content h1 {
-  text-shadow: 0 0 40px rgba(0,212,255,0.08);
+  text-shadow: 0 0 50px rgba(0,212,255,0.12), 0 0 100px rgba(0,212,255,0.04);
 }
 
-/* Keynote Dark — neon bullet markers */
+/* Keynote Dark — neon cyan bullet markers */
 [data-slide-theme="keynote-dark"] .slide-content ul li::marker {
   color: #00d4ff;
 }
 
-/* Keynote Dark — accent border on tables */
+/* Keynote Dark — accent-lined tables */
 [data-slide-theme="keynote-dark"] .slide-content table {
-  border: 1px solid rgba(0,212,255,0.15);
+  border: 1px solid rgba(0,212,255,0.12);
+}
+[data-slide-theme="keynote-dark"] .slide-content th {
+  border-bottom: 2px solid rgba(0,212,255,0.25);
 }

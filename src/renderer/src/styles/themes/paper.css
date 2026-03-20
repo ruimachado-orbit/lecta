@@ -1,13 +1,14 @@
-/* Paper — Editorial. Warm cream, serif fonts, whitepaper feel */
+/* Paper — Editorial & academic. Warm cream canvas, rich chocolate/sienna palette,
+   elegant serif fonts. Think New Yorker, whitepapers, literary presentations. */
 [data-slide-theme="paper"] {
-  --slide-bg: #faf8f5;
+  --slide-bg: #faf7f2;
   --slide-font-heading: "Playfair Display", Georgia, "Times New Roman", serif;
   --slide-font-body: "Source Serif 4", Georgia, "Times New Roman", serif;
   --slide-font-mono: "JetBrains Mono", "Courier New", monospace;
 
-  --slide-color-h1: #2c1810;
-  --slide-color-h2: #3d2518;
-  --slide-color-h3: #5a3a28;
+  --slide-color-h1: #1a0f08;
+  --slide-color-h2: #2c1a10;
+  --slide-color-h3: #4a3020;
   --slide-h1-size: 2.5rem;
   --slide-h1-weight: 700;
   --slide-h1-tracking: -0.01em;
@@ -16,74 +17,74 @@
   --slide-h3-size: 1.375rem;
   --slide-h3-weight: 500;
 
-  --slide-color-body: #4a3728;
-  --slide-color-muted: #7a6555;
-  --slide-color-dimmed: #a08878;
+  --slide-color-body: #3c2a1c;
+  --slide-color-muted: #6b5545;
+  --slide-color-dimmed: #998070;
   --slide-body-size: 1.15rem;
-  --slide-body-line-height: 1.75;
+  --slide-body-line-height: 1.8;
   --slide-list-size: 1.05rem;
 
-  --slide-accent: #8b4513;
-  --slide-accent-light: #a0522d;
-  --slide-accent-gradient: linear-gradient(135deg, #a0522d, #8b4513);
+  --slide-accent: #8b3a0e;
+  --slide-accent-light: #a84f20;
+  --slide-accent-gradient: linear-gradient(135deg, #a84f20, #8b3a0e);
 
-  --slide-link-color: #8b4513;
-  --slide-link-hover: #a0522d;
+  --slide-link-color: #8b3a0e;
+  --slide-link-hover: #a84f20;
 
-  --slide-table-border: rgba(139,69,19,0.12);
-  --slide-table-header-bg: rgba(139,69,19,0.06);
-  --slide-table-header-color: #3d2518;
-  --slide-table-header-border: rgba(139,69,19,0.2);
-  --slide-table-cell-color: #4a3728;
-  --slide-table-cell-border: rgba(139,69,19,0.08);
-  --slide-table-row-hover: rgba(139,69,19,0.03);
+  --slide-table-border: rgba(139,58,14,0.1);
+  --slide-table-header-bg: rgba(139,58,14,0.05);
+  --slide-table-header-color: #2c1a10;
+  --slide-table-header-border: rgba(139,58,14,0.18);
+  --slide-table-cell-color: #3c2a1c;
+  --slide-table-cell-border: rgba(139,58,14,0.08);
+  --slide-table-row-hover: rgba(139,58,14,0.02);
   --slide-table-radius: 0;
 
-  --slide-quote-border: #8b4513;
+  --slide-quote-border: #8b3a0e;
   --slide-quote-border-width: 3px;
-  --slide-quote-bg: rgba(139,69,19,0.03);
-  --slide-quote-color: #5a3a28;
+  --slide-quote-bg: rgba(139,58,14,0.02);
+  --slide-quote-color: #4a3020;
   --slide-quote-radius: 0;
 
-  --slide-code-bg: #f0ece8;
-  --slide-code-color: #5a3a28;
-  --slide-pre-bg: #f0ece8;
+  --slide-code-bg: #f0ebe4;
+  --slide-code-color: #4a3020;
+  --slide-pre-bg: #f0ebe4;
 
-  --slide-badge-green-bg: rgba(34,120,60,0.1);
+  --slide-badge-green-bg: rgba(34,120,60,0.08);
   --slide-badge-green-color: #15803d;
-  --slide-badge-green-border: rgba(34,120,60,0.2);
-  --slide-badge-yellow-bg: rgba(161,120,20,0.1);
-  --slide-badge-yellow-color: #a17814;
-  --slide-badge-yellow-border: rgba(161,120,20,0.2);
-  --slide-badge-red-bg: rgba(180,40,40,0.1);
+  --slide-badge-green-border: rgba(34,120,60,0.16);
+  --slide-badge-yellow-bg: rgba(161,120,20,0.08);
+  --slide-badge-yellow-color: #92680e;
+  --slide-badge-yellow-border: rgba(161,120,20,0.16);
+  --slide-badge-red-bg: rgba(180,40,40,0.08);
   --slide-badge-red-color: #b42828;
-  --slide-badge-red-border: rgba(180,40,40,0.2);
+  --slide-badge-red-border: rgba(180,40,40,0.16);
 
-  --slide-progress-bg: #e8e0d8;
-  --slide-progress-fill: linear-gradient(90deg, #8b4513, #a0522d);
+  --slide-progress-bg: #e8dfd5;
+  --slide-progress-fill: linear-gradient(90deg, #8b3a0e, #a84f20);
 
-  --slide-metric-bg: rgba(139,69,19,0.03);
-  --slide-metric-border: rgba(139,69,19,0.1);
-  --slide-metric-value-color: #2c1810;
-  --slide-metric-context-color: #7a6555;
+  --slide-metric-bg: rgba(139,58,14,0.02);
+  --slide-metric-border: rgba(139,58,14,0.08);
+  --slide-metric-value-color: #1a0f08;
+  --slide-metric-context-color: #6b5545;
 
-  --slide-section-bar: linear-gradient(180deg, #8b4513, #6b3410);
-  --slide-big-number-gradient: linear-gradient(135deg, #8b4513 0%, #a0522d 50%, #cd853f 100%);
-  --slide-quote-mark-color: #8b4513;
-  --slide-title-subtitle-color: #7a6555;
+  --slide-section-bar: linear-gradient(180deg, #8b3a0e, #6b2808);
+  --slide-big-number-gradient: linear-gradient(135deg, #a84f20 0%, #8b3a0e 50%, #c47035 100%);
+  --slide-quote-mark-color: #8b3a0e;
+  --slide-title-subtitle-color: #6b5545;
 
   --slide-heading-mb: 1.75rem;
   --slide-paragraph-mb: 1.25rem;
   --slide-element-radius: 0;
 
-  --slide-textbox-border: rgba(139,69,19,0.1);
-  --slide-textbox-color: #4a3728;
+  --slide-textbox-border: rgba(139,58,14,0.08);
+  --slide-textbox-color: #3c2a1c;
 }
 
-/* Paper — thin rule under H1 */
+/* Paper — elegant thin rule under H1 */
 [data-slide-theme="paper"] .slide-content h1 {
   padding-bottom: 0.75rem;
-  border-bottom: 1px solid rgba(139,69,19,0.15);
+  border-bottom: 1px solid rgba(139,58,14,0.15);
 }
 [data-slide-theme="paper"] .slide-layout-title .slide-content h1,
 [data-slide-theme="paper"] .slide-layout-big-number .slide-content h1,
@@ -92,12 +93,18 @@
   padding-bottom: 0;
 }
 
-/* Paper — em-dash bullets */
+/* Paper — em-dash bullets for editorial feel */
 [data-slide-theme="paper"] .slide-content ul li {
   list-style-type: "— ";
 }
+[data-slide-theme="paper"] .slide-content ul li::marker {
+  color: #998070;
+}
 
-/* Paper — no border-radius on tables */
+/* Paper — zero border-radius on everything */
 [data-slide-theme="paper"] .slide-content table {
+  border-radius: 0;
+}
+[data-slide-theme="paper"] .slide-content pre {
   border-radius: 0;
 }

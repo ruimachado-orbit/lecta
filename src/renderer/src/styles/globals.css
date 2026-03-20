@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "./themes/_base.css";
+@import "./themes/light.css";
 @import "./themes/executive.css";
 @import "./themes/minimal.css";
 @import "./themes/corporate.css";
@@ -311,22 +312,26 @@ html[data-theme="light"] .slide-content hr { border-color: #e2e8f0; }
 }
 
 /* Light theme overrides */
+[data-slide-theme="light"] .flow-node,
 [data-slide-theme="minimal"] .flow-node,
 [data-slide-theme="corporate"] .flow-node,
 [data-slide-theme="paper"] .flow-node {
   fill: rgba(0,0,0,0.03);
   stroke: rgba(0,0,0,0.12);
 }
+[data-slide-theme="light"] .flow-node-text,
 [data-slide-theme="minimal"] .flow-node-text,
 [data-slide-theme="corporate"] .flow-node-text,
 [data-slide-theme="paper"] .flow-node-text {
   fill: rgba(0,0,0,0.8);
 }
+[data-slide-theme="light"] .flow-edge,
 [data-slide-theme="minimal"] .flow-edge,
 [data-slide-theme="corporate"] .flow-edge,
 [data-slide-theme="paper"] .flow-edge {
   stroke: rgba(0,0,0,0.15);
 }
+[data-slide-theme="light"] .flow-arrow-head,
 [data-slide-theme="minimal"] .flow-arrow-head,
 [data-slide-theme="corporate"] .flow-arrow-head,
 [data-slide-theme="paper"] .flow-arrow-head {
@@ -334,16 +339,16 @@ html[data-theme="light"] .slide-content hr { border-color: #e2e8f0; }
 }
 
 /* Theme accent overrides */
-[data-slide-theme="executive"] .flow-node { stroke: rgba(212,168,67,0.2); }
-[data-slide-theme="executive"] .flow-arrow-head { fill: rgba(212,168,67,0.4); }
+[data-slide-theme="executive"] .flow-node { stroke: rgba(201,162,39,0.2); }
+[data-slide-theme="executive"] .flow-arrow-head { fill: rgba(201,162,39,0.4); }
 [data-slide-theme="creative"] .flow-node { stroke: rgba(139,92,246,0.2); }
 [data-slide-theme="creative"] .flow-arrow-head { fill: rgba(139,92,246,0.4); }
 [data-slide-theme="keynote-dark"] .flow-node { stroke: rgba(0,212,255,0.15); }
 [data-slide-theme="keynote-dark"] .flow-arrow-head { fill: rgba(0,212,255,0.35); }
-[data-slide-theme="corporate"] .flow-node { stroke: rgba(37,99,235,0.15); }
-[data-slide-theme="corporate"] .flow-arrow-head { fill: rgba(37,99,235,0.3); }
-[data-slide-theme="paper"] .flow-node { stroke: rgba(139,69,19,0.12); }
-[data-slide-theme="paper"] .flow-arrow-head { fill: rgba(139,69,19,0.25); }
+[data-slide-theme="corporate"] .flow-node { stroke: rgba(29,78,216,0.15); }
+[data-slide-theme="corporate"] .flow-arrow-head { fill: rgba(29,78,216,0.3); }
+[data-slide-theme="paper"] .flow-node { stroke: rgba(139,58,14,0.12); }
+[data-slide-theme="paper"] .flow-arrow-head { fill: rgba(139,58,14,0.25); }
 
 /* Mermaid fallback (for complex diagrams) */
 .mermaid-diagram {

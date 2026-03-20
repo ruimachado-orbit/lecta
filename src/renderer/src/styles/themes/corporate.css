@@ -1,12 +1,13 @@
-/* Corporate — Professional blue/navy. Business presentations */
+/* Corporate — Professional business deck. White canvas, navy headings,
+   strong blue accent. Think enterprise annual reports, board decks, investor pitches. */
 [data-slide-theme="corporate"] {
   --slide-bg: #ffffff;
   --slide-font-heading: "Inter", -apple-system, sans-serif;
   --slide-font-body: "Inter", -apple-system, sans-serif;
 
-  --slide-color-h1: #1a365d;
-  --slide-color-h2: #1e3a5f;
-  --slide-color-h3: #2d4a7c;
+  --slide-color-h1: #0f2044;
+  --slide-color-h2: #142952;
+  --slide-color-h3: #1e3a6e;
   --slide-h1-size: 2.25rem;
   --slide-h1-weight: 700;
   --slide-h1-tracking: -0.015em;
@@ -20,79 +21,91 @@
   --slide-body-size: 1.15rem;
   --slide-list-size: 1.05rem;
 
-  --slide-accent: #2563eb;
+  --slide-accent: #1d4ed8;
   --slide-accent-light: #3b82f6;
-  --slide-accent-gradient: linear-gradient(135deg, #3b82f6, #2563eb);
+  --slide-accent-gradient: linear-gradient(135deg, #3b82f6, #1d4ed8);
 
-  --slide-link-color: #2563eb;
-  --slide-link-hover: #1d4ed8;
+  --slide-link-color: #1d4ed8;
+  --slide-link-hover: #2563eb;
 
-  --slide-table-border: rgba(37,99,235,0.1);
-  --slide-table-header-bg: #1a365d;
+  --slide-table-border: rgba(29,78,216,0.08);
+  --slide-table-header-bg: #0f2044;
   --slide-table-header-color: #ffffff;
-  --slide-table-header-border: #1a365d;
+  --slide-table-header-border: #0f2044;
   --slide-table-cell-color: #374151;
   --slide-table-cell-border: #e5e7eb;
-  --slide-table-row-hover: rgba(37,99,235,0.04);
+  --slide-table-row-hover: rgba(29,78,216,0.03);
   --slide-table-radius: 0.5rem;
 
-  --slide-quote-border: #2563eb;
+  --slide-quote-border: #1d4ed8;
   --slide-quote-border-width: 4px;
-  --slide-quote-bg: rgba(37,99,235,0.04);
+  --slide-quote-bg: rgba(29,78,216,0.03);
   --slide-quote-color: #374151;
 
-  --slide-code-bg: #f0f4ff;
-  --slide-code-color: #1a365d;
+  --slide-code-bg: #eef2ff;
+  --slide-code-color: #0f2044;
   --slide-pre-bg: #f8fafc;
 
-  --slide-badge-green-bg: rgba(34,197,94,0.1);
+  --slide-badge-green-bg: rgba(34,197,94,0.08);
   --slide-badge-green-color: #16a34a;
-  --slide-badge-green-border: rgba(34,197,94,0.2);
-  --slide-badge-yellow-bg: rgba(234,179,8,0.1);
+  --slide-badge-green-border: rgba(34,197,94,0.18);
+  --slide-badge-yellow-bg: rgba(234,179,8,0.08);
   --slide-badge-yellow-color: #b45309;
-  --slide-badge-yellow-border: rgba(234,179,8,0.2);
-  --slide-badge-red-bg: rgba(239,68,68,0.1);
+  --slide-badge-yellow-border: rgba(234,179,8,0.18);
+  --slide-badge-red-bg: rgba(239,68,68,0.08);
   --slide-badge-red-color: #dc2626;
-  --slide-badge-red-border: rgba(239,68,68,0.2);
+  --slide-badge-red-border: rgba(239,68,68,0.18);
 
   --slide-progress-bg: #e5e7eb;
-  --slide-progress-fill: linear-gradient(90deg, #3b82f6, #2563eb);
+  --slide-progress-fill: linear-gradient(90deg, #3b82f6, #1d4ed8);
 
-  --slide-metric-bg: rgba(37,99,235,0.04);
-  --slide-metric-border: rgba(37,99,235,0.12);
-  --slide-metric-value-color: #1a365d;
+  --slide-metric-bg: rgba(29,78,216,0.03);
+  --slide-metric-border: rgba(29,78,216,0.1);
+  --slide-metric-value-color: #0f2044;
   --slide-metric-context-color: #6b7280;
 
-  --slide-section-bar: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
-  --slide-big-number-gradient: linear-gradient(135deg, #2563eb 0%, #1d4ed8 50%, #1e40af 100%);
-  --slide-quote-mark-color: #2563eb;
+  --slide-section-bar: linear-gradient(180deg, #1d4ed8 0%, #1e3a8a 100%);
+  --slide-big-number-gradient: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 50%, #1e3a8a 100%);
+  --slide-quote-mark-color: #1d4ed8;
   --slide-title-subtitle-color: #6b7280;
 
-  --slide-textbox-border: rgba(0,0,0,0.08);
+  --slide-textbox-border: rgba(0,0,0,0.06);
   --slide-textbox-color: #374151;
 }
 
-/* Corporate top accent bar on every slide */
+/* Corporate — strong blue accent bar across top of every slide */
 [data-slide-theme="corporate"] .slide-content::before {
   content: '';
   position: absolute;
   top: -48px;
   left: -48px;
   right: -48px;
-  height: 4px;
-  background: linear-gradient(90deg, #2563eb, #1d4ed8);
+  height: 5px;
+  background: linear-gradient(90deg, #1d4ed8, #3b82f6);
 }
 
-/* Corporate bullets */
+/* Corporate bullets — blue disc markers */
 [data-slide-theme="corporate"] .slide-content ul li {
   list-style-type: disc;
   color: #374151;
 }
 [data-slide-theme="corporate"] .slide-content ul li::marker {
-  color: #2563eb;
+  color: #1d4ed8;
 }
 
-/* Corporate alternating table rows */
+/* Corporate — alternating table rows for readability */
 [data-slide-theme="corporate"] .slide-content tr:nth-child(even) td {
-  background: rgba(37,99,235,0.03);
+  background: rgba(29,78,216,0.02);
+}
+
+/* Corporate — navy bottom rule on H1 for structure */
+[data-slide-theme="corporate"] .slide-content h1 {
+  padding-bottom: 0.5rem;
+  border-bottom: 3px solid #1d4ed8;
+}
+[data-slide-theme="corporate"] .slide-layout-title .slide-content h1,
+[data-slide-theme="corporate"] .slide-layout-big-number .slide-content h1,
+[data-slide-theme="corporate"] .slide-layout-center .slide-content h1 {
+  border-bottom: none;
+  padding-bottom: 0;
 }

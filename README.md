@@ -330,7 +330,7 @@ Contributions are welcome! Please read our [Contributing Guide](.github/CONTRIBU
 All PRs require approval from at least one code owner:
 - [@ruimachado-orbit](https://github.com/ruimachado-orbit) (Rui Machado)
 - [@DiogoAntunesOliveira](https://github.com/DiogoAntunesOliveira) (Diogo Antunes Oliveira)
-- [@PedroFerreira](https://github.com/PedroFerreira) (Pedro Ferreira)
+- [@PedroFerreira](https://github.com/pedroferreira26) (Pedro Ferreira)
 
 For security vulnerabilities, see our [Security Policy](.github/SECURITY.md).
 

@@ -226,8 +226,8 @@ export function SlidePanel(): JSX.Element {
             saveSlideContent={saveSlideContent}
             wysiwygHeaderSlot={wysiwygHeaderSlot}
           />
-        ) : editingSlide && editorMode === 'wysiwyg' ? (
-          /* WYSIWYG: single canvas */
+        ) : editingSlide && editorMode === 'wysiwyg' && subSlides.length <= 1 ? (
+          /* WYSIWYG: single canvas (no sub-slides) */
           <EditableSlideCanvas slideIndex={currentSlideIndex} breakOffsets={breakOffsets} rootPath={presentation?.rootPath} layout={currentSlide.config.layout} wysiwygHeaderSlot={wysiwygHeaderSlot} />
         ) : editingSlide && editorMode === 'markdown' ? (
           /* Markdown: split view — canvas top, editor bottom */
@@ -742,7 +742,7 @@ function SubSlideStackEditor({ subSlides, currentSubSlide, setCurrentSubSlide, s
                   /* Other sub-slides: read-only preview */
                   <div className={`absolute inset-0 ${layout === 'blank' ? '' : 'p-12'} overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
                     <div className="slide-content max-w-none" style={{ width: layout === 'blank' ? SLIDE_W : SLIDE_W - 96 }}>
-                      <SlideRenderer markdown={sub.markdown} rootPath={rootPath} />
+                      <SlideRenderer markdown={sub.markdown} rootPath={presentation?.rootPath} />
                     </div>
                   </div>
                 )}

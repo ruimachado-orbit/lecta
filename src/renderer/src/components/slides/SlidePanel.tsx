@@ -653,6 +653,16 @@ function SubSlideStackEditor({ subSlides, currentSubSlide, setCurrentSubSlide, s
     saveSlideContent(slideIndex)
   }, [currentSlide.markdownContent, slideIndex, updateMarkdownContent, saveSlideContent])
 
+  // Auto-scroll to active sub-slide when it changes
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    const el = container.querySelector(`[data-subslide-index="${currentSubSlide}"]`) as HTMLElement | null
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [currentSubSlide])
+
   return (
     <div ref={containerRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-4 bg-neutral-800 relative"
       data-slide-theme={slideTheme}>
@@ -685,7 +695,7 @@ function SubSlideStackEditor({ subSlides, currentSubSlide, setCurrentSubSlide, s
       </div>
       <div className="flex flex-col items-center gap-6 px-4">
         {subSlides.map((sub, i) => (
-          <div key={`slide-${slideIndex}-sub-${sub.index}`} className="w-full flex flex-col items-center">
+          <div key={`slide-${slideIndex}-sub-${sub.index}`} data-subslide-index={i} className="w-full flex flex-col items-center">
             {/* Sub-slide label */}
             <div className="flex items-center gap-2 mb-1.5">
               <span className={`text-[10px] font-mono px-2 py-0.5 rounded ${

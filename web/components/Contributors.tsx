@@ -55,7 +55,7 @@ export default function Contributors() {
     <section className="contributorsSection">
       <div className="container">
         <Reveal><span className="secLabel">Open Source</span></Reveal>
-        <Reveal><h2 className="secTitle">Built by <em>orbit.</em></h2></Reveal>
+        <Reveal><h2 className="secTitle">Built by <a href="https://orbitplatform.ai" target="_blank" rel="noopener noreferrer"><em>orbit.</em></a></h2></Reveal>
 
         <Reveal delay={1}>
           <div className="avatarRow">

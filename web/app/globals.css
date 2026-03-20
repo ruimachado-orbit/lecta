@@ -527,6 +527,8 @@ section { padding: 6rem 0; }
   margin-bottom: 3.5rem;
 }
 .secTitle em { font-style: italic; }
+.secTitle a { color: inherit; text-decoration: none; }
+.secTitle a:hover { text-decoration: underline; text-underline-offset: 4px; }
 
 /* ── Features ── */
 .featureGrid {
@@ -624,6 +626,87 @@ section { padding: 6rem 0; }
   color: var(--dark-text);
   margin-bottom: 2.25rem;
   line-height: 1.15;
+}
+
+/* ── Install steps ── */
+.installSteps {
+  margin-top: 2.5rem;
+  max-width: 640px;
+  margin-left: auto;
+  margin-right: auto;
+  text-align: left;
+}
+.installTabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid rgba(255,255,255,0.12);
+  margin-bottom: 1.25rem;
+}
+.installTab {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.45);
+  font-family: var(--font-body, Lora, serif);
+  font-size: 0.85rem;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.2s, border-color 0.2s;
+}
+.installTab:hover { color: rgba(255,255,255,0.7); }
+.installTabActive {
+  color: var(--dark-text);
+  border-bottom-color: var(--dark-text);
+}
+.installPanel { margin-top: 0.25rem; }
+.installMutedDark {
+  font-size: 0.825rem;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+  line-height: 1.5;
+}
+.installMutedCream {
+  font-size: 0.825rem;
+  color: rgba(255,255,255,0.5);
+  margin-bottom: 0.75rem;
+  line-height: 1.5;
+}
+.copyBlock {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+}
+.copyCode {
+  flex: 1;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.775rem;
+  color: rgba(255,255,255,0.85);
+  white-space: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.copyCode::-webkit-scrollbar { display: none; }
+.copyBtn {
+  flex-shrink: 0;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 5px;
+  color: rgba(255,255,255,0.6);
+  padding: 0.35rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, color 0.2s;
+}
+.copyBtn:hover {
+  background: rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.9);
 }
 
 /* ── Footer ── */
@@ -972,12 +1055,15 @@ footer {
   .presenterGrid  { grid-template-columns: 1fr; }
 }
 @media (max-width: 640px) {
-  .featureGrid { grid-template-columns: 1fr; }
-  .windowBody  { grid-template-columns: 1fr; }
-  .codePane    { display: none; }
-  .footerInner { flex-direction: column; gap: 1.25rem; text-align: center; }
-  .footerLinks { flex-direction: column; gap: 0.5rem; text-align: center; align-items: center; }
+  .featureGrid  { grid-template-columns: 1fr; }
+  .windowBody   { grid-template-columns: 1fr; }
+  .codePane     { display: none; }
+  .mockupRight  { min-height: 220px; }
+  .slidePaneWrap { border-bottom: 1px solid #262422; border-right: none; }
+  .footerInner  { flex-direction: column; gap: 1.25rem; text-align: center; }
+  .footerLinks  { flex-direction: column; gap: 0.5rem; text-align: center; align-items: center; }
   .navLinks .btnPillSm { display: none; }
+  .navStars     { display: none; }
   .heroCtas .btnDark,
   .heroCtas .btnGhost { min-width: 0; width: 100%; }
 }

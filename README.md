@@ -85,14 +85,19 @@ API keys are configured per-provider in Settings with live validation, or per-de
 - **Dark/light mode** — system-wide theme toggle
 - **Keyboard driven** — arrow keys to navigate, `Cmd+Enter` to run, `F5` to present
 
-## Quick Start
+## Install
 
-### Prerequisites
+### macOS (one-liner)
 
-- [Node.js](https://nodejs.org/) 20+
-- [pnpm](https://pnpm.io/) 9+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ruimachado-orbit/lecta/main/install.sh | bash
+```
 
-### Install and Run
+This downloads the latest release, installs it to `/Applications`, and handles macOS Gatekeeper automatically.
+
+### From Source
+
+Prerequisites: [Node.js](https://nodejs.org/) 20+, [pnpm](https://pnpm.io/) 9+
 
 ```bash
 git clone git@github.com:ruimachado-orbit/lecta.git
@@ -277,9 +282,37 @@ make package-linux  # Linux AppImage
 make lint
 make format
 
+# Type check
+make typecheck
+
 # Clean build artifacts
 make clean
 ```
+
+## Releasing
+
+Releases are published to [GitHub Releases](https://github.com/ruimachado-orbit/lecta/releases) with macOS DMGs attached.
+
+```bash
+# Release current version (build + package + tag + upload DMGs)
+make release
+
+# Bump version and release (picks one)
+make bump-patch     # 0.1.0 → 0.1.1
+make bump-minor     # 0.1.0 → 0.2.0
+make bump-major     # 0.1.0 → 1.0.0
+```
+
+Each bump command automatically:
+1. Updates the version in `package.json` and `web/lib/config.ts`
+2. Commits and pushes the version change
+3. Builds the app and packages macOS DMGs (arm64 + x64)
+4. Creates a git tag and GitHub release with the DMGs attached
+
+> **Note:** The app is not yet code-signed with an Apple Developer certificate. The install script (`install.sh`) handles macOS Gatekeeper automatically. If installing manually from the DMG, run:
+> ```bash
+> xattr -cr /Applications/Lecta.app
+> ```
 
 ## Security
 
@@ -292,13 +325,14 @@ make clean
 
 ## Contributing
 
-Contributions are welcome! Please open an issue or submit a pull request.
+Contributions are welcome! Please read our [Contributing Guide](.github/CONTRIBUTING.md) before submitting a pull request.
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/my-feature`)
-3. Commit your changes
-4. Push to the branch (`git push origin feature/my-feature`)
-5. Open a Pull Request
+All PRs require approval from at least one code owner:
+- [@ruimachado-orbit](https://github.com/ruimachado-orbit) (Rui Machado)
+- [@DiogoAntunesOliveira](https://github.com/DiogoAntunesOliveira) (Diogo Antunes Oliveira)
+- [@PedroFerreira](https://github.com/PedroFerreira) (Pedro Ferreira)
+
+For security vulnerabilities, see our [Security Policy](.github/SECURITY.md).
 
 ## License
 

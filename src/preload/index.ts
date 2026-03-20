@@ -279,6 +279,16 @@ const api = {
   setAppSettings: (settings: Record<string, unknown>): Promise<void> =>
     ipcRenderer.invoke('settings:set', settings),
 
+  // MCP Server
+  mcpToggle: (enabled: boolean): Promise<{ running: boolean }> =>
+    ipcRenderer.invoke('mcp:toggle', enabled),
+  mcpStatus: (): Promise<{ enabled: boolean; running: boolean; inClaudeDesktop: boolean }> =>
+    ipcRenderer.invoke('mcp:status'),
+  mcpAddToClaude: (): Promise<{ success: boolean; message: string }> =>
+    ipcRenderer.invoke('mcp:add-to-claude'),
+  mcpRemoveFromClaude: (): Promise<{ success: boolean; message: string }> =>
+    ipcRenderer.invoke('mcp:remove-from-claude'),
+
   // Notebook
   loadNotebook: (folderPath: string): Promise<any> =>
     ipcRenderer.invoke('nb:load', folderPath),
@@ -304,6 +314,18 @@ const api = {
     ipcRenderer.invoke('nb:unarchive-note', rootPath, noteId),
   saveNoteContent: (rootPath: string, contentPath: string, content: string): Promise<void> =>
     ipcRenderer.invoke('nb:save-content', rootPath, contentPath, content),
+  setDefaultLayout: (rootPath: string, layout: string): Promise<any> =>
+    ipcRenderer.invoke('nb:set-default-layout', rootPath, layout),
+  setKernel: (rootPath: string, kernel: string): Promise<any> =>
+    ipcRenderer.invoke('nb:set-kernel', rootPath, kernel),
+  reorderNote: (rootPath: string, fromIndex: number, toIndex: number): Promise<any> =>
+    ipcRenderer.invoke('nb:reorder-note', rootPath, fromIndex, toIndex),
+  updateCellOutputs: (rootPath: string, noteId: string, outputs: any[]): Promise<any> =>
+    ipcRenderer.invoke('nb:update-outputs', rootPath, noteId, outputs),
+  toggleCellType: (rootPath: string, noteId: string): Promise<any> =>
+    ipcRenderer.invoke('nb:toggle-cell-type', rootPath, noteId),
+  addCell: (rootPath: string, afterIndex: number, cellType: string): Promise<any> =>
+    ipcRenderer.invoke('nb:add-cell', rootPath, afterIndex, cellType),
 
   // Import slides from another .lecta file
   importSlides: (): Promise<{ id: string; markdown: string; layout?: string }[] | null> =>
@@ -374,6 +396,10 @@ const api = {
   },
   chatConfirmAction: (toolCallId: string, approved: boolean): Promise<void> =>
     ipcRenderer.invoke('chat:confirm-action', toolCallId, approved),
+
+  // Window management
+  newWindow: (): Promise<void> =>
+    ipcRenderer.invoke('window:new'),
 
   // Remove listeners
   removeAllListeners: (channel: string): void => {

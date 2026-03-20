@@ -7,6 +7,7 @@ export default function Footer() {
       <div className="footerInner">
         <Link href="/" className="footerWordmark">lecta</Link>
         <div className="footerLinks">
+          <Link href="/docs">Docs</Link>
           <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">GitHub</a>
           <a href={`${RELEASES_URL}`} target="_blank" rel="noopener noreferrer">Releases</a>
           <a href={`${GITHUB_URL}/issues`} target="_blank" rel="noopener noreferrer">Issues</a>

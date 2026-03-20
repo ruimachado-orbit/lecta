@@ -12,8 +12,28 @@ import type {
   LoadedNotebook,
   Notebook,
   NoteConfig,
-  NoteLayout
+  NoteLayout,
+  CellType,
+  CellOutput,
+  NotebookKernel
 } from '../../../packages/shared/src/types/notebook'
+import type { SupportedLanguage, ExecutionEngine } from '../../../packages/shared/src/types/presentation'
+
+/** Map a kernel name to language, execution engine, and file extension */
+function kernelToCodeConfig(kernel: NotebookKernel | undefined): {
+  language: SupportedLanguage; execution: ExecutionEngine; ext: string
+} {
+  switch (kernel) {
+    case 'javascript': return { language: 'javascript', execution: 'sandpack', ext: '.js' }
+    case 'typescript': return { language: 'typescript', execution: 'sandpack', ext: '.ts' }
+    case 'sql':        return { language: 'sql', execution: 'sql', ext: '.sql' }
+    case 'bash':       return { language: 'bash', execution: 'native', ext: '.sh' }
+    case 'go':         return { language: 'go', execution: 'native', ext: '.go' }
+    case 'rust':       return { language: 'rust', execution: 'native', ext: '.rs' }
+    case 'python':
+    default:           return { language: 'python', execution: 'pyodide', ext: '.py' }
+  }
+}
 
 /** Write the notebook config back to lecta.yaml */
 async function saveNotebookYaml(notebook: Notebook): Promise<void> {
@@ -30,6 +50,9 @@ async function saveNotebookYaml(notebook: Notebook): Promise<void> {
     if (n.code) note.code = n.code
     if (n.video) note.video = n.video
     if (n.webapp) note.webapp = n.webapp
+    if (n.cellType) note.cellType = n.cellType
+    if (n.cellIndex != null) note.cellIndex = n.cellIndex
+    if (n.outputs && n.outputs.length > 0) note.outputs = n.outputs
     note.artifacts = n.artifacts
     if (n.children && n.children.length > 0) {
       note.children = n.children.map(serializeNote)
@@ -43,6 +66,8 @@ async function saveNotebookYaml(notebook: Notebook): Promise<void> {
     author: notebook.author,
     theme: notebook.theme,
     defaultLayout: notebook.defaultLayout,
+    ...(notebook.sourceFormat ? { sourceFormat: notebook.sourceFormat } : {}),
+    ...(notebook.kernel ? { kernel: notebook.kernel } : {}),
     ...(notebook.lastViewedIndex != null && notebook.lastViewedIndex > 0 ? { lastViewedIndex: notebook.lastViewedIndex } : {}),
     pages: notebook.pages.map(serializeNote)
   }
@@ -448,6 +473,42 @@ export function registerNotebookHandlers(): void {
     }
   )
 
+  // Set notebook default layout (persists to YAML)
+  ipcMain.handle(
+    'nb:set-default-layout',
+    async (_event, rootPath: string, layout: string): Promise<LoadedNotebook> => {
+      const configPath = join(rootPath, DECK_CONFIG_FILE)
+      const yamlContent = await readFile(configPath, 'utf-8')
+      const config = parseNotebookYaml(yamlContent, rootPath)
+
+      config.defaultLayout = layout as NoteLayout
+      await saveNotebookYaml(config)
+
+      const reloaded = await readFile(configPath, 'utf-8')
+      const reloadedConfig = parseNotebookYaml(reloaded, rootPath)
+      const pages = await loadAllNotes(reloadedConfig)
+      return { config: reloadedConfig, pages }
+    }
+  )
+
+  // Set notebook kernel (persists to YAML)
+  ipcMain.handle(
+    'nb:set-kernel',
+    async (_event, rootPath: string, kernel: string): Promise<LoadedNotebook> => {
+      const configPath = join(rootPath, DECK_CONFIG_FILE)
+      const yamlContent = await readFile(configPath, 'utf-8')
+      const config = parseNotebookYaml(yamlContent, rootPath)
+
+      config.kernel = kernel as any
+      await saveNotebookYaml(config)
+
+      const reloaded = await readFile(configPath, 'utf-8')
+      const reloadedConfig = parseNotebookYaml(reloaded, rootPath)
+      const pages = await loadAllNotes(reloadedConfig)
+      return { config: reloadedConfig, pages }
+    }
+  )
+
   // Save note content (write markdown to disk + autoSave)
   ipcMain.handle(
     'nb:save-content',
@@ -455,6 +516,163 @@ export function registerNotebookHandlers(): void {
       const fullPath = join(rootPath, contentPath)
       await writeFile(fullPath, content, 'utf-8')
       await autoSave(rootPath)
+    }
+  )
+
+  // Reorder a note (move from one index to another in the top-level pages array)
+  ipcMain.handle(
+    'nb:reorder-note',
+    async (_event, rootPath: string, fromIndex: number, toIndex: number): Promise<LoadedNotebook> => {
+      const configPath = join(rootPath, DECK_CONFIG_FILE)
+      const yamlContent = await readFile(configPath, 'utf-8')
+      const config = parseNotebookYaml(yamlContent, rootPath)
+
+      if (fromIndex < 0 || fromIndex >= config.pages.length || toIndex < 0 || toIndex >= config.pages.length) {
+        throw new Error(`Invalid reorder indices: ${fromIndex} -> ${toIndex}`)
+      }
+
+      const [moved] = config.pages.splice(fromIndex, 1)
+      config.pages.splice(toIndex, 0, moved)
+
+      // Update cellIndex values to reflect new order
+      config.pages.forEach((page, i) => {
+        if (page.cellIndex != null) page.cellIndex = i
+      })
+
+      await saveNotebookYaml(config)
+
+      const reloaded = await readFile(configPath, 'utf-8')
+      const reloadedConfig = parseNotebookYaml(reloaded, rootPath)
+      const pages = await loadAllNotes(reloadedConfig)
+      return { config: reloadedConfig, pages }
+    }
+  )
+
+  // Update cell outputs
+  ipcMain.handle(
+    'nb:update-outputs',
+    async (_event, rootPath: string, noteId: string, outputs: CellOutput[]): Promise<LoadedNotebook> => {
+      const configPath = join(rootPath, DECK_CONFIG_FILE)
+      const yamlContent = await readFile(configPath, 'utf-8')
+      const config = parseNotebookYaml(yamlContent, rootPath)
+
+      function updateOutputs(notes: NoteConfig[]): boolean {
+        for (const note of notes) {
+          if (note.id === noteId) {
+            note.outputs = outputs
+            return true
+          }
+          if (note.children && updateOutputs(note.children)) return true
+        }
+        return false
+      }
+
+      updateOutputs(config.pages)
+      await saveNotebookYaml(config)
+
+      const reloaded = await readFile(configPath, 'utf-8')
+      const reloadedConfig = parseNotebookYaml(reloaded, rootPath)
+      const pages = await loadAllNotes(reloadedConfig)
+      return { config: reloadedConfig, pages }
+    }
+  )
+
+  // Toggle cell type between markdown and code
+  ipcMain.handle(
+    'nb:toggle-cell-type',
+    async (_event, rootPath: string, noteId: string): Promise<LoadedNotebook> => {
+      const configPath = join(rootPath, DECK_CONFIG_FILE)
+      const yamlContent = await readFile(configPath, 'utf-8')
+      const config = parseNotebookYaml(yamlContent, rootPath)
+
+      function toggle(notes: NoteConfig[]): boolean {
+        for (const note of notes) {
+          if (note.id === noteId) {
+            if (note.cellType === 'code') {
+              // Switch to markdown — remove code block
+              note.cellType = 'markdown'
+              delete note.code
+              note.outputs = undefined
+            } else {
+              // Switch to code — use the notebook's kernel language
+              const kc = kernelToCodeConfig(config.kernel)
+              note.cellType = 'code'
+              const codeFile = `code/${noteId}${kc.ext}`
+              note.code = {
+                file: codeFile,
+                language: kc.language,
+                execution: kc.execution
+              }
+              // Create the code file if it doesn't exist
+              const codePath = join(rootPath, codeFile)
+              mkdir(join(rootPath, 'code'), { recursive: true })
+                .then(() => writeFile(codePath, '', 'utf-8'))
+                .catch(() => {})
+            }
+            return true
+          }
+          if (note.children && toggle(note.children)) return true
+        }
+        return false
+      }
+
+      toggle(config.pages)
+      await saveNotebookYaml(config)
+
+      const reloaded = await readFile(configPath, 'utf-8')
+      const reloadedConfig = parseNotebookYaml(reloaded, rootPath)
+      const pages = await loadAllNotes(reloadedConfig)
+      return { config: reloadedConfig, pages }
+    }
+  )
+
+  // Add a cell after a given index (for Jupyter-style notebooks)
+  ipcMain.handle(
+    'nb:add-cell',
+    async (_event, rootPath: string, afterIndex: number, cellType: CellType): Promise<LoadedNotebook> => {
+      const configPath = join(rootPath, DECK_CONFIG_FILE)
+      const yamlContent = await readFile(configPath, 'utf-8')
+      const config = parseNotebookYaml(yamlContent, rootPath)
+
+      const cellNum = String(config.pages.length + 1).padStart(2, '0')
+      const cellId = `cell-${cellNum}`
+      const mdPath = `pages/${cellId}.md`
+
+      await mkdir(join(rootPath, 'pages'), { recursive: true })
+
+      const newNote: NoteConfig = {
+        id: cellId,
+        content: mdPath,
+        cellType,
+        cellIndex: afterIndex + 1,
+        createdAt: new Date().toISOString(),
+        artifacts: []
+      }
+
+      if (cellType === 'code') {
+        const kc = kernelToCodeConfig(config.kernel)
+        const codeFile = `code/${cellId}${kc.ext}`
+        await mkdir(join(rootPath, 'code'), { recursive: true })
+        await writeFile(join(rootPath, codeFile), '', 'utf-8')
+        await writeFile(join(rootPath, mdPath), `<!-- Code Cell -->\n`, 'utf-8')
+        newNote.code = { file: codeFile, language: kc.language, execution: kc.execution }
+      } else {
+        await writeFile(join(rootPath, mdPath), '', 'utf-8')
+      }
+
+      config.pages.splice(afterIndex + 1, 0, newNote)
+
+      // Re-index cells
+      config.pages.forEach((page, i) => {
+        if (page.cellIndex != null) page.cellIndex = i
+      })
+
+      await saveNotebookYaml(config)
+
+      const reloaded = await readFile(configPath, 'utf-8')
+      const reloadedConfig = parseNotebookYaml(reloaded, rootPath)
+      const pages = await loadAllNotes(reloadedConfig)
+      return { config: reloadedConfig, pages }
     }
   )
 }

@@ -5,6 +5,7 @@ import { NotePanel } from './NotePanel'
 import { NoteNavigator } from './NoteNavigator'
 import { NoteMap } from './NoteMap'
 import { AgendaView } from './AgendaView'
+import { JupyterView } from './JupyterView'
 import { TabBar } from '../layout/TabBar'
 import { ArtifactDrawer } from '../artifacts/ArtifactDrawer'
 import { CodePanel } from '../code/CodePanel'
@@ -13,12 +14,19 @@ import { WebPanel } from '../web/WebPanel'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useNotebookStore } from '../../stores/notebook-store'
 import { useUIStore } from '../../stores/ui-store'
+import { useTabsStore } from '../../stores/tabs-store'
 
 type NotebookView = 'notes' | 'agenda'
 
 export function NotebookShell(): React.ReactElement {
   const { pages, currentPageIndex, notebook } = useNotebookStore()
   const { showSlideMap, showRightPane } = useUIStore()
+  const activeTabId = useTabsStore((s) => s.activeTabId)
+
+  // Keep tab state in sync with notebook (mirrors AppShell's presentation sync)
+  useEffect(() => {
+    useTabsStore.getState().syncCurrentTab()
+  }, [notebook?.title, activeTabId])
   const [activeView, setActiveView] = useState<NotebookView>('notes')
 
   const currentPage = pages[currentPageIndex]
@@ -80,6 +88,19 @@ export function NotebookShell(): React.ReactElement {
         <div className="flex-1 flex items-center justify-center text-gray-500">
           No notebook loaded
         </div>
+      </div>
+    )
+  }
+
+  // Jupyter-style view for imported .ipynb notebooks
+  const isJupyterMode = notebook.defaultLayout === 'jupyter' || notebook.sourceFormat === 'jupyter'
+
+  if (isJupyterMode) {
+    return (
+      <div className="h-screen flex flex-col bg-gray-950">
+        <TabBar />
+        <JupyterView />
+        <NotebookStatusBar />
       </div>
     )
   }

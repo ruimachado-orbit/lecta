@@ -52,7 +52,7 @@ function Avatar({ name, github, role, isAI }: { name: string; github: string; ro
 
 export default function Contributors() {
   return (
-    <section className="contributorsSection">
+    <section id="contributors" className="contributorsSection">
       <div className="container">
         <Reveal><span className="secLabel">Open Source</span></Reveal>
         <Reveal><h2 className="secTitle">Built by <a href="https://orbitplatform.ai" target="_blank" rel="noopener noreferrer"><em>orbit.</em></a></h2></Reveal>

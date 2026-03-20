@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { LoadedNotebook, LoadedNote, Notebook, NoteLayout } from '../../../../packages/shared/src/types/notebook'
+import type { LoadedNotebook, LoadedNote, Notebook, NoteLayout, CellOutput, CellType, NotebookKernel } from '../../../../packages/shared/src/types/notebook'
 
 interface NotebookState {
   notebook: Notebook | null
@@ -32,7 +32,18 @@ interface NotebookState {
   addWebAppToNote: (url: string) => Promise<void>
   archiveNote: () => Promise<void>
   unarchiveNote: (noteId: string) => Promise<void>
+  setDefaultLayout: (layout: NoteLayout) => void
+  setKernel: (kernel: NotebookKernel) => Promise<void>
   reset: () => void
+
+  // Jupyter cell actions
+  moveCellUp: (pageIndex: number) => Promise<void>
+  moveCellDown: (pageIndex: number) => Promise<void>
+  toggleCellType: (pageIndex: number) => Promise<void>
+  addCellAfter: (pageIndex: number, cellType: CellType) => Promise<void>
+  updateCellOutputs: (pageIndex: number, outputs: CellOutput[]) => void
+  runCell: (pageIndex: number) => Promise<void>
+  runAllCells: () => Promise<void>
 }
 
 function applyLoaded(loaded: LoadedNotebook, goToIndex?: number) {
@@ -290,6 +301,144 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
       set(applyLoaded(loaded, currentPageIndex))
     } catch (error) {
       set({ error: (error as Error).message })
+    }
+  },
+
+  setDefaultLayout: async (layout: NoteLayout) => {
+    const { notebook, currentPageIndex } = get()
+    if (!notebook) return
+    // Optimistic update so UI switches immediately
+    set({ notebook: { ...notebook, defaultLayout: layout } })
+    // Persist to YAML so applyLoaded doesn't revert it
+    try {
+      const loaded: LoadedNotebook = await window.electronAPI.setDefaultLayout(
+        notebook.rootPath, layout
+      )
+      set(applyLoaded(loaded, currentPageIndex))
+    } catch (error) {
+      set({ error: (error as Error).message })
+    }
+  },
+
+  setKernel: async (kernel: NotebookKernel) => {
+    const { notebook, currentPageIndex } = get()
+    if (!notebook) return
+    set({ notebook: { ...notebook, kernel } })
+    try {
+      const loaded: LoadedNotebook = await window.electronAPI.setKernel(
+        notebook.rootPath, kernel
+      )
+      set(applyLoaded(loaded, currentPageIndex))
+    } catch (error) {
+      set({ error: (error as Error).message })
+    }
+  },
+
+  // ── Jupyter cell actions ──────────────────────────────
+
+  moveCellUp: async (pageIndex: number) => {
+    const { notebook } = get()
+    if (!notebook || pageIndex <= 0) return
+    try {
+      const loaded: LoadedNotebook = await window.electronAPI.reorderNote(
+        notebook.rootPath, pageIndex, pageIndex - 1
+      )
+      set(applyLoaded(loaded, pageIndex - 1))
+    } catch (error) { set({ error: (error as Error).message }) }
+  },
+
+  moveCellDown: async (pageIndex: number) => {
+    const { notebook, pages } = get()
+    if (!notebook || pageIndex >= pages.length - 1) return
+    try {
+      const loaded: LoadedNotebook = await window.electronAPI.reorderNote(
+        notebook.rootPath, pageIndex, pageIndex + 1
+      )
+      set(applyLoaded(loaded, pageIndex + 1))
+    } catch (error) { set({ error: (error as Error).message }) }
+  },
+
+  toggleCellType: async (pageIndex: number) => {
+    const { notebook, pages } = get()
+    if (!notebook) return
+    const page = pages[pageIndex]
+    if (!page) return
+    try {
+      const loaded: LoadedNotebook = await window.electronAPI.toggleCellType(
+        notebook.rootPath, page.config.id
+      )
+      set(applyLoaded(loaded, pageIndex))
+    } catch (error) { set({ error: (error as Error).message }) }
+  },
+
+  addCellAfter: async (pageIndex: number, cellType: CellType) => {
+    const { notebook } = get()
+    if (!notebook) return
+    try {
+      const loaded: LoadedNotebook = await window.electronAPI.addCell(
+        notebook.rootPath, pageIndex, cellType
+      )
+      set(applyLoaded(loaded, pageIndex + 1))
+    } catch (error) { set({ error: (error as Error).message }) }
+  },
+
+  updateCellOutputs: (pageIndex: number, outputs: CellOutput[]) => {
+    set((state) => {
+      const pages = [...state.pages]
+      if (pages[pageIndex]) {
+        pages[pageIndex] = {
+          ...pages[pageIndex],
+          config: { ...pages[pageIndex].config, outputs }
+        }
+      }
+      return { pages }
+    })
+  },
+
+  runCell: async (pageIndex: number) => {
+    const { notebook, pages } = get()
+    if (!notebook) return
+    const page = pages[pageIndex]
+    if (!page || page.config.cellType !== 'code' || !page.codeContent) return
+
+    // Clear previous outputs
+    get().updateCellOutputs(pageIndex, [])
+
+    try {
+      // Use the native execution IPC for pyodide-compatible code
+      const result = await window.electronAPI.executeNative(
+        'python3', ['-c', page.codeContent], notebook.rootPath
+      )
+
+      const outputs: CellOutput[] = []
+      if (result.stdout) {
+        outputs.push({ outputType: 'stream', text: result.stdout })
+      }
+      if (result.stderr) {
+        outputs.push({ outputType: 'error', text: result.stderr, traceback: [result.stderr] })
+      }
+
+      get().updateCellOutputs(pageIndex, outputs)
+
+      // Persist outputs
+      await window.electronAPI.updateCellOutputs(
+        notebook.rootPath, page.config.id, outputs
+      )
+    } catch (error) {
+      get().updateCellOutputs(pageIndex, [{
+        outputType: 'error',
+        text: (error as Error).message,
+        traceback: [(error as Error).message]
+      }])
+    }
+  },
+
+  runAllCells: async () => {
+    const { pages } = get()
+    for (let i = 0; i < pages.length; i++) {
+      if (pages[i].config.cellType === 'code') {
+        await get().runCell(i)
+      }
     }
   },
 

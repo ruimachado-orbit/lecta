@@ -15,6 +15,12 @@ files:
   - "!{.eslintignore,.eslintrc*,prettier.config.*,.prettierrc*}"
   - "!{tsconfig.json,tsconfig.*.json}"
 
+extraResources:
+  - from: packages/mcp-server/dist
+    to: mcp-server
+    filter:
+      - "**/*"
+
 mac:
   artifactName: "${productName}-${version}-${arch}.${ext}"
   target:

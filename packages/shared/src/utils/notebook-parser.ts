@@ -21,7 +21,7 @@ const CodeBlockConfigSchema = z.object({
   args: z.array(z.string()).optional()
 })
 
-const NoteLayoutSchema = z.enum(['lines', 'blank', 'agenda', 'grid'])
+const NoteLayoutSchema = z.enum(['lines', 'blank', 'agenda', 'grid', 'jupyter'])
 
 // Recursive schema for notes with children
 const VideoConfigSchema = z.object({
@@ -34,6 +34,14 @@ const WebAppConfigSchema = z.object({
   label: z.string().optional()
 })
 
+const CellOutputSchema = z.object({
+  outputType: z.enum(['stream', 'execute_result', 'display_data', 'error']),
+  text: z.string().optional(),
+  html: z.string().optional(),
+  imageData: z.string().optional(),
+  traceback: z.array(z.string()).optional()
+})
+
 const BaseNoteConfigSchema = z.object({
   id: z.string(),
   content: z.string(),
@@ -43,7 +51,10 @@ const BaseNoteConfigSchema = z.object({
   artifacts: z.array(ArtifactConfigSchema).default([]),
   code: CodeBlockConfigSchema.optional(),
   video: VideoConfigSchema.optional(),
-  webapp: WebAppConfigSchema.optional()
+  webapp: WebAppConfigSchema.optional(),
+  cellType: z.enum(['markdown', 'code', 'raw']).optional(),
+  cellIndex: z.number().optional(),
+  outputs: z.array(CellOutputSchema).optional()
 })
 
 type NoteConfigSchemaType = z.ZodType<NoteConfig>
@@ -58,7 +69,9 @@ const NotebookSchema = z.object({
   theme: z.string().default('dark'),
   defaultLayout: NoteLayoutSchema.default('lines'),
   lastViewedIndex: z.number().optional(),
-  pages: z.array(NoteConfigSchema)
+  pages: z.array(NoteConfigSchema),
+  sourceFormat: z.enum(['native', 'jupyter']).optional(),
+  kernel: z.enum(['python', 'javascript', 'typescript', 'sql', 'bash', 'go', 'rust']).optional()
 })
 
 export function parseNotebookYaml(yamlContent: string, rootPath: string): Notebook {

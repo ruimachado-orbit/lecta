@@ -28,6 +28,7 @@ export function HomeScreen(): JSX.Element {
   const [showSettings, setShowSettings] = useState(false)
   const [showAIGenerate, setShowAIGenerate] = useState(false)
   const [showLibrary, setShowLibrary] = useState(false)
+  const [showHelp, setShowHelp] = useState(false)
   const [newName, setNewName] = useState('')
   const [createError, setCreateError] = useState<string | null>(null)
 
@@ -38,7 +39,7 @@ export function HomeScreen(): JSX.Element {
     }
   }, [pendingGeneratePrompt])
 
-  useEffect(() => {
+  const refreshRecentDecks = useCallback(() => {
     window.electronAPI.getRecentDecks().then((decks: any[]) => {
       // Handle both old string[] and new object[] formats
       setRecentDecks(decks.map((d) =>
@@ -48,6 +49,15 @@ export function HomeScreen(): JSX.Element {
       ))
     })
   }, [])
+
+  useEffect(() => {
+    refreshRecentDecks()
+
+    // Re-fetch when window gets focus (picks up MCP server changes)
+    const onFocus = () => refreshRecentDecks()
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [refreshRecentDecks])
 
   const handleCreateLecta = async () => {
     const trimmed = newName.trim()
@@ -89,6 +99,10 @@ export function HomeScreen(): JSX.Element {
 
   if (showSettings) {
     return <SettingsPanel onBack={() => setShowSettings(false)} />
+  }
+
+  if (showHelp) {
+    return <HelpPanel onBack={() => setShowHelp(false)} />
   }
 
   if (showAIGenerate) {
@@ -385,18 +399,28 @@ export function HomeScreen(): JSX.Element {
         </div>
       </div>
 
-      {/* Settings gear — bottom left */}
-      <button
-        onClick={() => setShowSettings(true)}
-        className="fixed bottom-6 left-6 z-50 p-2 rounded-lg text-gray-600 hover:text-gray-300 hover:bg-gray-800 transition-colors"
-        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-        title="Settings"
-      >
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-        </svg>
-      </button>
+      {/* Bottom-left buttons: Settings + Help */}
+      <div className="fixed bottom-6 left-6 z-50 flex items-center gap-1" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+        <button
+          onClick={() => setShowSettings(true)}
+          className="p-2 rounded-lg text-gray-600 hover:text-gray-300 hover:bg-gray-800 transition-colors"
+          title="Settings"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+          </svg>
+        </button>
+        <button
+          onClick={() => setShowHelp(true)}
+          className="p-2 rounded-lg text-gray-600 hover:text-gray-300 hover:bg-gray-800 transition-colors"
+          title="Help"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" />
+          </svg>
+        </button>
+      </div>
       </div>
     </div>
   )
@@ -456,6 +480,17 @@ function HomeTabBar(): JSX.Element {
       >
         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        </svg>
+      </button>
+
+      {/* New window button */}
+      <button
+        onClick={() => window.electronAPI.newWindow()}
+        className="h-full px-2 text-gray-600 hover:text-gray-400 hover:bg-gray-800 transition-colors flex items-center"
+        title="New window"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
         </svg>
       </button>
     </div>
@@ -826,6 +861,18 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
   const [editingKey, setEditingKey] = useState('')
   const [keys, setKeys] = useState<Record<string, string>>({})
   const [validating, setValidating] = useState(false)
+  const [mcpEnabled, setMcpEnabled] = useState(false)
+  const [mcpRunning, setMcpRunning] = useState(false)
+  const [mcpInClaude, setMcpInClaude] = useState(false)
+  const [mcpMessage, setMcpMessage] = useState<string | null>(null)
+
+  useEffect(() => {
+    window.electronAPI.mcpStatus().then((status) => {
+      setMcpEnabled(status.enabled)
+      setMcpRunning(status.running)
+      setMcpInClaude(status.inClaudeDesktop)
+    })
+  }, [])
 
   useEffect(() => {
     window.electronAPI.getAppSettings().then((settings) => {
@@ -1090,6 +1137,70 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
             </div>
           </section>
 
+          {/* Claude Integration (MCP) */}
+          <section>
+            <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-4">Claude Integration</h3>
+            <div className="space-y-4">
+              {/* MCP Server toggle */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="text-sm text-gray-300 block">MCP Server</label>
+                  <p className="text-[10px] text-gray-600">
+                    Let Claude Desktop create and edit presentations
+                    {mcpRunning && <span className="text-green-500 ml-1">Running</span>}
+                  </p>
+                </div>
+                <button
+                  onClick={async () => {
+                    const next = !mcpEnabled
+                    setMcpEnabled(next)
+                    await window.electronAPI.setAppSettings({ mcpServerEnabled: next })
+                    const result = await window.electronAPI.mcpToggle(next)
+                    setMcpRunning(result.running)
+                  }}
+                  className={`w-10 h-6 rounded-full transition-colors relative ${
+                    mcpEnabled ? 'bg-white' : 'bg-gray-700'
+                  }`}
+                >
+                  <div className={`w-4 h-4 rounded-full transition-transform absolute top-1 ${
+                    mcpEnabled ? 'translate-x-5 bg-black' : 'translate-x-1 bg-gray-400'
+                  }`} />
+                </button>
+              </div>
+
+              {/* Add to Claude Desktop button */}
+              <div>
+                <button
+                  onClick={async () => {
+                    setMcpMessage(null)
+                    if (mcpInClaude) {
+                      const res = await window.electronAPI.mcpRemoveFromClaude()
+                      setMcpMessage(res.message)
+                      setMcpInClaude(false)
+                    } else {
+                      const res = await window.electronAPI.mcpAddToClaude()
+                      setMcpMessage(res.message)
+                      setMcpInClaude(res.success)
+                    }
+                  }}
+                  className={`w-full py-2 rounded-lg text-sm font-medium transition-colors ${
+                    mcpInClaude
+                      ? 'bg-gray-800 text-gray-400 hover:bg-red-900/30 hover:text-red-400 border border-gray-700'
+                      : 'bg-gray-800 text-white hover:bg-gray-700 border border-gray-700'
+                  }`}
+                >
+                  {mcpInClaude ? 'Remove from Claude Desktop' : 'Add to Claude Desktop'}
+                </button>
+                {mcpMessage && (
+                  <p className="text-[10px] text-gray-500 mt-2">{mcpMessage}</p>
+                )}
+                {!mcpInClaude && (
+                  <p className="text-[10px] text-gray-600 mt-1">Writes the Lecta MCP config to Claude Desktop so you can create slides from Claude.</p>
+                )}
+              </div>
+            </div>
+          </section>
+
           {/* Save */}
           <div className="pt-4 border-t border-gray-800">
             <button
@@ -1313,6 +1424,196 @@ function RecentCard({ deck, onClick, onRemove }: { deck: RecentDeck; onClick: ()
         </div>
       </div>
     </button>
+  )
+}
+
+// ── Help Panel ──
+
+function HelpPanel({ onBack }: { onBack: () => void }): JSX.Element {
+  return (
+    <div className="h-screen flex flex-col bg-gray-950 text-white" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
+      {/* Header */}
+      <div className="flex items-center gap-3 px-6 pt-12 pb-6" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+        <button
+          onClick={onBack}
+          className="p-1.5 rounded hover:bg-gray-800 text-gray-400 hover:text-gray-300 transition-colors"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+          </svg>
+        </button>
+        <h2 className="text-lg font-medium text-white">Help</h2>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto px-6 pb-8" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+        <div className="max-w-lg mx-auto space-y-8">
+
+          {/* Getting Started */}
+          <section>
+            <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-4">Getting Started</h3>
+            <div className="space-y-3">
+              <HelpStep num="1" title="Create" desc="Click New on the home screen. Give your presentation a name and pick a theme." />
+              <HelpStep num="2" title="Write" desc="Add slides with Markdown or the visual editor. Attach code files, images, and PDFs." />
+              <HelpStep num="3" title="Present" desc="Hit F5 to enter presenter mode. Run code live, navigate with arrow keys." />
+            </div>
+          </section>
+
+          {/* Keyboard Shortcuts */}
+          <section>
+            <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-4">Keyboard Shortcuts</h3>
+            <div className="space-y-1">
+              <ShortcutRow keys="← / →" action="Previous / Next slide" />
+              <ShortcutRow keys="⌘ + Enter" action="Run code" />
+              <ShortcutRow keys="F5" action="Enter presenter mode" />
+              <ShortcutRow keys="Esc" action="Exit presenter mode" />
+              <ShortcutRow keys="N" action="Toggle speaker notes" />
+              <ShortcutRow keys="Shift + N" action="Add new slide" />
+              <ShortcutRow keys="⌘ + /" action="Toggle chat agent" />
+            </div>
+          </section>
+
+          {/* Themes */}
+          <section>
+            <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-4">Themes</h3>
+            <div className="flex flex-wrap gap-2">
+              {['Dark', 'Light', 'Executive', 'Minimal', 'Corporate', 'Creative', 'Keynote Dark', 'Paper'].map(t => (
+                <span key={t} className="px-3 py-1 text-xs rounded-full bg-gray-900 text-gray-300 border border-gray-700">{t}</span>
+              ))}
+            </div>
+          </section>
+
+          {/* Slide Layouts */}
+          <section>
+            <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-4">Slide Layouts</h3>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                ['default', 'Standard top-down'],
+                ['center', 'Centered content'],
+                ['title', 'Big title + subtitle'],
+                ['section', 'Section break'],
+                ['two-col', 'Two equal columns'],
+                ['two-col-wide-left', '60/40 split'],
+                ['two-col-wide-right', '40/60 split'],
+                ['three-col', 'Three columns'],
+                ['top-bottom', 'Top and bottom'],
+                ['big-number', 'Large stat'],
+                ['quote', 'Centered quote'],
+                ['blank', 'Full canvas'],
+              ].map(([name, desc]) => (
+                <div key={name} className="px-3 py-2 rounded-lg bg-gray-900 border border-gray-800">
+                  <div className="text-xs font-mono text-gray-300">{name}</div>
+                  <div className="text-[11px] text-gray-500">{desc}</div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* Use with Claude */}
+          <section>
+            <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-4">Use with Claude</h3>
+            <p className="text-sm text-gray-400 mb-3">
+              Lecta includes an MCP server that connects to Claude Desktop and Claude Code.
+              Create and edit presentations just by talking to Claude.
+            </p>
+            <div className="space-y-2 mb-4">
+              {[
+                '"Create a 10-slide presentation about microservices"',
+                '"Add a slide about error handling with a Python example"',
+                '"Change the theme to executive"',
+              ].map(ex => (
+                <div key={ex} className="px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-gray-300 italic">{ex}</div>
+              ))}
+            </div>
+            <div className="space-y-3">
+              <HelpStep num="1" title="Enable MCP Server" desc="Go to Settings and turn on the MCP Server toggle under Claude Integration." />
+              <HelpStep num="2" title="Add to Claude Desktop" desc="Click the 'Add to Claude Desktop' button in Settings. This configures Claude automatically." />
+              <HelpStep num="3" title="Start using it" desc="Restart Claude Desktop. Ask Claude to create slides — changes appear live in Lecta." />
+            </div>
+          </section>
+
+          {/* MCP Tools */}
+          <section>
+            <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-4">MCP Tools</h3>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                ['create_presentation', 'Create a new deck'],
+                ['add_slide', 'Add a slide with content & code'],
+                ['edit_slide', 'Update content or layout'],
+                ['delete_slide', 'Remove a slide'],
+                ['list_slides', 'See all slides'],
+                ['set_theme', 'Change the theme'],
+                ['add_artifact', 'Attach files to a slide'],
+              ].map(([name, desc]) => (
+                <div key={name} className="px-3 py-2 rounded-lg bg-gray-900 border border-gray-800">
+                  <div className="text-xs font-mono text-gray-300">{name}</div>
+                  <div className="text-[11px] text-gray-500">{desc}</div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* AI Providers */}
+          <section>
+            <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-4">AI Providers</h3>
+            <p className="text-sm text-gray-400 mb-3">Add API keys in Settings to enable AI features.</p>
+            <div className="space-y-1">
+              {[
+                ['Anthropic', 'Claude Sonnet 4, Opus 4, Haiku 4'],
+                ['OpenAI', 'GPT-4o, GPT-4o Mini, o3, o3-mini, o4-mini'],
+                ['Google Gemini', 'Gemini 2.5 Pro, 2.5 Flash, 2.0 Flash'],
+                ['Mistral', 'Large, Medium, Small'],
+                ['Meta Llama', 'Llama 4 Maverick, Scout, 3.3 70B'],
+                ['xAI', 'Grok 3, Grok 3 Fast, Mini, Mini Fast'],
+                ['Perplexity', 'Sonar Pro, Sonar, Reasoning Pro, Reasoning'],
+              ].map(([provider, models]) => (
+                <div key={provider} className="flex items-baseline gap-3 px-3 py-2 rounded-lg bg-gray-900 border border-gray-800">
+                  <span className="text-xs font-mono text-gray-300 w-24 flex-shrink-0">{provider}</span>
+                  <span className="text-[11px] text-gray-500">{models}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* Links */}
+          <section className="pb-4">
+            <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-4">Links</h3>
+            <div className="space-y-2">
+              <a href="https://github.com/ruimachado-orbit/lecta" target="_blank" rel="noopener noreferrer"
+                className="block px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-gray-300 hover:text-white hover:border-gray-600 transition-colors">
+                GitHub Repository
+              </a>
+              <a href="https://github.com/ruimachado-orbit/lecta/issues" target="_blank" rel="noopener noreferrer"
+                className="block px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-gray-300 hover:text-white hover:border-gray-600 transition-colors">
+                Report an Issue
+              </a>
+            </div>
+          </section>
+
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function HelpStep({ num, title, desc }: { num: string; title: string; desc: string }): JSX.Element {
+  return (
+    <div className="flex gap-3 items-start px-3 py-2.5 rounded-lg bg-gray-900 border border-gray-800">
+      <span className="w-5 h-5 rounded-full bg-gray-700 text-white text-[11px] font-mono flex items-center justify-center flex-shrink-0 mt-0.5">{num}</span>
+      <div>
+        <div className="text-sm font-medium text-gray-200">{title}</div>
+        <div className="text-xs text-gray-500 mt-0.5">{desc}</div>
+      </div>
+    </div>
+  )
+}
+
+function ShortcutRow({ keys, action }: { keys: string; action: string }): JSX.Element {
+  return (
+    <div className="flex items-center gap-3 px-3 py-1.5 rounded-lg hover:bg-gray-900 transition-colors">
+      <kbd className="text-xs font-mono text-gray-300 bg-gray-800 px-2 py-0.5 rounded border border-gray-700 min-w-[80px] text-center">{keys}</kbd>
+      <span className="text-sm text-gray-400">{action}</span>
+    </div>
   )
 }
 

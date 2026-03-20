@@ -16,6 +16,7 @@ import {
   autoSave
 } from '../services/lecta-file'
 import { importPptx } from '../services/pptx-importer'
+import { importIpynb } from '../services/ipynb-importer'
 import type {
   LoadedPresentation,
   LoadedSlide,
@@ -138,11 +139,13 @@ export function registerFileSystemHandlers(): void {
     const result = await dialog.showOpenDialog({
       properties: ['openDirectory', 'openFile'],
       filters: [
+        { name: 'All Supported', extensions: ['lecta', 'pptx', 'ipynb'] },
         { name: 'Lecta Presentations', extensions: ['lecta'] },
         { name: 'PowerPoint', extensions: ['pptx'] },
+        { name: 'Jupyter Notebook', extensions: ['ipynb'] },
         { name: 'All Files', extensions: ['*'] }
       ],
-      title: 'Open Presentation'
+      title: 'Open Presentation or Notebook'
     })
 
     if (result.canceled || result.filePaths.length === 0) {
@@ -164,6 +167,16 @@ export function registerFileSystemHandlers(): void {
       const savePath = selected.replace(/\.pptx$/i, '.lecta')
       const workspaceDir = await createLectaFile(savePath, basename(selected, '.pptx'))
       await importPptx(selected, workspaceDir)
+      await saveLectaFile(workspaceDir, savePath)
+      registerWorkspace(workspaceDir, savePath)
+      return workspaceDir
+    }
+
+    // Handle .ipynb file — import into a new .lecta notebook
+    if (ext === '.ipynb') {
+      const savePath = selected.replace(/\.ipynb$/i, '.lecta')
+      const workspaceDir = await createLectaFile(savePath, basename(selected, '.ipynb'))
+      await importIpynb(selected, workspaceDir)
       await saveLectaFile(workspaceDir, savePath)
       registerWorkspace(workspaceDir, savePath)
       return workspaceDir
@@ -969,22 +982,20 @@ export function registerFileSystemHandlers(): void {
   })
 
   ipcMain.handle('fs:get-recent-decks', async (): Promise<RecentDeck[]> => {
-    if (recentDecks.length === 0) {
-      try {
-        const { app } = await import('electron')
-        const settingsPath = join(app.getPath('userData'), 'settings.json')
-        const content = await readFile(settingsPath, 'utf-8')
-        const settings = JSON.parse(content)
-        if (Array.isArray(settings.recentDecks)) {
-          // Handle migration from old string[] format
-          recentDecks = settings.recentDecks.map((d: string | RecentDeck) =>
-            typeof d === 'string'
-              ? { path: d, title: d.split('/').pop()?.replace(/^lecta-workspace-/, '').replace(/-[A-Za-z0-9]{6,}$/, '').replace(/-/g, ' ') || d, date: '' }
-              : d
-          )
-        }
-      } catch { /* no saved recents */ }
-    }
+    // Always re-read from disk so we pick up changes from the MCP server
+    try {
+      const { app } = await import('electron')
+      const settingsPath = join(app.getPath('userData'), 'settings.json')
+      const content = await readFile(settingsPath, 'utf-8')
+      const settings = JSON.parse(content)
+      if (Array.isArray(settings.recentDecks)) {
+        recentDecks = settings.recentDecks.map((d: string | RecentDeck) =>
+          typeof d === 'string'
+            ? { path: d, title: d.split('/').pop()?.replace(/^lecta-workspace-/, '').replace(/-[A-Za-z0-9]{6,}$/, '').replace(/-/g, ' ') || d, date: '' }
+            : d
+        )
+      }
+    } catch { /* no saved recents */ }
     return recentDecks
   })
 }

@@ -20,6 +20,7 @@ export default function Nav() {
       <div className="navInner">
         <Link href="/" className="navWordmark">lecta</Link>
         <div className="navLinks">
+          <Link href="/docs" className="navDocsLink">Docs</Link>
           <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" className="navGithub">
             <StarIcon />
             GitHub

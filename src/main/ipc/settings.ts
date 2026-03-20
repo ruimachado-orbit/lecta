@@ -22,10 +22,11 @@ const DEFAULTS: Record<string, unknown> = {
   xaiApiKey: '',
   perplexityApiKey: '',
   imageProvider: 'openai',
+  mcpServerEnabled: false,
   recentDecks: []
 }
 
-async function loadSettings(): Promise<Record<string, unknown>> {
+export async function loadSettings(): Promise<Record<string, unknown>> {
   try {
     const content = await readFile(getSettingsPath(), 'utf-8')
     cachedSettings = { ...DEFAULTS, ...JSON.parse(content) }

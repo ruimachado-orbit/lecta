@@ -1,15 +1,22 @@
 import { create } from 'zustand'
 import { usePresentationStore } from './presentation-store'
+import { useNotebookStore } from './notebook-store'
 import type { Presentation, LoadedSlide } from '../../../../packages/shared/src/types/presentation'
+import type { Notebook, LoadedNote } from '../../../../packages/shared/src/types/notebook'
 
 export interface Tab {
   id: string
-  type: 'home' | 'presentation'
+  type: 'home' | 'presentation' | 'notebook'
   title: string
   rootPath?: string
+  // Presentation state
   presentation?: Presentation
   slides?: LoadedSlide[]
   currentSlideIndex?: number
+  // Notebook state
+  notebook?: Notebook
+  pages?: LoadedNote[]
+  currentPageIndex?: number
 }
 
 interface TabsState {
@@ -32,6 +39,42 @@ function makeHomeTab(): Tab {
   }
 }
 
+/** Reset both presentation and notebook stores so App.tsx renders HomeScreen */
+function resetToHome(): void {
+  usePresentationStore.getState().reset()
+  useNotebookStore.setState({
+    notebook: null,
+    pages: [],
+    currentPageIndex: 0,
+    isLoading: false,
+    error: null
+  })
+}
+
+/** Restore a tab's content into the global stores */
+function restoreTab(tab: Tab): void {
+  if (tab.type === 'presentation' && tab.presentation) {
+    useNotebookStore.setState({ notebook: null, pages: [], currentPageIndex: 0, error: null })
+    usePresentationStore.setState({
+      presentation: tab.presentation,
+      slides: tab.slides || [],
+      currentSlideIndex: tab.currentSlideIndex || 0,
+      error: null
+    })
+  } else if (tab.type === 'notebook' && tab.notebook) {
+    usePresentationStore.getState().reset()
+    useNotebookStore.setState({
+      notebook: tab.notebook,
+      pages: tab.pages || [],
+      currentPageIndex: tab.currentPageIndex || 0,
+      isLoading: false,
+      error: null
+    })
+  } else {
+    resetToHome()
+  }
+}
+
 export const useTabsStore = create<TabsState>((set, get) => ({
   tabs: [],
   activeTabId: null,
@@ -46,6 +89,9 @@ export const useTabsStore = create<TabsState>((set, get) => ({
 
     // Save current tab state before switching
     get().syncCurrentTab()
+
+    // Clear both stores before loading
+    resetToHome()
 
     // Load the new presentation
     await presentationStore.loadPresentation(folderPath)
@@ -75,8 +121,7 @@ export const useTabsStore = create<TabsState>((set, get) => ({
     const remaining = tabs.filter((t) => t.id !== tabId)
 
     if (remaining.length === 0) {
-      // No tabs left — show bare home screen
-      usePresentationStore.getState().reset()
+      resetToHome()
       set({ tabs: [], activeTabId: null })
       return
     }
@@ -85,18 +130,7 @@ export const useTabsStore = create<TabsState>((set, get) => ({
     if (activeTabId === tabId) {
       const closedIndex = tabs.findIndex((t) => t.id === tabId)
       const nextTab = remaining[Math.min(closedIndex, remaining.length - 1)]
-
-      if (nextTab.type === 'presentation' && nextTab.presentation) {
-        usePresentationStore.setState({
-          presentation: nextTab.presentation,
-          slides: nextTab.slides || [],
-          currentSlideIndex: nextTab.currentSlideIndex || 0,
-          error: null
-        })
-      } else {
-        // Switching to a home tab
-        usePresentationStore.getState().reset()
-      }
+      restoreTab(nextTab)
       set({ tabs: remaining, activeTabId: nextTab.id })
     } else {
       set({ tabs: remaining })
@@ -108,7 +142,7 @@ export const useTabsStore = create<TabsState>((set, get) => ({
     get().syncCurrentTab()
 
     const tab = makeHomeTab()
-    usePresentationStore.getState().reset()
+    resetToHome()
     set((s) => ({
       tabs: [...s.tabs, tab],
       activeTabId: tab.id
@@ -119,19 +153,17 @@ export const useTabsStore = create<TabsState>((set, get) => ({
     const { tabs, activeTabId } = get()
     // Save current tab state, then convert the active tab to a home tab
     get().syncCurrentTab()
-    usePresentationStore.getState().reset()
+    resetToHome()
 
     if (activeTabId) {
-      // Convert the current tab to a home tab instead of deactivating
       set({
         tabs: tabs.map((t) =>
           t.id === activeTabId
-            ? { ...t, type: 'home' as const, title: 'Home', presentation: undefined, slides: undefined, rootPath: undefined, currentSlideIndex: undefined }
+            ? { ...t, type: 'home' as const, title: 'Home', presentation: undefined, slides: undefined, rootPath: undefined, currentSlideIndex: undefined, notebook: undefined, pages: undefined, currentPageIndex: undefined }
             : t
         )
       })
     } else if (tabs.length === 0) {
-      // No tabs at all — create a home tab
       const tab = makeHomeTab()
       set({ tabs: [tab], activeTabId: tab.id })
     }
@@ -154,26 +186,16 @@ export const useTabsStore = create<TabsState>((set, get) => ({
     const target = tabs.find((t) => t.id === tabId)
     if (!target) return
 
-    if (target.type === 'presentation' && target.presentation) {
-      usePresentationStore.setState({
-        presentation: target.presentation,
-        slides: target.slides || [],
-        currentSlideIndex: target.currentSlideIndex || 0,
-        error: null
-      })
-    } else {
-      // Home tab
-      usePresentationStore.getState().reset()
-    }
-
+    restoreTab(target)
     set({ activeTabId: tabId })
   },
 
   syncCurrentTab: () => {
     const { tabs, activeTabId } = get()
     const { presentation, slides, currentSlideIndex } = usePresentationStore.getState()
+    const { notebook, pages: nbPages, currentPageIndex } = useNotebookStore.getState()
 
-    // No tabs exist yet — create one if a presentation is loaded
+    // No tabs exist yet — create one if content is loaded
     if (tabs.length === 0 || !activeTabId) {
       if (presentation) {
         const tabId = `tab-${Date.now()}`
@@ -187,6 +209,18 @@ export const useTabsStore = create<TabsState>((set, get) => ({
           currentSlideIndex
         }
         set({ tabs: [...tabs, newTab], activeTabId: tabId })
+      } else if (notebook) {
+        const tabId = `tab-${Date.now()}`
+        const newTab: Tab = {
+          id: tabId,
+          type: 'notebook',
+          title: notebook.title,
+          rootPath: notebook.rootPath,
+          notebook,
+          pages: nbPages,
+          currentPageIndex
+        }
+        set({ tabs: [...tabs, newTab], activeTabId: tabId })
       }
       return
     }
@@ -194,21 +228,30 @@ export const useTabsStore = create<TabsState>((set, get) => ({
     const currentTab = tabs.find((t) => t.id === activeTabId)
     if (!currentTab) return
 
-    if (presentation) {
+    if (notebook) {
+      // Sync notebook state
+      set({
+        tabs: tabs.map((t) =>
+          t.id === activeTabId
+            ? { ...t, type: 'notebook' as const, notebook, pages: nbPages, currentPageIndex, title: notebook.title, rootPath: notebook.rootPath, presentation: undefined, slides: undefined, currentSlideIndex: undefined }
+            : t
+        )
+      })
+    } else if (presentation) {
       // Sync presentation state
       set({
         tabs: tabs.map((t) =>
           t.id === activeTabId
-            ? { ...t, type: 'presentation' as const, presentation, slides, currentSlideIndex, title: presentation.title, rootPath: presentation.rootPath }
+            ? { ...t, type: 'presentation' as const, presentation, slides, currentSlideIndex, title: presentation.title, rootPath: presentation.rootPath, notebook: undefined, pages: undefined, currentPageIndex: undefined }
             : t
         )
       })
-    } else if (currentTab.type === 'presentation') {
-      // Was a presentation tab but presentation is now null — convert to home
+    } else if (currentTab.type !== 'home') {
+      // Content gone — convert to home
       set({
         tabs: tabs.map((t) =>
           t.id === activeTabId
-            ? { ...t, type: 'home' as const, title: 'Home', presentation: undefined, slides: undefined, rootPath: undefined, currentSlideIndex: undefined }
+            ? { ...t, type: 'home' as const, title: 'Home', presentation: undefined, slides: undefined, rootPath: undefined, currentSlideIndex: undefined, notebook: undefined, pages: undefined, currentPageIndex: undefined }
             : t
         )
       })

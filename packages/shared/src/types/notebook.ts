@@ -1,6 +1,16 @@
 import type { ArtifactConfig, CodeBlockConfig, VideoConfig, WebAppConfig, SupportedLanguage } from './presentation'
 
-export type NoteLayout = 'lines' | 'blank' | 'agenda' | 'grid'
+export type NoteLayout = 'lines' | 'blank' | 'agenda' | 'grid' | 'jupyter'
+
+export type CellType = 'markdown' | 'code' | 'raw'
+
+export interface CellOutput {
+  outputType: 'stream' | 'execute_result' | 'display_data' | 'error'
+  text?: string
+  html?: string
+  imageData?: string // base64 PNG/JPEG or relative path to artifact
+  traceback?: string[]
+}
 
 export interface NoteConfig {
   id: string
@@ -13,7 +23,12 @@ export interface NoteConfig {
   video?: VideoConfig
   webapp?: WebAppConfig
   children?: NoteConfig[] // subnotes (recursive tree)
+  cellType?: CellType // Jupyter cell type origin
+  cellIndex?: number // Original cell position in .ipynb
+  outputs?: CellOutput[] // Preserved/live cell outputs
 }
+
+export type NotebookKernel = 'python' | 'javascript' | 'typescript' | 'sql' | 'bash' | 'go' | 'rust'
 
 export interface Notebook {
   type: 'notebook'
@@ -24,6 +39,8 @@ export interface Notebook {
   lastViewedIndex?: number
   pages: NoteConfig[]
   rootPath: string
+  sourceFormat?: 'native' | 'jupyter'
+  kernel?: NotebookKernel
 }
 
 export interface LoadedNote {

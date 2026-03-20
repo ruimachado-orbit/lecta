@@ -1,8 +1,10 @@
 import { config as dotenvConfig } from 'dotenv'
-import { app, BrowserWindow, net, nativeImage, protocol, session, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, net, nativeImage, protocol, session, shell } from 'electron'
 import { join } from 'path'
 import { readFile } from 'fs/promises'
 import { registerAllIpcHandlers } from './ipc/register'
+import { loadSettings } from './ipc/settings'
+import { startMcpServer, stopMcpServer } from './services/mcp-manager'
 
 // Load .env from project root (for ANTHROPIC_API_KEY, etc.)
 dotenvConfig()
@@ -34,6 +36,7 @@ protocol.registerSchemesAsPrivileged([
 ])
 
 let mainWindow: BrowserWindow | null = null
+const allWindows: Set<BrowserWindow> = new Set()
 
 function getIconPath(): string {
   const isDev = !!process.env['ELECTRON_RENDERER_URL']
@@ -43,10 +46,10 @@ function getIconPath(): string {
   return join(process.resourcesPath, 'icon.png')
 }
 
-function createWindow(): void {
+function createWindow(): BrowserWindow {
   const icon = nativeImage.createFromPath(getIconPath())
 
-  mainWindow = new BrowserWindow({
+  const win = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 900,
@@ -92,21 +95,32 @@ function createWindow(): void {
     })
   })
 
-  mainWindow.on('ready-to-show', () => {
-    mainWindow?.show()
+  // Track the first window as mainWindow for backwards compat
+  if (!mainWindow) mainWindow = win
+  allWindows.add(win)
+
+  win.on('closed', () => {
+    allWindows.delete(win)
+    if (mainWindow === win) mainWindow = null
   })
 
-  mainWindow.webContents.setWindowOpenHandler((details) => {
+  win.on('ready-to-show', () => {
+    win.show()
+  })
+
+  win.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
   })
 
   // In dev mode, electron-vite sets ELECTRON_RENDERER_URL
   if (isDev) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL']!)
+    win.loadURL(process.env['ELECTRON_RENDERER_URL']!)
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    win.loadFile(join(__dirname, '../renderer/index.html'))
   }
+
+  return win
 }
 
 app.whenReady().then(() => {
@@ -133,7 +147,20 @@ app.whenReady().then(() => {
   })
 
   registerAllIpcHandlers()
+
+  // Allow renderer to open a new window
+  ipcMain.handle('window:new', () => {
+    createWindow()
+  })
+
   createWindow()
+
+  // Start MCP server if enabled in settings
+  loadSettings().then((settings) => {
+    if (settings.mcpServerEnabled) {
+      startMcpServer()
+    }
+  })
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -146,6 +173,10 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
+})
+
+app.on('before-quit', () => {
+  stopMcpServer()
 })
 
 export { mainWindow }

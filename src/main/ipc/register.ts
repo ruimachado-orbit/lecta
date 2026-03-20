@@ -11,6 +11,7 @@ import { registerRemoteControlHandlers } from './remote-control'
 import { registerGeminiImageHandlers } from './gemini-image'
 import { registerChatAgentHandlers } from './chat-agent'
 import { registerLibraryHandlers } from './library'
+import { registerMcpHandlers } from './mcp'
 
 export function registerAllIpcHandlers(): void {
   registerFileSystemHandlers()
@@ -26,4 +27,5 @@ export function registerAllIpcHandlers(): void {
   registerRemoteControlHandlers()
   registerChatAgentHandlers()
   registerLibraryHandlers()
+  registerMcpHandlers()
 }

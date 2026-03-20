@@ -9,13 +9,14 @@ const NOTE_LAYOUTS: { value: NoteLayout; label: string; icon: string }[] = [
   { value: 'blank', label: 'Blank', icon: '\u25A1' },
   { value: 'agenda', label: 'Agenda', icon: '\u2630' },
   { value: 'grid', label: 'Grid', icon: '\u2591' },
+  { value: 'jupyter', label: 'Jupyter', icon: '\u2699' },
 ]
 
 export function NotebookToolbar({ showAgenda, onToggleAgenda }: {
   showAgenda: boolean
   onToggleAgenda: () => void
 }): JSX.Element {
-  const { notebook, pages, currentPageIndex, nextPage, prevPage, savePageContent, hasUnsavedChanges, setNoteLayout } =
+  const { notebook, pages, currentPageIndex, nextPage, prevPage, savePageContent, hasUnsavedChanges, setNoteLayout, setDefaultLayout } =
     useNotebookStore()
   const { theme, setTheme } = useUIStore()
   const { activeTabId, closeTab } = useTabsStore()
@@ -243,9 +244,20 @@ export function NotebookToolbar({ showAgenda, onToggleAgenda }: {
                 {NOTE_LAYOUTS.map((l) => (
                   <button
                     key={l.value}
-                    onClick={() => { setNoteLayout(l.value); setShowLayoutPicker(false) }}
+                    onClick={() => {
+                      if (l.value === 'jupyter') {
+                        setDefaultLayout('jupyter')
+                      } else {
+                        // If switching away from jupyter, reset default layout
+                        if (notebook?.defaultLayout === 'jupyter') {
+                          setDefaultLayout(l.value)
+                        }
+                        setNoteLayout(l.value)
+                      }
+                      setShowLayoutPicker(false)
+                    }}
                     className={`flex flex-col items-center gap-0.5 px-3 py-2 rounded transition-colors ${
-                      currentLayout === l.value
+                      currentLayout === l.value || (l.value === 'jupyter' && notebook?.defaultLayout === 'jupyter')
                         ? 'bg-white text-black'
                         : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
                     }`}

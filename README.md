@@ -230,6 +230,38 @@ Use `----` to create incremental reveal steps within a single slide.
 | `Esc` | Exit presenter mode |
 | `N` | Toggle speaker notes panel |
 
+## Use with Claude (MCP Server)
+
+Lecta ships with an MCP server that lets you create and manage presentations directly from **Claude Desktop** or **Claude Code**. Just talk naturally — Claude handles the rest.
+
+**What you can say:**
+- *"Create a 10-slide presentation about microservices"*
+- *"Add a slide about error handling with a Python code example"*
+- *"Change the theme to executive"*
+- *"List all slides in my presentation"*
+
+### Setup
+
+1. Open **Settings** in Lecta and turn on **MCP Server** under Claude Integration.
+2. Click **"Add to Claude Desktop"** — this automatically configures Claude to use Lecta.
+3. Restart Claude Desktop — you'll see "lecta" in the MCP tools list.
+
+That's it. Changes from Claude appear live in Lecta thanks to the file watcher.
+
+> **From source?** If you're running from the repo instead of the app, build the MCP server first: `cd packages/mcp-server && npm install && npm run build`
+
+### Available Tools
+
+| Tool | What it does |
+|------|-------------|
+| `create_presentation` | Create a new deck with title, theme, and starter slides |
+| `add_slide` | Add a slide with markdown, code, layout, and speaker notes |
+| `edit_slide` | Update content, layout, code, notes, or transitions |
+| `delete_slide` | Remove a slide |
+| `list_slides` | See all slides and their metadata |
+| `set_theme` | Switch between the 8 built-in themes |
+| `add_artifact` | Attach files (PDFs, images, docs) to a slide |
+
 ## Project Structure
 
 ```

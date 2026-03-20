@@ -7,16 +7,19 @@ dev: setup
 # Install dependencies (requires bun: curl -fsSL https://bun.sh/install | bash, or brew install oven-sh/bun/bun)
 install:
 	cd "$(CURDIR)" && bun install
+	cd "$(CURDIR)/packages/mcp-server" && npm install && npm run build
 
 # Setup everything from scratch
 setup: install
 	@echo "✅ Dependencies installed"
+	@echo "✅ MCP server built"
 	@echo "📝 Copy .env.example to .env and add your Anthropic API key"
 	@test -f .env || cp .env.example .env
 	@echo "🚀 Ready to launch!"
 
 # Build for production
 build:
+	cd "$(CURDIR)/packages/mcp-server" && npm run build
 	cd "$(CURDIR)" && bun run build
 
 # Package as distributable (macOS DMG, etc.)

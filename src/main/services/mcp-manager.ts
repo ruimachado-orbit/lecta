@@ -2,6 +2,10 @@
  * Manages the MCP server lifecycle and Claude Desktop integration.
  * - Spawns/stops the MCP server as a child process
  * - Reads/writes the Claude Desktop config to register Lecta as an MCP server
+ *
+ * In production (DMG), users don't have Node.js installed.
+ * We use Electron's own binary with ELECTRON_RUN_AS_NODE=1
+ * to run the MCP server as a plain Node.js script.
  */
 
 import { spawn, ChildProcess } from 'child_process'
@@ -11,13 +15,30 @@ import { app } from 'electron'
 
 let mcpProcess: ChildProcess | null = null
 
+const isDev = (): boolean => !!process.env['ELECTRON_RENDERER_URL']
+
 /** Get the path to the bundled MCP server entry point */
 function getMcpServerPath(): string {
-  const isDev = !!process.env['ELECTRON_RENDERER_URL']
-  if (isDev) {
+  if (isDev()) {
     return join(app.getAppPath(), 'packages', 'mcp-server', 'dist', 'index.js')
   }
   return join(process.resourcesPath, 'mcp-server', 'index.js')
+}
+
+/**
+ * Get the Node.js-compatible command + env for spawning scripts.
+ * In dev: use system `node`.
+ * In production: use Electron's own binary with ELECTRON_RUN_AS_NODE=1.
+ */
+function getNodeRuntime(): { command: string; env: Record<string, string> } {
+  if (isDev()) {
+    return { command: 'node', env: {} }
+  }
+  // In production, Electron's binary IS Node.js when ELECTRON_RUN_AS_NODE=1
+  return {
+    command: process.execPath,
+    env: { ELECTRON_RUN_AS_NODE: '1' },
+  }
 }
 
 /** Start the MCP server as a background child process */
@@ -25,11 +46,11 @@ export function startMcpServer(): void {
   if (mcpProcess) return // already running
 
   const serverPath = getMcpServerPath()
-  mcpProcess = spawn(process.execPath.includes('Electron')
-    ? 'node'
-    : process.execPath, [serverPath], {
+  const runtime = getNodeRuntime()
+
+  mcpProcess = spawn(runtime.command, [serverPath], {
     stdio: 'pipe',
-    env: { ...process.env },
+    env: { ...process.env, ...runtime.env },
   })
 
   mcpProcess.on('error', (err) => {
@@ -78,7 +99,6 @@ export async function addToClaudeDesktop(): Promise<{ success: boolean; message:
 
   let config: Record<string, any> = {}
 
-  // Read existing config if present
   try {
     const content = await readFile(configPath, 'utf-8')
     config = JSON.parse(content)
@@ -90,21 +110,28 @@ export async function addToClaudeDesktop(): Promise<{ success: boolean; message:
     config.mcpServers = {}
   }
 
-  // Add or update the lecta entry
-  config.mcpServers.lecta = {
-    command: 'node',
-    args: [serverPath],
+  if (isDev()) {
+    // Dev: use system node
+    config.mcpServers.lecta = {
+      command: 'node',
+      args: [serverPath],
+    }
+  } else {
+    // Production: use Electron binary with ELECTRON_RUN_AS_NODE
+    config.mcpServers.lecta = {
+      command: process.execPath,
+      args: [serverPath],
+      env: { ELECTRON_RUN_AS_NODE: '1' },
+    }
   }
 
-  // Ensure directory exists
   const configDir = join(configPath, '..')
   await mkdir(configDir, { recursive: true })
-
   await writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8')
 
   return {
     success: true,
-    message: `Added Lecta to Claude Desktop config at ${configPath}. Restart Claude Desktop to use it.`,
+    message: `Added Lecta to Claude Desktop config. Restart Claude Desktop to use it.`,
   }
 }
 

@@ -266,20 +266,40 @@ function MarkdownCell({ pageIndex, content, isActive }: MarkdownCellProps): Reac
     savePageContent(pageIndex)
   }, [pageIndex, savePageContent])
 
-  const handleDoubleClick = useCallback(() => {
-    setEditing(true)
-  }, [])
+  // Stop editing when cell becomes inactive
+  useEffect(() => {
+    if (!isActive && editing) {
+      setEditing(false)
+      savePageContent(pageIndex)
+    }
+  }, [isActive])
 
-  // In editing mode, show the raw markdown textarea
-  if (editing || isActive) {
+  // Enter edit mode: single click when active, or double-click anytime
+  const handleClick = useCallback(() => {
+    if (isActive && !editing) setEditing(true)
+  }, [isActive, editing])
+
+  // Editing mode — raw markdown textarea
+  if (editing) {
     return (
       <textarea
         ref={textareaRef}
         value={localContent}
         onChange={handleChange}
-        onBlur={handleBlur}
-        onFocus={() => setEditing(true)}
-        autoFocus={editing}
+        onBlur={() => {
+          // Small delay so clicking within the same cell doesn't kill editing
+          setTimeout(() => {
+            setEditing(false)
+            savePageContent(pageIndex)
+          }, 150)
+        }}
+        autoFocus
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            setEditing(false)
+            savePageContent(pageIndex)
+          }
+        }}
         className="w-full resize-none bg-transparent text-gray-200 text-sm leading-relaxed px-4 py-3 focus:outline-none font-sans placeholder-gray-600"
         placeholder="Markdown content..."
         rows={1}
@@ -287,11 +307,12 @@ function MarkdownCell({ pageIndex, content, isActive }: MarkdownCellProps): Reac
     )
   }
 
-  // In read mode, render a simple preview
+  // Rendered markdown preview — click to edit (when active), double-click anytime
   return (
     <div
       className="px-4 py-3 text-sm text-gray-300 leading-relaxed cursor-text min-h-8 prose prose-invert prose-sm max-w-none"
-      onDoubleClick={handleDoubleClick}
+      onClick={handleClick}
+      onDoubleClick={() => setEditing(true)}
       dangerouslySetInnerHTML={{ __html: simpleMarkdownToHtml(localContent) }}
     />
   )

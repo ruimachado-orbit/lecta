@@ -701,12 +701,12 @@ function SubSlideStackEditor({ subSlides, currentSubSlide, setCurrentSubSlide, s
             <div
               className={`relative group/canvas rounded transition-all ${
                 i === currentSubSlide
-                  ? 'ring-2 ring-indigo-500 ring-offset-2 ring-offset-neutral-800'
+                  ? 'ring-2 ring-indigo-500'
                   : 'opacity-70 hover:opacity-90 ring-1 ring-white/10 cursor-pointer'
               }`}
               style={{
                 width: SLIDE_W * canvasScale,
-                minHeight: SLIDE_H * canvasScale,
+                height: SLIDE_H * canvasScale,
                 overflow: 'hidden'
               }}
               onClick={() => { if (i !== currentSubSlide) setCurrentSubSlide(i) }}

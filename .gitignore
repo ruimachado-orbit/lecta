@@ -18,8 +18,13 @@ out/
 .vscode/
 .idea/
 
-# Claude / local agent overrides
-.claude/settings.local.json
+# AI agent configs (personal to each developer)
+.claude/
+CLAUDE.md
+AGENTS.md
+.cursor/
+.windsurf/
+.copilot/
 *.swp
 *.swo
 *~

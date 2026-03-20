@@ -587,7 +587,7 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
   }, [prompt, title, slideCount, sourceFile, onGenerated])
 
   return (
-    <div className="h-screen flex flex-col" className="h-screen flex flex-col bg-gray-950 text-white" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
+    <div className="h-screen flex flex-col bg-gray-950 text-white" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
       {/* Header */}
       <div className="flex items-center gap-3 px-6 pt-12 pb-6" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         <button
@@ -872,7 +872,7 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
   }
 
   return (
-    <div className="h-screen flex flex-col" className="h-screen flex flex-col bg-gray-950 text-white" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
+    <div className="h-screen flex flex-col bg-gray-950 text-white" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
       {/* Header */}
       <div className="flex items-center gap-3 px-6 pt-12 pb-6" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         <button
@@ -1001,7 +1001,7 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
                           </svg>
                         </button>
                       )}
-                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${validating ? 'bg-gray-9500 animate-pulse' : dotColor}`} />
+                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${validating ? 'bg-gray-500 animate-pulse' : dotColor}`} />
                     </div>
                     <p className="text-[10px] text-gray-500 leading-tight">{meta.description}</p>
                     <p className={`text-[10px] mt-1 ${validating ? 'text-gray-500' : labelColor}`}>
@@ -1131,12 +1131,20 @@ function RecentCard({ deck, onClick, onRemove }: { deck: RecentDeck; onClick: ()
       <button
         onClick={onClick}
         className="group text-left rounded-xl border border-gray-800 bg-gray-900 hover:border-gray-600
-                   hover:bg-gray-800 transition-all overflow-hidden"
+                   hover:bg-gray-800 transition-all overflow-visible relative"
       >
-        {/* Notebook-style preview — lined paper look */}
-        <div className="h-28 px-3 pb-3 pt-7 border-b border-gray-800 overflow-hidden relative"
+        {/* Spiral binding */}
+        <div className="absolute left-0 top-0 bottom-0 w-4 z-10 flex flex-col items-center justify-evenly py-3 pointer-events-none">
+          {[...Array(5)].map((_, i) => (
+            <svg key={i} width="10" height="14" viewBox="0 0 10 14" className="text-gray-500">
+              <path d="M8 2 C8 1, 7 0, 5 0 C3 0, 2 1, 2 2 L2 12 C2 13, 3 14, 5 14 C7 14, 8 13, 8 12" fill="none" stroke="currentColor" strokeWidth="1.5" />
+            </svg>
+          ))}
+        </div>
+        {/* Notebook preview */}
+        <div className="h-28 pl-5 pr-3 pb-3 pt-7 border-b border-gray-800 overflow-hidden relative"
           style={{
-            background: 'linear-gradient(to bottom, transparent 23px, rgba(0,0,0,0.03) 23px)',
+            background: 'linear-gradient(to bottom, transparent 23px, rgba(255,255,255,0.02) 23px)',
             backgroundSize: '100% 24px'
           }}
         >
@@ -1146,7 +1154,7 @@ function RecentCard({ deck, onClick, onRemove }: { deck: RecentDeck; onClick: ()
           {onRemove && (
             <button
               onClick={(e) => { e.stopPropagation(); onRemove() }}
-              className="absolute top-2 left-2 w-5 h-5 rounded-full bg-gray-800/80 hover:bg-red-600 text-gray-500 hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
+              className="absolute top-2 left-5 w-5 h-5 rounded-full bg-gray-800/80 hover:bg-red-600 text-gray-500 hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all z-20"
               title="Remove from recent"
             >
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -1154,10 +1162,8 @@ function RecentCard({ deck, onClick, onRemove }: { deck: RecentDeck; onClick: ()
               </svg>
             </button>
           )}
-          {/* Spine accent */}
-          <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-400/60 rounded-l" />
           {previewLines.length > 0 ? (
-            <div className="space-y-1 pl-2">
+            <div className="space-y-1">
               {previewLines.map((line, i) => {
                 const text = stripMarkdown(line)
                 return (
@@ -1168,14 +1174,14 @@ function RecentCard({ deck, onClick, onRemove }: { deck: RecentDeck; onClick: ()
               })}
             </div>
           ) : (
-            <div className="h-full flex items-center justify-center pl-2">
+            <div className="h-full flex items-center justify-center">
               <svg className="w-6 h-6 text-gray-600" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
               </svg>
             </div>
           )}
         </div>
-        <div className="p-3">
+        <div className="pl-5 pr-3 p-3">
           <div className="text-sm text-gray-200 font-medium truncate group-hover:text-white">{deck.title}</div>
           <div className="flex items-center gap-2 mt-1.5">
             {deck.slideCount && (

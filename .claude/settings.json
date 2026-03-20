@@ -6,7 +6,8 @@
       "Bash(ls -la *.tsx)",
       "Bash(find \"/Users/ruimachado/Desktop/Personal Projects/Lecta/node_modules\" -name \"* 2\" -type d -exec rm -rf {} +)",
       "Read(//Users/ruimachado/**)",
-      "Bash(zip -r /Users/ruimachado/Downloads/dog-breeds.lecta lecta.yaml slides/)"
+      "Bash(zip -r /Users/ruimachado/Downloads/dog-breeds.lecta lecta.yaml slides/)",
+      "Bash(grep -E \"\\\\.\\(tsx|ts\\)$\")"
     ],
     "additionalDirectories": [
       "/var/folders/cx/hkm1s2xd5rb3bwzd4dxk95xr0000gn/T/lecta-workspace-Orbit_Tech_Nation_Status_Update-L1VzZXJz",

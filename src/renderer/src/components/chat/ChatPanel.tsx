@@ -29,7 +29,7 @@ export function ChatWelcome({ onQuickAction }: { onQuickAction: (msg: string) =>
           <button
             key={action.label}
             onClick={() => onQuickAction(action.message)}
-            className="px-2.5 py-1 text-[10px] rounded-full bg-gray-800 text-gray-400 hover:text-gray-200 hover:bg-gray-700 transition-colors border border-gray-700"
+            className="px-2.5 py-1 text-[10px] rounded-full bg-gray-900 text-gray-400 hover:text-gray-200 hover:bg-gray-800 transition-colors border border-gray-800"
           >
             {action.label}
           </button>
@@ -52,10 +52,10 @@ export function ConfirmationBanner(): JSX.Element | null {
   return (
     <div className="mx-3 mb-2 p-2.5 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
       <div className="flex items-center gap-2 mb-2">
-        <span className="text-yellow-400 text-xs font-medium">Confirm action</span>
+        <span className="text-yellow-500 text-xs font-medium">Confirm action</span>
       </div>
       <p className="text-xs text-gray-300 mb-2">
-        The assistant wants to <span className="font-medium text-yellow-300">{friendlyName}</span>
+        The assistant wants to <span className="font-medium text-yellow-400">{friendlyName}</span>
       </p>
       <div className="text-[10px] text-gray-500 bg-gray-900 rounded px-2 py-1 mb-2 max-h-16 overflow-auto">
         {JSON.stringify(pending.toolInput, null, 2)}
@@ -86,8 +86,8 @@ export function ActionModeToggle(): JSX.Element {
       onClick={() => setActionMode(actionMode === 'auto' ? 'ask' : 'auto')}
       className={`flex items-center gap-1 px-2 py-1 rounded text-[9px] font-medium transition-colors flex-shrink-0 ${
         actionMode === 'auto'
-          ? 'bg-green-600/20 text-green-400 hover:bg-green-600/30'
-          : 'bg-yellow-600/20 text-yellow-400 hover:bg-yellow-600/30'
+          ? 'bg-green-600/20 text-green-500 hover:bg-green-600/30'
+          : 'bg-yellow-600/20 text-yellow-500 hover:bg-yellow-600/30'
       }`}
       title={
         actionMode === 'auto'
@@ -155,13 +155,13 @@ export function ChatSidebarPanel(): JSX.Element {
   }
 
   return (
-    <div className="h-full flex flex-col bg-white/50 dark:bg-gray-950">
+    <div className="h-full flex flex-col bg-gray-950">
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-200 dark:border-gray-800 flex-shrink-0">
-        <svg className="w-4 h-4 text-indigo-500 dark:text-indigo-400" fill="currentColor" viewBox="0 0 24 24">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-800 flex-shrink-0">
+        <svg className="w-4 h-4 text-indigo-500" fill="currentColor" viewBox="0 0 24 24">
           <path d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
         </svg>
-        <span className="text-xs font-medium text-gray-700 dark:text-gray-300 flex-1">Lecta AI</span>
+        <span className="text-xs font-medium text-gray-300 flex-1">Lecta AI</span>
 
         {activeTab && activeTab.messages.length > 0 && (
           <button
@@ -218,7 +218,7 @@ export function ChatSidebarPanel(): JSX.Element {
         )}
 
         {activeTab?.error && (
-          <div className="px-3 py-2 rounded-2xl bg-red-500/10 border border-red-500/20 text-xs text-red-600 dark:text-red-400">
+          <div className="px-3 py-2 rounded-2xl bg-red-500/10 border border-red-500/20 text-xs text-red-500">
             {activeTab.error}
           </div>
         )}
@@ -242,14 +242,14 @@ export function ChatSidebarPanel(): JSX.Element {
               onKeyDown={handleKeyDown}
               placeholder={noProviders ? 'Configure an AI provider in Settings' : 'Ask Lecta AI...'}
               rows={1}
-              className="flex-1 resize-none bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500 max-h-24 overflow-y-auto disabled:cursor-not-allowed"
+              className="flex-1 resize-none bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-xs text-gray-300 placeholder-gray-500 focus:outline-none focus:border-gray-700 max-h-24 overflow-y-auto disabled:cursor-not-allowed"
               style={{ minHeight: '36px' }}
               disabled={!!isDisabled}
             />
             <button
               onClick={handleSend}
               disabled={!input.trim() || !!isDisabled}
-              className="w-8 h-8 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-800 disabled:text-gray-600 text-white flex items-center justify-center transition-colors flex-shrink-0"
+              className="w-8 h-8 rounded-lg bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800 disabled:text-gray-600 text-white flex items-center justify-center transition-colors flex-shrink-0"
               title="Send"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">

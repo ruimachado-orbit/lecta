@@ -3,10 +3,10 @@ import type { ChatMessage as ChatMessageType, ToolCallInfo } from '../../stores/
 
 function ToolCallBadge({ toolCall }: { toolCall: ToolCallInfo }): JSX.Element {
   const statusColors = {
-    pending: 'text-yellow-600 dark:text-yellow-400 bg-yellow-500/10 border-yellow-500/20',
-    executing: 'text-blue-600 dark:text-blue-400 bg-blue-500/10 border-blue-500/20',
-    success: 'text-green-600 dark:text-green-400 bg-green-500/10 border-green-500/20',
-    error: 'text-red-600 dark:text-red-400 bg-red-500/10 border-red-500/20'
+    pending: 'text-yellow-500 bg-yellow-500/10 border-yellow-500/20',
+    executing: 'text-blue-500 bg-blue-500/10 border-blue-500/20',
+    success: 'text-green-500 bg-green-500/10 border-green-500/20',
+    error: 'text-red-500 bg-red-500/10 border-red-500/20'
   }
 
   const statusIcons = {
@@ -40,8 +40,8 @@ export function ChatMessageComponent({ message }: { message: ChatMessageType }):
         data-chat-role={message.role}
         className={`max-w-[90%] rounded-2xl px-3.5 py-2 ${
           isUser
-            ? 'bg-gray-900 dark:bg-indigo-600 text-white'
-            : 'bg-gray-100 dark:bg-transparent text-gray-800 dark:text-gray-300'
+            ? 'bg-gray-900 text-white'
+            : 'text-gray-300'
         }`}
       >
         {isUser ? (
@@ -49,7 +49,7 @@ export function ChatMessageComponent({ message }: { message: ChatMessageType }):
         ) : (
           <>
             {message.content && (
-              <div className="prose dark:prose-invert prose-sm max-w-none [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_li]:my-0 [&_pre]:my-2 [&_h1]:text-sm [&_h2]:text-sm [&_h3]:text-xs">
+              <div className="prose prose-invert prose-sm max-w-none [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_li]:my-0 [&_pre]:my-2 [&_h1]:text-sm [&_h2]:text-sm [&_h3]:text-xs">
                 <ReactMarkdown>{message.content}</ReactMarkdown>
               </div>
             )}

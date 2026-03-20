@@ -29,6 +29,9 @@ export default function App(): JSX.Element {
         const found = COLOR_PALETTES.find((p) => p.name === settings.palette)
         if (found) setPalette(found)
       }
+      if (typeof settings.aiModel === 'string' && settings.aiModel) {
+        useUIStore.getState().setAiModel(settings.aiModel)
+      }
     })
   }, [])
 

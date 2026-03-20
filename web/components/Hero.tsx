@@ -26,7 +26,7 @@ export default function Hero() {
       <div className="container">
         <span className="heroKicker">Open source &middot; macOS &middot; Free</span>
         <h1 className="heroWordmark">lecta</h1>
-        <p className="heroTagline">Technical presentations with live code execution.</p>
+        <p className="heroTagline">Presentations that come to life.</p>
 
         <div className="heroCtas">
           <DownloadButton variant="dark" hideNote />

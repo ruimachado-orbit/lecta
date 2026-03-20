@@ -26,12 +26,12 @@ const jetbrains = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'lecta — Technical presentations with live code execution',
+  title: 'lecta — Presentations that come to life',
   description:
     'An open-source desktop app for technical presentations with live code execution in JavaScript, Python, SQL, and native. Free for macOS.',
   openGraph: {
     title: 'lecta',
-    description: 'Technical presentations with live code execution.',
+    description: 'Presentations that come to life.',
     type: 'website',
   },
 }

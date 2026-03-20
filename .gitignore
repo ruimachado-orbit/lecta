@@ -5,6 +5,10 @@ node_modules/
 dist/
 out/
 
+# Next.js
+.next/
+.vercel/
+
 # Environment & secrets
 .env
 .env.*
@@ -13,6 +17,9 @@ out/
 # Editor
 .vscode/
 .idea/
+
+# Claude / local agent overrides
+.claude/settings.local.json
 *.swp
 *.swo
 *~

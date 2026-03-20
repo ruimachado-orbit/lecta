@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>lecta — Technical presentations with live code execution</title>
+  <meta name="description" content="An open-source desktop app for technical presentations with live code execution in JavaScript, Python, SQL, and native.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700;1,800&family=Lora:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* ── Reset ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:           #f9f6f1;
+      --bg-alt:       #f0ece3;
+      --surface:      #ffffff;
+      --border:       #e0d9ce;
+      --border-dark:  #c4baad;
+      --text:         #1a1917;
+      --text-2:       #4a4540;
+      --text-muted:   #8a8278;
+      --dark-bg:      #0a0a0a;
+      --dark-surface: #141412;
+      --dark-border:  #282624;
+      --dark-text:    #f9f6f1;
+      --dark-muted:   #7a7870;
+
+      --font-display: 'Playfair Display', Georgia, 'Times New Roman', serif;
+      --font-body:    'Lora', Georgia, serif;
+      --font-mono:    'JetBrains Mono', 'Fira Code', Consolas, monospace;
+
+      --r:    12px;
+      --r-sm: 6px;
+      --max:  1000px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-body);
+      font-size: 1.0625rem;
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* grain overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    /* ── Utilities ── */
+    .container { max-width: var(--max); margin: 0 auto; padding: 0 2rem; }
+
+    /* ── Nav ── */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 200;
+      padding: 1.25rem 0;
+      border-bottom: 1px solid transparent;
+      transition: background 0.3s, backdrop-filter 0.3s, border-color 0.3s;
+    }
+    nav.scrolled {
+      background: rgba(249, 246, 241, 0.9);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border-color: var(--border);
+    }
+    .nav-inner {
+      max-width: var(--max);
+      margin: 0 auto;
+      padding: 0 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .nav-wordmark {
+      font-family: var(--font-display);
+      font-style: italic;
+      font-weight: 700;
+      font-size: 1.375rem;
+      color: var(--text);
+      text-decoration: none;
+      letter-spacing: -0.01em;
+    }
+    .nav-links { display: flex; align-items: center; gap: 1.5rem; }
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.9375rem;
+      font-family: var(--font-body);
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+    .btn-pill-sm {
+      background: var(--text) !important;
+      color: var(--bg) !important;
+      padding: 0.45rem 1.15rem;
+      border-radius: 100px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: opacity 0.2s !important;
+    }
+    .btn-pill-sm:hover { opacity: 0.8 !important; color: var(--bg) !important; }
+
+    /* ── Hero ── */
+    .hero {
+      padding: 6rem 0 5rem;
+      text-align: center;
+      overflow: hidden;
+    }
+    .hero-kicker {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      padding: 0.35rem 0.9rem;
+      border-radius: 100px;
+      margin-bottom: 2.25rem;
+    }
+    .hero-wordmark {
+      font-family: var(--font-display);
+      font-style: italic;
+      font-weight: 800;
+      font-size: clamp(5rem, 16vw, 9.5rem);
+      letter-spacing: -0.03em;
+      color: var(--text);
+      line-height: 1;
+      margin-bottom: 1.5rem;
+      display: inline-block;
+      animation: glow-pulse 5s ease-in-out infinite;
+    }
+    @keyframes glow-pulse {
+      0%, 100% { text-shadow: none; }
+      50%       { text-shadow: 0 4px 48px rgba(26,25,23,0.07); }
+    }
+    .hero-tagline {
+      font-family: var(--font-body);
+      font-style: italic;
+      font-size: clamp(1.075rem, 2.4vw, 1.35rem);
+      color: var(--text-2);
+      max-width: 460px;
+      margin: 0 auto 2.5rem;
+      line-height: 1.6;
+    }
+    .hero-ctas {
+      display: flex;
+      gap: 0.875rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 4.5rem;
+    }
+    .btn-dark {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      background: var(--text); color: var(--bg);
+      padding: 0.75rem 1.75rem; border-radius: 100px;
+      font-family: var(--font-body); font-size: 0.9375rem; font-weight: 500;
+      text-decoration: none;
+      transition: opacity 0.2s, transform 0.2s;
+    }
+    .btn-dark:hover { opacity: 0.82; transform: translateY(-1px); }
+    .btn-ghost {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      background: transparent; color: var(--text);
+      padding: 0.75rem 1.75rem; border-radius: 100px;
+      border: 1.5px solid var(--border-dark);
+      font-family: var(--font-body); font-size: 0.9375rem;
+      text-decoration: none;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+    .btn-ghost:hover { border-color: var(--text); transform: translateY(-1px); }
+
+    /* ── App Mockup ── */
+    .mockup-wrap { max-width: 840px; margin: 0 auto; padding: 0 1rem; }
+    .app-window {
+      background: var(--dark-bg);
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,0.055),
+        0 40px 100px rgba(0,0,0,0.30),
+        0 8px 24px rgba(0,0,0,0.18);
+    }
+    .window-chrome {
+      background: #181614;
+      padding: 0.875rem 1rem;
+      display: flex; align-items: center; gap: 0.5rem;
+    }
+    .td { width: 10px; height: 10px; border-radius: 50%; }
+    .td-r { background: #ff5f57; }
+    .td-y { background: #febc2e; }
+    .td-g { background: #28c840; }
+    .window-title {
+      flex: 1; text-align: center;
+      font-family: var(--font-mono);
+      font-size: 0.68rem; color: #4a4844;
+      letter-spacing: 0.04em;
+    }
+    .window-body {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      min-height: 340px;
+    }
+
+    /* slide pane */
+    .slide-pane {
+      background: #0f0e0c;
+      border-right: 1px solid #262422;
+      padding: 1.75rem;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .slide-card {
+      background: #faf8f5;
+      border-radius: 8px;
+      width: 100%;
+      aspect-ratio: 16/9;
+      padding: 1.35rem 1.5rem;
+      display: flex; flex-direction: column; justify-content: center;
+    }
+    .slide-h {
+      font-family: Georgia, serif;
+      font-style: italic; font-weight: 700;
+      font-size: 0.9rem; color: #2c1810;
+      margin-bottom: 0.625rem;
+    }
+    .slide-rule {
+      height: 1.5px; background: #8b4513;
+      width: 30px; margin-bottom: 0.75rem; border-radius: 1px;
+    }
+    .slide-lines span {
+      display: block;
+      height: 0.33rem; background: #c8bfb2;
+      border-radius: 2px; margin-bottom: 0.35rem;
+    }
+    .slide-lines span:nth-child(1) { width: 88%; }
+    .slide-lines span:nth-child(2) { width: 72%; }
+    .slide-lines span:nth-child(3) { width: 55%; }
+
+    /* code pane */
+    .code-pane {
+      background: #0d1117;
+      padding: 1.1rem 1.35rem;
+      font-family: var(--font-mono);
+      font-size: 0.68rem; line-height: 1.75;
+      overflow: hidden;
+    }
+    .cl { display: flex; }
+    .ln { color: #3d4047; min-width: 1.4rem; user-select: none; }
+    .kw  { color: #ff7b72; }
+    .fn  { color: #d2a8ff; }
+    .str { color: #a5d6ff; }
+    .cm  { color: #8b949e; }
+    .nm  { color: #79c0ff; }
+    .pl  { color: #ffa657; }
+    .code-out {
+      margin-top: 0.75rem;
+      padding: 0.7rem 0.9rem;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+    }
+    .out-label { font-size: 0.6rem; color: #8b949e; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.3rem; }
+    .out-val   { color: #56d364; font-size: 0.68rem; }
+
+    /* ── Section base ── */
+    section { padding: 6rem 0; }
+    .sec-label {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 0.7rem; letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 1.25rem;
+    }
+    .sec-title {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: clamp(1.8rem, 4vw, 2.6rem);
+      color: var(--text);
+      line-height: 1.2;
+      margin-bottom: 3.5rem;
+    }
+    .sec-title em { font-style: italic; }
+
+    /* ── Features ── */
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.25rem;
+    }
+    .feature-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 1.75rem;
+      transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s;
+    }
+    .feature-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 16px 48px rgba(26,25,23,0.09);
+      border-color: var(--border-dark);
+    }
+    .f-icon { width: 34px; height: 34px; margin-bottom: 1.1rem; color: var(--text); }
+    .f-name {
+      font-family: var(--font-display);
+      font-weight: 700; font-size: 1.05rem;
+      color: var(--text); margin-bottom: 0.5rem;
+    }
+    .f-desc { font-size: 0.9rem; color: var(--text-muted); line-height: 1.65; }
+    .f-chips { display: flex; gap: 0.35rem; flex-wrap: wrap; margin-top: 0.875rem; }
+    .chip {
+      font-family: var(--font-mono); font-size: 0.695rem;
+      background: var(--bg-alt); color: var(--text-2);
+      padding: 0.2rem 0.6rem; border-radius: 4px;
+      border: 1px solid var(--border);
+    }
+
+    /* ── Dark section ── */
+    .dark { background: var(--dark-bg); color: var(--dark-text); }
+    .dark .sec-label  { color: var(--dark-muted); }
+    .dark .sec-title  { color: var(--dark-text); }
+    .tech-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 3.5rem; }
+    .tech-group-title {
+      font-family: var(--font-mono); font-size: 0.7rem;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--dark-muted);
+      margin-bottom: 1.25rem; padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--dark-border);
+    }
+    .tech-item {
+      display: flex; align-items: flex-start; gap: 0.875rem;
+      padding: 0.875rem 0;
+      border-bottom: 1px solid var(--dark-border);
+    }
+    .tech-item:last-child { border-bottom: none; }
+    .t-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--dark-muted); flex-shrink: 0; margin-top: 0.55rem;
+    }
+    .t-name { font-family: var(--font-mono); font-size: 0.875rem; color: var(--dark-text); font-weight: 500; }
+    .t-desc { font-size: 0.8125rem; color: var(--dark-muted); margin-top: 0.125rem; font-family: var(--font-body); }
+
+    /* ── Themes section ── */
+    .themes-bg { background: var(--bg-alt); }
+    .theme-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+    .theme-swatch {
+      border-radius: var(--r); overflow: hidden;
+      border: 1px solid var(--border);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .theme-swatch:hover { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(0,0,0,0.14); }
+    .sw-preview {
+      height: 96px;
+      display: flex; flex-direction: column;
+      padding: 1.1rem; justify-content: center;
+    }
+    .sw-title { height: 6px; border-radius: 3px; width: 55%; margin-bottom: 5px; }
+    .sw-body  { height: 4px; border-radius: 2px; width: 78%; margin-bottom: 3px; opacity: 0.45; }
+    .sw-body.s { width: 52%; }
+    .sw-accent { height: 2px; border-radius: 1px; width: 28%; margin-top: 7px; }
+    .sw-label {
+      padding: 0.6rem 0.875rem;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+    }
+    .sw-name { font-family: var(--font-mono); font-size: 0.695rem; color: var(--text-2); }
+
+    /* ── CTA ── */
+    .cta-section { text-align: center; padding: 7rem 0; }
+    .cta-title {
+      font-family: var(--font-display);
+      font-style: italic; font-weight: 700;
+      font-size: clamp(2.25rem, 6vw, 3.5rem);
+      color: var(--dark-text);
+      margin-bottom: 2.25rem;
+      line-height: 1.15;
+    }
+    .btn-cream {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      background: var(--bg); color: var(--text);
+      padding: 0.875rem 2.25rem; border-radius: 100px;
+      font-family: var(--font-body); font-size: 1rem; font-weight: 500;
+      text-decoration: none;
+      transition: opacity 0.2s, transform 0.2s;
+      margin-bottom: 1.25rem;
+    }
+    .btn-cream:hover { opacity: 0.9; transform: translateY(-2px); }
+    .cta-note { font-size: 0.875rem; color: var(--dark-muted); font-style: italic; }
+
+    /* ── Footer ── */
+    footer {
+      background: var(--dark-bg);
+      border-top: 1px solid var(--dark-border);
+      padding: 2.5rem 0;
+    }
+    .footer-inner {
+      max-width: var(--max); margin: 0 auto; padding: 0 2rem;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .footer-wordmark {
+      font-family: var(--font-display); font-style: italic; font-weight: 700;
+      font-size: 1.25rem; color: var(--dark-text); text-decoration: none;
+    }
+    .footer-links { display: flex; gap: 1.75rem; }
+    .footer-links a {
+      font-size: 0.875rem; color: var(--dark-muted);
+      text-decoration: none; font-family: var(--font-body);
+      transition: color 0.2s;
+    }
+    .footer-links a:hover { color: var(--dark-text); }
+    .footer-copy { font-size: 0.8125rem; color: var(--dark-muted); }
+
+    /* ── Scroll reveal ── */
+    .fu {
+      opacity: 0;
+      transform: translateY(22px);
+      transition: opacity 0.65s ease, transform 0.65s ease;
+    }
+    .fu.vis { opacity: 1; transform: translateY(0); }
+    .d1 { transition-delay: 0.08s; }
+    .d2 { transition-delay: 0.16s; }
+    .d3 { transition-delay: 0.24s; }
+    .d4 { transition-delay: 0.32s; }
+    .d5 { transition-delay: 0.40s; }
+    .d6 { transition-delay: 0.48s; }
+
+    /* ── Responsive ── */
+    @media (max-width: 900px) {
+      .feature-grid { grid-template-columns: repeat(2, 1fr); }
+      .theme-strip  { grid-template-columns: repeat(2, 1fr); }
+      .tech-cols    { grid-template-columns: 1fr; gap: 2rem; }
+    }
+    @media (max-width: 640px) {
+      .feature-grid { grid-template-columns: 1fr; }
+      .window-body  { grid-template-columns: 1fr; }
+      .code-pane    { display: none; }
+      .footer-inner { flex-direction: column; gap: 1.25rem; text-align: center; }
+      .footer-links { flex-direction: column; gap: 0.5rem; text-align: center; align-items: center; }
+      .nav-links .btn-pill-sm { display: none; }
+    }
+    @media (max-width: 480px) {
+      section { padding: 4rem 0; }
+      .hero   { padding: 4rem 0 3rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── NAV ── -->
+<nav id="nav">
+  <div class="nav-inner">
+    <a class="nav-wordmark" href="#">lecta</a>
+    <div class="nav-links">
+      <a href="https://github.com/ruimachado-orbit/lecta">GitHub</a>
+      <a class="btn-pill-sm" href="#download">Download</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ── HERO ── -->
+<section class="hero">
+  <div class="container">
+    <span class="hero-kicker">Open source &middot; macOS &middot; Free</span>
+    <h1 class="hero-wordmark">lecta</h1>
+    <p class="hero-tagline">Technical presentations with live code execution.</p>
+    <div class="hero-ctas">
+      <a class="btn-dark" href="#download">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+        </svg>
+        Download for macOS
+      </a>
+      <a class="btn-ghost" href="https://github.com/ruimachado-orbit/lecta">GitHub &rarr;</a>
+    </div>
+
+    <!-- mockup -->
+    <div class="mockup-wrap fu">
+      <div class="app-window">
+        <div class="window-chrome">
+          <span class="td td-r"></span>
+          <span class="td td-y"></span>
+          <span class="td td-g"></span>
+          <span class="window-title">intro-to-sql &mdash; lecta</span>
+        </div>
+        <div class="window-body">
+          <!-- slide -->
+          <div class="slide-pane">
+            <div class="slide-card">
+              <div class="slide-h">Aggregation &amp; Window Functions</div>
+              <div class="slide-rule"></div>
+              <div class="slide-lines">
+                <span></span><span></span><span></span>
+              </div>
+            </div>
+          </div>
+          <!-- code -->
+          <div class="code-pane">
+            <div class="cl"><span class="ln">1</span>&nbsp;<span class="cm">-- running total of sales by date</span></div>
+            <div class="cl"><span class="ln">2</span>&nbsp;<span class="kw">SELECT</span></div>
+            <div class="cl"><span class="ln">3</span>&nbsp;&nbsp;&nbsp;<span class="pl">date</span>,</div>
+            <div class="cl"><span class="ln">4</span>&nbsp;&nbsp;&nbsp;<span class="pl">amount</span>,</div>
+            <div class="cl"><span class="ln">5</span>&nbsp;&nbsp;&nbsp;<span class="fn">SUM</span>(<span class="pl">amount</span>) <span class="kw">OVER</span> (</div>
+            <div class="cl"><span class="ln">6</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">ORDER BY</span> <span class="pl">date</span></div>
+            <div class="cl"><span class="ln">7</span>&nbsp;&nbsp;&nbsp;) <span class="kw">AS</span> <span class="pl">running_total</span></div>
+            <div class="cl"><span class="ln">8</span>&nbsp;<span class="kw">FROM</span> <span class="nm">sales</span></div>
+            <div class="cl"><span class="ln">9</span>&nbsp;<span class="kw">ORDER BY</span> <span class="pl">date</span></div>
+            <div class="code-out">
+              <div class="out-label">Result &middot; 5 rows</div>
+              <div class="out-val">2024-01-01&nbsp;&nbsp;1200&nbsp;&nbsp;1200<br>2024-01-02&nbsp;&nbsp;&nbsp;950&nbsp;&nbsp;2150<br>2024-01-03&nbsp;&nbsp;1680&nbsp;&nbsp;3830</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── FEATURES ── -->
+<section>
+  <div class="container">
+    <span class="sec-label fu">Capabilities</span>
+    <h2 class="sec-title fu">Everything you need<br><em>to present code beautifully.</em></h2>
+    <div class="feature-grid">
+
+      <div class="feature-card fu d1">
+        <svg class="f-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M14.25 9.75L16.5 12l-2.25 2.25m-4.5 0L7.5 12l2.25-2.25M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z"/>
+        </svg>
+        <div class="f-name">Live Code Execution</div>
+        <p class="f-desc">Run code right inside your slides. Results appear inline — no switching windows, no copy-pasting output.</p>
+        <div class="f-chips">
+          <span class="chip">JavaScript</span>
+          <span class="chip">Python</span>
+          <span class="chip">SQL</span>
+          <span class="chip">Native</span>
+        </div>
+      </div>
+
+      <div class="feature-card fu d2">
+        <svg class="f-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z"/>
+        </svg>
+        <div class="f-name">AI Speaker Notes</div>
+        <p class="f-desc">Generate contextual speaker notes for each slide automatically. Supports Claude, GPT-4o, Gemini, and Mistral.</p>
+      </div>
+
+      <div class="feature-card fu d3">
+        <svg class="f-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"/>
+        </svg>
+        <div class="f-name">Presenter Mode</div>
+        <p class="f-desc">Full-screen presentation with a dedicated speaker view — notes, elapsed timer, and next-slide preview on your second display.</p>
+      </div>
+
+      <div class="feature-card fu d4">
+        <svg class="f-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.043-.025a15.994 15.994 0 011.622-3.395m3.42 3.42a15.995 15.995 0 004.764-4.648l3.876-5.814a1.151 1.151 0 00-1.597-1.597L14.146 6.32a15.996 15.996 0 00-4.649 4.763m3.42 3.42a6.776 6.776 0 00-3.42-3.42"/>
+        </svg>
+        <div class="f-name">Eight Built-in Themes</div>
+        <p class="f-desc">From minimal Apple Keynote to warm editorial Paper to high-contrast Keynote Dark — each theme is carefully crafted with matching typography.</p>
+      </div>
+
+      <div class="feature-card fu d5">
+        <svg class="f-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
+        </svg>
+        <div class="f-name">Real File Loading</div>
+        <p class="f-desc">Code blocks reference actual files on disk and auto-reload on save. Edit in VS Code, run in lecta — always in sync.</p>
+      </div>
+
+      <div class="feature-card fu d6">
+        <svg class="f-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0H3"/>
+        </svg>
+        <div class="f-name">Keyboard-Driven</div>
+        <p class="f-desc">Arrow keys navigate slides, <kbd style="font-family:var(--font-mono);font-size:0.8em;background:var(--bg-alt);padding:0.1em 0.4em;border-radius:3px;border:1px solid var(--border);">⌘↵</kbd> executes code, F5 starts the presentation. Stay in flow.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── UNDER THE HOOD ── -->
+<section class="dark">
+  <div class="container">
+    <span class="sec-label fu">Under the hood</span>
+    <h2 class="sec-title fu">Built on the tools<br><em>you already use.</em></h2>
+    <div class="tech-cols">
+      <div class="fu d1">
+        <div class="tech-group-title">Execution Engines</div>
+        <div class="tech-item">
+          <span class="t-dot"></span>
+          <div>
+            <div class="t-name">JavaScript</div>
+            <div class="t-desc">Sandboxed V8 via Sandpack — safe, isolated, instant results.</div>
+          </div>
+        </div>
+        <div class="tech-item">
+          <span class="t-dot"></span>
+          <div>
+            <div class="t-name">Python</div>
+            <div class="t-desc">Pyodide in WebAssembly — NumPy, pandas, matplotlib, all in-process.</div>
+          </div>
+        </div>
+        <div class="tech-item">
+          <span class="t-dot"></span>
+          <div>
+            <div class="t-name">SQL</div>
+            <div class="t-desc">sql.js (SQLite) — import CSVs, run queries, display tabular results.</div>
+          </div>
+        </div>
+        <div class="tech-item">
+          <span class="t-dot"></span>
+          <div>
+            <div class="t-name">Native Shell</div>
+            <div class="t-desc">Your local toolchain — run any CLI command and show live output.</div>
+          </div>
+        </div>
+      </div>
+      <div class="fu d2">
+        <div class="tech-group-title">AI Integrations</div>
+        <div class="tech-item">
+          <span class="t-dot"></span>
+          <div>
+            <div class="t-name">Claude (Anthropic)</div>
+            <div class="t-desc">claude-opus-4, claude-sonnet-4-6 and all released models.</div>
+          </div>
+        </div>
+        <div class="tech-item">
+          <span class="t-dot"></span>
+          <div>
+            <div class="t-name">OpenAI</div>
+            <div class="t-desc">GPT-4o, o3, and all chat-completion endpoints.</div>
+          </div>
+        </div>
+        <div class="tech-item">
+          <span class="t-dot"></span>
+          <div>
+            <div class="t-name">Google Gemini</div>
+            <div class="t-desc">Gemini 2.5 Pro and Flash via Google AI SDK.</div>
+          </div>
+        </div>
+        <div class="tech-item">
+          <span class="t-dot"></span>
+          <div>
+            <div class="t-name">Mistral &amp; Llama</div>
+            <div class="t-desc">Open-weight models via Mistral API and Meta's API.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── THEMES ── -->
+<section class="themes-bg">
+  <div class="container">
+    <span class="sec-label fu">Themes</span>
+    <h2 class="sec-title fu">Eight slide themes<br><em>for every context.</em></h2>
+    <div class="theme-strip">
+
+      <div class="theme-swatch fu d1">
+        <div class="sw-preview" style="background:#000000;">
+          <div class="sw-title" style="background:#ffffff;"></div>
+          <div class="sw-body"  style="background:#ffffff;"></div>
+          <div class="sw-body s" style="background:#ffffff;"></div>
+          <div class="sw-accent" style="background:#6366f1;"></div>
+        </div>
+        <div class="sw-label"><span class="sw-name">Default Dark</span></div>
+      </div>
+
+      <div class="theme-swatch fu d2">
+        <div class="sw-preview" style="background:#ffffff; box-shadow:inset 0 -1px 0 #e5e7eb;">
+          <div class="sw-title" style="background:#0f172a;"></div>
+          <div class="sw-body"  style="background:#0f172a;"></div>
+          <div class="sw-body s" style="background:#0f172a;"></div>
+          <div class="sw-accent" style="background:#6366f1;"></div>
+        </div>
+        <div class="sw-label"><span class="sw-name">Default Light</span></div>
+      </div>
+
+      <div class="theme-swatch fu d3">
+        <div class="sw-preview" style="background:#0c0c0e;">
+          <div class="sw-title" style="background:#ffffff;"></div>
+          <div class="sw-body"  style="background:#ffffff;"></div>
+          <div class="sw-body s" style="background:#ffffff;"></div>
+          <div class="sw-accent" style="background:#d4a843;"></div>
+        </div>
+        <div class="sw-label"><span class="sw-name">Executive</span></div>
+      </div>
+
+      <div class="theme-swatch fu d4">
+        <div class="sw-preview" style="background:#ffffff; box-shadow:inset 0 -1px 0 #e5e7eb;">
+          <div class="sw-title" style="background:#000000;"></div>
+          <div class="sw-body"  style="background:#000000;"></div>
+          <div class="sw-body s" style="background:#000000;"></div>
+          <div class="sw-accent" style="background:#000000;"></div>
+        </div>
+        <div class="sw-label"><span class="sw-name">Minimal</span></div>
+      </div>
+
+      <div class="theme-swatch fu d1">
+        <div class="sw-preview" style="background:#ffffff; box-shadow:inset 0 -1px 0 #e5e7eb;">
+          <div class="sw-title" style="background:#1a365d;"></div>
+          <div class="sw-body"  style="background:#1a365d;"></div>
+          <div class="sw-body s" style="background:#1a365d;"></div>
+          <div class="sw-accent" style="background:#2563eb;"></div>
+        </div>
+        <div class="sw-label"><span class="sw-name">Corporate</span></div>
+      </div>
+
+      <div class="theme-swatch fu d2">
+        <div class="sw-preview" style="background:#0f0f12;">
+          <div class="sw-title" style="background:#ffffff;"></div>
+          <div class="sw-body"  style="background:#ffffff;"></div>
+          <div class="sw-body s" style="background:#ffffff;"></div>
+          <div class="sw-accent" style="background:#8b5cf6;"></div>
+        </div>
+        <div class="sw-label"><span class="sw-name">Creative</span></div>
+      </div>
+
+      <div class="theme-swatch fu d3">
+        <div class="sw-preview" style="background:#0a0a0a;">
+          <div class="sw-title" style="background:#ffffff;"></div>
+          <div class="sw-body"  style="background:#ffffff;"></div>
+          <div class="sw-body s" style="background:#ffffff;"></div>
+          <div class="sw-accent" style="background:#00d4ff;"></div>
+        </div>
+        <div class="sw-label"><span class="sw-name">Keynote Dark</span></div>
+      </div>
+
+      <div class="theme-swatch fu d4">
+        <div class="sw-preview" style="background:#faf8f5; box-shadow:inset 0 -1px 0 #e0d9ce;">
+          <div class="sw-title" style="background:#2c1810;"></div>
+          <div class="sw-body"  style="background:#2c1810;"></div>
+          <div class="sw-body s" style="background:#2c1810;"></div>
+          <div class="sw-accent" style="background:#8b4513;"></div>
+        </div>
+        <div class="sw-label"><span class="sw-name">Paper</span></div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── CTA ── -->
+<section class="cta-section dark" id="download">
+  <div class="container">
+    <span class="sec-label fu">Get started</span>
+    <h2 class="cta-title fu">Ready to present?</h2>
+    <div class="fu">
+      <a class="btn-cream" href="#">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+        </svg>
+        Download for macOS
+      </a>
+      <p class="cta-note">Free and open source &middot; macOS 13+</p>
+    </div>
+  </div>
+</section>
+
+<!-- ── FOOTER ── -->
+<footer>
+  <div class="footer-inner">
+    <a class="footer-wordmark" href="#">lecta</a>
+    <div class="footer-links">
+      <a href="https://github.com/ruimachado-orbit/lecta">GitHub</a>
+      <a href="https://github.com/ruimachado-orbit/lecta/releases">Releases</a>
+      <a href="https://github.com/ruimachado-orbit/lecta/issues">Issues</a>
+    </div>
+    <span class="footer-copy">&copy; 2025 &mdash; MIT License</span>
+  </div>
+</footer>
+
+<script>
+  // sticky nav
+  const nav = document.getElementById('nav')
+  window.addEventListener('scroll', () => {
+    nav.classList.toggle('scrolled', window.scrollY > 40)
+  }, { passive: true })
+
+  // scroll-reveal
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) { e.target.classList.add('vis'); obs.unobserve(e.target) }
+    })
+  }, { threshold: 0.1 })
+  document.querySelectorAll('.fu').forEach(el => obs.observe(el))
+</script>
+</body>
+</html>

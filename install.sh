@@ -32,7 +32,28 @@ echo "Downloading ${APP_NAME} v${VERSION} for ${ARCH}..."
 curl -L --progress-bar -o "$TMP_DMG" "$DMG_URL"
 
 echo "Mounting disk image..."
-MOUNT_DIR=$(hdiutil attach "$TMP_DMG" -nobrowse -quiet | tail -1 | awk '{print $NF}')
+hdiutil attach "$TMP_DMG" -nobrowse -quiet
+# Volume name uses space separator (e.g. "Lecta 0.1.0-arm64")
+VOLUME_NAME="${APP_NAME} ${VERSION}-${DMG_ARCH}"
+MOUNT_DIR="/Volumes/${VOLUME_NAME}"
+
+# Wait briefly for mount to appear
+for i in 1 2 3 4 5; do
+  [ -d "$MOUNT_DIR" ] && break
+  sleep 1
+done
+
+if [ ! -d "${MOUNT_DIR}/${APP_NAME}.app" ]; then
+  # Fallback: find the volume by listing /Volumes
+  MOUNT_DIR=$(find /Volumes -maxdepth 1 -name "${APP_NAME}*" -type d 2>/dev/null | head -1)
+fi
+
+if [ ! -d "${MOUNT_DIR}/${APP_NAME}.app" ]; then
+  echo "Error: Could not find ${APP_NAME}.app in mounted volume."
+  echo "Contents of ${MOUNT_DIR}:"
+  ls -la "${MOUNT_DIR}" 2>/dev/null || echo "(mount not found)"
+  exit 1
+fi
 
 echo "Installing to /Applications..."
 rm -rf "/Applications/${APP_NAME}.app"

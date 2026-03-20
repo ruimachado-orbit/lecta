@@ -3,7 +3,8 @@
     "allow": [
       "Bash(npx vite:*)",
       "Bash(ls out/renderer/assets/*.css)",
-      "Bash(ls -la *.tsx)"
+      "Bash(ls -la *.tsx)",
+      "Bash(find \"/Users/ruimachado/Desktop/Personal Projects/Lecta/node_modules\" -name \"* 2\" -type d -exec rm -rf {} +)"
     ],
     "additionalDirectories": [
       "/var/folders/cx/hkm1s2xd5rb3bwzd4dxk95xr0000gn/T/lecta-workspace-Orbit_Tech_Nation_Status_Update-L1VzZXJz",

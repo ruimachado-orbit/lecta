@@ -155,13 +155,13 @@ export function ChatSidebarPanel(): JSX.Element {
   }
 
   return (
-    <div className="h-full flex flex-col bg-gray-950">
+    <div className="h-full flex flex-col bg-white/50 dark:bg-gray-950">
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-800 flex-shrink-0">
-        <svg className="w-4 h-4 text-indigo-400" fill="currentColor" viewBox="0 0 24 24">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-200 dark:border-gray-800 flex-shrink-0">
+        <svg className="w-4 h-4 text-indigo-500 dark:text-indigo-400" fill="currentColor" viewBox="0 0 24 24">
           <path d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
         </svg>
-        <span className="text-xs font-medium text-gray-300 flex-1">Lecta AI</span>
+        <span className="text-xs font-medium text-gray-700 dark:text-gray-300 flex-1">Lecta AI</span>
 
         {activeTab && activeTab.messages.length > 0 && (
           <button

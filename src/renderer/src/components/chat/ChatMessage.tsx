@@ -39,7 +39,7 @@ export function ChatMessageComponent({ message }: { message: ChatMessageType }):
       <div
         data-chat-role={message.role}
         className={`max-w-[90%] rounded-lg px-3 py-2 ${
-          isUser ? 'bg-indigo-600 text-white' : 'text-gray-300'
+          isUser ? 'bg-indigo-600 text-white' : 'text-gray-800 dark:text-gray-300'
         }`}
       >
         {isUser ? (
@@ -47,7 +47,7 @@ export function ChatMessageComponent({ message }: { message: ChatMessageType }):
         ) : (
           <>
             {message.content && (
-              <div className="prose prose-invert prose-sm max-w-none [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_li]:my-0 [&_pre]:my-2 [&_h1]:text-sm [&_h2]:text-sm [&_h3]:text-xs">
+              <div className="prose dark:prose-invert prose-sm max-w-none [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_li]:my-0 [&_pre]:my-2 [&_h1]:text-sm [&_h2]:text-sm [&_h3]:text-xs">
                 <ReactMarkdown>{message.content}</ReactMarkdown>
               </div>
             )}

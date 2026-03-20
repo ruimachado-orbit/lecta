@@ -197,7 +197,7 @@ function ChatTabContent({
       )}
 
       {/* Input */}
-      <div className={`border-t border-gray-800 p-3 flex-shrink-0 ${noProviders ? 'opacity-50' : ''}`}>
+      <div className={`border-t border-gray-200 dark:border-gray-800 p-3 flex-shrink-0 ${noProviders ? 'opacity-50' : ''}`}>
         <div className="max-w-2xl mx-auto space-y-2">
           <div className="flex items-center gap-2">
             <ActionModeToggle />
@@ -211,14 +211,14 @@ function ChatTabContent({
               onKeyDown={handleKeyDown}
               placeholder={noProviders ? 'Configure an AI provider in Settings' : 'Ask Lecta AI...'}
               rows={1}
-              className="flex-1 resize-none bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500 max-h-32 overflow-y-auto disabled:cursor-not-allowed"
+              className="flex-1 resize-none bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-2.5 text-sm text-gray-900 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:border-indigo-500 max-h-32 overflow-y-auto disabled:cursor-not-allowed"
               style={{ minHeight: '42px' }}
               disabled={isDisabled}
             />
             <button
               onClick={handleSend}
               disabled={!input.trim() || isDisabled}
-              className="w-9 h-9 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-800 disabled:text-gray-600 text-white flex items-center justify-center transition-colors flex-shrink-0"
+              className="w-9 h-9 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 dark:disabled:text-gray-600 text-white flex items-center justify-center transition-colors flex-shrink-0"
               title="Send"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">

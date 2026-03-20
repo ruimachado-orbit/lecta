@@ -845,7 +845,8 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
       setKeys(loadedKeys)
     })
     setValidating(true)
-    refreshProviderStatuses().finally(() => setValidating(false))
+    const timer = setTimeout(() => setValidating(false), 10000) // safety fallback
+    refreshProviderStatuses().finally(() => { clearTimeout(timer); setValidating(false) })
   }, [])
 
   const handleSave = async () => {
@@ -1010,19 +1011,6 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
                     }`}
                     onClick={(e) => {
                       if ((e.target as HTMLElement).closest('button')) return
-                      // If key is from .env or env var, clicking selects the provider
-                      if (isFromEnv && hasKey) {
-                        selectThisProvider()
-                        return
-                      }
-                      // If has key from settings, also select
-                      if (hasKey && !isFromEnv) {
-                        const providerDef = AI_PROVIDERS.find((p) => p.id === id)
-                        if (providerDef && providerDef.models.length > 0) {
-                          setAiModel(providerDef.models[0].id)
-                        }
-                        return
-                      }
                       openKeyModal(id)
                     }}
                   >
@@ -1047,7 +1035,7 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
                         {meta.icon}
                       </div>
                       <span className="text-sm font-medium text-gray-200 flex-1">{meta.name}</span>
-                      {hasKey && !validating && !isFromEnv && (
+                      {(hasKey || keys[id]) && !isFromEnv && (
                         <button
                           onClick={() => handleSaveKey(id, '')}
                           className="w-5 h-5 rounded-md flex items-center justify-center text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"

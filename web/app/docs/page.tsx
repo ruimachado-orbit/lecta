@@ -64,9 +64,13 @@ export default function DocsPage() {
             <div className="docsExamples">
               <div className="docsExample">&ldquo;Create a 10-slide presentation about microservices&rdquo;</div>
               <div className="docsExample">&ldquo;Add a slide about error handling with a Python code example&rdquo;</div>
-              <div className="docsExample">&ldquo;Change the theme to executive&rdquo;</div>
-              <div className="docsExample">&ldquo;List all the slides in my deck&rdquo;</div>
+              <div className="docsExample">&ldquo;Change the theme to keynote-dark&rdquo;</div>
+              <div className="docsExample">&ldquo;Add a two-column slide comparing React vs Vue&rdquo;</div>
+              <div className="docsExample">&ldquo;Delete slide 3 and move the conclusion to the end&rdquo;</div>
             </div>
+            <p className="docsNote">
+              Presentations are saved to <code>~/Documents/Lecta</code> by default. They appear in your Lecta home screen automatically.
+            </p>
 
             <h3>Setup</h3>
             <div className="docsSteps">
@@ -168,11 +172,31 @@ export default function DocsPage() {
             </div>
           </section>
 
+          {/* ── Import Formats ── */}
+          <section className="docsSection" id="import">
+            <h2>Import Formats</h2>
+            <p>
+              Open any of these file types from the file dialog — Lecta converts them into editable presentations or notebooks.
+            </p>
+            <div className="docsProviderGrid">
+              {[
+                ['Jupyter Notebook (.ipynb)', 'Full cell structure with markdown, code, and outputs. Kernel auto-detected (Python, JS, SQL, etc.). Interactive Jupyter-style view with cell execution, reorder, and kernel picker.'],
+                ['PowerPoint (.pptx)', 'Layout detection (title, section, two-column, etc.), rich text formatting (bold, italic, links), images linked to slides, tables as GFM markdown, speaker notes preserved.'],
+                ['Lecta File (.lecta)', 'Portable archive containing slides, code, and artifacts. Open on any machine with Lecta.'],
+              ].map(([format, desc]) => (
+                <div key={format} className="docsProvider">
+                  <strong>{format}</strong>
+                  <span>{desc}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+
           {/* ── AI Providers ── */}
           <section className="docsSection" id="ai">
             <h2>AI Providers</h2>
             <p>
-              Lecta supports 7 AI providers with 20+ models. Add your API keys in <strong>Settings</strong> or in a <code>.env</code> file.
+              Lecta supports 8 AI providers with 20+ models. Add your API keys in <strong>Settings</strong> or in a <code>.env</code> file. Ollama runs locally with no key required.
             </p>
             <div className="docsProviderGrid">
               {[
@@ -183,6 +207,7 @@ export default function DocsPage() {
                 ['Meta Llama', 'Llama 4 Maverick, Scout, 3.3 70B'],
                 ['xAI', 'Grok 3, Grok 3 Fast, Mini, Mini Fast'],
                 ['Perplexity', 'Sonar Pro, Sonar, Reasoning Pro, Reasoning'],
+                ['Ollama (Local)', 'Any model — Llama, Mistral, Phi, Qwen, and more. No API key.'],
               ].map(([provider, models]) => (
                 <div key={provider} className="docsProvider">
                   <strong>{provider}</strong>

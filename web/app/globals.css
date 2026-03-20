@@ -165,8 +165,15 @@ body::before {
   font-size: clamp(1.075rem, 2.4vw, 1.35rem);
   color: var(--text-2);
   max-width: 460px;
-  margin: 0 auto 2.5rem;
+  margin: 0 auto 1rem;
   line-height: 1.6;
+}
+.heroSub {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin: 0 auto 2.5rem;
 }
 .heroCtas {
   display: flex;
@@ -868,6 +875,11 @@ section {
   grid-template-columns: 1fr 1fr;
   gap: 3.5rem;
 }
+.techColsThree {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 2.5rem;
+}
 .techGroupTitle {
   font-family: var(--font-mono, monospace);
   font-size: 0.7rem;
@@ -1534,6 +1546,88 @@ footer {
   border-color: var(--text);
 }
 
+/* ── Claude Section ── */
+.claudeSection { background: var(--bg-alt); padding: 6rem 0; }
+.claudeGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+.claudeCard {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 2rem;
+}
+.claudeCardLabel {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+.claudeSteps { display: flex; flex-direction: column; gap: 0.875rem; }
+.claudeStep {
+  display: flex;
+  gap: 0.875rem;
+  align-items: flex-start;
+}
+.claudeStepNum {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--text);
+  color: var(--bg);
+  font-family: var(--font-mono, monospace);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+.claudeStep strong {
+  display: block;
+  font-family: var(--font-display, 'Playfair Display', Georgia, serif);
+  font-size: 0.95rem;
+  color: var(--text);
+}
+.claudeStep span {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.claudeExamples { display: flex; flex-direction: column; gap: 0.5rem; }
+.claudeExample {
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 0.65rem 1rem;
+  font-size: 0.875rem;
+  font-style: italic;
+  color: var(--text-2);
+}
+.claudeCardNote {
+  margin-top: 1.25rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+.claudeCta { text-align: center; }
+.claudeDocsLink {
+  font-family: var(--font-body, Lora, serif);
+  font-size: 0.9375rem;
+  color: var(--text);
+  text-decoration: none;
+  border-bottom: 1.5px solid var(--border-dark);
+  padding-bottom: 0.1rem;
+  transition: border-color 0.2s;
+}
+.claudeDocsLink:hover { border-color: var(--text); }
+
 /* ── Docs page ── */
 .docsMain {
   padding: 6rem 0 4rem;
@@ -1817,7 +1911,14 @@ footer {
     grid-template-columns: 1fr;
     gap: 2rem;
   }
+  .techColsThree {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
   .presenterGrid {
+    grid-template-columns: 1fr;
+  }
+  .claudeGrid {
     grid-template-columns: 1fr;
   }
 }

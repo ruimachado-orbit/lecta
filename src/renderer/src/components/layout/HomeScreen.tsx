@@ -820,6 +820,7 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
   const [editingProvider, setEditingProvider] = useState<string | null>(null)
   const [editingKey, setEditingKey] = useState('')
   const [keys, setKeys] = useState<Record<string, string>>({})
+  const [validating, setValidating] = useState(false)
 
   useEffect(() => {
     window.electronAPI.getAppSettings().then((settings) => {
@@ -838,7 +839,8 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
       }
       setKeys(loadedKeys)
     })
-    refreshProviderStatuses()
+    setValidating(true)
+    refreshProviderStatuses().finally(() => setValidating(false))
   }, [])
 
   const handleSave = async () => {
@@ -859,7 +861,9 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
     setKeys((prev) => ({ ...prev, [providerId]: key }))
     setEditingProvider(null)
     setEditingKey('')
+    setValidating(true)
     await refreshProviderStatuses()
+    setValidating(false)
   }
 
   const openKeyModal = (providerId: string) => {
@@ -958,7 +962,19 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
               {ALL_PROVIDER_IDS.map((id) => {
                 const meta = PROVIDER_META[id]
                 const status = providerStatuses.find((s) => s.id === id)
-                const connected = status?.hasKey ?? false
+                const providerStatus = status?.status ?? (status?.hasKey ? 'connected' : 'not_configured')
+
+                const dotColor = providerStatus === 'connected' ? 'bg-green-500'
+                  : providerStatus === 'invalid' ? 'bg-yellow-500'
+                  : 'bg-red-500'
+
+                const labelColor = providerStatus === 'connected' ? 'text-green-400'
+                  : providerStatus === 'invalid' ? 'text-yellow-400'
+                  : 'text-gray-600'
+
+                const labelText = providerStatus === 'connected' ? 'Connected'
+                  : providerStatus === 'invalid' ? 'Invalid key'
+                  : 'Not configured'
 
                 return (
                   <button
@@ -972,11 +988,11 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
                         {meta.icon}
                       </div>
                       <span className="text-sm font-medium text-gray-200 flex-1">{meta.name}</span>
-                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
+                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${validating ? 'bg-gray-500 animate-pulse' : dotColor}`} />
                     </div>
                     <p className="text-[10px] text-gray-500 leading-tight">{meta.description}</p>
-                    <p className={`text-[10px] mt-1 ${connected ? 'text-green-400' : 'text-gray-600'}`}>
-                      {connected ? 'Connected' : 'Not configured'}
+                    <p className={`text-[10px] mt-1 ${validating ? 'text-gray-500' : labelColor}`}>
+                      {validating ? 'Validating...' : labelText}
                     </p>
                   </button>
                 )

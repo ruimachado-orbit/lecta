@@ -88,7 +88,12 @@ export function SlideEditToolbar({ editorRef }: SlideEditToolbarProps): JSX.Elem
         <Btn title="Code block" onClick={() => insertAtCursor('\n```\n\n```\n')}>{"{ }"}</Btn>
         <Btn title="Blockquote" onClick={() => insertAtCursor('\n> ')}>❝</Btn>
         <Btn title="Divider (horizontal rule)" onClick={() => insertAtCursor('\n---\n')}>—</Btn>
-        <Btn title="Add slide break — splits content into a new sub-slide" onClick={() => insertAtCursor('\n\n---\n\n')} accent>⊗ Break</Btn>
+        <Btn title="Add subslide" onClick={() => {
+          const current = currentSlide?.markdownContent ?? ''
+          updateMarkdownContent(currentSlideIndex, current.trimEnd() + '\n\n---\n\n')
+          saveSlideContent(currentSlideIndex)
+          setTimeout(() => useUIStore.getState().setEditorMode('wysiwyg'), 50)
+        }} accent>+ Subslide</Btn>
         <Btn title="Mermaid diagram" onClick={() => insertAtCursor('\n```mermaid\ngraph LR\n    A[Start] --> B[Process]\n    B --> C[End]\n```\n')}>◇</Btn>
         <Btn title="2 columns" onClick={() => insertAtCursor('\n<!-- columns -->\nLeft column content\n<!-- col -->\nRight column content\n<!-- /columns -->\n')}>▥</Btn>
         <Btn title="3 columns" onClick={() => insertAtCursor('\n<!-- columns -->\nColumn 1\n<!-- col -->\nColumn 2\n<!-- col -->\nColumn 3\n<!-- /columns -->\n')}>▦</Btn>

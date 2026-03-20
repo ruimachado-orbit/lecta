@@ -38,30 +38,34 @@ export function SlidePanel(): JSX.Element {
     currentSlideIndex
   )
 
+  const breakOffsetsRef = useRef(breakOffsets)
+  breakOffsetsRef.current = breakOffsets
+
   const handleEditorMount: OnMount = (editor, monaco) => {
     editorRef.current = editor
 
     // Add sub-slide break decorations
     const updateDecorations = () => {
-      if (!breakOffsets || breakOffsets.length === 0) {
-        editor.removeDecorations(editor.getModel()?.getAllDecorations()?.filter(
-          (d: any) => d.options?.className === 'subslide-break-line'
-        ).map((d: any) => d.id) || [])
+      const offsets = breakOffsetsRef.current
+      if (!Array.isArray(offsets) || offsets.length === 0) {
+        ;(editor as any).__subSlideDecorations = editor.deltaDecorations(
+          (editor as any).__subSlideDecorations || [],
+          []
+        )
         return
       }
       const model = editor.getModel()
       if (!model) return
 
       const content = model.getValue()
-      const decorations = breakOffsets.map((offset, i) => {
-        // Find line number for this character offset
+      const decorations = offsets.map((offset, i) => {
         let charCount = 0
         const lines = content.split('\n')
         let lineNum = 1
         for (let l = 0; l < lines.length; l++) {
-          charCount += lines[l].length + 1 // +1 for newline
+          charCount += lines[l].length + 1
           if (charCount >= offset) {
-            lineNum = l + 2 // +2: 1-indexed + next line
+            lineNum = l + 2
             break
           }
         }
@@ -78,7 +82,7 @@ export function SlidePanel(): JSX.Element {
         }
       })
 
-      (editor as any).__subSlideDecorations = editor.deltaDecorations(
+      ;(editor as any).__subSlideDecorations = editor.deltaDecorations(
         (editor as any).__subSlideDecorations || [],
         decorations
       )
@@ -213,8 +217,8 @@ export function SlidePanel(): JSX.Element {
               />
             </div>
           </div>
-        ) : editingSlide && editorMode === 'wysiwyg' && subSlides.length > 1 && hasManualBreaks ? (
-          /* WYSIWYG with manual sub-slides (---): stacked canvases, click to edit */
+        ) : editingSlide && editorMode === 'wysiwyg' ? (
+          /* WYSIWYG: stacked sub-slide editor (always, even with 1 sub-slide) */
           <SubSlideStackEditor
             subSlides={subSlides}
             currentSubSlide={currentSubSlide}
@@ -226,9 +230,6 @@ export function SlidePanel(): JSX.Element {
             saveSlideContent={saveSlideContent}
             wysiwygHeaderSlot={wysiwygHeaderSlot}
           />
-        ) : editingSlide && editorMode === 'wysiwyg' && subSlides.length <= 1 ? (
-          /* WYSIWYG: single canvas (no sub-slides) */
-          <EditableSlideCanvas slideIndex={currentSlideIndex} breakOffsets={breakOffsets} rootPath={presentation?.rootPath} layout={currentSlide.config.layout} wysiwygHeaderSlot={wysiwygHeaderSlot} />
         ) : editingSlide && editorMode === 'markdown' ? (
           /* Markdown: split view — canvas top, editor bottom */
           <>
@@ -573,7 +574,7 @@ function EditableSlideCanvas({ slideIndex, breakOffsets, rootPath, layout, subSl
 function splitFullMdSections(fullMd: string): string[] {
   const hasBreaks = fullMd.split('\n').some(l => /^(?:---+|\*\s*\*\s*\*|___+)$/.test(l.trim()))
   if (!hasBreaks) return [fullMd]
-  return fullMd.split(/\n?(?:---+|\*\s*\*\s*\*|___+)\n?/).map(s => s.trim()).filter(s => s.length > 0)
+  return fullMd.split(/\n?(?:---+|\*\s*\*\s*\*|___+)\n?/).map(s => s.trim())
 }
 
 /** Stacked sub-slide editor — shows all sub-slides as separate canvases, selected one is WYSIWYG-editable */

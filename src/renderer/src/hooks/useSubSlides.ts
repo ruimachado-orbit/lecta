@@ -145,7 +145,6 @@ export function useSubSlides(
       const sections = markdown.split(/\n?(?:---+|\*\s*\*\s*\*|___+)\n?/)
       let pageIdx = 0
       const pages: SubSlide[] = sections
-        .filter(s => s.trim().length > 0)
         .map((section) => ({
           markdown: section.trim(),
           index: pageIdx++

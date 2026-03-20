@@ -829,13 +829,56 @@ Generate exactly ${slideCount} slides.`
     return false
   }
 
-  /** Get status of all providers (which have API keys configured) */
-  async getProviderStatuses(): Promise<{ id: string; hasKey: boolean }[]> {
+  /** Validate an API key by making a lightweight request to the provider */
+  private async validateProviderKey(providerId: string, apiKey: string): Promise<boolean> {
+    try {
+      switch (providerId) {
+        case 'anthropic': {
+          const client = new Anthropic({ apiKey })
+          await client.messages.create({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 1,
+            messages: [{ role: 'user', content: 'hi' }]
+          })
+          return true
+        }
+        case 'openai': {
+          const client = new OpenAI({ apiKey })
+          await client.models.list()
+          return true
+        }
+        case 'google': {
+          const client = new GoogleGenAI({ apiKey })
+          await client.models.list()
+          return true
+        }
+        case 'mistral':
+        case 'meta':
+        case 'xai':
+        case 'perplexity': {
+          const baseURL = AIService.COMPAT_BASE_URLS[providerId]
+          if (!baseURL) return false
+          const client = new OpenAI({ apiKey, baseURL })
+          await client.models.list()
+          return true
+        }
+        default:
+          return false
+      }
+    } catch {
+      return false
+    }
+  }
+
+  /** Get status of all providers with actual API key validation */
+  async getProviderStatuses(): Promise<{ id: string; hasKey: boolean; status: 'connected' | 'invalid' | 'not_configured' }[]> {
     return Promise.all(
-      AIService.ALL_PROVIDER_IDS.map(async (id) => ({
-        id,
-        hasKey: !!(await loadProviderKey(id, currentDeckPath ?? undefined))
-      }))
+      AIService.ALL_PROVIDER_IDS.map(async (id) => {
+        const key = await loadProviderKey(id, currentDeckPath ?? undefined)
+        if (!key) return { id, hasKey: false, status: 'not_configured' as const }
+        const valid = await this.validateProviderKey(id, key)
+        return { id, hasKey: valid, status: valid ? 'connected' as const : 'invalid' as const }
+      })
     )
   }
 

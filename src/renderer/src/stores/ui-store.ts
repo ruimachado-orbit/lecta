@@ -23,6 +23,7 @@ export interface SlideGroup {
 export interface ProviderStatus {
   id: string
   hasKey: boolean
+  status?: 'connected' | 'invalid' | 'not_configured'
 }
 
 interface UIState {

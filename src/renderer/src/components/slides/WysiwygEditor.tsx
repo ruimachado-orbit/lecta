@@ -1100,12 +1100,18 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
           )}
         </div>
         <Sep />
-        {/* Slide break — inserts a --- horizontal rule which splits into a new sub-slide */}
+        {/* Add subslide — appends a new empty sub-slide at the end */}
         <WBtn
-          title="Add slide break — splits content into a new sub-slide"
-          onClick={() => editor.chain().focus().setHorizontalRule().run()}
+          title="Add subslide"
+          onClick={() => {
+            const store = usePresentationStore.getState()
+            const fullMd = store.slides[slideIndex]?.markdownContent ?? ''
+            const newMd = fullMd.trimEnd() + '\n\n---\n\n'
+            store.updateMarkdownContent(slideIndex, newMd)
+            store.saveSlideContent(slideIndex)
+          }}
         >
-          ⊗ Break
+          + Subslide
         </WBtn>
       </div>
 

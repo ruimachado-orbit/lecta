@@ -592,8 +592,9 @@ function SubSlideStackEditor({ subSlides, currentSubSlide, setCurrentSubSlide, s
 }): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
   const [baseScale, setBaseScale] = useState(0.5)
-  const [zoomOffset, setZoomOffset] = useState(0) // -3 to +3 steps, each step = 0.08
-  const canvasScale = Math.max(0.15, Math.min(1.2, baseScale + zoomOffset * 0.08))
+  const [zoomOffset, setZoomOffset] = useState(0) // -4 to +4 steps, each step = 10% of baseScale
+  const canvasScale = Math.max(0.15, baseScale * (1 + zoomOffset * 0.1))
+  const displayZoom = Math.round((1 + zoomOffset * 0.1) * 100)
   const slideTheme = presentation?.theme || 'dark'
   const layout = currentSlide.config.layout
 
@@ -605,9 +606,11 @@ function SubSlideStackEditor({ subSlides, currentSubSlide, setCurrentSubSlide, s
     if (!container) return
     const updateScale = () => {
       const cw = container.clientWidth
+      const ch = container.clientHeight
       const margin = 24
-      // Fit width — scrollable vertically
-      setBaseScale(Math.min((cw - margin * 2) / SLIDE_W, 1))
+      // Fit both width and height so the first sub-slide is fully visible
+      const s = Math.min((cw - margin * 2) / SLIDE_W, (ch - margin * 2) / SLIDE_H, 1)
+      setBaseScale(Math.max(0.15, s))
     }
     updateScale()
     const ro = new ResizeObserver(updateScale)
@@ -660,7 +663,7 @@ function SubSlideStackEditor({ subSlides, currentSubSlide, setCurrentSubSlide, s
             className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-white rounded-full hover:bg-gray-700/50 transition-colors text-xs"
             title="Zoom out"
           >−</button>
-          <span className="text-[9px] text-gray-500 font-mono w-8 text-center">{Math.round(canvasScale * 100)}%</span>
+          <span className="text-[9px] text-gray-500 font-mono w-8 text-center">{displayZoom}%</span>
           <button
             onClick={() => setZoomOffset(z => Math.min(4, z + 1))}
             className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-white rounded-full hover:bg-gray-700/50 transition-colors text-xs"

@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(npx vite:*)",
-      "Bash(ls out/renderer/assets/*.css)"
+      "Bash(ls out/renderer/assets/*.css)",
+      "Bash(ls -la *.tsx)"
     ],
     "additionalDirectories": [
       "/var/folders/cx/hkm1s2xd5rb3bwzd4dxk95xr0000gn/T/lecta-workspace-Orbit_Tech_Nation_Status_Update-L1VzZXJz",

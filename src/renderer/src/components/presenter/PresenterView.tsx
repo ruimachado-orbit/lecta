@@ -22,6 +22,11 @@ export function PresenterView(): JSX.Element {
   const { isExecuting, output: executionOutput } = useExecutionStore()
   const { runCode, cancelCode } = useCodeExecution()
 
+  // Force dark theme for presenter view
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', 'dark')
+  }, [])
+
   // Expose slide state for remote control
   useEffect(() => {
     (window as any).__lectaSlideState = { current: currentSlideIndex + 1, total: slides.length }
@@ -219,6 +224,18 @@ export function PresenterView(): JSX.Element {
           <span className="text-white text-xs font-mono font-semibold min-w-[40px] text-center">
             {currentSlideIndex + 1}/{slides.length}
           </span>
+          {subSlides.length > 1 && (
+            <div className="flex items-center gap-1 ml-1">
+              {subSlides.map((_, i) => (
+                <div
+                  key={i}
+                  className={`w-1.5 h-1.5 rounded-full transition-colors ${
+                    i === currentSubSlide ? 'bg-white' : 'bg-gray-600'
+                  }`}
+                />
+              ))}
+            </div>
+          )}
           <button onClick={nextSlide} disabled={currentSlideIndex === slides.length - 1}
             className="p-1 rounded hover:bg-gray-800 disabled:opacity-30 transition-colors">
             <svg className="w-3.5 h-3.5 text-gray-300" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">

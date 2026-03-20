@@ -33,6 +33,7 @@ interface LibraryData {
 // ── Persistence ──
 
 let library: LibraryData = { folders: [], entries: [], tagColors: {} }
+let libraryLoaded = false
 
 function getLibraryPath(): string {
   return join(app.getPath('userData'), 'library.json')
@@ -48,7 +49,12 @@ async function loadLibrary(): Promise<LibraryData> {
   } catch {
     library = { folders: [], entries: [], tagColors: {} }
   }
+  libraryLoaded = true
   return library
+}
+
+async function ensureLoaded(): Promise<void> {
+  if (!libraryLoaded) await loadLibrary()
 }
 
 async function saveLibrary(): Promise<void> {
@@ -67,7 +73,7 @@ export async function upsertLibraryEntry(item: {
   slideCount: number
   firstSlidePreview: string
 }): Promise<void> {
-  if (library.entries.length === 0) await loadLibrary()
+  await ensureLoaded()
 
   const existing = library.entries.find((e) => e.path === item.path)
   if (existing) {
@@ -102,6 +108,7 @@ export function registerLibraryHandlers(): void {
   // ── Folders ──
 
   ipcMain.handle('library:create-folder', async (_event, name: string, parentId: string | null, color?: string): Promise<LibraryFolder> => {
+    await ensureLoaded()
     const folder: LibraryFolder = {
       id: `folder-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       name,
@@ -114,12 +121,14 @@ export function registerLibraryHandlers(): void {
   })
 
   ipcMain.handle('library:rename-folder', async (_event, folderId: string, name: string): Promise<void> => {
+    await ensureLoaded()
     const folder = library.folders.find((f) => f.id === folderId)
     if (folder) folder.name = name
     await saveLibrary()
   })
 
   ipcMain.handle('library:delete-folder', async (_event, folderId: string): Promise<void> => {
+    await ensureLoaded()
     // Move children to parent
     const folder = library.folders.find((f) => f.id === folderId)
     const parentId = folder?.parentId || null
@@ -130,6 +139,7 @@ export function registerLibraryHandlers(): void {
   })
 
   ipcMain.handle('library:set-folder-color', async (_event, folderId: string, color: string): Promise<void> => {
+    await ensureLoaded()
     const folder = library.folders.find((f) => f.id === folderId)
     if (folder) folder.color = color
     await saveLibrary()
@@ -138,18 +148,21 @@ export function registerLibraryHandlers(): void {
   // ── Entries ──
 
   ipcMain.handle('library:move-entry', async (_event, entryId: string, folderId: string | null): Promise<void> => {
+    await ensureLoaded()
     const entry = library.entries.find((e) => e.id === entryId)
     if (entry) entry.folderId = folderId
     await saveLibrary()
   })
 
   ipcMain.handle('library:set-tags', async (_event, entryId: string, tags: string[]): Promise<void> => {
+    await ensureLoaded()
     const entry = library.entries.find((e) => e.id === entryId)
     if (entry) entry.tags = tags
     await saveLibrary()
   })
 
   ipcMain.handle('library:add-tag', async (_event, entryId: string, tag: string): Promise<void> => {
+    await ensureLoaded()
     const entry = library.entries.find((e) => e.id === entryId)
     if (entry && !entry.tags.includes(tag)) {
       entry.tags.push(tag)
@@ -158,6 +171,7 @@ export function registerLibraryHandlers(): void {
   })
 
   ipcMain.handle('library:remove-tag', async (_event, entryId: string, tag: string): Promise<void> => {
+    await ensureLoaded()
     const entry = library.entries.find((e) => e.id === entryId)
     if (entry) {
       entry.tags = entry.tags.filter((t) => t !== tag)
@@ -166,6 +180,7 @@ export function registerLibraryHandlers(): void {
   })
 
   ipcMain.handle('library:delete-entry', async (_event, entryId: string, deleteFile: boolean): Promise<void> => {
+    await ensureLoaded()
     const entry = library.entries.find((e) => e.id === entryId)
     library.entries = library.entries.filter((e) => e.id !== entryId)
     await saveLibrary()
@@ -184,6 +199,7 @@ export function registerLibraryHandlers(): void {
   })
 
   ipcMain.handle('library:rename-entry', async (_event, entryId: string, title: string): Promise<void> => {
+    await ensureLoaded()
     const entry = library.entries.find((e) => e.id === entryId)
     if (entry) {
       entry.title = title
@@ -195,16 +211,19 @@ export function registerLibraryHandlers(): void {
   // ── Tags ──
 
   ipcMain.handle('library:get-all-tags', async (): Promise<string[]> => {
+    await ensureLoaded()
     const tagSet = new Set<string>()
     library.entries.forEach((e) => e.tags.forEach((t) => tagSet.add(t)))
     return Array.from(tagSet).sort()
   })
 
   ipcMain.handle('library:get-tag-colors', async (): Promise<Record<string, string>> => {
+    await ensureLoaded()
     return library.tagColors || {}
   })
 
   ipcMain.handle('library:set-tag-color', async (_event, tag: string, color: string): Promise<void> => {
+    await ensureLoaded()
     if (!library.tagColors) library.tagColors = {}
     library.tagColors[tag] = color
     await saveLibrary()
@@ -213,6 +232,7 @@ export function registerLibraryHandlers(): void {
   // ── Enhanced folder delete ──
 
   ipcMain.handle('library:delete-folder-with-entries', async (_event, folderId: string, deleteEntries: boolean): Promise<void> => {
+    await ensureLoaded()
     if (deleteEntries) {
       // Delete all entries in this folder
       const toDelete = library.entries.filter((e) => e.folderId === folderId)
@@ -241,10 +261,12 @@ export function registerLibraryHandlers(): void {
   // ── Import .lecta files into library without opening them ──
 
   ipcMain.handle('library:import-lecta-files', async (): Promise<number> => {
+    await ensureLoaded()
     const result = await dialog.showOpenDialog({
-      properties: ['openFile', 'multiSelections'],
+      properties: ['openFile', 'openDirectory', 'multiSelections'],
       filters: [
-        { name: 'Lecta Presentations', extensions: ['lecta'] }
+        { name: 'Lecta Presentations', extensions: ['lecta'] },
+        { name: 'All Files', extensions: ['*'] }
       ],
       title: 'Import Presentations'
     })
@@ -254,12 +276,27 @@ export function registerLibraryHandlers(): void {
     let imported = 0
     for (const filePath of result.filePaths) {
       try {
-        const { openLectaFile, registerWorkspace } = await import('../services/lecta-file')
         const { parsePresentationYaml } = await import('../../../packages/shared/src/utils/yaml-parser')
         const { DECK_CONFIG_FILE } = await import('../../../packages/shared/src/constants')
 
-        const workspaceDir = await openLectaFile(filePath)
-        registerWorkspace(workspaceDir, filePath)
+        let workspaceDir: string
+
+        // Check if it's a .lecta file or a directory with lecta.yaml
+        const s = await stat(filePath)
+        if (s.isDirectory()) {
+          // Folder — check if it has a lecta.yaml
+          try {
+            await stat(join(filePath, DECK_CONFIG_FILE))
+            workspaceDir = filePath
+          } catch {
+            continue // Not a valid presentation folder
+          }
+        } else {
+          // .lecta file — extract to workspace
+          const { openLectaFile, registerWorkspace } = await import('../services/lecta-file')
+          workspaceDir = await openLectaFile(filePath)
+          registerWorkspace(workspaceDir, filePath)
+        }
 
         // Read config to get metadata
         const configPath = join(workspaceDir, DECK_CONFIG_FILE)

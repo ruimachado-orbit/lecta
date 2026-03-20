@@ -98,7 +98,7 @@ export function HomeScreen(): JSX.Element {
   }
 
   return (
-    <div className="h-screen flex flex-col relative" style={{ WebkitAppRegion: 'drag', background: '#f5f1eb' } as React.CSSProperties}>
+    <div className="h-screen flex flex-col relative" style={{ WebkitAppRegion: 'drag', background: '#f5f1eb', color: '#1a1a1a' } as React.CSSProperties}>
       {/* Tab bar — show open presentation tabs so user can switch back */}
       <HomeTabBar />
 
@@ -107,8 +107,8 @@ export function HomeScreen(): JSX.Element {
         {/* Logo / Title */}
         <div className="text-center mb-8">
           <h1
-            className="text-5xl text-gray-900 tracking-tight mb-3"
-            style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontStyle: 'italic', fontWeight: 700 }}
+            className="text-5xl tracking-tight mb-3"
+            style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontStyle: 'italic', fontWeight: 700, color: '#1a1a1a' }}
           >
             lecta
             <sup className="text-[10px] font-sans not-italic font-semibold tracking-widest uppercase text-indigo-400 ml-1.5 align-super">beta</sup>
@@ -593,7 +593,7 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
   }, [prompt, title, slideCount, sourceFile, onGenerated])
 
   return (
-    <div className="h-screen flex flex-col" style={{ WebkitAppRegion: 'drag', background: '#f5f1eb' } as React.CSSProperties}>
+    <div className="h-screen flex flex-col" style={{ WebkitAppRegion: 'drag', background: '#f5f1eb', color: '#1a1a1a' } as React.CSSProperties}>
       {/* Header */}
       <div className="flex items-center gap-3 px-6 pt-12 pb-6" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         <button
@@ -732,7 +732,7 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
                   onClick={() => { setPrompt(preset.prompt); setSlideCount(preset.count); if (!title) setTitle(preset.label) }}
                   disabled={isGenerating}
                   className="px-2.5 py-1 text-[11px] rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500
-                             hover:text-gray-200 transition-colors border border-gray-700 disabled:opacity-30"
+                             hover:text-gray-700 transition-colors border border-gray-300 disabled:opacity-30"
                 >
                   {preset.label}
                 </button>
@@ -878,7 +878,7 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
   }
 
   return (
-    <div className="h-screen flex flex-col" style={{ WebkitAppRegion: 'drag', background: '#f5f1eb' } as React.CSSProperties}>
+    <div className="h-screen flex flex-col" style={{ WebkitAppRegion: 'drag', background: '#f5f1eb', color: '#1a1a1a' } as React.CSSProperties}>
       {/* Header */}
       <div className="flex items-center gap-3 px-6 pt-12 pb-6" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         <button
@@ -906,7 +906,7 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
                   <button
                     onClick={() => setTheme('dark')}
                     className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
-                      theme === 'dark' ? 'bg-white text-black' : 'text-gray-400 hover:text-gray-200'
+                      theme === 'dark' ? 'bg-white text-black' : 'text-gray-400 hover:text-gray-700'
                     }`}
                   >
                     Dark
@@ -914,7 +914,7 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
                   <button
                     onClick={() => setTheme('light')}
                     className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
-                      theme === 'light' ? 'bg-white text-black' : 'text-gray-400 hover:text-gray-200'
+                      theme === 'light' ? 'bg-white text-black' : 'text-gray-400 hover:text-gray-700'
                     }`}
                   >
                     Light

@@ -53,7 +53,7 @@ export default function App(): JSX.Element {
   }
 
   return (
-    <div className="h-screen w-screen overflow-hidden relative" style={{ background: '#f5f1eb' }}>
+    <div className="h-screen w-screen overflow-hidden relative" style={{ background: '#f5f1eb', color: '#1a1a1a' }}>
       <HomeScreen />
     </div>
   )

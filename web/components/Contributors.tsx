@@ -7,7 +7,7 @@ import { GITHUB_URL } from '@/lib/config'
 const contributors = [
   { name: 'Rui Machado',    github: 'ruimachado-orbit',    role: 'Creator'      },
   { name: 'Diogo Antunes',  github: 'DiogoAntunesOliveira', role: 'Contributor'  },
-  { name: 'Pedro Ferreira', github: 'pedroferreira-orbit',  role: 'Contributor'  },
+  { name: 'Pedro Ferreira', github: 'pedro-ferreira-orbit',  role: 'Contributor'  },
   { name: 'Claude',         github: '__claude__',           role: 'AI Contributor', isAI: true },
 ]
 

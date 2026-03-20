@@ -953,7 +953,6 @@ footer {
   cursor: default;
   text-decoration: none;
 }
-.avatarWrap:hover .avatarTooltip { opacity: 1; transform: translateY(0); pointer-events: none; }
 .avatarImg, .avatarFallback {
   width: 52px; height: 52px;
   border-radius: 50%;
@@ -993,9 +992,9 @@ footer {
 .avatarAdd:hover .avatarAddInner { border-color: var(--text) !important; color: var(--text) !important; }
 .avatarTooltip {
   position: absolute;
-  bottom: calc(100% + 8px);
+  top: calc(100% + 8px);
   left: 50%;
-  transform: translateX(-50%) translateY(4px);
+  transform: translateX(-50%) translateY(-4px);
   background: var(--text);
   color: var(--bg);
   font-size: 0.75rem;
@@ -1010,14 +1009,16 @@ footer {
   flex-direction: column;
   align-items: center;
   gap: 0.1rem;
+  z-index: 10;
 }
+.avatarWrap:hover .avatarTooltip { opacity: 1; transform: translateX(-50%) translateY(0); }
 .avatarTooltip::after {
   content: '';
   position: absolute;
-  top: 100%; left: 50%;
+  bottom: 100%; left: 50%;
   transform: translateX(-50%);
   border: 5px solid transparent;
-  border-top-color: var(--text);
+  border-bottom-color: var(--text);
 }
 .avatarRole {
   font-size: 0.65rem;

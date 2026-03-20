@@ -135,6 +135,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
         useTabsStore.setState((s) => ({
           tabs: [...s.tabs, {
             id: tabId,
+            type: 'presentation' as const,
             title: loaded.config.title,
             rootPath: loaded.config.rootPath,
             presentation: loaded.config,

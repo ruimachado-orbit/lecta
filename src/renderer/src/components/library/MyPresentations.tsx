@@ -51,6 +51,7 @@ export function MyPresentations({ onBack }: { onBack: () => void }): JSX.Element
   // Tag editing
   const [editingTagsFor, setEditingTagsFor] = useState<string | null>(null)
   const [newTag, setNewTag] = useState('')
+  const [newTagColor, setNewTagColor] = useState<string>(TAG_PALETTE[0])
   const [colorPickerTag, setColorPickerTag] = useState<string | null>(null)
 
   // New folder
@@ -133,10 +134,17 @@ export function MyPresentations({ onBack }: { onBack: () => void }): JSX.Element
     await refresh()
   }
 
-  const handleAddTag = async (entryId: string, tag: string) => {
+  const handleAddTag = async (entryId: string, tag: string, color?: string) => {
     if (!tag.trim()) return
-    await window.electronAPI.addLibraryEntryTag(entryId, tag.trim())
+    const t = tag.trim()
+    await window.electronAPI.addLibraryEntryTag(entryId, t)
+    // Set color for new tag if one was chosen and tag doesn't have a color yet
+    if (color && !tagColors[t]) {
+      await window.electronAPI.setTagColor(t, color)
+      setTagColors((prev) => ({ ...prev, [t]: color }))
+    }
     setNewTag('')
+    setNewTagColor(TAG_PALETTE[Math.floor(Math.random() * TAG_PALETTE.length)])
     await refresh()
   }
 
@@ -651,20 +659,41 @@ export function MyPresentations({ onBack }: { onBack: () => void }): JSX.Element
               )}
 
               {/* Add tag */}
-              <div className="flex gap-2">
-                <input
-                  autoFocus
-                  value={newTag}
-                  onChange={(e) => setNewTag(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { handleAddTag(entry.id, newTag); } }}
-                  placeholder="Add a tag..."
-                  className="flex-1 px-3 py-2 bg-gray-950 text-sm text-gray-300 rounded-lg border border-gray-700 focus:border-indigo-500 focus:outline-none placeholder-gray-600"
-                />
-                <button
-                  onClick={() => handleAddTag(entry.id, newTag)}
-                  disabled={!newTag.trim()}
-                  className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-30 text-white text-xs font-medium rounded-lg transition-colors"
-                >Add</button>
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <input
+                    autoFocus
+                    value={newTag}
+                    onChange={(e) => setNewTag(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { handleAddTag(entry.id, newTag, newTagColor); } }}
+                    placeholder="Add a tag..."
+                    className="flex-1 px-3 py-2 bg-gray-950 text-sm text-gray-300 rounded-lg border border-gray-700 focus:border-indigo-500 focus:outline-none placeholder-gray-600"
+                  />
+                  <button
+                    onClick={() => handleAddTag(entry.id, newTag, newTagColor)}
+                    disabled={!newTag.trim()}
+                    className="px-3 py-2 hover:brightness-110 disabled:opacity-30 text-white text-xs font-medium rounded-lg transition-colors"
+                    style={{ backgroundColor: newTagColor }}
+                  >Add</button>
+                </div>
+                {/* Color picker for new tag */}
+                {newTag.trim() && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-gray-500">Color:</span>
+                    <div className="flex flex-wrap gap-1">
+                      {TAG_PALETTE.map((c) => (
+                        <button
+                          key={c}
+                          onClick={() => setNewTagColor(c)}
+                          className={`w-4 h-4 rounded-full transition-transform hover:scale-125 ${
+                            newTagColor === c ? 'ring-2 ring-white ring-offset-1 ring-offset-gray-900' : ''
+                          }`}
+                          style={{ backgroundColor: c }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Suggested tags */}

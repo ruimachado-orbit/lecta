@@ -217,8 +217,23 @@ const api = {
   onPresenterMouseSync: (callback: (pos: { x: number; y: number; area: string } | null) => void): void => {
     ipcRenderer.on('presenter:sync-mouse', (_event, pos: { x: number; y: number; area: string } | null) => callback(pos))
   },
-  onPresenterArtifactFrame: (callback: (base64: string, width: number, height: number) => void): void => {
-    ipcRenderer.on('presenter:artifact-frame', (_event, base64: string, width: number, height: number) => callback(base64, width, height))
+  onPresenterAudienceClosed: (callback: () => void): void => {
+    ipcRenderer.on('presenter:audience-closed', () => callback())
+  },
+  syncPresenterExecution: (output: string): void => {
+    ipcRenderer.send('presenter:sync-execution', output)
+  },
+  onPresenterExecutionSync: (callback: (output: string) => void): void => {
+    ipcRenderer.on('presenter:sync-execution', (_event, output: string) => callback(output))
+  },
+  syncPresenterCode: (code: string): void => {
+    ipcRenderer.send('presenter:sync-code', code)
+  },
+  onPresenterCodeSync: (callback: (code: string) => void): void => {
+    ipcRenderer.on('presenter:sync-code', (_event, code: string) => callback(code))
+  },
+  onPresenterArtifactFrame: (callback: (base64: string) => void): void => {
+    ipcRenderer.on('presenter:artifact-frame', (_event, base64: string) => callback(base64))
   },
 
   // File watcher

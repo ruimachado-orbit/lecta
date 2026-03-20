@@ -1,10 +1,12 @@
 import { useEffect, useCallback, useRef, useState } from 'react'
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { SlideRenderer } from '../slides/SlideRenderer'
+import { VideoPanel } from '../video/VideoPanel'
+import Editor from '@monaco-editor/react'
 
 /**
  * Set slide index directly WITHOUT triggering IPC sync back to the presenter.
- * Prevents feedback loop: presenter->audience->goToSlide->syncPresenterSlide->audience->...
  */
 function setSlideIndexSilently(index: number): void {
   const { slides, presentation } = usePresentationStore.getState()
@@ -19,59 +21,75 @@ function setSlideIndexSilently(index: number): void {
 }
 
 /**
- * Audience-facing view: fullscreen slide canvas.
- * Artifacts are streamed as screenshot frames from the presenter window
- * so the audience sees exactly what the presenter sees.
+ * Audience-facing view: renders the same slide and artifact components as the presenter.
+ * All state synced live via IPC from the presenter window.
  */
 export function AudienceView(): JSX.Element {
   const { slides, currentSlideIndex, presentation, loadPresentation } =
     usePresentationStore()
   const currentSlide = slides[currentSlideIndex]
-  const contentRef = useRef<HTMLDivElement>(null)
-  const [contentScale, setContentScale] = useState(1)
   const [activeArtifact, setActiveArtifact] = useState<string | null>(null)
-  const [artifactFrame, setArtifactFrame] = useState<string | null>(null)
+  const [executionOutput, setExecutionOutput] = useState('')
+  const [liveCode, setLiveCode] = useState<string | null>(null)
+  const [artifactFrame, setArtifactFrame] = useState<string | null>(null) // for webapp screenshot stream
   const [mousePos, setMousePos] = useState<{ x: number; y: number; area: string } | null>(null)
   const mouseFadeRef = useRef<ReturnType<typeof setTimeout>>(null)
 
-  // Listen for presentation path from main window
+  // Listen for presentation path
   useEffect(() => {
     window.electronAPI.onPresenterLoadPath(async (rootPath: string) => {
       await loadPresentation(rootPath)
     })
-    return () => {
-      window.electronAPI.removeAllListeners('presenter:load-path')
-    }
+    return () => { window.electronAPI.removeAllListeners('presenter:load-path') }
   }, [loadPresentation])
 
-  // Listen for slide sync — set silently to avoid feedback loop
+  // Listen for slide sync
   useEffect(() => {
     window.electronAPI.onPresenterSync((slideIndex: number) => {
       setSlideIndexSilently(slideIndex)
+      // Reset live code when slide changes — will be re-synced
+      setLiveCode(null)
+      setExecutionOutput('')
     })
-    return () => {
-      window.electronAPI.removeAllListeners('presenter:sync-slide')
-    }
+    return () => { window.electronAPI.removeAllListeners('presenter:sync-slide') }
   }, [])
 
   // Listen for artifact sync
   useEffect(() => {
     window.electronAPI.onPresenterArtifactSync((artifact: string | null) => {
       setActiveArtifact(artifact)
-      if (!artifact) setArtifactFrame(null)
+      if (!artifact || artifact !== 'webapp') setArtifactFrame(null)
     })
-    return () => {
-      window.electronAPI.removeAllListeners('presenter:sync-artifact')
+    return () => { window.electronAPI.removeAllListeners('presenter:sync-artifact') }
+  }, [])
+
+  // Listen for webapp screenshot frames (webapp artifacts are streamed as images)
+  useEffect(() => {
+    if (typeof window.electronAPI.onPresenterArtifactFrame === 'function') {
+      window.electronAPI.onPresenterArtifactFrame((base64: string) => {
+        setArtifactFrame(`data:image/png;base64,${base64}`)
+      })
+      return () => { window.electronAPI.removeAllListeners('presenter:artifact-frame') }
     }
   }, [])
 
-  // Listen for streamed artifact frames from the presenter
+  // Listen for execution output sync
   useEffect(() => {
-    window.electronAPI.onPresenterArtifactFrame((base64: string) => {
-      setArtifactFrame(`data:image/jpeg;base64,${base64}`)
-    })
-    return () => {
-      window.electronAPI.removeAllListeners('presenter:artifact-frame')
+    if (typeof window.electronAPI.onPresenterExecutionSync === 'function') {
+      window.electronAPI.onPresenterExecutionSync((output: string) => {
+        setExecutionOutput(output)
+      })
+      return () => { window.electronAPI.removeAllListeners('presenter:sync-execution') }
+    }
+  }, [])
+
+  // Listen for code content sync
+  useEffect(() => {
+    if (typeof window.electronAPI.onPresenterCodeSync === 'function') {
+      window.electronAPI.onPresenterCodeSync((code: string) => {
+        setLiveCode(code)
+      })
+      return () => { window.electronAPI.removeAllListeners('presenter:sync-code') }
     }
   }, [])
 
@@ -100,22 +118,6 @@ export function AudienceView(): JSX.Element {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleKeyDown])
 
-  // Auto-scale slide content
-  useEffect(() => {
-    const el = contentRef.current
-    if (!el) return
-    const measure = () => {
-      el.style.transform = 'scale(1)'
-      el.style.transformOrigin = 'top left'
-      const availH = window.innerHeight * 0.92
-      const natural = el.scrollHeight
-      setContentScale(natural > availH ? Math.max(0.3, availH / natural) : 1)
-    }
-    measure()
-    const timer = setTimeout(measure, 500)
-    return () => clearTimeout(timer)
-  }, [currentSlide?.markdownContent])
-
   if (!currentSlide) {
     return (
       <div className="h-screen w-screen bg-black flex items-center justify-center text-gray-600 text-lg">
@@ -124,46 +126,153 @@ export function AudienceView(): JSX.Element {
     )
   }
 
-  const showArtifact = !!activeArtifact
+  const showCode = activeArtifact === 'code' && !!currentSlide.config.code
+  const showVideo = activeArtifact === 'video' && !!currentSlide.config.video
+  const showWebApp = activeArtifact === 'webapp' && !!currentSlide.config.webapp
+  const hasArtifactToShow = showCode || showVideo || showWebApp
+  const codeToDisplay = liveCode ?? currentSlide.codeContent ?? ''
+  const codeLanguage = currentSlide.config.code?.language ?? 'plaintext'
 
   return (
     <div className="h-screen w-screen overflow-hidden flex" style={{ background: '#000' }}>
       {/* Slide area */}
-      <div className={`relative flex items-center justify-center ${showArtifact ? 'w-1/2' : 'w-full'}`}>
-        <div
-          className="relative"
-          data-slide-theme={presentation?.theme || 'dark'}
-          style={showArtifact
-            ? { width: '100%', aspectRatio: '16/9', maxHeight: '100%' }
-            : { width: '100vw', height: '56.25vw', maxHeight: '100vh', maxWidth: '177.78vh' }
-          }
-        >
-          <div className="absolute inset-0" style={{ background: 'var(--slide-bg)' }} />
-          <div className={`absolute inset-0 ${currentSlide.config.layout === 'blank' ? '' : 'p-[4%]'} overflow-hidden ${currentSlide.config.layout && currentSlide.config.layout !== 'default' ? `slide-layout-${currentSlide.config.layout}` : ''}`}>
-            <div ref={contentRef} style={{ transform: `scale(${contentScale})`, transformOrigin: 'top left' }}>
-              <SlideRenderer markdown={currentSlide.markdownContent} rootPath={presentation?.rootPath} />
-            </div>
-          </div>
-          {mousePos && mousePos.area === 'slide' && <RemoteCursor x={mousePos.x} y={mousePos.y} />}
-        </div>
+      <div className={`relative flex items-center justify-center ${hasArtifactToShow ? 'w-1/2' : 'w-full'}`}>
+        <AudienceSlide
+          markdown={currentSlide.markdownContent}
+          rootPath={presentation?.rootPath}
+          layout={currentSlide.config.layout}
+          theme={presentation?.theme || 'dark'}
+          mousePos={mousePos?.area === 'slide' ? mousePos : null}
+        />
       </div>
 
-      {/* Artifact area — streamed screenshot from the presenter */}
-      {showArtifact && (
-        <div className="w-1/2 h-full border-l border-gray-800 relative bg-gray-950 flex items-center justify-center">
-          {artifactFrame ? (
-            <img
-              src={artifactFrame}
-              alt="Presenter artifact"
-              className="max-w-full max-h-full object-contain"
-              style={{ imageRendering: 'auto' }}
-            />
-          ) : (
-            <div className="text-gray-600 text-sm">Loading artifact...</div>
+      {/* Artifact area — renders live, matching the presenter */}
+      {hasArtifactToShow && (
+        <div className="w-1/2 h-full border-l border-gray-800 relative bg-gray-950 flex flex-col">
+          {showCode && (
+            <PanelGroup direction="vertical" className="flex-1">
+              <Panel defaultSize={executionOutput ? 55 : 100} minSize={20}>
+                <div className="h-full flex flex-col">
+                  <div className="h-8 bg-gray-900 border-b border-gray-800 flex items-center px-3 gap-2 flex-shrink-0">
+                    <span className="text-gray-500 text-[10px] font-mono flex-1 truncate">{currentSlide.config.code!.file}</span>
+                    <span className="text-[9px] uppercase px-1.5 py-0.5 bg-gray-800 text-gray-400 rounded">{codeLanguage}</span>
+                  </div>
+                  <div className="flex-1 min-h-0">
+                    <Editor
+                      height="100%"
+                      language={codeLanguage === 'typescript' ? 'typescript' : codeLanguage === 'python' ? 'python' : codeLanguage === 'javascript' ? 'javascript' : codeLanguage}
+                      value={codeToDisplay}
+                      theme="vs-dark"
+                      options={{
+                        readOnly: true,
+                        fontSize: 14,
+                        lineHeight: 20,
+                        fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
+                        minimap: { enabled: false },
+                        scrollBeyondLastLine: false,
+                        padding: { top: 12, bottom: 12 },
+                        lineNumbers: 'on',
+                        renderLineHighlight: 'none',
+                        wordWrap: 'on',
+                        automaticLayout: true,
+                        domReadOnly: true,
+                        cursorStyle: 'line-thin',
+                        scrollbar: { vertical: 'auto', horizontal: 'auto' }
+                      }}
+                    />
+                  </div>
+                </div>
+              </Panel>
+              {executionOutput && (
+                <>
+                  <PanelResizeHandle className="h-1 bg-gray-800 hover:bg-indigo-500 transition-colors" />
+                  <Panel defaultSize={45} minSize={10}>
+                    <div className="h-full flex flex-col bg-gray-950">
+                      <div className="h-7 bg-gray-900 border-b border-gray-800 flex items-center px-3 flex-shrink-0">
+                        <span className="text-[10px] text-gray-500 uppercase tracking-wider">Output</span>
+                      </div>
+                      <div className="flex-1 min-h-0 overflow-auto p-3">
+                        <pre className="text-sm text-gray-300 font-mono whitespace-pre-wrap leading-relaxed">{executionOutput}</pre>
+                      </div>
+                    </div>
+                  </Panel>
+                </>
+              )}
+            </PanelGroup>
+          )}
+          {showVideo && (
+            <div className="h-full bg-black">
+              <VideoPanel video={currentSlide.config.video!} />
+            </div>
+          )}
+          {showWebApp && (
+            <div className="h-full flex items-center justify-center">
+              {artifactFrame ? (
+                <img src={artifactFrame} alt="Presenter web app" className="max-w-full max-h-full object-contain" />
+              ) : (
+                <div className="text-gray-600 text-sm">Loading web app...</div>
+              )}
+            </div>
           )}
           {mousePos && mousePos.area === 'artifact' && <RemoteCursor x={mousePos.x} y={mousePos.y} />}
         </div>
       )}
+    </div>
+  )
+}
+
+/** Audience slide canvas — matches editor rendering exactly */
+function AudienceSlide({ markdown, rootPath, layout, theme, mousePos }: {
+  markdown: string; rootPath?: string; layout?: string; theme?: string
+  mousePos: { x: number; y: number } | null
+}): JSX.Element {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [canvasScale, setCanvasScale] = useState(1)
+
+  const SLIDE_W = 1280
+  const SLIDE_H = 720
+  const PAD = 48
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    const update = () => {
+      const cw = container.clientWidth
+      const ch = container.clientHeight
+      const margin = 8
+      const s = Math.min((cw - margin * 2) / SLIDE_W, (ch - margin * 2) / SLIDE_H)
+      setCanvasScale(Math.max(0.05, s))
+    }
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(container)
+    return () => ro.disconnect()
+  }, [])
+
+  return (
+    <div ref={containerRef} className="h-full w-full flex items-center justify-center overflow-hidden">
+      <div
+        className="relative overflow-hidden"
+        data-slide-theme={theme || 'dark'}
+        style={{
+          width: SLIDE_W,
+          height: SLIDE_H,
+          transform: `scale(${canvasScale})`,
+          transformOrigin: 'center center',
+          flexShrink: 0,
+        }}
+      >
+        <div className="absolute inset-0" style={{ background: 'var(--slide-bg)' }} />
+        <div className={`absolute inset-0 ${layout === 'blank' ? '' : 'p-12'} overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
+          <div style={{
+            width: layout === 'blank' ? SLIDE_W : SLIDE_W - PAD * 2,
+            height: layout === 'blank' ? SLIDE_H : undefined,
+          }}>
+            <SlideRenderer markdown={markdown} rootPath={rootPath} />
+          </div>
+        </div>
+        {mousePos && <RemoteCursor x={mousePos.x} y={mousePos.y} />}
+      </div>
     </div>
   )
 }

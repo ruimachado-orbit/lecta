@@ -249,6 +249,7 @@ html[data-theme="light"] .slide-content hr { border-color: #e2e8f0; }
 
 /* Enhanced table styling */
 .slide-content table {
+  width: 100%;
   border-collapse: separate;
   border-spacing: 0;
   border-radius: var(--slide-table-radius);

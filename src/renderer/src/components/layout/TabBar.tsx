@@ -1,11 +1,26 @@
 import { useTabsStore } from '../../stores/tabs-store'
+import { usePresentationStore } from '../../stores/presentation-store'
 
 export function TabBar(): JSX.Element {
-  const { tabs, activeTabId, switchTab, closeTab, newHomeTab } = useTabsStore()
+  const { tabs, activeTabId, switchTab, closeTab, newHomeTab, goHome } = useTabsStore()
+  const hasPresentation = usePresentationStore((s) => !!s.presentation)
 
   return (
     <div className="h-8 bg-gray-900 border-b border-gray-800 flex items-center px-20 overflow-x-auto"
          style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
+      {/* Home button — visible when a presentation is open */}
+      {hasPresentation && (
+        <button
+          onClick={goHome}
+          className="h-full px-2.5 text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-colors flex items-center gap-1 border-r border-gray-800"
+          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+          title="Back to Home"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+          </svg>
+        </button>
+      )}
       {tabs.map((tab) => {
         const isActive = tab.id === activeTabId
         const isHome = tab.type === 'home'

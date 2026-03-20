@@ -116,10 +116,25 @@ export const useTabsStore = create<TabsState>((set, get) => ({
   },
 
   goHome: () => {
-    // Save current tab state, then clear presentation to show HomeScreen
+    const { tabs, activeTabId } = get()
+    // Save current tab state, then convert the active tab to a home tab
     get().syncCurrentTab()
     usePresentationStore.getState().reset()
-    set({ activeTabId: null })
+
+    if (activeTabId) {
+      // Convert the current tab to a home tab instead of deactivating
+      set({
+        tabs: tabs.map((t) =>
+          t.id === activeTabId
+            ? { ...t, type: 'home' as const, title: 'Home', presentation: undefined, slides: undefined, rootPath: undefined, currentSlideIndex: undefined }
+            : t
+        )
+      })
+    } else if (tabs.length === 0) {
+      // No tabs at all — create a home tab
+      const tab = makeHomeTab()
+      set({ tabs: [tab], activeTabId: tab.id })
+    }
   },
 
   switchTab: async (tabId: string) => {
@@ -156,20 +171,47 @@ export const useTabsStore = create<TabsState>((set, get) => ({
 
   syncCurrentTab: () => {
     const { tabs, activeTabId } = get()
-    if (!activeTabId) return
+    const { presentation, slides, currentSlideIndex } = usePresentationStore.getState()
+
+    // No tabs exist yet — create one if a presentation is loaded
+    if (tabs.length === 0 || !activeTabId) {
+      if (presentation) {
+        const tabId = `tab-${Date.now()}`
+        const newTab: Tab = {
+          id: tabId,
+          type: 'presentation',
+          title: presentation.title,
+          rootPath: presentation.rootPath,
+          presentation,
+          slides,
+          currentSlideIndex
+        }
+        set({ tabs: [...tabs, newTab], activeTabId: tabId })
+      }
+      return
+    }
 
     const currentTab = tabs.find((t) => t.id === activeTabId)
-    if (!currentTab || currentTab.type !== 'presentation') return
+    if (!currentTab) return
 
-    const { presentation, slides, currentSlideIndex } = usePresentationStore.getState()
-    if (!presentation) return
-
-    set({
-      tabs: tabs.map((t) =>
-        t.id === activeTabId
-          ? { ...t, presentation, slides, currentSlideIndex, title: presentation.title }
-          : t
-      )
-    })
+    if (presentation) {
+      // Sync presentation state
+      set({
+        tabs: tabs.map((t) =>
+          t.id === activeTabId
+            ? { ...t, type: 'presentation' as const, presentation, slides, currentSlideIndex, title: presentation.title, rootPath: presentation.rootPath }
+            : t
+        )
+      })
+    } else if (currentTab.type === 'presentation') {
+      // Was a presentation tab but presentation is now null — convert to home
+      set({
+        tabs: tabs.map((t) =>
+          t.id === activeTabId
+            ? { ...t, type: 'home' as const, title: 'Home', presentation: undefined, slides: undefined, rootPath: undefined, currentSlideIndex: undefined }
+            : t
+        )
+      })
+    }
   }
 }))

@@ -27,9 +27,10 @@ import { useFileWatcher } from '../../hooks/useFileWatcher'
 export function AppShell(): JSX.Element {
   const { isPresenting, showNotes, showArticlePanel, showArtifactDrawer, showRightPane, showSlideMap } = useUIStore()
   const isChatOpen = useChatStore((s) => s.isSidebarOpen)
-  const { tabs } = useTabsStore()
+  const { tabs, activeTabId } = useTabsStore()
   const currentSlide = usePresentationStore((s) => s.slides[s.currentSlideIndex])
   const currentSlideIndex = usePresentationStore((s) => s.currentSlideIndex)
+  const presentationTitle = usePresentationStore((s) => s.presentation?.title)
   const presentationTheme = usePresentationStore((s) => s.presentation?.theme)
 
   // Apply theme fonts when presentation loads or theme changes
@@ -38,6 +39,11 @@ export function AppShell(): JSX.Element {
       applySlideTheme(presentationTheme)
     }
   }, [presentationTheme])
+
+  // Keep active tab title and type in sync with presentation state
+  useEffect(() => {
+    useTabsStore.getState().syncCurrentTab()
+  }, [presentationTitle, activeTabId])
 
   useKeyboardShortcuts()
   useFileWatcher()

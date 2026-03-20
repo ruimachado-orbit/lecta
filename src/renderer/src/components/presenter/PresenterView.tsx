@@ -19,7 +19,7 @@ export function PresenterView(): JSX.Element {
   const { slides, currentSlideIndex, nextSlide, prevSlide, presentation } =
     usePresentationStore()
   const { setPresenting } = useUIStore()
-  const { isExecuting } = useExecutionStore()
+  const { isExecuting, output: executionOutput } = useExecutionStore()
   const { runCode, cancelCode } = useCodeExecution()
 
   // Expose slide state for remote control
@@ -47,6 +47,18 @@ export function PresenterView(): JSX.Element {
   const [timerRunning, setTimerRunning] = useState(true)
   const [audienceOpen, setAudienceOpen] = useState(false)
   const timerRef = useRef<ReturnType<typeof setInterval>>(null)
+
+  // Listen for audience window being closed externally
+  useEffect(() => {
+    if (typeof window.electronAPI.onPresenterAudienceClosed === 'function') {
+      window.electronAPI.onPresenterAudienceClosed(() => {
+        setAudienceOpen(false)
+      })
+      return () => {
+        window.electronAPI.removeAllListeners('presenter:audience-closed')
+      }
+    }
+  }, [])
 
   useEffect(() => {
     if (timerRunning) {
@@ -98,6 +110,21 @@ export function PresenterView(): JSX.Element {
   useEffect(() => {
     window.electronAPI.syncPresenterArtifact(activeArtifact)
   }, [activeArtifact])
+
+  // Sync execution output to audience window
+  useEffect(() => {
+    if (typeof window.electronAPI.syncPresenterExecution === 'function') {
+      window.electronAPI.syncPresenterExecution(executionOutput)
+    }
+  }, [executionOutput])
+
+  // Sync code content changes to audience window
+  const codeContent = currentSlide?.codeContent ?? ''
+  useEffect(() => {
+    if (typeof window.electronAPI.syncPresenterCode === 'function') {
+      window.electronAPI.syncPresenterCode(codeContent)
+    }
+  }, [codeContent])
 
   // Mouse tracking — send relative position to audience window
   const mainAreaRef = useRef<HTMLDivElement>(null)
@@ -180,7 +207,7 @@ export function PresenterView(): JSX.Element {
   return (
     <div className="h-screen w-screen flex flex-col bg-black">
       {/* Top bar */}
-      <div className="h-10 flex-shrink-0 bg-gray-900 border-b border-gray-800 flex items-center px-4 gap-3"
+      <div className="h-10 flex-shrink-0 bg-gray-900 border-b border-gray-800 flex items-center pl-20 pr-4 gap-3"
            style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
         <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           <button onClick={prevSlide} disabled={currentSlideIndex === 0}
@@ -406,19 +433,16 @@ export function PresenterView(): JSX.Element {
   )
 }
 
-/** 16:9 slide canvas — centered in container, auto-scaled */
+/** 16:9 slide canvas — centered in container, auto-scaled to match editor rendering */
 function PresenterSlide({ markdown, rootPath, layout, theme }: {
   markdown: string; rootPath?: string; layout?: string; theme?: string
 }): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
-  const contentRef = useRef<HTMLDivElement>(null)
   const [canvasScale, setCanvasScale] = useState(1)
-  const [contentScale, setContentScale] = useState(1)
 
   const SLIDE_W = 1280
   const SLIDE_H = 720
   const PAD = 48
-  const CONTENT_H = SLIDE_H - PAD * 2
 
   useEffect(() => {
     const container = containerRef.current
@@ -436,20 +460,6 @@ function PresenterSlide({ markdown, rootPath, layout, theme }: {
     return () => ro.disconnect()
   }, [])
 
-  useEffect(() => {
-    const el = contentRef.current
-    if (!el) return
-    const measure = () => {
-      el.style.transform = 'scale(1)'
-      el.style.transformOrigin = 'top left'
-      const natural = el.scrollHeight
-      setContentScale(natural > CONTENT_H ? Math.max(0.3, CONTENT_H / natural) : 1)
-    }
-    measure()
-    const t = setTimeout(measure, 500)
-    return () => clearTimeout(t)
-  }, [markdown])
-
   return (
     <div ref={containerRef} className="h-full w-full flex items-center justify-center presenter-canvas-bg overflow-hidden">
       <div
@@ -466,11 +476,9 @@ function PresenterSlide({ markdown, rootPath, layout, theme }: {
         <div className="absolute inset-0 rounded" style={{ background: 'var(--slide-bg)' }} />
         <div className={`absolute inset-0 ${layout === 'blank' ? '' : 'p-12'} overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
           <div
-            ref={contentRef}
             style={{
-              width: SLIDE_W - PAD * 2,
-              transform: `scale(${contentScale})`,
-              transformOrigin: 'top left'
+              width: layout === 'blank' ? SLIDE_W : SLIDE_W - PAD * 2,
+              height: layout === 'blank' ? SLIDE_H : undefined,
             }}
           >
             <SlideRenderer

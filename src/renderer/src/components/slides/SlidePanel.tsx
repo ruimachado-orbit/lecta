@@ -323,7 +323,7 @@ export function SlidePanel(): JSX.Element {
 
       {/* Slide navigator */}
       {showNavigator && (
-        <div className="border-t border-gray-800">
+        <div className="border-t border-gray-800 relative z-30">
           <SlideNavigator subSlideCount={subSlides.length} currentSubSlide={currentSubSlide} />
         </div>
       )}

@@ -29,6 +29,21 @@ export default defineConfig({
         { find: '@renderer', replacement: resolve(__dirname, 'src/renderer/src') }
       ]
     },
+    server: {
+      watch: {
+        // Ignore non-source files — content writes (slides, yaml, code, mdx)
+        // trigger Vite full-page reloads. Glob patterns are unreliable with
+        // chokidar, so use a function filter instead.
+        ignored: (filePath: string) => {
+          // Always watch source code and config
+          if (filePath.includes('/src/') || filePath.includes('/packages/')) return false
+          // Ignore content files that get written at runtime
+          if (/\.(yaml|mdx|md|lecta|sql|notes)$/.test(filePath)) return true
+          if (/\/(slides|code|artifacts|notes|example-decks)\//.test(filePath)) return true
+          return false
+        }
+      }
+    },
     plugins: [react()],
     optimizeDeps: {
       include: ['@mdx-js/mdx', 'recma-mdx-escape-missing-components']

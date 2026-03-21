@@ -8,6 +8,14 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import './styles/globals.css'
 
+// Catch unhandled errors that escape React's error boundary
+window.onerror = (msg, src, line, col, err) => {
+  console.error('[GLOBAL ERROR]', msg, '\n  at', src, line, col, '\n  error:', err)
+}
+window.onunhandledrejection = (event) => {
+  console.error('[UNHANDLED REJECTION]', event.reason)
+}
+
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: Error | null }> {
   state = { error: null as Error | null }
   static getDerivedStateFromError(error: Error) { return { error } }

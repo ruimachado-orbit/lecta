@@ -1,0 +1,151 @@
+<style>{`
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes growBar { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+  @keyframes pieFill { from { stroke-dashoffset: 251; } to { stroke-dashoffset: var(--target); } }
+  @keyframes pulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+  @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+  .fade-1 { animation: fadeUp 0.5s ease-out both 0.1s; }
+  .fade-2 { animation: fadeUp 0.5s ease-out both 0.25s; }
+  .fade-3 { animation: fadeUp 0.5s ease-out both 0.4s; }
+  .fade-4 { animation: fadeUp 0.5s ease-out both 0.55s; }
+  .fade-5 { animation: fadeUp 0.5s ease-out both 0.7s; }
+  .bar-grow { transform-origin: bottom; animation: growBar 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+  .bar-d1 { animation-delay: 0.3s; } .bar-d2 { animation-delay: 0.4s; } .bar-d3 { animation-delay: 0.5s; }
+  .bar-d4 { animation-delay: 0.6s; } .bar-d5 { animation-delay: 0.7s; } .bar-d6 { animation-delay: 0.8s; }
+  .pie-ring { fill: none; stroke-linecap: round; stroke-dasharray: 251; animation: pieFill 1.2s ease-out both 0.4s; }
+  .live-dot { animation: pulse 2s ease-in-out infinite; }
+`}</style>
+
+<div className="fade-1" style={{textAlign: 'center', marginBottom: '4px'}}>
+  <span style={{fontSize: '11px', fontWeight: 600, letterSpacing: '3px', textTransform: 'uppercase', color: '#6366f1', display: 'inline-flex', alignItems: 'center', gap: '6px'}}>
+    <span className="live-dot" style={{width: '6px', height: '6px', borderRadius: '50%', background: '#22c55e', display: 'inline-block'}} />
+    Open Source
+  </span>
+</div>
+
+<div className="fade-1">
+
+# Present code that *runs*
+
+</div>
+
+<div className="fade-2" style={{textAlign: 'center', maxWidth: '540px', margin: '0 auto 20px', fontSize: '14px', opacity: 0.5, lineHeight: 1.6}}>
+  The presentation platform built for developers. Markdown slides, live execution, inline JSX — everything renders below is MDX.
+</div>
+
+{/* ── Top row: Pie chart + Bar chart + Sparkline ── */}
+<div className="fade-3" style={{display: 'grid', gridTemplateColumns: '1fr 1.4fr 1fr', gap: '12px', marginBottom: '14px'}}>
+
+  {/* Pie chart — Language usage */}
+  <div style={{border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '16px', textAlign: 'center'}}>
+    <div style={{fontSize: '11px', fontWeight: 600, opacity: 0.4, marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '1px'}}>Languages</div>
+    <svg viewBox="0 0 100 100" style={{width: '90px', height: '90px', margin: '0 auto', display: 'block', transform: 'rotate(-90deg)'}}>
+      <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="10" />
+      <circle className="pie-ring" cx="50" cy="50" r="40" stroke="#6366f1" strokeWidth="10" style={{'--target': '126'}} />
+      <circle className="pie-ring" cx="50" cy="50" r="40" stroke="#22c55e" strokeWidth="10" strokeDashoffset="126" style={{'--target': '176'}} />
+      <circle className="pie-ring" cx="50" cy="50" r="40" stroke="#f97316" strokeWidth="10" strokeDashoffset="176" style={{'--target': '214'}} />
+      <circle className="pie-ring" cx="50" cy="50" r="40" stroke="#ec4899" strokeWidth="10" strokeDashoffset="214" style={{'--target': '251'}} />
+    </svg>
+    <div style={{display: 'flex', justifyContent: 'center', gap: '10px', marginTop: '10px', fontSize: '10px', opacity: 0.5}}>
+      <span><span style={{color: '#6366f1'}}>&#9679;</span> JS</span>
+      <span><span style={{color: '#22c55e'}}>&#9679;</span> Py</span>
+      <span><span style={{color: '#f97316'}}>&#9679;</span> SQL</span>
+      <span><span style={{color: '#ec4899'}}>&#9679;</span> MDX</span>
+    </div>
+  </div>
+
+  {/* Bar chart — Weekly slide builds */}
+  <div style={{border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '16px'}}>
+    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px'}}>
+      <span style={{fontSize: '11px', fontWeight: 600, opacity: 0.4, textTransform: 'uppercase', letterSpacing: '1px'}}>Slide Builds</span>
+      <span style={{fontSize: '20px', fontWeight: 800, background: 'linear-gradient(135deg, #818cf8, #6366f1)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent'}}>+42%</span>
+    </div>
+    <div style={{display: 'flex', alignItems: 'flex-end', gap: '6px', height: '70px'}}>
+      {[45, 62, 38, 75, 58, 90, 82, 95, 70, 88, 100, 78].map((h, i) => (
+        <div key={i} className={`bar-grow bar-d${(i % 6) + 1}`} style={{
+          flex: 1,
+          height: `${h}%`,
+          borderRadius: '3px 3px 0 0',
+          background: i >= 10
+            ? 'linear-gradient(180deg, #818cf8, #6366f1)'
+            : i >= 8
+              ? 'linear-gradient(180deg, rgba(99,102,241,0.6), rgba(99,102,241,0.3))'
+              : 'rgba(99,102,241,0.15)',
+        }} />
+      ))}
+    </div>
+    <div style={{display: 'flex', justifyContent: 'space-between', marginTop: '6px', fontSize: '9px', opacity: 0.25}}>
+      <span>Jan</span><span>Jun</span><span>Dec</span>
+    </div>
+  </div>
+
+  {/* Donut + Stat — Uptime */}
+  <div style={{border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '16px', textAlign: 'center'}}>
+    <div style={{fontSize: '11px', fontWeight: 600, opacity: 0.4, marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '1px'}}>Uptime</div>
+    <div style={{position: 'relative', width: '90px', height: '90px', margin: '0 auto'}}>
+      <svg viewBox="0 0 100 100" style={{width: '100%', height: '100%', transform: 'rotate(-90deg)'}}>
+        <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="8" />
+        <circle className="pie-ring" cx="50" cy="50" r="40" stroke="#22c55e" strokeWidth="8" style={{'--target': '2'}} />
+      </svg>
+      <div style={{position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+        <span style={{fontSize: '20px', fontWeight: 800}}>99.9</span>
+        <span style={{fontSize: '10px', opacity: 0.5}}>%</span>
+      </div>
+    </div>
+    <div style={{fontSize: '10px', opacity: 0.35, marginTop: '8px'}}>All execution engines</div>
+  </div>
+</div>
+
+{/* ── Bottom row: 4 feature cards with sparklines ── */}
+<div className="fade-4" style={{display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '14px'}}>
+  <div style={{background: 'linear-gradient(160deg, rgba(99,102,241,0.1), transparent)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: '12px', padding: '14px'}}>
+    <div style={{fontSize: '22px', fontWeight: 800, marginBottom: '2px'}}>4</div>
+    <div style={{fontSize: '11px', opacity: 0.45}}>Execution engines</div>
+    <svg viewBox="0 0 80 24" style={{width: '100%', height: '20px', marginTop: '8px'}}>
+      <polyline points="0,20 12,16 24,18 36,10 48,12 60,6 72,8 80,2" fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <polyline points="0,20 12,16 24,18 36,10 48,12 60,6 72,8 80,2" fill="url(#sparkGrad1)" stroke="none" />
+      <defs><linearGradient id="sparkGrad1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#6366f1" stopOpacity="0.3" /><stop offset="100%" stopColor="#6366f1" stopOpacity="0" /></linearGradient></defs>
+    </svg>
+  </div>
+  <div style={{background: 'linear-gradient(160deg, rgba(34,197,94,0.1), transparent)', border: '1px solid rgba(34,197,94,0.15)', borderRadius: '12px', padding: '14px'}}>
+    <div style={{fontSize: '22px', fontWeight: 800, marginBottom: '2px'}}>8+</div>
+    <div style={{fontSize: '11px', opacity: 0.45}}>Slide themes</div>
+    <svg viewBox="0 0 80 24" style={{width: '100%', height: '20px', marginTop: '8px'}}>
+      <polyline points="0,18 12,14 24,16 36,8 48,12 60,4 72,6 80,2" fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <polyline points="0,18 12,14 24,16 36,8 48,12 60,4 72,6 80,2" fill="url(#sparkGrad2)" stroke="none" />
+      <defs><linearGradient id="sparkGrad2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#22c55e" stopOpacity="0.3" /><stop offset="100%" stopColor="#22c55e" stopOpacity="0" /></linearGradient></defs>
+    </svg>
+  </div>
+  <div style={{background: 'linear-gradient(160deg, rgba(251,146,60,0.1), transparent)', border: '1px solid rgba(251,146,60,0.15)', borderRadius: '12px', padding: '14px'}}>
+    <div style={{fontSize: '22px', fontWeight: 800, marginBottom: '2px'}}>AI</div>
+    <div style={{fontSize: '11px', opacity: 0.45}}>Speaker notes</div>
+    <svg viewBox="0 0 80 24" style={{width: '100%', height: '20px', marginTop: '8px'}}>
+      <polyline points="0,22 12,18 24,14 36,16 48,8 60,10 72,4 80,2" fill="none" stroke="#f97316" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <polyline points="0,22 12,18 24,14 36,16 48,8 60,10 72,4 80,2" fill="url(#sparkGrad3)" stroke="none" />
+      <defs><linearGradient id="sparkGrad3" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#f97316" stopOpacity="0.3" /><stop offset="100%" stopColor="#f97316" stopOpacity="0" /></linearGradient></defs>
+    </svg>
+  </div>
+  <div style={{background: 'linear-gradient(160deg, rgba(236,72,153,0.1), transparent)', border: '1px solid rgba(236,72,153,0.15)', borderRadius: '12px', padding: '14px'}}>
+    <div style={{fontSize: '22px', fontWeight: 800, marginBottom: '2px'}}>MIT</div>
+    <div style={{fontSize: '11px', opacity: 0.45}}>Licensed, free</div>
+    <svg viewBox="0 0 80 24" style={{width: '100%', height: '20px', marginTop: '8px'}}>
+      <polyline points="0,16 12,12 24,14 36,6 48,10 60,4 72,2 80,2" fill="none" stroke="#ec4899" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <polyline points="0,16 12,12 24,14 36,6 48,10 60,4 72,2 80,2" fill="url(#sparkGrad4)" stroke="none" />
+      <defs><linearGradient id="sparkGrad4" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#ec4899" stopOpacity="0.3" /><stop offset="100%" stopColor="#ec4899" stopOpacity="0" /></linearGradient></defs>
+    </svg>
+  </div>
+</div>
+
+{/* ── Bottom banner ── */}
+<div className="fade-5" style={{
+  textAlign: 'center',
+  padding: '10px',
+  borderRadius: '10px',
+  background: 'linear-gradient(90deg, rgba(99,102,241,0.08), rgba(236,72,153,0.08), rgba(99,102,241,0.08))',
+  backgroundSize: '200% 100%',
+  animation: 'shimmer 4s linear infinite',
+  fontSize: '12px',
+  opacity: 0.6,
+}}>
+  Electron &middot; React 19 &middot; Vite &middot; Markdown &middot; MDX &middot; Mermaid &middot; Pyodide &middot; Claude
+</div>

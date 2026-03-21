@@ -98,7 +98,8 @@ export interface SubSlide {
 
 export function useSubSlides(
   markdown: string,
-  slideIndex: number
+  slideIndex: number,
+  isMdx?: boolean
 ): {
   subSlides: SubSlide[]
   currentSubSlide: number
@@ -134,6 +135,16 @@ export function useSubSlides(
   }, [slideIndex])
 
   const measure = useCallback(() => {
+    // MDX slides skip auto-splitting entirely — `---` inside JSX would break components.
+    // Only honor explicit manual `----` (4+ dashes) breaks for MDX.
+    if (isMdx) {
+      setHasManualBreaks(false)
+      setSubSlides([{ markdown, index: 0 }])
+      setBreakOffsets([])
+      usePresentationStore.setState({ totalSubSlides: 1 })
+      return
+    }
+
     // Check for manual sub-slide breaks (--- or * * * or *** on its own line)
     // If found, use those as explicit break points instead of auto-calculating
     const manualBreaks = markdown.split('\n').some(isHrLine)
@@ -257,7 +268,7 @@ export function useSubSlides(
     } else if (storeState.currentSubSlide >= finalPages.length) {
       usePresentationStore.setState({ currentSubSlide: Math.max(0, finalPages.length - 1) })
     }
-  }, [markdown])
+  }, [markdown, isMdx])
 
   useEffect(() => {
     measure()

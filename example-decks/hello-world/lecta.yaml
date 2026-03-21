@@ -1,12 +1,7 @@
-title: "Hello Lecta"
-author: "Lecta Team"
-theme: "dark"
-
+title: Hello Lecta
+author: Lecta Team
+theme: dark
 slides:
-  - id: welcome
-    content: slides/01-welcome.md
-    artifacts: []
-
   - id: javascript-demo
     content: slides/02-javascript.md
     code:
@@ -14,7 +9,6 @@ slides:
       language: javascript
       execution: sandpack
     artifacts: []
-
   - id: python-demo
     content: slides/03-python.md
     code:
@@ -23,7 +17,6 @@ slides:
       execution: pyodide
       packages: []
     artifacts: []
-
   - id: sql-demo
     content: slides/04-sql.md
     code:
@@ -32,7 +25,6 @@ slides:
       execution: sql
       seedData: code/seed.sql
     artifacts: []
-
   - id: native-demo
     content: slides/05-native.md
     code:
@@ -40,5 +32,13 @@ slides:
       language: javascript
       execution: native
       command: node
-      args: ["code/hello-native.js"]
+      args:
+        - code/hello-native.js
+    artifacts: []
+  - id: mdx-demo
+    content: slides/06-mdx.mdx
+    artifacts: []
+  - id: lecta-overview
+    content: slides/07-lecta-overview.mdx
+    layout: center
     artifacts: []

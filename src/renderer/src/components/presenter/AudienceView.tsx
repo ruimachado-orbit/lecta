@@ -1,7 +1,7 @@
 import { useEffect, useCallback, useRef, useState } from 'react'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import { usePresentationStore } from '../../stores/presentation-store'
-import { SlideRenderer } from '../slides/SlideRenderer'
+import { ContentRenderer } from '../slides/ContentRenderer'
 import { VideoPanel } from '../video/VideoPanel'
 import Editor from '@monaco-editor/react'
 
@@ -143,6 +143,7 @@ export function AudienceView(): JSX.Element {
           layout={currentSlide.config.layout}
           theme={presentation?.theme || 'dark'}
           mousePos={mousePos?.area === 'slide' ? mousePos : null}
+          isMdx={currentSlide.isMdx}
         />
       </div>
 
@@ -222,9 +223,9 @@ export function AudienceView(): JSX.Element {
 }
 
 /** Audience slide canvas — matches editor rendering exactly */
-function AudienceSlide({ markdown, rootPath, layout, theme, mousePos }: {
+function AudienceSlide({ markdown, rootPath, layout, theme, mousePos, isMdx }: {
   markdown: string; rootPath?: string; layout?: string; theme?: string
-  mousePos: { x: number; y: number } | null
+  mousePos: { x: number; y: number } | null; isMdx?: boolean
 }): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
   const [canvasScale, setCanvasScale] = useState(1)
@@ -268,7 +269,7 @@ function AudienceSlide({ markdown, rootPath, layout, theme, mousePos }: {
             width: layout === 'blank' ? SLIDE_W : SLIDE_W - PAD * 2,
             height: layout === 'blank' ? SLIDE_H : undefined,
           }}>
-            <SlideRenderer markdown={markdown} rootPath={rootPath} />
+            <ContentRenderer markdown={markdown} rootPath={rootPath} isMdx={isMdx} />
           </div>
         </div>
         {mousePos && <RemoteCursor x={mousePos.x} y={mousePos.y} />}

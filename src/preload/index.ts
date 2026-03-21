@@ -21,8 +21,8 @@ const api = {
     ipcRenderer.invoke('fs:create-lecta-file', name, docType),
   saveLecta: (rootPath: string): Promise<void> =>
     ipcRenderer.invoke('fs:save-lecta', rootPath),
-  addSlide: (rootPath: string, slideId: string, afterIndex: number): Promise<LoadedPresentation> =>
-    ipcRenderer.invoke('fs:add-slide', rootPath, slideId, afterIndex),
+  addSlide: (rootPath: string, slideId: string, afterIndex: number, format?: string): Promise<LoadedPresentation> =>
+    ipcRenderer.invoke('fs:add-slide', rootPath, slideId, afterIndex, format),
   addCodeToSlide: (rootPath: string, slideIndex: number, language: SupportedLanguage): Promise<LoadedPresentation> =>
     ipcRenderer.invoke('fs:add-code-to-slide', rootPath, slideIndex, language),
   addArtifact: (rootPath: string, slideIndex: number): Promise<LoadedPresentation | null> =>
@@ -196,8 +196,8 @@ const api = {
   exportPdf: (rootPath: string, slideHtmls: string[], title: string): Promise<string | null> =>
     ipcRenderer.invoke('export:pdf', rootPath, slideHtmls, title),
 
-  exportHtml: (slideMarkdowns: string[], title: string, theme: string): Promise<string | null> =>
-    ipcRenderer.invoke('export:html', slideMarkdowns, title, theme),
+  exportHtml: (slideContents: { content: string; isPreRendered: boolean }[] | string[], title: string, theme: string): Promise<string | null> =>
+    ipcRenderer.invoke('export:html', slideContents, title, theme),
 
   // Presenter sync listener (for audience/presenter windows)
   onPresenterSync: (callback: (slideIndex: number) => void): void => {

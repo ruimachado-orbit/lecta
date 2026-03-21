@@ -4,7 +4,7 @@ import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useExecutionStore } from '../../stores/execution-store'
 import { useCodeExecution } from '../../hooks/useCodeExecution'
-import { SlideRenderer } from '../slides/SlideRenderer'
+import { ContentRenderer } from '../slides/ContentRenderer'
 import { CodeEditor } from '../code/CodeEditor'
 import { ExecutionOutput } from '../code/ExecutionOutput'
 import { MarkdownPreview } from '../code/MarkdownPreview'
@@ -161,7 +161,8 @@ export function PresenterView(): JSX.Element {
   // Sub-slides
   const { subSlides, currentSubSlide } = useSubSlides(
     currentSlide?.markdownContent ?? '',
-    currentSlideIndex
+    currentSlideIndex,
+    currentSlide?.isMdx
   )
   const activeMarkdown = subSlides[currentSubSlide]?.markdown ?? currentSlide?.markdownContent ?? ''
 
@@ -298,7 +299,7 @@ export function PresenterView(): JSX.Element {
               <PanelGroup direction="horizontal" className="flex-1 min-w-0"
                 onLayout={(sizes) => { if (sizes[1] !== undefined) { setPanelSize(sizes[1]); if (activeArtifact) typeSizeMemory.current[activeArtifact] = sizes[1] } }}>
                 <Panel defaultSize={100 - panelSize} minSize={30}>
-                  <PresenterSlide markdown={slideMarkdown} rootPath={rootPath} layout={layout} theme={presentation?.theme || 'dark'} />
+                  <PresenterSlide markdown={slideMarkdown} rootPath={rootPath} layout={layout} theme={presentation?.theme || 'dark'} isMdx={currentSlide?.isMdx} />
                 </Panel>
                 <PanelResizeHandle className="w-1.5 bg-gray-800 hover:bg-indigo-500 transition-colors" />
                 <Panel defaultSize={panelSize} minSize={15} id="artifact-panel">
@@ -316,7 +317,7 @@ export function PresenterView(): JSX.Element {
                 </Panel>
               </PanelGroup>
             ) : (
-              <PresenterSlide markdown={slideMarkdown} rootPath={rootPath} layout={layout} theme={presentation?.theme || 'dark'} />
+              <PresenterSlide markdown={slideMarkdown} rootPath={rootPath} layout={layout} theme={presentation?.theme || 'dark'} isMdx={currentSlide?.isMdx} />
             )}
 
             {/* Artifact sidebar */}
@@ -446,6 +447,7 @@ export function PresenterView(): JSX.Element {
                   rootPath={rootPath}
                   layout={nextSlideData.config.layout}
                   theme={presentation?.theme || 'dark'}
+                  isMdx={nextSlideData.isMdx}
                 />
               ) : (
                 <div className="w-full aspect-video rounded bg-gray-900 flex items-center justify-center">
@@ -498,8 +500,8 @@ export function PresenterView(): JSX.Element {
 }
 
 /** 16:9 slide canvas — centered in container, auto-scaled to match editor rendering */
-function PresenterSlide({ markdown, rootPath, layout, theme }: {
-  markdown: string; rootPath?: string; layout?: string; theme?: string
+function PresenterSlide({ markdown, rootPath, layout, theme, isMdx }: {
+  markdown: string; rootPath?: string; layout?: string; theme?: string; isMdx?: boolean
 }): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
   const [canvasScale, setCanvasScale] = useState(1)
@@ -545,11 +547,12 @@ function PresenterSlide({ markdown, rootPath, layout, theme }: {
               height: layout === 'blank' ? SLIDE_H : undefined,
             }}
           >
-            <SlideRenderer
+            <ContentRenderer
               markdown={markdown}
               rootPath={rootPath}
               clickStep={usePresentationStore.getState().clickStep}
               onClickSteps={(total) => usePresentationStore.setState({ totalClickSteps: total })}
+              isMdx={isMdx}
             />
           </div>
         </div>
@@ -559,8 +562,8 @@ function PresenterSlide({ markdown, rootPath, layout, theme }: {
 }
 
 /** Small 16:9 slide preview for the "next slide" panel */
-function MiniSlide({ markdown, rootPath, layout, theme }: {
-  markdown: string; rootPath?: string; layout?: string; theme?: string
+function MiniSlide({ markdown, rootPath, layout, theme, isMdx }: {
+  markdown: string; rootPath?: string; layout?: string; theme?: string; isMdx?: boolean
 }): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(0.2)
@@ -596,7 +599,7 @@ function MiniSlide({ markdown, rootPath, layout, theme }: {
         <div className="absolute inset-0" style={{ background: 'var(--slide-bg)' }} />
         <div className={`absolute inset-0 ${layout === 'blank' ? '' : 'p-12'} overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
           <div style={{ width: SLIDE_W - 96 }}>
-            <SlideRenderer markdown={markdown} rootPath={rootPath} />
+            <ContentRenderer markdown={markdown} rootPath={rootPath} isMdx={isMdx} />
           </div>
         </div>
       </div>

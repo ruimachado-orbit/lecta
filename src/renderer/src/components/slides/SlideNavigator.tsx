@@ -14,6 +14,7 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
   const [dropGroupId, setDropGroupId] = useState<string | null>(null)
   const dragRef = useRef<number | null>(null)
 
+  const [showAddSlideMenu, setShowAddSlideMenu] = useState(false)
   const [isBeautifying, setIsBeautifying] = useState(false)
   const [beautifyReview, setBeautifyReview] = useState<{
     slideIndex: number
@@ -291,10 +292,31 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
         })}
 
         <div className="flex-shrink-0 w-4" />
-        <button onClick={() => addSlide(`slide-${slides.length + 1}`)}
-          className="flex-shrink-0 w-10 h-10 rounded-md border-2 border-dashed border-gray-700 hover:border-white hover:text-white text-gray-600 flex items-center justify-center transition-colors">
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-        </button>
+        <div className="relative flex-shrink-0">
+          <button onClick={() => setShowAddSlideMenu(!showAddSlideMenu)}
+            className="w-10 h-10 rounded-md border-2 border-dashed border-gray-700 hover:border-white hover:text-white text-gray-600 flex items-center justify-center transition-colors">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+          </button>
+          {showAddSlideMenu && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setShowAddSlideMenu(false)} />
+              <div className="absolute left-0 top-full mt-1 z-50 w-40 bg-gray-900 border border-gray-700 rounded-lg shadow-xl py-1">
+                <button
+                  onClick={() => { addSlide(`slide-${slides.length + 1}`); setShowAddSlideMenu(false) }}
+                  className="w-full text-left px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
+                >
+                  Markdown (.md)
+                </button>
+                <button
+                  onClick={() => { addSlide(`slide-${slides.length + 1}`, 'mdx'); setShowAddSlideMenu(false) }}
+                  className="w-full text-left px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
+                >
+                  MDX (.mdx)
+                </button>
+              </div>
+            </>
+          )}
+        </div>
 
         <div className="flex-shrink-0 w-2" />
 

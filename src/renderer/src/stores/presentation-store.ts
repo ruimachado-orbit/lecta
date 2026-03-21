@@ -38,7 +38,7 @@ interface PresentationState {
   reset: () => void
 
   // Editing actions
-  addSlide: (slideId: string) => Promise<void>
+  addSlide: (slideId: string, format?: string) => Promise<void>
   addCodeToSlide: (language: SupportedLanguage) => Promise<void>
   addArtifact: () => Promise<void>
   addVideo: (url: string, label?: string) => Promise<void>
@@ -313,14 +313,15 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
     })
   },
 
-  addSlide: async (slideId: string) => {
+  addSlide: async (slideId: string, format?: string) => {
     const { presentation, currentSlideIndex } = get()
     if (!presentation) return
     try {
       const loaded = await window.electronAPI.addSlide(
         presentation.rootPath,
         slideId,
-        currentSlideIndex
+        currentSlideIndex,
+        format
       )
       set(applyLoaded(loaded, currentSlideIndex + 1))
     } catch (error) {

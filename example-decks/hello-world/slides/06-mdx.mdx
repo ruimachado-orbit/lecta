@@ -1,0 +1,42 @@
+# MDX in Lecta
+
+Markdown meets JSX — write visually rich slides with inline components.
+
+<div style={{display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginTop: '20px'}}>
+  <div style={{background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', borderRadius: '14px', padding: '28px', color: 'white', textAlign: 'center'}}>
+    <div style={{fontSize: '42px', fontWeight: 800}}>$4.2M</div>
+    <div style={{fontSize: '13px', opacity: 0.7, marginTop: '6px', textTransform: 'uppercase', letterSpacing: '1px'}}>Revenue</div>
+  </div>
+  <div style={{background: 'linear-gradient(135deg, #ec4899, #f43f5e)', borderRadius: '14px', padding: '28px', color: 'white', textAlign: 'center'}}>
+    <div style={{fontSize: '42px', fontWeight: 800}}>1,247</div>
+    <div style={{fontSize: '13px', opacity: 0.7, marginTop: '6px', textTransform: 'uppercase', letterSpacing: '1px'}}>Customers</div>
+  </div>
+  <div style={{background: 'linear-gradient(135deg, #14b8a6, #06b6d4)', borderRadius: '14px', padding: '28px', color: 'white', textAlign: 'center'}}>
+    <div style={{fontSize: '42px', fontWeight: 800}}>99.9%</div>
+    <div style={{fontSize: '13px', opacity: 0.7, marginTop: '6px', textTransform: 'uppercase', letterSpacing: '1px'}}>Uptime</div>
+  </div>
+</div>
+
+<div style={{display: 'flex', gap: '12px', marginTop: '20px'}}>
+  <div style={{flex: 1, border: '1px solid rgba(255,255,255,0.12)', borderRadius: '12px', padding: '20px'}}>
+    <div style={{display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px'}}>
+      <div style={{width: '8px', height: '8px', borderRadius: '50%', background: '#22c55e'}} />
+      <span style={{fontWeight: 600, fontSize: '15px'}}>Grids & Cards</span>
+    </div>
+    <span style={{fontSize: '13px', opacity: 0.55}}>CSS Grid and Flexbox layouts with inline styles — no external CSS needed.</span>
+  </div>
+  <div style={{flex: 1, border: '1px solid rgba(255,255,255,0.12)', borderRadius: '12px', padding: '20px'}}>
+    <div style={{display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px'}}>
+      <div style={{width: '8px', height: '8px', borderRadius: '50%', background: '#6366f1'}} />
+      <span style={{fontWeight: 600, fontSize: '15px'}}>Graceful Fallback</span>
+    </div>
+    <span style={{fontSize: '13px', opacity: 0.55}}>If JSX fails to compile, content falls back to plain markdown automatically.</span>
+  </div>
+  <div style={{flex: 1, border: '1px solid rgba(255,255,255,0.12)', borderRadius: '12px', padding: '20px'}}>
+    <div style={{display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px'}}>
+      <div style={{width: '8px', height: '8px', borderRadius: '50%', background: '#f59e0b'}} />
+      <span style={{fontWeight: 600, fontSize: '15px'}}>Markdown + JSX</span>
+    </div>
+    <span style={{fontSize: '13px', opacity: 0.55}}>Standard markdown works alongside JSX. Every `.md` file is valid `.mdx`.</span>
+  </div>
+</div>

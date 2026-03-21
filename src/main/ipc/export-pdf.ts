@@ -49,7 +49,7 @@ export function registerExportHandlers(): void {
   // Export as self-contained HTML SPA
   ipcMain.handle(
     'export:html',
-    async (_event, slideMarkdowns: string[], title: string, theme: string): Promise<string | null> => {
+    async (_event, slideContents: (string | { content: string; isPreRendered: boolean })[], title: string, theme: string): Promise<string | null> => {
       const result = await dialog.showSaveDialog({
         title: 'Export as HTML',
         defaultPath: `${title || 'presentation'}.html`,
@@ -58,15 +58,19 @@ export function registerExportHandlers(): void {
 
       if (result.canceled || !result.filePath) return null
 
-      const html = buildSpaHtml(slideMarkdowns, title, theme)
+      // Normalize: accept both old string[] format and new { content, isPreRendered }[] format
+      const normalized = slideContents.map((s) =>
+        typeof s === 'string' ? { content: s, isPreRendered: false } : s
+      )
+      const html = buildSpaHtml(normalized, title, theme)
       await writeFile(result.filePath, html, 'utf-8')
       return result.filePath
     }
   )
 }
 
-function buildSpaHtml(slideMarkdowns: string[], title: string, theme: string): string {
-  const slidesJson = JSON.stringify(slideMarkdowns)
+function buildSpaHtml(slideData: { content: string; isPreRendered: boolean }[], title: string, theme: string): string {
+  const slidesJson = JSON.stringify(slideData)
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -114,20 +118,27 @@ const container = document.getElementById('slideContainer');
 const counter = document.getElementById('counter');
 
 function render() {
-  const md = slides[current] || '';
-  let html = md
-    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-    .replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>')
-    .replace(/\\*(.+?)\\*/g, '<em>$1</em>')
-    .replace(/\`(.+?)\`/g, '<code>$1</code>')
-    .replace(/^- (.+)$/gm, '<li>$1</li>')
-    .replace(/(<li>.*<\\/li>)/gs, '<ul>$1</ul>')
-    .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
-    .replace(/^---$/gm, '<hr>')
-    .replace(/^(?!<[hulbh])((?!<).+)$/gm, '<p>$1</p>')
-    .replace(/<p><\\/p>/g, '');
+  const slide = slides[current] || { content: '', isPreRendered: false };
+  const md = typeof slide === 'string' ? slide : slide.content;
+  const preRendered = typeof slide === 'object' && slide.isPreRendered;
+  let html;
+  if (preRendered) {
+    html = md;
+  } else {
+    html = md
+      .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+      .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+      .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+      .replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>')
+      .replace(/\\*(.+?)\\*/g, '<em>$1</em>')
+      .replace(/\`(.+?)\`/g, '<code>$1</code>')
+      .replace(/^- (.+)$/gm, '<li>$1</li>')
+      .replace(/(<li>.*<\\/li>)/gs, '<ul>$1</ul>')
+      .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
+      .replace(/^---$/gm, '<hr>')
+      .replace(/^(?!<[hulbh])((?!<).+)$/gm, '<p>$1</p>')
+      .replace(/<p><\\/p>/g, '');
+  }
   container.innerHTML = '<div class="slide">' + html + '</div>';
   counter.textContent = (current + 1) + ' / ' + slides.length;
   // Scale slide to fit viewport

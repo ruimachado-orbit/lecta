@@ -28,6 +28,7 @@ const EXTENSION_TO_LANGUAGE: Record<string, SupportedLanguage> = {
   '.rb': 'ruby',
   '.php': 'php',
   '.md': 'markdown',
+  '.mdx': 'markdown',
   '.markdown': 'markdown'
 }
 

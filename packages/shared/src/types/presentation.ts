@@ -111,6 +111,7 @@ export interface LoadedSlide {
   codeContent: string | null
   codeLanguage: SupportedLanguage | null
   notesContent: string | null
+  isMdx?: boolean
 }
 
 export interface LoadedPresentation {

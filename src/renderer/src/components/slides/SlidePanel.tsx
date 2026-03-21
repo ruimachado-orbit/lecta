@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState, useEffect } from 'react'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore } from '../../stores/ui-store'
-import { SlideRenderer } from './SlideRenderer'
+import { ContentRenderer } from './ContentRenderer'
 import { SlideNavigator } from './SlideNavigator'
 import { SlideEditToolbar } from './SlideEditToolbar'
 import { WysiwygEditor } from './WysiwygEditor'
@@ -35,7 +35,8 @@ export function SlidePanel(): JSX.Element {
 
   const { subSlides, currentSubSlide, setCurrentSubSlide, breakOffsets, hasManualBreaks } = useSubSlides(
     currentSlide?.markdownContent ?? '',
-    currentSlideIndex
+    currentSlideIndex,
+    currentSlide?.isMdx
   )
 
   const breakOffsetsRef = useRef(breakOffsets)
@@ -214,11 +215,23 @@ export function SlidePanel(): JSX.Element {
                 layout={currentSlide.config.layout}
                 slideIndex={currentSlideIndex}
                 drawingMode={true}
+                isMdx={currentSlide.isMdx}
               />
             </div>
           </div>
+        ) : editingSlide && editorMode === 'wysiwyg' && currentSlide.isMdx ? (
+          /* MDX visual mode: full-size rendered preview */
+          <SlideCanvas
+            markdown={currentSlide.markdownContent}
+            rootPath={presentation?.rootPath}
+            layout={currentSlide.config.layout}
+            slideIndex={currentSlideIndex}
+            showGlobalLayers={true}
+            isMdx={true}
+          />
+
         ) : editingSlide && editorMode === 'wysiwyg' ? (
-          /* WYSIWYG: stacked sub-slide editor (always, even with 1 sub-slide) */
+          /* WYSIWYG: stacked sub-slide editor */
           <SubSlideStackEditor
             subSlides={subSlides}
             currentSubSlide={currentSubSlide}
@@ -234,7 +247,7 @@ export function SlidePanel(): JSX.Element {
           /* Markdown: split view — canvas top, editor bottom */
           <>
             <div className="h-[40%] flex-shrink-0 border-b border-gray-800">
-              <SlideCanvas markdown={currentSlide.markdownContent} rootPath={presentation?.rootPath} layout={currentSlide.config.layout} slideIndex={currentSlideIndex} />
+              <SlideCanvas markdown={currentSlide.markdownContent} rootPath={presentation?.rootPath} layout={currentSlide.config.layout} slideIndex={currentSlideIndex} isMdx={currentSlide.isMdx} />
             </div>
             <div className="flex-1 min-h-0" onBlur={handleEditorBlur}>
               <Editor
@@ -266,6 +279,7 @@ export function SlidePanel(): JSX.Element {
             drawingMode={drawingMode}
             editable={true}
             showGlobalLayers={true}
+            isMdx={currentSlide.isMdx}
             onUpdateMarkdown={(md) => {
               updateMarkdownContent(currentSlideIndex, md)
               saveSlideContent(currentSlideIndex)
@@ -356,9 +370,9 @@ function PositionedImagesOverlay({ markdown, rootPath, pad }: { markdown: string
 }
 
 /** 16:9 slide canvas that auto-scales content to fit */
-function SlideCanvas({ markdown, rootPath, transition, layout, slideIndex, drawingMode, editable, onUpdateMarkdown, showGlobalLayers }: {
+function SlideCanvas({ markdown, rootPath, transition, layout, slideIndex, drawingMode, editable, onUpdateMarkdown, showGlobalLayers, isMdx }: {
   markdown: string; rootPath?: string; transition?: string; layout?: string; slideIndex?: number; drawingMode?: boolean
-  editable?: boolean; onUpdateMarkdown?: (md: string) => void; showGlobalLayers?: boolean
+  editable?: boolean; onUpdateMarkdown?: (md: string) => void; showGlobalLayers?: boolean; isMdx?: boolean
 }): JSX.Element {
   const slideTheme = usePresentationStore((s) => s.presentation?.theme) || 'dark'
   const containerRef = useRef<HTMLDivElement>(null)
@@ -422,7 +436,7 @@ function SlideCanvas({ markdown, rootPath, transition, layout, slideIndex, drawi
               height: layout === 'blank' ? SLIDE_H : undefined,
             }}
           >
-            <SlideRenderer markdown={markdown} rootPath={rootPath} />
+            <ContentRenderer markdown={markdown} rootPath={rootPath} isMdx={isMdx} />
           </div>
         </div>
         {/* Positioned images overlay — always visible, outside content scaling */}
@@ -746,7 +760,14 @@ function SubSlideStackEditor({ subSlides, currentSubSlide, setCurrentSubSlide, s
                   overflow: 'hidden',
                 }}
               >
-                {i === currentSubSlide ? (
+                {i === currentSubSlide && currentSlide?.isMdx ? (
+                  /* MDX sub-slide: read-only rendered preview (WYSIWYG can't handle JSX) */
+                  <div className={`absolute inset-0 ${layout === 'blank' ? '' : 'p-12'} overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
+                    <div className="slide-content max-w-none" style={{ width: layout === 'blank' ? SLIDE_W : SLIDE_W - 96 }}>
+                      <ContentRenderer markdown={sub.markdown} rootPath={presentation?.rootPath} isMdx={true} />
+                    </div>
+                  </div>
+                ) : i === currentSubSlide ? (
                   /* Selected sub-slide: full WYSIWYG editor */
                   <div className={`relative h-full ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
                     <WysiwygEditor
@@ -760,7 +781,7 @@ function SubSlideStackEditor({ subSlides, currentSubSlide, setCurrentSubSlide, s
                   /* Other sub-slides: read-only preview */
                   <div className={`absolute inset-0 ${layout === 'blank' ? '' : 'p-12'} overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
                     <div className="slide-content max-w-none" style={{ width: layout === 'blank' ? SLIDE_W : SLIDE_W - 96 }}>
-                      <SlideRenderer markdown={sub.markdown} rootPath={presentation?.rootPath} />
+                      <ContentRenderer markdown={sub.markdown} rootPath={presentation?.rootPath} isMdx={currentSlide?.isMdx} />
                     </div>
                   </div>
                 )}

@@ -101,6 +101,7 @@ export interface LoadedSlide {
   codeContent: string | null
   codeLanguage: SupportedLanguage | null
   notesContent: string | null
+  isMdx?: boolean
 }
 
 export interface LoadedPresentation {
@@ -286,7 +287,8 @@ export async function loadPresentation(rootPath: string): Promise<LoadedPresenta
         markdownContent,
         codeContent,
         codeLanguage: slideConfig.code?.language ?? null,
-        notesContent
+        notesContent,
+        isMdx: slideConfig.content.endsWith('.mdx')
       }
     })
   )
@@ -306,6 +308,7 @@ export async function createPresentation(opts: {
   author?: string
   slideCount?: number
   slideTitles?: string[]
+  format?: 'md' | 'mdx'
 }): Promise<{ rootPath: string; slideCount: number }> {
   const theme = opts.theme && VALID_THEMES.includes(opts.theme) ? opts.theme : 'dark'
   const author = opts.author ?? ''
@@ -335,7 +338,8 @@ export async function createPresentation(opts: {
     const num = String(i + 1).padStart(2, '0')
     const title = opts.slideTitles?.[i] ?? (i === 0 ? opts.title : `Slide ${i + 1}`)
     const slideId = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-    const contentPath = `slides/${num}-${slideId}.md`
+    const slideExt = opts.format === 'mdx' ? '.mdx' : '.md'
+    const contentPath = `slides/${num}-${slideId}${slideExt}`
 
     const layout: SlideLayout | undefined = i === 0 ? 'title' : undefined
     const markdown = i === 0
@@ -380,6 +384,7 @@ export async function addSlide(opts: {
   layout?: SlideLayout
   code?: { content: string; language: SupportedLanguage; execution?: ExecutionEngine }
   notes?: string
+  format?: 'md' | 'mdx'
 }): Promise<{ slideIndex: number; slideCount: number }> {
   const { config } = await loadPresentation(opts.rootPath)
   const insertAt = opts.afterIndex != null ? opts.afterIndex + 1 : config.slides.length
@@ -388,7 +393,8 @@ export async function addSlide(opts: {
   const autoId = opts.slideId
     || toSlug(opts.content.match(/^#\s+(.+)$/m)?.[1] || `slide-${config.slides.length + 1}`)
   const slideNum = String(config.slides.length + 1).padStart(2, '0')
-  const contentPath = `slides/${slideNum}-${autoId}.md`
+  const ext = opts.format === 'mdx' ? '.mdx' : '.md'
+  const contentPath = `slides/${slideNum}-${autoId}${ext}`
 
   await mkdir(join(opts.rootPath, 'slides'), { recursive: true })
   await writeFile(join(opts.rootPath, contentPath), opts.content, 'utf-8')

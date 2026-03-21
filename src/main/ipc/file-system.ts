@@ -313,7 +313,8 @@ export function registerFileSystemHandlers(): void {
           markdownContent,
           codeContent,
           codeLanguage: slideConfig.code?.language ?? null,
-          notesContent
+          notesContent,
+          isMdx: slideConfig.content.endsWith('.mdx')
         }
       })
     )
@@ -399,22 +400,23 @@ export function registerFileSystemHandlers(): void {
   // Add a new slide to the presentation
   ipcMain.handle(
     'fs:add-slide',
-    async (_event, rootPath: string, slideId: string, afterIndex: number): Promise<LoadedPresentation> => {
+    async (_event, rootPath: string, slideId: string, afterIndex: number, format?: string): Promise<LoadedPresentation> => {
       const configPath = join(rootPath, DECK_CONFIG_FILE)
       const yamlContent = await readFile(configPath, 'utf-8')
       const config = parsePresentationYaml(yamlContent, rootPath)
 
-      // Determine slide number for file naming
+      // Determine slide number and extension for file naming
       const slideNum = String(config.slides.length + 1).padStart(2, '0')
-      const contentPath = `slides/${slideNum}-${slideId}.md`
+      const ext = format === 'mdx' ? '.mdx' : '.md'
+      const contentPath = `slides/${slideNum}-${slideId}${ext}`
 
-      // Create the markdown file
+      // Create the content file
+      const title = slideId.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+      const initialContent = format === 'mdx'
+        ? `# ${title}\n\nThis is an MDX slide. You can use JSX here for richer visuals.\n`
+        : `# ${title}\n\n`
       await mkdir(join(rootPath, 'slides'), { recursive: true })
-      await writeFile(
-        join(rootPath, contentPath),
-        `# ${slideId.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}\n\n`,
-        'utf-8'
-      )
+      await writeFile(join(rootPath, contentPath), initialContent, 'utf-8')
 
       // Insert new slide config
       const newSlide: SlideConfig = {
@@ -1028,7 +1030,8 @@ async function loadAllSlides(config: Presentation, rootPath: string): Promise<Lo
         markdownContent,
         codeContent,
         codeLanguage: slideConfig.code?.language ?? null,
-        notesContent
+        notesContent,
+        isMdx: slideConfig.content.endsWith('.mdx')
       }
     })
   )

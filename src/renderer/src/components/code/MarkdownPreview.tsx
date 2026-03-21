@@ -1,4 +1,4 @@
-import { SlideRenderer } from '../slides/SlideRenderer'
+import { ContentRenderer } from '../slides/ContentRenderer'
 import { FlowDiagram } from '../common/FlowDiagram'
 
 const MERMAID_KEYWORDS = [
@@ -35,5 +35,5 @@ export function MarkdownPreview({ content, rootPath }: MarkdownPreviewProps): JS
     )
   }
 
-  return <SlideRenderer markdown={content} rootPath={rootPath} />
+  return <ContentRenderer markdown={content} rootPath={rootPath} />
 }

@@ -30,6 +30,9 @@ export default defineConfig({
       ]
     },
     plugins: [react()],
+    optimizeDeps: {
+      include: ['@mdx-js/mdx', 'recma-mdx-escape-missing-components']
+    },
     define: {
       'process.env.IS_PREACT': JSON.stringify(''),
       'process.env.NODE_ENV': JSON.stringify('production'),

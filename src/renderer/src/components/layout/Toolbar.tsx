@@ -209,7 +209,10 @@ export function Toolbar(): JSX.Element {
                   onClick={async () => {
                     setShowExportMenu(false)
                     if (!presentation) return
-                    const htmls = slides.map((s) => markdownToSlideHtml(s.markdownContent))
+                    const htmls = await Promise.all(slides.map(async (s) => {
+                      if (s.isMdx) return compileMdxToStaticHtml(s.markdownContent)
+                      return markdownToSlideHtml(s.markdownContent)
+                    }))
                     await window.electronAPI.exportPdf(presentation.rootPath, htmls, presentation.title)
                   }}
                   className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
@@ -221,8 +224,15 @@ export function Toolbar(): JSX.Element {
                   onClick={async () => {
                     setShowExportMenu(false)
                     if (!presentation) return
-                    const markdowns = slides.map((s) => s.markdownContent)
-                    await window.electronAPI.exportHtml(markdowns, presentation.title, presentation.theme)
+                    // Pre-render MDX slides to HTML; pass markdown for .md slides
+                    const contents = await Promise.all(slides.map(async (s) => {
+                      if (s.isMdx) {
+                        const html = await compileMdxToStaticHtml(s.markdownContent)
+                        return { content: html, isPreRendered: true }
+                      }
+                      return { content: s.markdownContent, isPreRendered: false }
+                    }))
+                    await window.electronAPI.exportHtml(contents, presentation.title, presentation.theme)
                   }}
                   className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
                 >
@@ -489,6 +499,30 @@ function markdownToSlideHtml(md: string): string {
     .replace(/^(?!<[hulopb])((?!<).+\S.*)$/gm, '<p>$1</p>')
     .replace(/^---+$/gm, '<hr>')
     .replace(/<p>\s*<\/p>/g, '')
+}
+
+/** Compile MDX to static HTML for export. Falls back to regex converter on error. */
+async function compileMdxToStaticHtml(source: string): Promise<string> {
+  try {
+    const { compile, run } = await import('@mdx-js/mdx')
+    const remarkGfm = (await import('remark-gfm')).default
+    const runtime = await import('react/jsx-runtime')
+    const { renderToStaticMarkup } = await import('react-dom/server')
+
+    const compiled = await compile(source, {
+      outputFormat: 'function-body',
+      remarkPlugins: [remarkGfm],
+      format: 'mdx',
+    })
+    const { default: Content } = await run(String(compiled), {
+      ...runtime,
+      baseUrl: import.meta.url,
+    })
+    return renderToStaticMarkup(Content({}))
+  } catch {
+    // Graceful fallback: render as plain markdown via regex
+    return markdownToSlideHtml(source)
+  }
 }
 
 function PdfIcon(): JSX.Element {

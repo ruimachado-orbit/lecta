@@ -152,7 +152,6 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
         if (existing) useTabsStore.setState({ activeTabId: existing.id })
       }
     } catch (error) {
-      console.error('[store] loadPresentation failed:', error)
       set({
         isLoading: false,
         error: (error as Error).message
@@ -238,35 +237,28 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
   },
 
   saveSlideContent: async (slideIndex: number) => {
-    console.log('[store] saveSlideContent called, slideIndex:', slideIndex)
     const { presentation, slides } = get()
-    if (!presentation) { console.warn('[store] saveSlideContent: no presentation'); return }
+    if (!presentation) return
     const slide = slides[slideIndex]
-    if (!slide) { console.warn('[store] saveSlideContent: no slide at index', slideIndex); return }
+    if (!slide) return
 
     set({ isSaving: true })
     try {
       const mdPath = `${presentation.rootPath}/${slide.config.content}`
-      console.log('[store] writing markdown to:', mdPath)
       await window.electronAPI.writeFile(mdPath, slide.markdownContent)
-      console.log('[store] markdown written OK')
 
       if (slide.config.code && slide.codeContent !== null) {
         const codePath = `${presentation.rootPath}/${slide.config.code.file}`
-        console.log('[store] writing code to:', codePath)
         await window.electronAPI.writeFile(codePath, slide.codeContent)
-        console.log('[store] code written OK')
       }
 
       // Save notes if they exist (creates file + updates YAML if needed)
       if (slide.notesContent) {
-        console.log('[store] saving notes...')
         const notesPath = await window.electronAPI.saveNotes(
           presentation.rootPath,
           slideIndex,
           slide.notesContent
         )
-        console.log('[store] notes saved OK:', notesPath)
         // Update local config so subsequent saves know the notes path
         if (!slide.config.notes) {
           set((state) => {
@@ -283,14 +275,11 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
       }
 
       // Pack changes back into .lecta file if workspace is from one
-      console.log('[store] calling saveLecta...')
       await window.electronAPI.saveLecta(presentation.rootPath)
-      console.log('[store] saveLecta OK')
 
       set({ isSaving: false, lastSavedAt: new Date(), hasUnsavedChanges: false })
-      console.log('[store] saveSlideContent completed successfully')
     } catch (err) {
-      console.error('[store] saveSlideContent failed:', err)
+      console.error('saveSlideContent failed:', err)
       set({ isSaving: false })
     }
   },
@@ -570,8 +559,6 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
   },
 
   reset: () => {
-    console.log('[store] reset() called — presentation will be set to null')
-    console.trace('[store] reset call stack')
     set({
       presentation: null,
       slides: [],

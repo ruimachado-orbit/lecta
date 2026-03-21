@@ -97,7 +97,6 @@ export function SlidePanel(): JSX.Element {
   const handleEditorChange = useCallback(
     (value: string | undefined) => {
       if (value !== undefined) {
-        console.log('[SlidePanel] editor change, slideIndex:', currentSlideIndex, 'len:', value.length)
         updateMarkdownContent(currentSlideIndex, value)
       }
     },

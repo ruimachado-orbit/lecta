@@ -97,6 +97,7 @@ export function SlidePanel(): JSX.Element {
   const handleEditorChange = useCallback(
     (value: string | undefined) => {
       if (value !== undefined) {
+        console.log('[SlidePanel] editor change, slideIndex:', currentSlideIndex, 'len:', value.length)
         updateMarkdownContent(currentSlideIndex, value)
       }
     },
@@ -104,6 +105,8 @@ export function SlidePanel(): JSX.Element {
   )
 
   const handleEditorBlur = useCallback(() => {
+    const { hasUnsavedChanges } = usePresentationStore.getState()
+    if (!hasUnsavedChanges) return
     saveSlideContent(currentSlideIndex)
   }, [currentSlideIndex, saveSlideContent])
 

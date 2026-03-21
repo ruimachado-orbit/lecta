@@ -158,16 +158,6 @@ async function getRunAndRuntime() {
 const MAX_CACHE_SIZE = 50
 const compiledCache = new Map<string, string>()
 
-// Invalidate caches on HMR so new plugins take effect during development
-if (import.meta.hot) {
-  import.meta.hot.dispose(() => {
-    cachedProcessor = null
-    cachedRun = null
-    cachedRuntime = null
-    compiledCache.clear()
-  })
-}
-
 // Simple string hash for cache keys (djb2)
 function hashString(s: string): string {
   let h = 5381
@@ -229,13 +219,58 @@ function useMdxComponents(rootPath?: string) {
   }
 }
 
+// Layer 3: Component cache — compiled source -> React component (avoids re-running)
+const componentCache = new Map<string, React.ComponentType<any>>()
+
+// Invalidate caches on HMR so new plugins take effect during development
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    cachedProcessor = null
+    cachedRun = null
+    cachedRuntime = null
+    compiledCache.clear()
+    componentCache.clear()
+  })
+}
+
+async function compileToComponent(source: string): Promise<React.ComponentType<any>> {
+  const key = hashString(source)
+  const cached = componentCache.get(key)
+  if (cached) return cached
+
+  const code = await compileMdx(source)
+  const { run, runtime } = await getRunAndRuntime()
+  const { default: Content } = await run(code, {
+    ...runtime,
+    baseUrl: import.meta.url,
+  })
+
+  // Evict oldest if too large
+  if (componentCache.size >= MAX_CACHE_SIZE) {
+    const firstKey = componentCache.keys().next().value
+    if (firstKey !== undefined) componentCache.delete(firstKey)
+  }
+  componentCache.set(key, Content)
+  return Content
+}
+
+/** Pre-compile MDX source in the background (for prefetching next/prev slides) */
+export function prefetchMdx(source: string): void {
+  if (!source) return
+  const key = hashString(source)
+  if (componentCache.has(key) || compiledCache.has(key)) return
+  // Fire and forget — errors are silently ignored
+  compileMdx(source).catch(() => {})
+}
+
 export function MdxRenderer({ markdown, rootPath, clickStep, onClickSteps }: MdxRendererProps): JSX.Element {
   const [MdxContent, setMdxContent] = useState<React.ComponentType<any> | null>(null)
+  const [contentSource, setContentSource] = useState<string>('')  // tracks which source MdxContent was built from
   const [error, setError] = useState<string | null>(null)
   const [errorDetail, setErrorDetail] = useState<{ line?: number; column?: number } | null>(null)
-  const [fallbackMarkdown, setFallbackMarkdown] = useState<string | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastSourceRef = useRef<string>('')
+  const compileIdRef = useRef(0)  // monotonic id to discard stale compiles
   const components = useMdxComponents(rootPath)
 
   // No click animations for MDX — report 0 steps
@@ -247,44 +282,55 @@ export function MdxRenderer({ markdown, rootPath, clickStep, onClickSteps }: Mdx
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const compile = useCallback(async (source: string) => {
+  const compile = useCallback(async (source: string, id: number) => {
     try {
-      const code = await compileMdx(source)
-      const { run, runtime } = await getRunAndRuntime()
-
-      const { default: Content } = await run(code, {
-        ...runtime,
-        baseUrl: import.meta.url,
-      })
+      const Content = await compileToComponent(source)
+      // Only apply if this is still the latest compile request
+      if (id !== compileIdRef.current) return
       setMdxContent(() => Content)
+      setContentSource(source)
       setError(null)
       setErrorDetail(null)
-      setFallbackMarkdown(null)
     } catch (err: any) {
+      if (id !== compileIdRef.current) return
       console.error('[MdxRenderer] compilation failed:', err)
       setError(err.message || String(err))
       setErrorDetail({
         line: err.line ?? err.position?.start?.line,
         column: err.column ?? err.position?.start?.column,
       })
-      setFallbackMarkdown(source)
     }
   }, [])
 
   useEffect(() => {
     // Skip recompilation if content unchanged
     if (markdown === lastSourceRef.current && MdxContent) return
-    const isFirstCompile = lastSourceRef.current === ''
-    lastSourceRef.current = markdown
 
-    // Compile immediately on first mount; debounce during live editing
-    if (isFirstCompile) {
-      compile(markdown)
+    const prevSource = lastSourceRef.current
+    lastSourceRef.current = markdown
+    const id = ++compileIdRef.current
+
+    // Detect slide change vs live edit: large content change = slide switch -> compile immediately
+    // Small change or same-length tweak = likely editing -> debounce
+    const isSlideChange = !prevSource || Math.abs(markdown.length - prevSource.length) > 20 ||
+      hashString(markdown) !== hashString(prevSource)
+
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+
+    if (isSlideChange) {
+      // Try sync cache hit first for instant transition
+      const key = hashString(markdown)
+      const cachedComponent = componentCache.get(key)
+      if (cachedComponent) {
+        setMdxContent(() => cachedComponent)
+        setContentSource(markdown)
+        setError(null)
+        setErrorDetail(null)
+      } else {
+        compile(markdown, id)
+      }
     } else {
-      if (debounceRef.current) clearTimeout(debounceRef.current)
-      debounceRef.current = setTimeout(() => {
-        compile(markdown)
-      }, 300)
+      debounceRef.current = setTimeout(() => compile(markdown, id), 300)
     }
 
     return () => {
@@ -292,7 +338,8 @@ export function MdxRenderer({ markdown, rootPath, clickStep, onClickSteps }: Mdx
     }
   }, [markdown, compile]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Render compiled MDX content — wrapped in error boundary to catch render-time crashes
+  // Render: always show the last successfully compiled content (even if from previous slide)
+  // This prevents the flash-to-plain-markdown during async compilation
   if (MdxContent && !error) {
     const fallbackRender = (
       <div className="slide-content max-w-none relative">
@@ -303,8 +350,11 @@ export function MdxRenderer({ markdown, rootPath, clickStep, onClickSteps }: Mdx
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdown}</ReactMarkdown>
       </div>
     )
+    // If we have compiled content but it's from a different source (mid-transition),
+    // apply a quick fade to smooth the visual transition
+    const isTransitioning = contentSource !== markdown
     return (
-      <div className="slide-content max-w-none relative">
+      <div className={`slide-content max-w-none relative transition-opacity duration-150 ${isTransitioning ? 'opacity-70' : 'opacity-100'}`}>
         <MdxErrorBoundary fallback={fallbackRender}>
           <MdxContent components={components} />
         </MdxErrorBoundary>
@@ -313,22 +363,20 @@ export function MdxRenderer({ markdown, rootPath, clickStep, onClickSteps }: Mdx
   }
 
   // Fallback: render as plain markdown with error indicator
-  if (fallbackMarkdown !== null) {
+  if (error) {
     return (
       <div className="slide-content max-w-none relative">
-        {error && (
-          <div className="mb-3 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-mono">
-            <div className="font-semibold mb-1">MDX compilation error</div>
-            <div className="opacity-80 break-words">{error}</div>
-            {errorDetail?.line && (
-              <div className="opacity-60 mt-1">
-                Line {errorDetail.line}{errorDetail.column ? `, column ${errorDetail.column}` : ''}
-              </div>
-            )}
-          </div>
-        )}
+        <div className="mb-3 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-mono">
+          <div className="font-semibold mb-1">MDX compilation error</div>
+          <div className="opacity-80 break-words">{error}</div>
+          {errorDetail?.line && (
+            <div className="opacity-60 mt-1">
+              Line {errorDetail.line}{errorDetail.column ? `, column ${errorDetail.column}` : ''}
+            </div>
+          )}
+        </div>
         <ReactMarkdown remarkPlugins={[remarkGfm]}>
-          {fallbackMarkdown}
+          {markdown}
         </ReactMarkdown>
       </div>
     )

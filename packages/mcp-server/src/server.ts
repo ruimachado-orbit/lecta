@@ -18,10 +18,70 @@ export function createLectaServer(): McpServer {
     version: '0.1.0',
   })
 
+  // ── Slide content guidelines (shared across tool descriptions) ──
+  const SLIDE_CONTENT_GUIDE = `
+
+SLIDE CONTENT GUIDELINES — follow these for every slide:
+
+Canvas: 1280×720px with 80px horizontal / 60px vertical padding → usable area is ~1100×600px.
+Content must breathe — aim for 50-70% fill. Never fill the entire usable area.
+
+The 7×7 Rule:
+1. ONE # heading per slide (max 7 words)
+2. Max 7 bullet points below the heading
+3. Each bullet: max 7 words
+4. NO paragraphs or long sentences — every line is a "- " bullet
+5. Use **bold** on 1-2 key words per bullet only
+6. If you need more content, create another slide — NEVER exceed 7 bullets
+
+Formatting best practices:
+- Start every slide with a single # heading
+- Leave whitespace — sparse slides are more impactful than dense ones
+- Use ## sub-headings to separate sections (adds visual spacing)
+- For emphasis use **bold**, not ALL CAPS or extra punctuation
+- Use \`code\` for technical terms, commands, or file names
+- Tables: max 4 columns, 5 rows — keep cells short
+- Mermaid diagrams: max 6 nodes, keep labels under 4 words
+- Blockquotes (>) for key takeaways — max 1 per slide
+
+Layout-specific rules:
+- "title": Large heading + optional subtitle only, NO bullets
+- "section": Bold heading + 1 line description (divider slide)
+- "center": Centered content — keep minimal (quote, stat, key message)
+- "big-number": ONE large metric + 2-3 context bullets
+- "quote": Single blockquote with attribution
+- "two-col" / "two-col-wide-*": Use ## for each column heading, max 4 bullets per column
+- "three-col": Three ## sections, max 3 bullets each
+- "top-bottom": First ## is top half, second ## is bottom half
+- "default": Standard heading + bullets/tables
+- "blank": Full canvas, no padding — use for custom positioned elements
+
+WRONG (too dense):
+# Machine Learning Pipeline
+- Data collection involves gathering raw data from multiple sources including databases, APIs, and file systems
+- Feature engineering transforms raw data into meaningful features for model training
+- Model training uses algorithms like gradient boosting, neural networks, and SVMs
+- Hyperparameter tuning optimizes model performance through grid search or Bayesian optimization
+- Model evaluation uses metrics such as accuracy, precision, recall, and F1 score
+- Deployment requires containerization, API endpoints, and monitoring infrastructure
+- Monitoring tracks model drift, data quality, and prediction accuracy over time
+- Retraining pipelines automatically retrain models when performance degrades below threshold
+
+RIGHT (concise, breathable):
+# ML Pipeline Overview
+
+- **Collect** → raw data from sources
+- **Engineer** → meaningful features
+- **Train** → select and fit model
+- **Tune** → optimize hyperparameters
+- **Evaluate** → measure performance
+- **Deploy** → containerize and serve
+- **Monitor** → track drift and quality`
+
   // ── create_presentation ──
   server.tool(
     'create_presentation',
-    `Create a new Lecta presentation. The presentation is saved to disk and the user opens it in the Lecta app to view, edit, and present. Do NOT call any export tool after this — the user views it in the app. If path is omitted, presentations are saved to ~/Documents/Lecta.`,
+    `Create a new Lecta presentation. The presentation is saved to disk and the user opens it in the Lecta app to view, edit, and present. Do NOT call any export tool after this — the user views it in the app. If path is omitted, presentations are saved to ~/Documents/Lecta.${SLIDE_CONTENT_GUIDE}`,
     {
       title: z.string().describe('Presentation title'),
       theme: z.enum(['dark', 'light', 'executive', 'minimal', 'corporate', 'creative', 'keynote-dark', 'paper']).optional().describe('Visual theme (default: dark)'),
@@ -58,10 +118,10 @@ export function createLectaServer(): McpServer {
   // ── add_slide ──
   server.tool(
     'add_slide',
-    'Add a new slide to an existing Lecta presentation. Supports both Markdown (.md) and MDX (.mdx) formats. The slide_id is auto-generated from the content heading if omitted.',
+    `Add a new slide to an existing Lecta presentation. Supports both Markdown (.md) and MDX (.mdx) formats. The slide_id is auto-generated from the content heading if omitted.${SLIDE_CONTENT_GUIDE}`,
     {
       presentation_path: z.string().describe('Root path of the presentation (returned by create_presentation)'),
-      content: z.string().describe('Markdown or MDX content for the slide. Must start with a # heading.'),
+      content: z.string().describe('Markdown or MDX content for the slide. Must start with a single # heading (max 7 words). Follow the 7×7 rule: max 7 bullets, max 7 words each. Keep content sparse — slides should breathe.'),
       layout: z.enum(['default', 'center', 'title', 'section', 'two-col', 'two-col-wide-left', 'two-col-wide-right', 'three-col', 'top-bottom', 'big-number', 'quote', 'blank']).optional().describe('Slide layout (default: "default")'),
       code: z.object({
         content: z.string().describe('Code content'),
@@ -101,7 +161,7 @@ export function createLectaServer(): McpServer {
   // ── edit_slide ──
   server.tool(
     'edit_slide',
-    'Edit an existing slide in a Lecta presentation',
+    `Edit an existing slide in a Lecta presentation.${SLIDE_CONTENT_GUIDE}`,
     {
       presentation_path: z.string().describe('Root path of the presentation'),
       slide_index: z.number().describe('0-based slide index'),

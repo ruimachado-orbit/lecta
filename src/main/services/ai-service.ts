@@ -7,6 +7,9 @@ import type { PresentationSnapshot, ChatStreamEvent } from '../../../packages/sh
 import { getToolSchemas, findTool, type ToolExecutionContext } from './chat-agent-tools'
 
 const SLIDE_7x7_RULE = `
+SLIDE CANVAS: 1280×720px with 80px horizontal / 60px vertical padding.
+Usable content area: ~1100×600px. Content must NOT fill the entire area — leave breathing room.
+
 MANDATORY 7×7 RULE — NEVER VIOLATE:
 1. EXACTLY ONE # heading per slide (the title, max 7 words)
 2. Maximum 7 bullet points below the heading
@@ -427,11 +430,15 @@ Rules:
     const result = await this.generate({
       system: `You are a world-class McKinsey-level presentation designer. Transform slide content into visually striking, executive-quality markdown.
 
+CANVAS: 1280×720px with 80px horizontal / 60px vertical padding → usable area ~1100×600px.
+Content must breathe — aim for 50-70% fill. Sparse, high-impact slides beat dense walls of text.
+
 CRITICAL RULES:
 - Output ONLY the improved markdown — no explanations, no wrapping, no code fences around the output
-- NEVER change the meaning or remove information — make it RICHER, not shorter
+- NEVER change the meaning or remove information — restructure for clarity and impact
 - NEVER add fake data or made-up content
 - Keep the same # title but make it punchier if possible
+- Follow the 7×7 rule: max 7 bullets, max 7 words each. Condense, don't expand.
 
 FORMATTING TECHNIQUES — use ALL that apply:
 
@@ -487,7 +494,7 @@ FORMATTING TECHNIQUES — use ALL that apply:
     - Quantify everything possible
     - "X → Y" for cause and effect
 
-STYLE: Minimalist but information-dense. Every word earns its place. Professional executive tone. Make metrics prominent and bold.
+STYLE: Minimalist and spacious. Every word earns its place. Professional executive tone. Make metrics prominent and bold. Less is more — a slide with 5 perfect bullets beats 10 mediocre ones.
 
 SLIDE TYPE AWARENESS — adapt formatting to the slide's layout type:
 - "title" → Large impactful heading only. One powerful subtitle line. No bullets. Think conference keynote opener.
@@ -667,7 +674,7 @@ AVAILABLE LAYOUTS — choose the best for each slide:
 - "center" → Big stats or single powerful message. Centered vertically and horizontally.
 - "section" → Section dividers with left accent bar. Use sparingly (max 2).
 - "two-col" → Equal 50/50 columns. Content after the first element (h1) splits into columns. Separate columns with a horizontal rule (---).
-- "default" → Standard content. Padded 48px. Best for bullets, tables, mixed content.
+- "default" → Standard content. Padded 80px H / 60px V. Best for bullets, tables, mixed content.
 - "top-bottom" → Vertical split. Good for data on top + analysis below.
 - "big-number" → Single large metric. h1 renders at 7rem with gradient. Use for: # **$4.2M**\\n\\nRevenue this quarter
 - "quote" → Pull quote with decorative quotation mark. Use for: # "Quote text here"\\n\\n— Attribution
@@ -685,21 +692,22 @@ MERMAID RULES: Always use double quotes around node labels. Use descriptive 2-3 
 SLIDE DESIGN RULES:
 1. **Pyramid Principle**: Lead with conclusion first, then evidence.
 2. **No filler**: No "Thank you", "Questions?", or empty slides.
-3. **CONTENT DENSITY IS ABSOLUTELY CRITICAL — NEVER VIOLATE THIS**:
-   The slide canvas is 1280x720px with 48px padding. A slide that is less than 60% filled looks broken and amateur.
-   - EVERY "default" slide MUST have AT LEAST 10 lines of markdown after the # heading. Count your lines. If you have fewer than 10 lines, ADD MORE CONTENT — expand explanations, add sub-bullets, add a table, add a blockquote.
-   - EVERY "two-col" slide MUST have at least 6 lines per column.
-   - The ONLY exceptions are "title", "section", "big-number", and "quote" layouts which are intentionally minimal.
-   - Use multi-level bullets (indent with spaces) to add detail under each point
-   - Add a > **Key Takeaway:** blockquote at the bottom of content-heavy slides
-   - Use status badges (🟢 🟡 🔴) inline with bullet points for visual richness
-   - A slide with ONLY a heading and 1-2 bullets is UNACCEPTABLE. Every slide must be rich and informative.
+3. **CONTENT & SPACING**:
+   The slide canvas is 1280×720px with 80px horizontal and 60px vertical padding → usable area is ~1100×600px.
+   Content must NEVER fill the entire usable area. Slides should breathe — aim for 50-70% fill.
+   - Follow the 7×7 rule: ONE heading (max 7 words), max 7 bullets (max 7 words each)
+   - "title", "section", "big-number", "quote" layouts are intentionally minimal
+   - "default" slides: heading + 4-7 concise bullets. Use ## sub-headings for visual breaks
+   - "two-col" slides: 3-5 bullets per column max
+   - Use multi-level bullets (indent) for hierarchy, not for packing more content
+   - Optionally add ONE > **Key Takeaway:** blockquote per slide
+   - A slide with only a heading and 1 bullet is too sparse; a slide with 10+ lines is too dense
 4. **One # heading per slide** (the slide title). Use ## for sub-sections within.
 5. **Bold key terms and metrics**: **Revenue**, **+23%**, **$4.2M**
-6. **Use tables** for any comparison of 3+ items. Tables should have 4+ rows with ALL cells filled.
-7. **Prefer "default" layout** for content-heavy slides. Only use "two-col" when you have enough content to fill BOTH columns densely.
-8. **Vary visual elements**: Each slide should use at least 2 different elements (bullets + table, bullets + blockquote, table + status badges, etc.)
-9. **NEVER produce a slide with only a title and no body content.** If a "section" divider is needed, use layout "section" — but every "default" slide MUST have substantial body content below the heading.
+6. **Use tables** for comparisons of 3+ items. Max 4 columns, 5 rows — keep cells short.
+7. **Prefer "default" layout** for content slides. Only use "two-col" when content naturally splits.
+8. **Vary visual elements**: Mix bullets, tables, blockquotes, and status badges across slides.
+9. **NEVER produce a slide with only a title and no body content.** Use layout "section" for dividers.
 
 STRUCTURE for ${slideCount} slides:
 - Slide 1: Title slide (layout: "title") — just title + subtitle

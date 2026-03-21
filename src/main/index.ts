@@ -74,9 +74,22 @@ function createWindow(): BrowserWindow {
   }
 
   // Set CSP via session headers — works reliably in both dev and production
+  // Only apply to the app's own pages, not external content (iframes, webviews)
   const isDev = !!process.env['ELECTRON_RENDERER_URL']
   const devConnect = isDev ? ' ws://localhost:* http://localhost:*' : ''
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    const url = details.url
+    const isAppPage =
+      url.startsWith('file://') ||
+      url.startsWith('devtools://') ||
+      url.startsWith('http://localhost:') ||
+      url.startsWith('http://127.0.0.1:')
+
+    if (!isAppPage) {
+      callback({ responseHeaders: details.responseHeaders })
+      return
+    }
+
     callback({
       responseHeaders: {
         ...details.responseHeaders,

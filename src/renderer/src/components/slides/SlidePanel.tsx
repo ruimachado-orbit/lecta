@@ -2,6 +2,7 @@ import { useCallback, useRef, useState, useEffect } from 'react'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore } from '../../stores/ui-store'
 import { ContentRenderer } from './ContentRenderer'
+import { prefetchMdx } from './MdxRenderer'
 import { SlideNavigator } from './SlideNavigator'
 import { SlideEditToolbar } from './SlideEditToolbar'
 import { WysiwygEditor } from './WysiwygEditor'
@@ -41,6 +42,14 @@ export function SlidePanel(): JSX.Element {
 
   const breakOffsetsRef = useRef(breakOffsets)
   breakOffsetsRef.current = breakOffsets
+
+  // Prefetch adjacent MDX slides for instant transitions
+  useEffect(() => {
+    const prev = slides[currentSlideIndex - 1]
+    const next = slides[currentSlideIndex + 1]
+    if (prev?.isMdx) prefetchMdx(prev.markdownContent)
+    if (next?.isMdx) prefetchMdx(next.markdownContent)
+  }, [currentSlideIndex, slides])
 
   const handleEditorMount: OnMount = (editor, monaco) => {
     editorRef.current = editor
@@ -331,7 +340,7 @@ export function SlidePanel(): JSX.Element {
 }
 
 /** Read-only overlay for positioned images — renders outside content scaling so images appear at correct slide coordinates */
-function PositionedImagesOverlay({ markdown, rootPath, pad }: { markdown: string; rootPath?: string; pad: number }): JSX.Element | null {
+function PositionedImagesOverlay({ markdown, rootPath, pad }: { markdown: string; rootPath?: string; pad: boolean }): JSX.Element | null {
   const regex = /<!--\s*image\s+x=(-?\d+)\s+y=(-?\d+)\s+w=(\d+)\s+src=([^\s]+)(?:\s+border=([^\s]+))?(?:\s+radius=(\d+))?\s*-->/gi
   const images: { x: number; y: number; w: number; src: string; border?: string; radius?: number }[] = []
   let match
@@ -352,7 +361,7 @@ function PositionedImagesOverlay({ markdown, rootPath, pad }: { markdown: string
   }
 
   return (
-    <div className="absolute inset-0" style={{ padding: pad, zIndex: 8, pointerEvents: 'none' }}>
+    <div className={`absolute inset-0 ${pad ? 'slide-pad' : ''}`} style={{ zIndex: 8, pointerEvents: 'none' }}>
       {images.map((img, i) => (
         <img
           key={`pimg-${i}`}
@@ -393,7 +402,8 @@ function SlideCanvas({ markdown, rootPath, transition, layout, slideIndex, drawi
 
   const SLIDE_W = 1280
   const SLIDE_H = 720
-  const PAD = 48 // p-12 = 48px each side
+  const PAD_H = 80 // horizontal padding (safe zone)
+  const PAD_V = 60 // vertical padding (safe zone)
 
   // Scale the canvas frame to fit the container
   useEffect(() => {
@@ -431,10 +441,10 @@ function SlideCanvas({ markdown, rootPath, transition, layout, slideIndex, drawi
         }}
       >
         <div className="absolute inset-0 rounded" style={{ background: 'var(--slide-bg)' }} />
-        <div ref={transitionRef} className={`absolute inset-0 ${layout === 'blank' ? '' : 'p-12'} overflow-hidden ${transition && transition !== 'none' ? `slide-transition-${transition}` : ''} ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
+        <div ref={transitionRef} className={`absolute inset-0 ${layout === 'blank' ? '' : 'slide-pad'} overflow-hidden ${transition && transition !== 'none' ? `slide-transition-${transition}` : ''} ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
           <div
             style={{
-              width: layout === 'blank' ? SLIDE_W : SLIDE_W - PAD * 2,
+              width: layout === 'blank' ? SLIDE_W : SLIDE_W - PAD_H * 2,
               height: layout === 'blank' ? SLIDE_H : undefined,
             }}
           >
@@ -442,10 +452,10 @@ function SlideCanvas({ markdown, rootPath, transition, layout, slideIndex, drawi
           </div>
         </div>
         {/* Positioned images overlay — always visible, outside content scaling */}
-        <PositionedImagesOverlay markdown={markdown} rootPath={rootPath} pad={layout === 'blank' ? 0 : PAD} />
+        <PositionedImagesOverlay markdown={markdown} rootPath={rootPath} pad={layout !== 'blank'} />
         {/* Draggable elements overlay (text boxes, shapes, positioned images — editable) */}
         {editable && onUpdateMarkdown && (
-          <div className="absolute inset-0 p-12" style={{ zIndex: 10 }}>
+          <div className="absolute inset-0 slide-pad" style={{ zIndex: 10 }}>
             <DraggableElements
               markdown={markdown}
               canvasScale={canvasScale}
@@ -457,7 +467,7 @@ function SlideCanvas({ markdown, rootPath, transition, layout, slideIndex, drawi
         )}
         {/* Layout label (preview mode — no lines) */}
         {layout && layout !== 'default' && layout !== 'blank' && (
-          <LayoutGuide layout={layout} width={SLIDE_W} height={SLIDE_H} pad={PAD} showLines={false} />
+          <LayoutGuide layout={layout} width={SLIDE_W} height={SLIDE_H} pad={PAD_H} showLines={false} />
         )}
         {/* Drawing overlay */}
         {typeof slideIndex === 'number' && (
@@ -493,7 +503,7 @@ function GlobalLayers({ width, height }: { width: number; height: number }): JSX
   return (
     <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 8 }}>
       {/* Bottom bar: title left, slide number right */}
-      <div className="absolute bottom-0 left-0 right-0 px-12 pb-3 flex items-end justify-between">
+      <div className="absolute bottom-0 left-0 right-0 flex items-end justify-between" style={{ paddingLeft: 80, paddingRight: 80, paddingBottom: 12 }}>
         <span style={{ fontSize: 11, opacity: 0.4, color: 'var(--slide-text)', fontWeight: 500 }}>
           {presentation.title}
         </span>
@@ -517,7 +527,8 @@ function EditableSlideCanvas({ slideIndex, breakOffsets, rootPath, layout, subSl
 
   const SLIDE_W = 1280
   const SLIDE_H = 720
-  const PAD = 48
+  const PAD_H = 80
+  const PAD_V = 60
 
   useEffect(() => {
     const container = containerRef.current
@@ -565,7 +576,7 @@ function EditableSlideCanvas({ slideIndex, breakOffsets, rootPath, layout, subSl
           <WysiwygEditor slideIndex={slideIndex} breakOffsets={breakOffsets} headerSlot={wysiwygHeaderSlot} />
         </div>
         {/* Positioned images/textboxes overlay in editor mode */}
-        <div className="absolute inset-0 p-12" style={{ zIndex: 10, pointerEvents: 'none' }}>
+        <div className="absolute inset-0 slide-pad" style={{ zIndex: 10, pointerEvents: 'none' }}>
           <div style={{ pointerEvents: 'auto' }}>
             <DraggableElements
               markdown={markdown}
@@ -578,7 +589,7 @@ function EditableSlideCanvas({ slideIndex, breakOffsets, rootPath, layout, subSl
         </div>
         {/* Layout guide overlay */}
         {layout && layout !== 'default' && layout !== 'blank' && (
-          <LayoutGuide layout={layout} width={SLIDE_W} height={SLIDE_H} pad={PAD} />
+          <LayoutGuide layout={layout} width={SLIDE_W} height={SLIDE_H} pad={PAD_H} />
         )}
         {/* Drawing overlay (read-only) */}
         <DrawingOverlay slideIndex={slideIndex} active={false} width={SLIDE_W} height={SLIDE_H} />
@@ -764,8 +775,8 @@ function SubSlideStackEditor({ subSlides, currentSubSlide, setCurrentSubSlide, s
               >
                 {i === currentSubSlide && currentSlide?.isMdx ? (
                   /* MDX sub-slide: read-only rendered preview (WYSIWYG can't handle JSX) */
-                  <div className={`absolute inset-0 ${layout === 'blank' ? '' : 'p-12'} overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
-                    <div className="slide-content max-w-none" style={{ width: layout === 'blank' ? SLIDE_W : SLIDE_W - 96 }}>
+                  <div className={`absolute inset-0 ${layout === 'blank' ? '' : 'slide-pad'} overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
+                    <div className="slide-content max-w-none" style={{ width: layout === 'blank' ? SLIDE_W : SLIDE_W - 160 }}>
                       <ContentRenderer markdown={sub.markdown} rootPath={presentation?.rootPath} isMdx={true} />
                     </div>
                   </div>
@@ -781,8 +792,8 @@ function SubSlideStackEditor({ subSlides, currentSubSlide, setCurrentSubSlide, s
                   </div>
                 ) : (
                   /* Other sub-slides: read-only preview */
-                  <div className={`absolute inset-0 ${layout === 'blank' ? '' : 'p-12'} overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
-                    <div className="slide-content max-w-none" style={{ width: layout === 'blank' ? SLIDE_W : SLIDE_W - 96 }}>
+                  <div className={`absolute inset-0 ${layout === 'blank' ? '' : 'slide-pad'} overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
+                    <div className="slide-content max-w-none" style={{ width: layout === 'blank' ? SLIDE_W : SLIDE_W - 160 }}>
                       <ContentRenderer markdown={sub.markdown} rootPath={presentation?.rootPath} isMdx={currentSlide?.isMdx} />
                     </div>
                   </div>

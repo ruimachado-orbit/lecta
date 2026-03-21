@@ -94,8 +94,10 @@
   --slide-title-subtitle-color: #7878a0;
   --slide-title-h1-size: 4rem;
 
-  /* Spacing */
-  --slide-padding: 48px;
+  /* Spacing — asymmetric safe zone (80px H × 60px V) */
+  --slide-padding: 60px 80px;
+  --slide-padding-h: 80px;
+  --slide-padding-v: 60px;
   --slide-heading-mb: 1.5rem;
   --slide-paragraph-mb: 1rem;
 

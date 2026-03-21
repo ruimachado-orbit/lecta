@@ -119,8 +119,10 @@ interface MdxRendererProps {
   onClickSteps?: (total: number) => void
 }
 
-// Layer 1: Processor cache — plugin init happens once
+// Layer 1: Cached MDX pipeline — processor + runtime imports resolved once
 let cachedProcessor: any = null
+let cachedRun: any = null
+let cachedRuntime: any = null
 
 async function getProcessor() {
   if (cachedProcessor) return cachedProcessor
@@ -143,6 +145,15 @@ async function getProcessor() {
   return cachedProcessor
 }
 
+async function getRunAndRuntime() {
+  if (cachedRun) return { run: cachedRun, runtime: cachedRuntime }
+  const { run } = await import('@mdx-js/mdx')
+  const runtime = await import('react/jsx-runtime')
+  cachedRun = run
+  cachedRuntime = runtime
+  return { run, runtime }
+}
+
 // Layer 2: Output cache — same content -> cached compiled JS
 const MAX_CACHE_SIZE = 50
 const compiledCache = new Map<string, string>()
@@ -151,16 +162,23 @@ const compiledCache = new Map<string, string>()
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     cachedProcessor = null
+    cachedRun = null
+    cachedRuntime = null
     compiledCache.clear()
   })
 }
 
-function getCacheKey(source: string): string {
-  return source.length + ':' + source.slice(0, 100) + source.slice(-100)
+// Simple string hash for cache keys (djb2)
+function hashString(s: string): string {
+  let h = 5381
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) + h + s.charCodeAt(i)) | 0
+  }
+  return String(h >>> 0)
 }
 
 async function compileMdx(source: string): Promise<string> {
-  const key = getCacheKey(source)
+  const key = hashString(source)
   const cached = compiledCache.get(key)
   if (cached) return cached
 
@@ -230,41 +248,12 @@ export function MdxRenderer({ markdown, rootPath, clickStep, onClickSteps }: Mdx
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const compile = useCallback(async (source: string) => {
-    console.log('[MdxRenderer] compile() called, source length:', source.length, 'first 80:', source.slice(0, 80))
     try {
       const code = await compileMdx(source)
-      console.log('[MdxRenderer] compileMdx OK, code length:', code.length)
-      const { run } = await import('@mdx-js/mdx')
-      const runtime = await import('react/jsx-runtime')
-
-      // Wrap jsx/jsxs to auto-convert style strings to objects.
-      // MDX compiles <div style="color: red"> as a string prop, but React requires an object.
-      const patchProps = (props: any) => {
-        if (props && typeof props.style === 'string') {
-          console.log('[MdxRenderer] patching style string:', props.style.slice(0, 60))
-          try {
-            const obj: Record<string, string> = {}
-            styleToObject(props.style, (name: string, value: string) => {
-              const camel = name.replace(/-([a-z])/g, (_: string, c: string) => c.toUpperCase())
-              obj[camel] = value
-            })
-            return { ...props, style: obj }
-          } catch (e) {
-            console.error('[MdxRenderer] style parse error:', e)
-            const { style: _, ...rest } = props
-            return rest
-          }
-        }
-        return props
-      }
-      const patchedRuntime = {
-        ...runtime,
-        jsx: (type: any, props: any, key: any) => (runtime as any).jsx(type, patchProps(props), key),
-        jsxs: (type: any, props: any, key: any) => (runtime as any).jsxs(type, patchProps(props), key),
-      }
+      const { run, runtime } = await getRunAndRuntime()
 
       const { default: Content } = await run(code, {
-        ...patchedRuntime,
+        ...runtime,
         baseUrl: import.meta.url,
       })
       setMdxContent(() => Content)
@@ -274,7 +263,6 @@ export function MdxRenderer({ markdown, rootPath, clickStep, onClickSteps }: Mdx
     } catch (err: any) {
       console.error('[MdxRenderer] compilation failed:', err)
       setError(err.message || String(err))
-      // Extract line/column from MDX compilation errors
       setErrorDetail({
         line: err.line ?? err.position?.start?.line,
         column: err.column ?? err.position?.start?.column,

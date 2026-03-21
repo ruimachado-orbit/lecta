@@ -229,9 +229,11 @@ export function DrawingOverlay({ slideIndex, active, width, height }: DrawingOve
     return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY }
   }
 
-  const tool = drawingToolState.tool
-  const color = drawingToolState.color
-  const strokeWidth = drawingToolState.strokeWidth
+  // NOTE: read these inside event handlers, not here — drawingToolState is
+  // mutated by the toolbar without triggering a re-render of this component.
+  const getTool = () => drawingToolState.tool
+  const getColor = () => drawingToolState.color
+  const getStrokeWidth = () => drawingToolState.strokeWidth
 
   const deleteSelected = useCallback(() => {
     if (selectedIndex === null) return
@@ -245,6 +247,9 @@ export function DrawingOverlay({ slideIndex, active, width, height }: DrawingOve
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!active) return
     const pos = getPos(e)
+    const tool = getTool()
+    const color = getColor()
+    const strokeWidth = getStrokeWidth()
 
     // Check delete button click first
     if (deleteBtnRef.current && selectedIndex !== null) {
@@ -303,6 +308,7 @@ export function DrawingOverlay({ slideIndex, active, width, height }: DrawingOve
     }
 
     if (!drawing || !currentElement) return
+    const tool = getTool()
     if (tool === 'freedraw' || tool === 'eraser') {
       setCurrentElement({ ...currentElement, points: [...currentElement.points, pos] })
     } else {
@@ -322,7 +328,7 @@ export function DrawingOverlay({ slideIndex, active, width, height }: DrawingOve
     if (!drawing || !currentElement) return
     setDrawing(false)
 
-    if (tool === 'eraser') {
+    if (getTool() === 'eraser') {
       const eraserPath = currentElement.points
       const newElements = elements.filter((el) =>
         !el.points.some((p) => eraserPath.some((ep) => Math.hypot(p.x - ep.x, p.y - ep.y) < 15))
@@ -354,7 +360,7 @@ export function DrawingOverlay({ slideIndex, active, width, height }: DrawingOve
         const el: DrawElement = {
           type: 'text',
           points: [editingText.pos],
-          color,
+          color: getColor(),
           width: 0,
           text: trimmed,
           fontSize: 24,
@@ -365,7 +371,7 @@ export function DrawingOverlay({ slideIndex, active, width, height }: DrawingOve
       }
     }
     setEditingText(null)
-  }, [editingText, elements, color, saveDrawings])
+  }, [editingText, elements, saveDrawings])
 
   // Double-click to edit existing text
   const handleDoubleClick = (e: React.MouseEvent) => {
@@ -382,8 +388,8 @@ export function DrawingOverlay({ slideIndex, active, width, height }: DrawingOve
 
   // Cursor
   let cursor = 'crosshair'
-  if (tool === 'select') cursor = selectedIndex !== null ? 'move' : 'default'
-  if (tool === 'text') cursor = 'text'
+  if (getTool() === 'select') cursor = selectedIndex !== null ? 'move' : 'default'
+  if (getTool() === 'text') cursor = 'text'
 
   if (!active) {
     if (elements.length === 0) return <></>
@@ -417,7 +423,7 @@ export function DrawingOverlay({ slideIndex, active, width, height }: DrawingOve
         <TextInput
           pos={editingText.pos}
           initialValue={editingText.value}
-          color={editingText.editIndex !== null ? (elements[editingText.editIndex]?.color || color) : color}
+          color={editingText.editIndex !== null ? (elements[editingText.editIndex]?.color || getColor()) : getColor()}
           canvasWidth={width}
           containerRef={canvasRef}
           onCommit={commitText}

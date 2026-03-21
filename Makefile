@@ -107,6 +107,13 @@ release: build
 		release/Lecta-$(VERSION)-x64.dmg
 	@echo "✅ Released v$(VERSION) → https://github.com/$(REPO)/releases/tag/v$(VERSION)"
 
+# ── Testing ──────────────────────────────────────────────
+test:
+	cd "$(CURDIR)" && bun test
+
+test-watch:
+	cd "$(CURDIR)" && bun test:watch
+
 # Clean build artifacts
 clean:
 	rm -rf node_modules dist out release .lecta

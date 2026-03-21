@@ -317,6 +317,12 @@ make format
 # Type check
 make typecheck
 
+# Run tests
+make test
+
+# Run tests in watch mode
+make test-watch
+
 # Clean build artifacts
 make clean
 ```

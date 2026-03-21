@@ -3,7 +3,7 @@
  * Extracted from the Electron IPC handlers so it works headless.
  */
 
-import { readFile, writeFile, mkdir, access, copyFile } from 'fs/promises'
+import { readFile, writeFile, mkdir, access, copyFile, rename } from 'fs/promises'
 import { join, basename, extname } from 'path'
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
 import { z } from 'zod'
@@ -448,10 +448,23 @@ export async function editSlide(opts: {
   codeLanguage?: SupportedLanguage
   notes?: string
   transition?: SlideTransition
+  format?: 'md' | 'mdx'
 }): Promise<{ slideId: string }> {
   const { config } = await loadPresentation(opts.rootPath)
   const slide = config.slides[opts.slideIndex]
   if (!slide) throw new Error(`Slide at index ${opts.slideIndex} not found`)
+
+  // Convert format (rename file extension) if requested
+  if (opts.format) {
+    const currentExt = slide.content.endsWith('.mdx') ? '.mdx' : '.md'
+    const targetExt = opts.format === 'mdx' ? '.mdx' : '.md'
+    if (currentExt !== targetExt) {
+      const oldPath = join(opts.rootPath, slide.content)
+      const newContentPath = slide.content.replace(/\.(mdx?|md)$/, targetExt)
+      await rename(oldPath, join(opts.rootPath, newContentPath))
+      slide.content = newContentPath
+    }
+  }
 
   if (opts.content !== undefined) {
     await writeFile(join(opts.rootPath, slide.content), opts.content, 'utf-8')
@@ -533,6 +546,7 @@ export async function listSlides(rootPath: string, includeContent: boolean = fal
       const entry: any = {
         index: i,
         id: s.config.id,
+        format: s.config.content.endsWith('.mdx') ? 'mdx' : 'md',
         heading: headingMatch?.[1] ?? s.config.id,
         artifactCount: s.config.artifacts.length
       }

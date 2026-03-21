@@ -1,8 +1,88 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import styleToObject from 'style-to-object'
 import { FlowDiagram } from '../common/FlowDiagram'
 import { resolveImageSrc } from './slide-utils'
+
+/**
+ * Rehype plugin that converts HTML style strings to JSX style objects.
+ * MDX passes `style="color: red"` as a string, but React requires an object.
+ * MDX JSX nodes store attributes in `node.attributes[]`, not `node.properties`.
+ */
+function rehypeStyleToObject() {
+  return (tree: any) => {
+    visit(tree)
+  }
+
+  function parseStyleString(css: string): Record<string, string> {
+    const obj: Record<string, string> = {}
+    styleToObject(css, (name: string, value: string) => {
+      const camel = name.replace(/-([a-z])/g, (_: string, c: string) => c.toUpperCase())
+      obj[camel] = value
+    })
+    return obj
+  }
+
+  function visit(node: any) {
+    // MDX JSX elements: attributes are in node.attributes[]
+    if (node.type === 'mdxJsxFlowElement' || node.type === 'mdxJsxTextElement') {
+      if (node.attributes) {
+        for (const attr of node.attributes) {
+          if (attr.name === 'style' && typeof attr.value === 'string') {
+            try {
+              const obj = parseStyleString(attr.value)
+              // Convert to MDX expression so it becomes a JS object in output
+              attr.value = {
+                type: 'mdxJsxAttributeValueExpression',
+                value: JSON.stringify(obj),
+                data: {
+                  estree: {
+                    type: 'Program',
+                    sourceType: 'module',
+                    body: [{
+                      type: 'ExpressionStatement',
+                      expression: objectToEstree(obj),
+                    }],
+                  },
+                },
+              }
+            } catch {
+              // Leave as-is if parsing fails
+            }
+          }
+        }
+      }
+    }
+    // HAST elements (from rehype-raw or markdown HTML blocks)
+    if (node.type === 'element' && node.properties && typeof node.properties.style === 'string') {
+      try {
+        node.properties.style = parseStyleString(node.properties.style)
+      } catch {
+        // Leave as-is
+      }
+    }
+    if (node.children) {
+      for (const child of node.children) visit(child)
+    }
+  }
+}
+
+/** Convert a flat string->string object to an ESTree ObjectExpression */
+function objectToEstree(obj: Record<string, string>): any {
+  return {
+    type: 'ObjectExpression',
+    properties: Object.entries(obj).map(([key, value]) => ({
+      type: 'Property',
+      kind: 'init',
+      computed: false,
+      method: false,
+      shorthand: false,
+      key: { type: 'Identifier', name: key },
+      value: { type: 'Literal', value, raw: JSON.stringify(value) },
+    })),
+  }
+}
 
 /** Catches render-time errors from compiled MDX content */
 class MdxErrorBoundary extends React.Component<
@@ -56,6 +136,7 @@ async function getProcessor() {
   cachedProcessor = createProcessor({
     outputFormat: 'function-body',
     remarkPlugins: [remarkGfmPlugin],
+    rehypePlugins: [rehypeStyleToObject],
     recmaPlugins,
     format: 'mdx',
   })
@@ -65,6 +146,14 @@ async function getProcessor() {
 // Layer 2: Output cache — same content -> cached compiled JS
 const MAX_CACHE_SIZE = 50
 const compiledCache = new Map<string, string>()
+
+// Invalidate caches on HMR so new plugins take effect during development
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    cachedProcessor = null
+    compiledCache.clear()
+  })
+}
 
 function getCacheKey(source: string): string {
   return source.length + ':' + source.slice(0, 100) + source.slice(-100)
@@ -141,12 +230,41 @@ export function MdxRenderer({ markdown, rootPath, clickStep, onClickSteps }: Mdx
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const compile = useCallback(async (source: string) => {
+    console.log('[MdxRenderer] compile() called, source length:', source.length, 'first 80:', source.slice(0, 80))
     try {
       const code = await compileMdx(source)
+      console.log('[MdxRenderer] compileMdx OK, code length:', code.length)
       const { run } = await import('@mdx-js/mdx')
       const runtime = await import('react/jsx-runtime')
-      const { default: Content } = await run(code, {
+
+      // Wrap jsx/jsxs to auto-convert style strings to objects.
+      // MDX compiles <div style="color: red"> as a string prop, but React requires an object.
+      const patchProps = (props: any) => {
+        if (props && typeof props.style === 'string') {
+          console.log('[MdxRenderer] patching style string:', props.style.slice(0, 60))
+          try {
+            const obj: Record<string, string> = {}
+            styleToObject(props.style, (name: string, value: string) => {
+              const camel = name.replace(/-([a-z])/g, (_: string, c: string) => c.toUpperCase())
+              obj[camel] = value
+            })
+            return { ...props, style: obj }
+          } catch (e) {
+            console.error('[MdxRenderer] style parse error:', e)
+            const { style: _, ...rest } = props
+            return rest
+          }
+        }
+        return props
+      }
+      const patchedRuntime = {
         ...runtime,
+        jsx: (type: any, props: any, key: any) => (runtime as any).jsx(type, patchProps(props), key),
+        jsxs: (type: any, props: any, key: any) => (runtime as any).jsxs(type, patchProps(props), key),
+      }
+
+      const { default: Content } = await run(code, {
+        ...patchedRuntime,
         baseUrl: import.meta.url,
       })
       setMdxContent(() => Content)

@@ -46,7 +46,7 @@ export default defineConfig({
     },
     plugins: [react()],
     optimizeDeps: {
-      include: ['@mdx-js/mdx', 'recma-mdx-escape-missing-components']
+      include: ['@mdx-js/mdx', 'recma-mdx-escape-missing-components', 'style-to-object']
     },
     define: {
       'process.env.IS_PREACT': JSON.stringify(''),

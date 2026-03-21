@@ -29,6 +29,7 @@ export function createLectaServer(): McpServer {
       slide_count: z.number().min(1).max(50).optional().describe('Number of starter slides (default: 1)'),
       slide_titles: z.array(z.string()).optional().describe('Titles for each starter slide'),
       path: z.string().optional().describe('Parent directory (default: ~/Documents/Lecta). Only set if the user specifies a custom location.'),
+      format: z.enum(['md', 'mdx']).optional().describe('Slide file format (default: md). Use mdx for slides with JSX components.'),
     },
     async (params) => {
       const result = await createPresentation({
@@ -38,6 +39,7 @@ export function createLectaServer(): McpServer {
         author: params.author,
         slideCount: params.slide_count,
         slideTitles: params.slide_titles,
+        format: params.format,
       })
       return {
         content: [{
@@ -56,10 +58,10 @@ export function createLectaServer(): McpServer {
   // ── add_slide ──
   server.tool(
     'add_slide',
-    'Add a new slide to an existing Lecta presentation. The slide_id is auto-generated from the content heading if omitted.',
+    'Add a new slide to an existing Lecta presentation. Supports both Markdown (.md) and MDX (.mdx) formats. The slide_id is auto-generated from the content heading if omitted.',
     {
       presentation_path: z.string().describe('Root path of the presentation (returned by create_presentation)'),
-      content: z.string().describe('Markdown content for the slide. Must start with a # heading.'),
+      content: z.string().describe('Markdown or MDX content for the slide. Must start with a # heading.'),
       layout: z.enum(['default', 'center', 'title', 'section', 'two-col', 'two-col-wide-left', 'two-col-wide-right', 'three-col', 'top-bottom', 'big-number', 'quote', 'blank']).optional().describe('Slide layout (default: "default")'),
       code: z.object({
         content: z.string().describe('Code content'),
@@ -69,12 +71,14 @@ export function createLectaServer(): McpServer {
         ]).describe('Programming language'),
       }).optional().describe('Code block to attach to the slide'),
       notes: z.string().optional().describe('Speaker notes'),
+      format: z.enum(['md', 'mdx']).optional().describe('Slide file format (default: md). Use mdx for slides with JSX components.'),
     },
     async (params) => {
       const result = await addSlide({
         rootPath: params.presentation_path,
         content: params.content,
         layout: params.layout as SlideLayout | undefined,
+        format: params.format,
         code: params.code ? {
           content: params.code.content,
           language: params.code.language as SupportedLanguage,
@@ -106,6 +110,7 @@ export function createLectaServer(): McpServer {
       code_content: z.string().optional().describe('New code content'),
       notes: z.string().optional().describe('New speaker notes'),
       transition: z.enum(['none', 'left', 'right', 'top', 'bottom']).optional().describe('Slide transition'),
+      format: z.enum(['md', 'mdx']).optional().describe('Convert slide to this format. Changes the file extension and updates the config.'),
     },
     async (params) => {
       const result = await editSlide({
@@ -116,6 +121,7 @@ export function createLectaServer(): McpServer {
         codeContent: params.code_content,
         notes: params.notes,
         transition: params.transition as SlideTransition | undefined,
+        format: params.format,
       })
       return {
         content: [{

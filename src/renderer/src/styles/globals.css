@@ -630,7 +630,16 @@ html[data-theme="light"]:not([data-slide-theme]) .slide-content table { border-c
 html[data-theme="light"]:not([data-slide-theme]) .slide-content th { background: rgba(0,0,0,0.04); border-bottom-color: rgba(0,0,0,0.1); color: #1e293b; }
 html[data-theme="light"]:not([data-slide-theme]) .slide-content td { border-bottom-color: rgba(0,0,0,0.05); color: #334155; }
 
+/* Slide safe-zone padding — asymmetric for presentation best practice */
+.slide-pad {
+  padding: var(--slide-padding-v) var(--slide-padding-h);
+}
+
 /* Presentation-quality slide styling — driven by CSS variables for theming */
+.slide-content {
+  max-width: 1100px;
+}
+
 .slide-content h1 {
   font-family: var(--slide-font-heading);
   font-size: var(--slide-h1-size);

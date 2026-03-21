@@ -1,6 +1,7 @@
-import { ipcMain, dialog } from 'electron'
+import { ipcMain, dialog, app } from 'electron'
 import { readFile, writeFile, mkdir, access, copyFile } from 'fs/promises'
 import { join, basename, extname } from 'path'
+import { homedir } from 'os'
 import { stringify as stringifyYaml } from 'yaml'
 import { parsePresentationYaml } from '../../../packages/shared/src/utils/yaml-parser'
 import { resolveRelativePath, detectLanguage } from '../../../packages/shared/src/utils/path-resolver'
@@ -38,6 +39,17 @@ interface RecentDeck {
 
 let recentDecks: RecentDeck[] = []
 
+/** Returns ~/Documents/Lecta, creating it if it doesn't exist */
+function getLectaDocumentsDir(): string {
+  return join(homedir(), 'Documents', 'Lecta')
+}
+
+async function ensureLectaDocumentsDir(): Promise<string> {
+  const dir = getLectaDocumentsDir()
+  await mkdir(dir, { recursive: true })
+  return dir
+}
+
 async function getSettingsPath(): Promise<string> {
   const { app } = await import('electron')
   return join(app.getPath('userData'), 'settings.json')
@@ -52,11 +64,13 @@ export async function addRecentItem(item: {
   recentDecks = [entry, ...recentDecks.filter((d) => d.path !== item.path)].slice(0, 20)
   await persistRecentDecks()
 
-  // Also register in the presentation library
+  // Also register in the presentation library (prefer .lecta file path over workspace dir)
   try {
     const { upsertLibraryEntry } = await import('./library')
+    const { getLectaFilePath } = await import('../services/lecta-file')
+    const libraryPath = getLectaFilePath(item.path) || item.path
     await upsertLibraryEntry({
-      path: item.path,
+      path: libraryPath,
       title: item.title,
       type: item.type,
       slideCount: item.slideCount,
@@ -138,6 +152,7 @@ export function registerFileSystemHandlers(): void {
   ipcMain.handle('fs:open-folder', async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openDirectory', 'openFile'],
+      defaultPath: getLectaDocumentsDir(),
       filters: [
         { name: 'All Supported', extensions: ['lecta', 'pptx', 'ipynb'] },
         { name: 'Lecta Presentations', extensions: ['lecta'] },
@@ -184,6 +199,13 @@ export function registerFileSystemHandlers(): void {
 
     // Regular folder
     return selected
+  })
+
+  // Open a .lecta file by path — extract to workspace and return workspace dir
+  ipcMain.handle('fs:open-lecta-path', async (_event, lectaFilePath: string): Promise<string> => {
+    const workspaceDir = await openLectaFile(lectaFilePath)
+    registerWorkspace(workspaceDir, lectaFilePath)
+    return workspaceDir
   })
 
   // Import slides from another .lecta file
@@ -247,9 +269,10 @@ export function registerFileSystemHandlers(): void {
   // Create a new .lecta file (presentation or notebook)
   ipcMain.handle('fs:create-lecta-file', async (_event, name: string, docType?: string): Promise<string | null> => {
     const isNotebook = docType === 'notebook'
+    const lectaDir = await ensureLectaDocumentsDir()
     const result = await dialog.showSaveDialog({
       title: isNotebook ? 'Create New Notebook' : 'Create New Presentation',
-      defaultPath: `${name}.lecta`,
+      defaultPath: join(lectaDir, `${name}.lecta`),
       filters: [{ name: 'Lecta File', extensions: ['lecta'] }]
     })
 
@@ -986,7 +1009,6 @@ export function registerFileSystemHandlers(): void {
   ipcMain.handle('fs:get-recent-decks', async (): Promise<RecentDeck[]> => {
     // Always re-read from disk so we pick up changes from the MCP server
     try {
-      const { app } = await import('electron')
       const settingsPath = join(app.getPath('userData'), 'settings.json')
       const content = await readFile(settingsPath, 'utf-8')
       const settings = JSON.parse(content)
@@ -998,6 +1020,7 @@ export function registerFileSystemHandlers(): void {
         )
       }
     } catch { /* no saved recents */ }
+
     return recentDecks
   })
 }

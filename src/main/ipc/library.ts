@@ -1,6 +1,7 @@
 import { ipcMain, app, dialog } from 'electron'
-import { readFile, writeFile, mkdir, stat } from 'fs/promises'
+import { readFile, writeFile, mkdir, stat, readdir } from 'fs/promises'
 import { join } from 'path'
+import { homedir } from 'os'
 
 // ── Types ──
 
@@ -98,11 +99,74 @@ export async function upsertLibraryEntry(item: {
   await saveLibrary()
 }
 
+/** Scan ~/Documents/Lecta for .lecta files and auto-add missing ones to the library */
+async function scanLectaDocumentsFolder(): Promise<void> {
+  const lectaDir = join(homedir(), 'Documents', 'Lecta')
+  try {
+    const files = await readdir(lectaDir)
+    const lectaFiles = files.filter((f) => f.endsWith('.lecta'))
+    const existingPaths = new Set(library.entries.map((e) => e.path))
+
+    let added = false
+    for (const file of lectaFiles) {
+      const filePath = join(lectaDir, file)
+      if (existingPaths.has(filePath)) continue
+
+      try {
+        const { openLectaFile, registerWorkspace } = await import('../services/lecta-file')
+        const { parsePresentationYaml } = await import('../../../packages/shared/src/utils/yaml-parser')
+        const { DECK_CONFIG_FILE } = await import('../../../packages/shared/src/constants')
+        const { resolveRelativePath } = await import('../../../packages/shared/src/utils/path-resolver')
+
+        const workspaceDir = await openLectaFile(filePath)
+        registerWorkspace(workspaceDir, filePath)
+
+        const configPath = join(workspaceDir, DECK_CONFIG_FILE)
+        const yamlContent = await readFile(configPath, 'utf-8')
+        const config = parsePresentationYaml(yamlContent, workspaceDir)
+
+        const isNotebook = yamlContent.includes('type: notebook') || yamlContent.includes('type: "notebook"') || yamlContent.includes("type: 'notebook'")
+
+        let preview = ''
+        if (config.slides.length > 0) {
+          try {
+            const mdPath = resolveRelativePath(workspaceDir, config.slides[0].content)
+            const md = await readFile(mdPath, 'utf-8')
+            preview = md.replace(/<!--.*?-->/gs, '').trim().split('\n').filter((l: string) => l.trim()).slice(0, 5).join('\n').slice(0, 200)
+          } catch {}
+        }
+
+        library.entries.push({
+          id: `lib-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          path: filePath,
+          title: config.title,
+          type: isNotebook ? 'notebook' : 'presentation',
+          folderId: null,
+          tags: [],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          slideCount: config.slides.length,
+          firstSlidePreview: preview,
+        })
+        added = true
+      } catch {
+        // Skip files that fail to parse
+      }
+    }
+
+    if (added) await saveLibrary()
+  } catch {
+    // ~/Documents/Lecta doesn't exist yet — that's fine
+  }
+}
+
 // ── IPC Handlers ──
 
 export function registerLibraryHandlers(): void {
   ipcMain.handle('library:get', async (): Promise<LibraryData> => {
-    return loadLibrary()
+    await loadLibrary()
+    await scanLectaDocumentsFolder()
+    return library
   })
 
   // ── Folders ──
@@ -264,6 +328,7 @@ export function registerLibraryHandlers(): void {
     await ensureLoaded()
     const result = await dialog.showOpenDialog({
       properties: ['openFile', 'openDirectory', 'multiSelections'],
+      defaultPath: join(homedir(), 'Documents', 'Lecta'),
       filters: [
         { name: 'Lecta Presentations', extensions: ['lecta'] },
         { name: 'All Files', extensions: ['*'] }

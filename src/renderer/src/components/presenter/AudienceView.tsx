@@ -232,7 +232,7 @@ function AudienceSlide({ markdown, rootPath, layout, theme, mousePos, isMdx }: {
 
   const SLIDE_W = 1280
   const SLIDE_H = 720
-  const PAD = 48
+  const PAD_H = 80
 
   useEffect(() => {
     const container = containerRef.current
@@ -264,9 +264,9 @@ function AudienceSlide({ markdown, rootPath, layout, theme, mousePos, isMdx }: {
         }}
       >
         <div className="absolute inset-0" style={{ background: 'var(--slide-bg)' }} />
-        <div className={`absolute inset-0 ${layout === 'blank' ? '' : 'p-12'} overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
+        <div className={`absolute inset-0 ${layout === 'blank' ? '' : 'slide-pad'} overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
           <div style={{
-            width: layout === 'blank' ? SLIDE_W : SLIDE_W - PAD * 2,
+            width: layout === 'blank' ? SLIDE_W : SLIDE_W - PAD_H * 2,
             height: layout === 'blank' ? SLIDE_H : undefined,
           }}>
             <ContentRenderer markdown={markdown} rootPath={rootPath} isMdx={isMdx} />

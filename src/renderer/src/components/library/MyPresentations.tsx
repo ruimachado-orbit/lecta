@@ -105,10 +105,15 @@ export function MyPresentations({ onBack }: { onBack: () => void }): JSX.Element
 
   const handleOpen = async (entry: LibraryEntry) => {
     try {
+      // If path is a .lecta file, extract it to a workspace first
+      let loadPath = entry.path
+      if (loadPath.endsWith('.lecta')) {
+        loadPath = await window.electronAPI.openLectaPath(loadPath)
+      }
       if (entry.type === 'notebook') {
-        await loadNotebook(entry.path)
+        await loadNotebook(loadPath)
       } else {
-        await loadPresentation(entry.path)
+        await loadPresentation(loadPath)
       }
     } catch (err: any) {
       if (err?.message?.startsWith('NOTEBOOK:')) {

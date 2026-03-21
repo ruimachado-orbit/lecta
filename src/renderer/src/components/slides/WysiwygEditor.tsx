@@ -476,8 +476,8 @@ interface WysiwygEditorProps {
   headerSlot?: HTMLDivElement | null
 }
 
-// Content height inside the 1280x720 slide with p-12 padding
-const SLIDE_CONTENT_HEIGHT = 720 - 48 * 2 // 624px
+// Content height inside the 1280x720 slide with 60px vertical padding
+const SLIDE_CONTENT_HEIGHT = 720 - 60 * 2 // 600px
 // Scale factor: editor content is wider than the 1184px slide content area,
 // so we approximate a ratio for the different text sizes
 const EDITOR_TO_SLIDE_RATIO = 0.85
@@ -1177,7 +1177,7 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
       {headerSlot ? createPortal(toolbarSection, headerSlot) : toolbarSection}
 
       {/* Editor */}
-      <div className="p-12 relative flex-1" ref={editorContainerRef}>
+      <div className="slide-pad relative flex-1" ref={editorContainerRef}>
         {/* Overflow is fine — content auto-splits into sub-slides */}
         <EditorContent editor={editor} />
         {/* Inline AI button — appears after 2s idle near cursor */}

@@ -92,7 +92,7 @@ _commit-version:
 # Build, tag, and publish a GitHub release with macOS DMGs
 release: build
 	@echo "🚀 Releasing v$(VERSION)..."
-	cd "$(CURDIR)" && bun run package:mac
+	cd "$(CURDIR)" && npx electron-builder --mac --publish never
 	@git tag -a "v$(VERSION)" -m "Release v$(VERSION)" 2>/dev/null || true
 	@git push origin "v$(VERSION)" 2>/dev/null || true
 	@gh release create "v$(VERSION)" \

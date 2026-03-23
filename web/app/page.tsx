@@ -1,4 +1,5 @@
 import Nav from '@/components/Nav'
+import { ContributorsProvider } from '@/components/ContributorsProvider'
 import Hero from '@/components/Hero'
 import Features from '@/components/Features'
 import UnderHood from '@/components/UnderHood'
@@ -13,16 +14,18 @@ export default function Home() {
   return (
     <>
       <Nav />
-      <main>
-        <Hero />
-        <Features />
-        <UnderHood />
-        <ThemeShowcase />
-        <PresenterSection />
-        <ClaudeSection />
-        <Contributors />
-        <CtaSection />
-      </main>
+      <ContributorsProvider>
+        <main>
+          <Hero />
+          <Features />
+          <UnderHood />
+          <ThemeShowcase />
+          <PresenterSection />
+          <ClaudeSection />
+          <Contributors />
+          <CtaSection />
+        </main>
+      </ContributorsProvider>
       <Footer />
     </>
   )

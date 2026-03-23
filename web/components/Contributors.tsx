@@ -3,41 +3,49 @@
 import { useState, useEffect } from 'react'
 import Reveal from './ScrollReveal'
 import { GITHUB_URL } from '@/lib/config'
-
-const contributors = [
-  { name: 'Rui Machado',    github: 'ruimachado-orbit',    role: 'Creator'      },
-  { name: 'Diogo Antunes',  github: 'DiogoAntunesOliveira', role: 'Contributor'  },
-  { name: 'Pedro Ferreira', github: 'pedro-ferreira-orbit',  role: 'Contributor'  },
-  { name: 'Ricardo Mendes', github: 'rikkarth',              role: 'Contributor'  },
-  { name: 'Claude',         github: '__claude__',           role: 'AI Contributor', isAI: true },
-]
+import { useContributors } from './ContributorsProvider'
 
 type Status = 'loading' | 'loaded' | 'error'
 
-function Avatar({ name, github, role, isAI }: { name: string; github: string; role: string; isAI?: boolean }) {
+function Avatar({
+  name,
+  github,
+  role,
+  isAI,
+  avatarUrl,
+}: {
+  name: string
+  github: string
+  role: string
+  isAI?: boolean
+  avatarUrl: string
+}) {
   const [status, setStatus] = useState<Status>('loading')
-  const initials = name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
-  const src = `https://github.com/${github}.png?size=96`
+  const initials = name
+    .split(' ')
+    .map((w) => w[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase()
 
-  // Probe the image with JS Image constructor — more reliable than <img onError>
   useEffect(() => {
     if (isAI) return
     const img = new Image()
-    img.onload  = () => setStatus('loaded')
+    img.onload = () => setStatus('loaded')
     img.onerror = () => setStatus('error')
-    img.src = src
-  }, [src, isAI])
+    img.src = avatarUrl
+  }, [avatarUrl, isAI])
 
   return (
     <div className="avatarWrap">
       {isAI ? (
         <img
           className="avatarImg"
-          src="https://avatars.githubusercontent.com/u/81847?s=96&v=4"
+          src={avatarUrl}
           alt="Claude"
         />
       ) : status === 'loaded' ? (
-        <img className="avatarImg" src={src} alt={name} />
+        <img className="avatarImg" src={avatarUrl} alt={name} />
       ) : (
         <div className={`avatarFallback${status === 'loading' ? ' avatarLoading' : ''}`}>
           {status === 'loading' ? '' : initials}
@@ -51,7 +59,17 @@ function Avatar({ name, github, role, isAI }: { name: string; github: string; ro
   )
 }
 
+function AvatarSkeleton() {
+  return (
+    <div className="avatarWrap">
+      <div className="avatarFallback avatarLoading" />
+    </div>
+  )
+}
+
 export default function Contributors() {
+  const { loading, contributors, error } = useContributors()
+
   return (
     <section id="contributors" className="contributorsSection">
       <div className="container">
@@ -60,7 +78,14 @@ export default function Contributors() {
 
         <Reveal delay={1}>
           <div className="avatarRow">
-            {contributors.map(c => <Avatar key={c.github} {...c} />)}
+            {loading &&
+              Array.from({ length: 6 }).map((_, i) => (
+                <AvatarSkeleton key={`sk-${i}`} />
+              ))}
+            {!loading &&
+              contributors.map((c) => (
+                <Avatar key={c.github} {...c} />
+              ))}
             <a
               className="avatarWrap avatarAdd"
               href={GITHUB_URL}
@@ -72,6 +97,18 @@ export default function Contributors() {
             </a>
           </div>
         </Reveal>
+
+        {error && !loading && (
+          <Reveal delay={1}>
+            <p className="contributorQuote" style={{ fontSize: '0.95rem', opacity: 0.85 }}>
+              Couldn&apos;t load the latest contributor list from GitHub —{' '}
+              <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
+                see the repo
+              </a>
+              .
+            </p>
+          </Reveal>
+        )}
 
         <Reveal delay={2}>
           <p className="contributorQuote">

@@ -1,23 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { GITHUB_URL } from "@/lib/config";
+import { GITHUB_URL, GITHUB_REPO } from "@/lib/config";
 import DownloadButton, { useDownloadNote } from "./DownloadButton";
 import { useGitHubStars, formatStars } from "@/lib/useGitHubStars";
+import { useContributors } from "./ContributorsProvider";
 import HeroMockup from "./HeroMockup";
 
-const heroAvatars = [
-  { name: "Rui Machado", github: "ruimachado-orbit" },
-  { name: "Diogo Antunes", github: "DiogoAntunesOliveira" },
-  { name: "Pedro Ferreira", github: "pedro-ferreira-orbit" },
-  { name: "Claude", github: "__claude__", isAI: true },
-];
 const VISIBLE_COUNT = 10;
 
 export default function Hero() {
   const mockupRef = useRef<HTMLDivElement>(null);
   const note = useDownloadNote();
-  const stars = useGitHubStars("ruimachado-orbit/lecta");
+  const stars = useGitHubStars(GITHUB_REPO);
 
   useEffect(() => {
     if (!mockupRef.current) return;
@@ -80,8 +75,10 @@ export default function Hero() {
 }
 
 function HeroAvatars() {
-  const remaining = heroAvatars.length - VISIBLE_COUNT;
-  const visible = heroAvatars.slice(0, VISIBLE_COUNT);
+  const { loading, contributors } = useContributors();
+  const list = loading ? [] : contributors;
+  const remaining = list.length - VISIBLE_COUNT;
+  const visible = list.slice(0, VISIBLE_COUNT);
 
   return (
     <a
@@ -89,27 +86,28 @@ function HeroAvatars() {
       className="heroAvatarGroup"
       aria-label="Meet the contributors"
     >
-      {visible.map((a) => (
-        <HeroAvatar key={a.github} {...a} />
-      ))}
-      {remaining > 0 && <span className="heroAvatarCount">+{remaining}</span>}
+      {loading &&
+        Array.from({ length: 5 }).map((_, i) => (
+          <span key={`hsk-${i}`} className="heroAvatarFallback" aria-hidden />
+        ))}
+      {!loading &&
+        visible.map((a) => <HeroAvatar key={a.github} {...a} />)}
+      {!loading && remaining > 0 && (
+        <span className="heroAvatarCount">+{remaining}</span>
+      )}
     </a>
   );
 }
 
 function HeroAvatar({
   name,
-  github,
-  isAI,
+  avatarUrl,
 }: {
   name: string;
-  github: string;
-  isAI?: boolean;
+  avatarUrl: string;
 }) {
   const [err, setErr] = useState(false);
-  const src = isAI
-    ? "https://avatars.githubusercontent.com/u/81847?s=96&v=4"
-    : `https://github.com/${github}.png?size=96`;
+  const src = avatarUrl;
   const initials = name
     .split(" ")
     .map((w) => w[0])

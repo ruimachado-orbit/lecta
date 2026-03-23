@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WYSIWYG Slide Editor</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI'; background: #f5f5f5; overflow: hidden; }
+        .editor-container { display: flex; height: 100vh; flex-direction: column; }
+        .toolbar { background: #fff; border-bottom: 1px solid #e0e0e0; padding: 8px 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow-y: auto; max-height: 80px; }
+        .toolbar-group { display: flex; gap: 4px; align-items: center; padding-right: 8px; border-right: 1px solid #e0e0e0; }
+        .toolbar-group:last-child { border-right: none; }
+        button { padding: 6px 10px; border: 1px solid #ddd; background: #fff; border-radius: 4px; cursor: pointer; font-size: 11px; transition: all 0.2s; white-space: nowrap; }
+        button:hover { background: #f0f0f0; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        button.active { background: #2196F3; color: white; }
+        .main-content { display: flex; flex: 1; overflow: hidden; }
+        .canvas-wrapper { flex: 1; overflow: auto; background: #fafafa; padding: 20px; }
+        .canvas { width: 1200px; height: 800px; background: white; position: relative; box-shadow: 0 4px 12px rgba(0,0,0,0.15); margin: auto; }
+        .canvas.with-guides { background-image: repeating-linear-gradient(0deg, transparent, transparent 19px, #f0f0f0 19px, #f0f0f0 20px), repeating-linear-gradient(90deg, transparent, transparent 19px, #f0f0f0 19px, #f0f0f0 20px); background-size: 20px 20px; }
+        .element { position: absolute; cursor: move; user-select: none; }
+        .element.selected { outline: 2px solid #2196F3; outline-offset: 2px; }
+        .text-element { display: flex; align-items: center; justify-content: center; color: #333; white-space: normal; padding: 8px; }
+        .text-element textarea { width: 100%; height: 100%; border: none; padding: 8px; font-family: inherit; resize: none; outline: none; background: transparent; }
+        .box-element { border: 2px solid #333; border-radius: 4px; }
+        .circle-element { border: 2px solid #333; border-radius: 50%; }
+        .resize-handle { position: absolute; width: 8px; height: 8px; background: #2196F3; border: 1px solid white; border-radius: 2px; cursor: pointer; z-index: 100; }
+        .resize-handle.nw { top: -4px; left: -4px; cursor: nwse-resize; }
+        .resize-handle.n { top: -4px; left: 50%; transform: translateX(-50%); cursor: ns-resize; }
+        .resize-handle.ne { top: -4px; right: -4px; cursor: nesw-resize; }
+        .resize-handle.e { top: 50%; right: -4px; transform: translateY(-50%); cursor: ew-resize; }
+        .resize-handle.se { bottom: -4px; right: -4px; cursor: nwse-resize; }
+        .resize-handle.s { bottom: -4px; left: 50%; transform: translateX(-50%); cursor: ns-resize; }
+        .resize-handle.sw { bottom: -4px; left: -4px; cursor: nesw-resize; }
+        .resize-handle.w { top: 50%; left: -4px; transform: translateY(-50%); cursor: ew-resize; }
+        .selection-box { position: absolute; border: 2px dashed #2196F3; background: rgba(33, 150, 243, 0.1); pointer-events: none; z-index: 1000; }
+        .sidebar { width: 250px; background: #fff; border-left: 1px solid #e0e0e0; padding: 12px; overflow-y: auto; }
+        .sidebar-section { margin-bottom: 16px; }
+        .sidebar-section h3 { font-size: 12px; font-weight: 600; color: #666; margin-bottom: 8px; }
+        .properties-group { margin-bottom: 8px; }
+        .properties-group label { font-size: 11px; color: #666; display: block; margin-bottom: 4px; }
+        .properties-group input, .properties-group select { width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; }
+        .layers-list { border: 1px solid #e0e0e0; border-radius: 4px; max-height: 200px; overflow-y: auto; }
+        .layer-item { padding: 6px 8px; border-bottom: 1px solid #f0f0f0; cursor: pointer; font-size: 12px; background: #fff; }
+        .layer-item:hover { background: #f5f5f5; }
+        .layer-item.active { background: #e3f2fd; color: #1976D2; }
+        .toast { position: fixed; bottom: 20px; right: 20px; background: #323232; color: white; padding: 12px 16px; border-radius: 4px; font-size: 12px; z-index: 9999; }
+        input[type="color"] { width: 100%; height: 32px; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+        const { useState, useRef, useEffect, useCallback } = React;
+
+        function EditorApp() {
+            const [elements, setElements] = useState(() => {
+                const saved = localStorage.getItem('slide-state');
+                return saved ? JSON.parse(saved) : [];
+            });
+            const [selectedIds, setSelectedIds] = useState(new Set());
+            const [history, setHistory] = useState([[]]);
+            const [historyIndex, setHistoryIndex] = useState(0);
+            const [toast, setToast] = useState(null);
+            const [dragStart, setDragStart] = useState(null);
+            const [selectionBox, setSelectionBox] = useState(null);
+            const [snapToGrid, setSnapToGrid] = useState(true);
+            const [editingId, setEditingId] = useState(null);
+            const [clipboard, setClipboard] = useState(null);
+            const canvasRef = useRef(null);
+            const draggingRef = useRef(null);
+
+            const GRID = 20;
+
+            useEffect(() => {
+                localStorage.setItem('slide-state', JSON.stringify(elements));
+            }, [elements]);
+
+            const showToast = msg => { setToast(msg); setTimeout(() => setToast(null), 1500); };
+
+            const pushHistory = useCallback(newEls => {
+                const newHist = history.slice(0, historyIndex + 1);
+                newHist.push(JSON.parse(JSON.stringify(newEls)));
+                setHistory(newHist);
+                setHistoryIndex(newHist.length - 1);
+            }, [history, historyIndex]);
+
+            const undo = () => {
+                if (historyIndex > 0) {
+                    const idx = historyIndex - 1;
+                    setHistoryIndex(idx);
+                    setElements(JSON.parse(JSON.stringify(history[idx])));
+                    showToast('Undo');
+                }
+            };
+
+            const redo = () => {
+                if (historyIndex < history.length - 1) {
+                    const idx = historyIndex + 1;
+                    setHistoryIndex(idx);
+                    setElements(JSON.parse(JSON.stringify(history[idx])));
+                    showToast('Redo');
+                }
+            };
+
+            const createElement = (type, x, y) => ({
+                id: Date.now() + Math.random(),
+                type, x: Math.round(x / GRID) * GRID, y: Math.round(y / GRID) * GRID,
+                width: 120, height: 80, rotation: 0,
+                zIndex: Math.max(0, ...elements.map(e => e.zIndex)) + 1,
+                fill: '#ffffff', stroke: '#333333', strokeWidth: 2,
+                text: 'Text', fontSize: 16, fontWeight: 'normal', textAlign: 'center', groupId: null,
+            });
+
+            const updateElement = (id, updates) => {
+                const newEls = elements.map(el => el.id === id ? {...el, ...updates} : el);
+                setElements(newEls);
+                pushHistory(newEls);
+            };
+
+            const updateElements = updater => {
+                const newEls = updater([...elements]);
+                setElements(newEls);
+                pushHistory(newEls);
+            };
+
+            const deleteSelected = () => {
+                const newEls = elements.filter(el => !selectedIds.has(el.id));
+                setElements(newEls);
+                setSelectedIds(new Set());
+                pushHistory(newEls);
+                showToast('Deleted');
+            };
+
+            const addElement = type => {
+                const newEl = createElement(type, 150, 150);
+                const newEls = [...elements, newEl];
+                setElements(newEls);
+                setSelectedIds(new Set([newEl.id]));
+                pushHistory(newEls);
+            };
+
+            const duplicateSelected = () => {
+                const sel = elements.filter(el => selectedIds.has(el.id));
+                const newEls = sel.map(el => ({...el, id: Date.now() + Math.random(), x: el.x + 20, y: el.y + 20, zIndex: Math.max(0, ...elements.map(e => e.zIndex)) + 1}));
+                const updEls = [...elements, ...newEls];
+                setElements(updEls);
+                setSelectedIds(new Set(newEls.map(el => el.id)));
+                pushHistory(updEls);
+                showToast('Duplicated');
+            };
+
+            const copySelected = () => {
+                const sel = elements.filter(el => selectedIds.has(el.id));
+                if (sel.length > 0) {
+                    setClipboard(JSON.parse(JSON.stringify(sel)));
+                    showToast('Copied');
+                }
+            };
+
+            const pasteClipboard = () => {
+                if (!clipboard || clipboard.length === 0) return;
+                const newEls = clipboard.map((el, idx) => ({...el, id: Date.now() + Math.random() + idx, x: el.x + 40, y: el.y + 40, zIndex: Math.max(0, ...elements.map(e => e.zIndex)) + 1}));
+                const updEls = [...elements, ...newEls];
+                setElements(updEls);
+                setSelectedIds(new Set(newEls.map(el => el.id)));
+                pushHistory(updEls);
+                showToast('Pasted');
+            };
+
+            const align = dir => {
+                if (selectedIds.size === 0) return;
+                const sel = elements.filter(el => selectedIds.has(el.id));
+                let upd;
+                if (dir === 'left') upd = els => els.map(el => selectedIds.has(el.id) ? {...el, x: Math.min(...sel.map(e => e.x))} : el);
+                else if (dir === 'center') { const c = sel.reduce((s, e) => s + e.x + e.width / 2, 0) / sel.length; upd = els => els.map(el => selectedIds.has(el.id) ? {...el, x: c - el.width / 2} : el); }
+                else if (dir === 'right') upd = els => els.map(el => selectedIds.has(el.id) ? {...el, x: Math.max(...sel.map(e => e.x + e.width)) - el.width} : el);
+                else if (dir === 'top') upd = els => els.map(el => selectedIds.has(el.id) ? {...el, y: Math.min(...sel.map(e => e.y))} : el);
+                else if (dir === 'middle') { const m = sel.reduce((s, e) => s + e.y + e.height / 2, 0) / sel.length; upd = els => els.map(el => selectedIds.has(el.id) ? {...el, y: m - el.height / 2} : el); }
+                else if (dir === 'bottom') upd = els => els.map(el => selectedIds.has(el.id) ? {...el, y: Math.max(...sel.map(e => e.y + e.height)) - el.height} : el);
+                if (upd) { updateElements(upd); showToast('Aligned'); }
+            };
+
+            const distribute = dir => {
+                if (selectedIds.size < 2) return;
+                const sel = elements.filter(el => selectedIds.has(el.id));
+                if (dir === 'h') {
+                    const sorted = [...sel].sort((a, b) => a.x - b.x);
+                    const gap = (sorted[sorted.length - 1].x - sorted[0].x) / (sorted.length - 1);
+                    updateElements(els => els.map(el => {
+                        const idx = sorted.findIndex(s => s.id === el.id);
+                        return selectedIds.has(el.id) ? {...el, x: sorted[0].x + idx * gap} : el;
+                    }));
+                } else {
+                    const sorted = [...sel].sort((a, b) => a.y - b.y);
+                    const gap = (sorted[sorted.length - 1].y - sorted[0].y) / (sorted.length - 1);
+                    updateElements(els => els.map(el => {
+                        const idx = sorted.findIndex(s => s.id === el.id);
+                        return selectedIds.has(el.id) ? {...el, y: sorted[0].y + idx * gap} : el;
+                    }));
+                }
+                showToast('Distributed');
+            };
+
+            const groupSelected = () => {
+                if (selectedIds.size < 2) return showToast('Select 2+ elements');
+                const gid = 'g-' + Date.now();
+                updateElements(els => els.map(el => selectedIds.has(el.id) ? {...el, groupId: gid} : el));
+                showToast('Grouped');
+            };
+
+            const ungroupSelected = () => {
+                updateElements(els => els.map(el => selectedIds.has(el.id) ? {...el, groupId: null} : el));
+                showToast('Ungrouped');
+            };
+
+            const changeZ = dir => {
+                if (selectedIds.size !== 1) return;
+                const id = [...selectedIds][0];
+                updateElements(els => els.map(el => el.id === id ? {...el, zIndex: el.zIndex + (dir === 'up' ? 1 : -1)} : el));
+                showToast('Z-order changed');
+            };
+
+            useEffect(() => {
+                const handleKey = e => {
+                    if (editingId) return;
+                    const m = e.metaKey || e.ctrlKey;
+                    if (m && e.key === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
+                    else if (m && e.key === 'y') { e.preventDefault(); redo(); }
+                    else if (m && e.key === 'c') { e.preventDefault(); copySelected(); }
+                    else if (m && e.key === 'v') { e.preventDefault(); pasteClipboard(); }
+                    else if (m && e.key === 'd') { e.preventDefault(); duplicateSelected(); }
+                    else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteSelected(); }
+                    else if (e.key === 'Escape') { e.preventDefault(); setSelectedIds(new Set()); setEditingId(null); }
+                    else if (m && e.key === 'a') { e.preventDefault(); setSelectedIds(new Set(elements.map(el => el.id))); }
+                };
+                window.addEventListener('keydown', handleKey);
+                return () => window.removeEventListener('keydown', handleKey);
+            }, [undo, redo, copySelected, pasteClipboard, duplicateSelected, deleteSelected, editingId, elements]);
+
+            const handleCanvasDown = e => {
+                if (e.target !== canvasRef.current) return;
+                const r = canvasRef.current.getBoundingClientRect();
+                const x = e.clientX - r.left, y = e.clientY - r.top;
+                if (!e.ctrlKey && !e.metaKey) setSelectedIds(new Set());
+                setDragStart({x, y});
+                setSelectionBox({x, y, width: 0, height: 0});
+            };
+
+            const handleCanvasMove = e => {
+                if (!dragStart || !canvasRef.current) return;
+                const r = canvasRef.current.getBoundingClientRect();
+                const x = e.clientX - r.left, y = e.clientY - r.top;
+                const box = {x: Math.min(dragStart.x, x), y: Math.min(dragStart.y, y), width: Math.abs(x - dragStart.x), height: Math.abs(y - dragStart.y)};
+                setSelectionBox(box);
+                const newSel = new Set(selectedIds);
+                elements.forEach(el => {
+                    const overlaps = !(el.x > box.x + box.width || el.x + el.width < box.x || el.y > box.y + box.height || el.y + el.height < box.y);
+                    if (overlaps) newSel.add(el.id);
+                });
+                setSelectedIds(newSel);
+            };
+
+            const handleCanvasUp = () => {
+                setDragStart(null);
+                setSelectionBox(null);
+            };
+
+            const handleElementDown = (e, id) => {
+                e.stopPropagation();
+                if (!selectedIds.has(id)) {
+                    if (!e.ctrlKey && !e.metaKey) {
+                        setSelectedIds(new Set([id]));
+                    } else {
+                        setSelectedIds(new Set([...selectedIds, id]));
+                    }
+                }
+                const r = canvasRef.current.getBoundingClientRect();
+                const sx = e.clientX - r.left, sy = e.clientY - r.top;
+                const sel = elements.filter(el => selectedIds.has(el.id));
+                draggingRef.current = {sx, sy, offs: sel.map(el => ({id: el.id, x: el.x, y: el.y}))};
+
+                const handleMove = me => {
+                    if (!draggingRef.current) return;
+                    const r = canvasRef.current.getBoundingClientRect();
+                    const cx = me.clientX - r.left, cy = me.clientY - r.top;
+                    const dx = cx - draggingRef.current.sx, dy = cy - draggingRef.current.sy;
+                    const sdx = snapToGrid ? Math.round(dx / GRID) * GRID : dx;
+                    const sdy = snapToGrid ? Math.round(dy / GRID) * GRID : dy;
+                    setElements(els => els.map(el => {
+                        const off = draggingRef.current.offs.find(o => o.id === el.id);
+                        return off ? {...el, x: off.x + sdx, y: off.y + sdy} : el;
+                    }));
+                };
+
+                const handleUp = () => {
+                    document.removeEventListener('mousemove', handleMove);
+                    document.removeEventListener('mouseup', handleUp);
+                    if (draggingRef.current) pushHistory(elements);
+                    draggingRef.current = null;
+                };
+
+                document.addEventListener('mousemove', handleMove);
+                document.addEventListener('mouseup', handleUp);
+            };
+
+            const handleResizeStart = (e, id, handle) => {
+                e.stopPropagation();
+                const r = canvasRef.current.getBoundingClientRect();
+                const sx = e.clientX - r.left, sy = e.clientY - r.top;
+                const el = elements.find(e => e.id === id);
+                if (!el) return;
+
+                const handleMove = me => {
+                    const cx = me.clientX - r.left, cy = me.clientY - r.top;
+                    const dx = cx - sx, dy = cy - sy;
+                    let newEl = {...el};
+                    if (handle.includes('n')) newEl.y = Math.max(0, el.y + dy);
+                    if (handle.includes('s')) newEl.height = Math.max(20, el.height + dy);
+                    if (handle.includes('w')) newEl.x = Math.max(0, el.x + dx);
+                    if (handle.includes('e')) newEl.width = Math.max(20, el.width + dx);
+                    setElements(els => els.map(e => e.id === id ? newEl : e));
+                };
+
+                const handleUp = () => {
+                    document.removeEventListener('mousemove', handleMove);
+                    document.removeEventListener('mouseup', handleUp);
+                    pushHistory(elements);
+                };
+
+                document.addEventListener('mousemove', handleMove);
+                document.addEventListener('mouseup', handleUp);
+            };
+
+            const exportJSON = () => {
+                const json = JSON.stringify(elements, null, 2);
+                const blob = new Blob([json], {type: 'application/json'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'slide.json';
+                a.click();
+                URL.revokeObjectURL(url);
+                showToast('Exported');
+            };
+
+            const importJSON = () => {
+                const inp = document.createElement('input');
+                inp.type = 'file';
+                inp.accept = 'application/json';
+                inp.onchange = e => {
+                    const f = e.target.files[0];
+                    if (!f) return;
+                    const reader = new FileReader();
+                    reader.onload = ev => {
+                        try {
+                            const data = JSON.parse(ev.target.result);
+                            setElements(data);
+                            pushHistory(data);
+                            showToast('Imported');
+                        } catch {
+                            showToast('Invalid JSON');
+                        }
+                    };
+                    reader.readAsText(f);
+                };
+                inp.click();
+            };
+
+            return (
+                <div className="editor-container">
+                    <div className="toolbar">
+                        <div className="toolbar-group">
+                            <button onClick={() => addElement('text')}>📝 Text</button>
+                            <button onClick={() => addElement('box')}>📦 Box</button>
+                            <button onClick={() => addElement('circle')}>⭕ Circle</button>
+                        </div>
+                        <div className="toolbar-group">
+                            <button onClick={undo} disabled={historyIndex <= 0}>↶ Undo</button>
+                            <button onClick={redo} disabled={historyIndex >= history.length - 1}>↷ Redo</button>
+                        </div>
+                        <div className="toolbar-group">
+                            <button onClick={copySelected} disabled={selectedIds.size === 0}>📋 Copy</button>
+                            <button onClick={pasteClipboard} disabled={!clipboard}>📌 Paste</button>
+                            <button onClick={duplicateSelected} disabled={selectedIds.size === 0}>📑 Dup</button>
+                        </div>
+                        <div className="toolbar-group">
+                            <button onClick={() => align('left')} disabled={selectedIds.size === 0}>◀ Left</button>
+                            <button onClick={() => align('center')} disabled={selectedIds.size === 0}>❘ Center</button>
+                            <button onClick={() => align('right')} disabled={selectedIds.size === 0}>▶ Right</button>
+                            <button onClick={() => align('top')} disabled={selectedIds.size === 0}>▲ Top</button>
+                            <button onClick={() => align('middle')} disabled={selectedIds.size === 0}>— Mid</button>
+                            <button onClick={() => align('bottom')} disabled={selectedIds.size === 0}>▼ Bot</button>
+                        </div>
+                        <div className="toolbar-group">
+                            <button onClick={() => distribute('h')} disabled={selectedIds.size < 2}>↔ Dist</button>
+                            <button onClick={() => distribute('v')} disabled={selectedIds.size < 2}>↕ Dist</button>
+                        </div>
+                        <div className="toolbar-group">
+                            <button onClick={groupSelected} disabled={selectedIds.size < 2}>🔗 Group</button>
+                            <button onClick={ungroupSelected} disabled={selectedIds.size === 0}>🔓 Ungroup</button>
+                        </div>
+                        <div className="toolbar-group">
+                            <button onClick={() => changeZ('up')} disabled={selectedIds.size !== 1}>⬆ Front</button>
+                            <button onClick={() => changeZ('down')} disabled={selectedIds.size !== 1}>⬇ Back</button>
+                        </div>
+                        <div className="toolbar-group">
+                            <button onClick={() => setSnapToGrid(!snapToGrid)} className={snapToGrid ? 'active' : ''}>📏 Snap</button>
+                            <button onClick={exportJSON}>💾 Export</button>
+                            <button onClick={importJSON}>📂 Import</button>
+                        </div>
+                    </div>
+                    <div className="main-content">
+                        <div className="canvas-wrapper" onMouseDown={handleCanvasDown} onMouseMove={handleCanvasMove} onMouseUp={handleCanvasUp}>
+                            <div className="canvas" ref={canvasRef}>
+                                {elements.sort((a, b) => a.zIndex - b.zIndex).map(el => (
+                                    <div key={el.id} className={`element ${selectedIds.has(el.id) ? 'selected' : ''} ${el.type}-element`} style={{left: el.x, top: el.y, width: el.width, height: el.height, zIndex: el.zIndex, backgroundColor: el.fill, borderColor: el.stroke, transform: `rotate(${el.rotation}deg)`}} onMouseDown={(e) => handleElementDown(e, el.id)}>
+                                        {el.type === 'text' && (editingId === el.id ? <textarea defaultValue={el.text} onBlur={e => { updateElement(el.id, {text: e.target.value}); setEditingId(null); }} onKeyDown={e => e.key === 'Escape' && setEditingId(null)} autoFocus /> : <div onDoubleClick={() => setEditingId(el.id)} style={{fontSize: el.fontSize, fontWeight: el.fontWeight, textAlign: el.textAlign, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', whiteSpace: 'normal', wordWrap: 'break-word'}}>{el.text}</div>)}
+                                        {selectedIds.has(el.id) && ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'].map(h => <div key={h} className={`resize-handle ${h}`} onMouseDown={e => handleResizeStart(e, el.id, h)} />)}
+                                    </div>
+                                ))}
+                                {selectionBox && <div className="selection-box" style={{left: selectionBox.x, top: selectionBox.y, width: selectionBox.width, height: selectionBox.height}} />}
+                            </div>
+                        </div>
+                        <div className="sidebar">
+                            <div className="sidebar-section">
+                                <h3>Selected</h3>
+                                <p style={{fontSize: '12px', color: '#666'}}>{selectedIds.size} element{selectedIds.size !== 1 ? 's' : ''}</p>
+                            </div>
+                            <div className="sidebar-section">
+                                <h3>Layers</h3>
+                                <div className="layers-list">
+                                    {elements.map(el => (
+                                        <div key={el.id} className={`layer-item ${selectedIds.has(el.id) ? 'active' : ''}`} onClick={() => setSelectedIds(new Set([el.id]))} style={{cursor: 'pointer'}}>
+                                            {el.type === 'text' ? '📝' : el.type === 'box' ? '📦' : '⭕'} {el.type} #{el.id.toString().slice(-4)}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            {selectedIds.size > 0 && (
+                                <div className="sidebar-section">
+                                    <h3>Properties</h3>
+                                    <div className="properties-group">
+                                        <label>Fill Color</label>
+                                        <input type="color" value={Array.from(selectedIds)[0] ? elements.find(e => e.id === Array.from(selectedIds)[0])?.fill || '#ffffff' : '#ffffff'} onChange={e => Array.from(selectedIds).forEach(id => updateElement(id, {fill: e.target.value}))} />
+                                    </div>
+                                    <div className="properties-group">
+                                        <label>Stroke Color</label>
+                                        <input type="color" value={Array.from(selectedIds)[0] ? elements.find(e => e.id === Array.from(selectedIds)[0])?.stroke || '#333333' : '#333333'} onChange={e => Array.from(selectedIds).forEach(id => updateElement(id, {stroke: e.target.value}))} />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    {toast && <div className="toast">{toast}</div>}
+                </div>
+            );
+        }
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<EditorApp />);
+    </script>
+</body>
+</html>

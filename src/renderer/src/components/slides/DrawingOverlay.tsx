@@ -1,5 +1,6 @@
 import { useEffect, useCallback, useState, useRef } from 'react'
 import { usePresentationStore } from '../../stores/presentation-store'
+import { getTheme } from '../../themes/theme-registry'
 
 interface DrawingOverlayProps {
   slideIndex: number
@@ -544,15 +545,33 @@ function drawElement(ctx: CanvasRenderingContext2D, el: DrawElement): void {
 // Shared mutable state for toolbar ↔ overlay communication
 export const drawingToolState = {
   tool: 'freedraw' as 'select' | 'freedraw' | 'line' | 'arrow' | 'rect' | 'ellipse' | 'text' | 'eraser',
-  color: document.documentElement.getAttribute('data-theme') === 'light' ? '#0f172a' : '#ffffff',
+  color: '#ffffff',
   fill: 'transparent',
   strokeWidth: 2,
+}
+
+/** Check if the current slide theme is a light-mode theme */
+function isSlideThemeLight(): boolean {
+  const themeId = usePresentationStore.getState().presentation?.theme || 'dark'
+  const theme = getTheme(themeId)
+  return theme?.mode === 'light'
 }
 
 /** Minimal vertical toolbar for drawing mode */
 export function DrawingToolbar(): JSX.Element {
   const [, forceUpdate] = useState(0)
   const rerender = () => forceUpdate((n) => n + 1)
+
+  // Sync default drawing color with the slide theme
+  const slideThemeId = usePresentationStore((s) => s.presentation?.theme) || 'dark'
+  useEffect(() => {
+    const theme = getTheme(slideThemeId)
+    const defaultColor = theme?.mode === 'light' ? '#0f172a' : '#ffffff'
+    if (drawingToolState.color === '#ffffff' || drawingToolState.color === '#0f172a') {
+      drawingToolState.color = defaultColor
+      rerender()
+    }
+  }, [slideThemeId])
 
   const activeTool = drawingToolState.tool
   const strokeWidth = drawingToolState.strokeWidth
@@ -569,7 +588,7 @@ export function DrawingToolbar(): JSX.Element {
     { id: 'eraser', label: 'Eraser', icon: <EraserIcon /> },
   ]
 
-  const isLight = document.documentElement.getAttribute('data-theme') === 'light'
+  const isLight = getTheme(slideThemeId)?.mode === 'light'
   const colors = isLight
     ? ['#0f172a', '#ef4444', '#3b82f6', '#22c55e', '#eab308', '#a855f7']
     : ['#ffffff', '#ef4444', '#3b82f6', '#22c55e', '#eab308', '#a855f7']

@@ -54,7 +54,18 @@ interface PresentationState {
   reorderSlide: (fromIndex: number, toIndex: number) => Promise<void>
   setTheme: (themeId: string) => Promise<void>
   updatePresenterNotes: (notes: string) => Promise<void>
+
+  // Undo/redo
+  undo: () => void
+  redo: () => void
 }
+
+// Undo/redo history — stored outside zustand to avoid triggering re-renders
+const MAX_HISTORY = 100
+const undoStack: { slideIndex: number; content: string }[] = []
+let redoStack: { slideIndex: number; content: string }[] = []
+let lastSnapshotTime = 0
+const SNAPSHOT_DEBOUNCE = 800 // ms — group rapid edits into one undo entry
 
 function applyLoaded(loaded: LoadedPresentation, goToIndex?: number) {
   return {
@@ -115,6 +126,15 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
       // Restore last viewed slide index (clamped to valid range)
       const lastIdx = pres.config.lastViewedIndex
       const restoreIdx = (lastIdx != null && lastIdx > 0 && lastIdx < pres.slides.length) ? lastIdx : 0
+
+      // Pre-compile MDX for the current slide (and neighbors) before rendering to avoid blink
+      const { prefetchMdx } = await import('../components/slides/MdxRenderer')
+      const slidesToPrefetch = [restoreIdx - 1, restoreIdx, restoreIdx + 1]
+      for (const idx of slidesToPrefetch) {
+        const s = pres.slides[idx]
+        if (s?.isMdx) prefetchMdx(s.markdownContent)
+      }
+
       set(applyLoaded(pres, restoreIdx))
 
       // Re-check AI key availability (deck might have its own .env)
@@ -227,6 +247,18 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
   },
 
   updateMarkdownContent: (slideIndex: number, content: string) => {
+    const prev = get().slides[slideIndex]?.markdownContent
+    if (prev !== undefined && prev !== content) {
+      const now = Date.now()
+      const lastEntry = undoStack[undoStack.length - 1]
+      // Only push a new snapshot if enough time passed or slide changed
+      if (now - lastSnapshotTime > SNAPSHOT_DEBOUNCE || !lastEntry || lastEntry.slideIndex !== slideIndex) {
+        undoStack.push({ slideIndex, content: prev })
+        if (undoStack.length > MAX_HISTORY) undoStack.shift()
+      }
+      lastSnapshotTime = now
+      redoStack = []
+    }
     set((state) => {
       const slides = [...state.slides]
       if (slides[slideIndex]) {
@@ -558,7 +590,41 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
     } catch { /* best effort */ }
   },
 
+  undo: () => {
+    const entry = undoStack.pop()
+    if (!entry) return
+    const current = get().slides[entry.slideIndex]?.markdownContent
+    if (current !== undefined) {
+      redoStack.push({ slideIndex: entry.slideIndex, content: current })
+    }
+    set((state) => {
+      const slides = [...state.slides]
+      if (slides[entry.slideIndex]) {
+        slides[entry.slideIndex] = { ...slides[entry.slideIndex], markdownContent: entry.content }
+      }
+      return { slides, hasUnsavedChanges: true }
+    })
+  },
+
+  redo: () => {
+    const entry = redoStack.pop()
+    if (!entry) return
+    const current = get().slides[entry.slideIndex]?.markdownContent
+    if (current !== undefined) {
+      undoStack.push({ slideIndex: entry.slideIndex, content: current })
+    }
+    set((state) => {
+      const slides = [...state.slides]
+      if (slides[entry.slideIndex]) {
+        slides[entry.slideIndex] = { ...slides[entry.slideIndex], markdownContent: entry.content }
+      }
+      return { slides, hasUnsavedChanges: true }
+    })
+  },
+
   reset: () => {
+    undoStack.length = 0
+    redoStack = []
     set({
       presentation: null,
       slides: [],

@@ -7,7 +7,7 @@ import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore } from '../../stores/ui-store'
 import type { ArtifactConfig, SupportedLanguage } from '../../../../../packages/shared/src/types/presentation'
 
-export function ArtifactDrawer(): JSX.Element {
+export function ArtifactDrawer({ onClose }: { onClose?: () => void } = {}): JSX.Element {
   const { slides, currentSlideIndex, presentation, addArtifact, addCodeToSlide, addVideo, addWebApp, removeAttachment } = usePresentationStore()
   const { toggleArtifactDrawer } = useUIStore()
   const currentSlide = slides[currentSlideIndex]
@@ -62,7 +62,7 @@ export function ArtifactDrawer(): JSX.Element {
           )}
         </div>
         <button
-          onClick={toggleArtifactDrawer}
+          onClick={onClose ?? toggleArtifactDrawer}
           className="p-0.5 hover:bg-gray-800 text-gray-500 hover:text-gray-300 rounded transition-colors"
           title="Close artifacts"
         >

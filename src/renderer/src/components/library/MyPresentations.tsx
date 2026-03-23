@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useNotebookStore } from '../../stores/notebook-store'
+import { ContentRenderer } from '../slides/ContentRenderer'
 
 interface LibraryFolder {
   id: string
@@ -20,6 +21,9 @@ interface LibraryEntry {
   updatedAt: string
   slideCount: number
   firstSlidePreview: string
+  firstSlideContent?: string
+  firstSlideIsMdx?: boolean
+  theme?: string
 }
 
 interface LibraryData {
@@ -33,6 +37,40 @@ const TAG_PALETTE = [
   '#eab308', '#84cc16', '#22c55e', '#14b8a6',
   '#06b6d4', '#3b82f6', '#6b7280', '#ffffff',
 ]
+
+function LibMiniSlide({ markdown, isMdx, theme, rootPath }: { markdown: string; isMdx?: boolean; theme?: string; rootPath?: string }): JSX.Element {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [scale, setScale] = useState(0.15)
+  const SLIDE_W = 1280
+  const SLIDE_H = 720
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const update = () => setScale(el.clientWidth / SLIDE_W)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  return (
+    <div ref={containerRef} className="w-full aspect-video overflow-hidden relative" style={{ pointerEvents: 'none' }}>
+      <div
+        data-slide-theme={theme || 'dark'}
+        className="absolute top-0 left-0 overflow-hidden"
+        style={{ width: SLIDE_W, height: SLIDE_H, transform: `scale(${scale})`, transformOrigin: 'top left' }}
+      >
+        <div className="absolute inset-0" style={{ background: 'var(--slide-bg)' }} />
+        <div className={`absolute inset-0 ${isMdx ? '' : 'slide-pad'} overflow-hidden`}>
+          <div style={{ width: isMdx ? SLIDE_W : SLIDE_W - 160, height: isMdx ? SLIDE_H : undefined }}>
+            <ContentRenderer markdown={markdown} rootPath={rootPath} isMdx={isMdx} />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export function MyPresentations({ onBack }: { onBack: () => void }): JSX.Element {
   const { loadPresentation } = usePresentationStore()
@@ -423,7 +461,6 @@ export function MyPresentations({ onBack }: { onBack: () => void }): JSX.Element
             ) : (
               <div className="grid grid-cols-3 gap-3">
                 {filtered.map((entry) => {
-                  const previewLines = (entry.firstSlidePreview || '').split('\n').filter((l) => l.trim()).slice(0, 4)
                   const folder = library.folders.find((f) => f.id === entry.folderId)
                   const isPresentation = entry.type !== 'notebook'
 
@@ -441,28 +478,16 @@ export function MyPresentations({ onBack }: { onBack: () => void }): JSX.Element
                                  hover:bg-gray-800 transition-all overflow-hidden"
                     >
                       {/* Preview */}
-                      <div className="h-24 bg-black px-3 pb-3 pt-6 border-b border-gray-800 overflow-hidden relative">
-                        {previewLines.length > 0 ? (
-                          <div className="space-y-1">
-                            {previewLines.map((line, i) => {
-                              const text = line.replace(/^#{1,3}\s/, '').replace(/^[-*+]\s/, '').replace(/\*\*/g, '').replace(/<[^>]+>/g, '').trim()
-                              return (
-                                <div key={i} className={`truncate ${
-                                  i === 0 ? 'text-[11px] font-bold text-white' : 'text-[8px] text-gray-500'
-                                }`}>{text}</div>
-                              )
-                            })}
-                          </div>
-                        ) : (
-                          <div className="h-full flex items-center justify-center">
-                            <svg className="w-6 h-6 text-gray-700" fill="none" viewBox="0 0 24 24" strokeWidth={1} stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 0 0 6 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0 1 18 16.5h-2.25m-7.5 0h7.5m-7.5 0-1 3m8.5-3 1 3m0 0 .5 1.5m-.5-1.5h-9.5m0 0-.5 1.5" />
-                            </svg>
-                          </div>
-                        )}
-                        <span className="absolute top-1.5 right-1.5 text-[8px] px-1.5 py-0.5 rounded-full bg-gray-800/80 text-gray-400">
+                      <div className="border-b border-gray-800 overflow-hidden relative">
+                        <span className="absolute top-1.5 right-1.5 z-10 text-[8px] px-1.5 py-0.5 rounded-full bg-gray-800/80 text-gray-400">
                           {isPresentation ? 'Slides' : 'Notebook'}
                         </span>
+                        <LibMiniSlide
+                          markdown={entry.firstSlideContent || entry.firstSlidePreview || ''}
+                          isMdx={entry.firstSlideIsMdx}
+                          theme={entry.theme}
+                          rootPath={entry.path}
+                        />
                       </div>
 
                       {/* Info */}

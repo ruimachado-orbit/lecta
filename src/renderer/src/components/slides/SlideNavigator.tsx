@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore } from '../../stores/ui-store'
 
@@ -38,6 +38,17 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
 
   const renamingInFlight = useRef(false)
   const renameInputRef = useCallback((node: HTMLInputElement | null) => { if (node) node.focus() }, [])
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+
+  // Auto-scroll the active slide thumbnail into view when currentSlideIndex changes
+  useEffect(() => {
+    const container = scrollContainerRef.current
+    if (!container) return
+    const activeEl = container.querySelector(`[data-slide-nav="${currentSlideIndex}"]`) as HTMLElement | null
+    if (activeEl) {
+      activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
+    }
+  }, [currentSlideIndex])
 
   // Click with shift/cmd support
   const handleSlideClick = (e: React.MouseEvent, index: number) => {
@@ -187,7 +198,7 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
         </div>
       )}
 
-      <div className="h-16 flex items-center px-4 overflow-x-auto">
+      <div ref={scrollContainerRef} className="h-16 flex items-center px-4 overflow-x-auto">
         {slides.map((slide, index) => {
           const isActive = index === currentSlideIndex
           const isSelected = selectedIndices.has(index)
@@ -248,6 +259,7 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
                 <div className="w-2 flex-shrink-0" />
               )}
             <div draggable
+              data-slide-nav={index}
               onDragStart={(e) => handleDragStart(e, index)}
               onDragOver={(e) => handleDragOverSlide(e, index)}
               onDragLeave={() => setDropTarget(null)}
@@ -267,7 +279,7 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
               title="Shift+click to multi-select">
               {group && <span className="absolute -top-2.5 left-1 text-[7px] px-1.5 py-px rounded leading-none font-medium" style={{ backgroundColor: group.color || '#4b5563', color: '#fff' }}>{group.name}</span>}
               {isSelected && selectedIndices.size > 1 && <span className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-white text-black text-[8px] font-bold rounded-full flex items-center justify-center z-10">✓</span>}
-              <span className="block truncate font-medium">{index + 1}. {slide.config.id}</span>
+              <span className="block truncate font-medium">{index + 1}. {slide.config.title || slide.config.id}</span>
               {/* Transition arrow — top right */}
               {slide.config.transition && slide.config.transition !== 'none' && (
                 <span className="absolute top-0.5 right-1 text-[7px] text-gray-300" title={`Transition: from ${slide.config.transition}`}>

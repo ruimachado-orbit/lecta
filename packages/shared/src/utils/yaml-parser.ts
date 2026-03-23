@@ -39,6 +39,7 @@ const PromptConfigSchema = z.object({
 
 const SlideConfigSchema = z.object({
   id: z.string(),
+  title: z.string().optional(),
   content: z.string(),
   code: CodeBlockConfigSchema.optional(),
   video: VideoConfigSchema.optional(),

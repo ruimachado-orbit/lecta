@@ -17,6 +17,36 @@ export function useKeyboardShortcuts(): void {
         return
       }
 
+      // Cmd+Z / Ctrl+Z — undo (not inside Monaco, which has its own undo)
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
+        const target = e.target as HTMLElement
+        if (!target.closest('.monaco-editor')) {
+          e.preventDefault()
+          usePresentationStore.getState().undo()
+          return
+        }
+      }
+
+      // Cmd+Shift+Z / Ctrl+Shift+Z — redo (not inside Monaco)
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && e.shiftKey) {
+        const target = e.target as HTMLElement
+        if (!target.closest('.monaco-editor')) {
+          e.preventDefault()
+          usePresentationStore.getState().redo()
+          return
+        }
+      }
+
+      // Cmd+S / Ctrl+S — save current slide (works everywhere, including Monaco)
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault()
+        const { currentSlideIndex, saveSlideContent, hasUnsavedChanges } = usePresentationStore.getState()
+        if (hasUnsavedChanges) {
+          saveSlideContent(currentSlideIndex)
+        }
+        return
+      }
+
       // Don't capture shortcuts when typing in an input or the Monaco editor
       const target = e.target as HTMLElement
       if (

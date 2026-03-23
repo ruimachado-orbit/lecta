@@ -23,6 +23,9 @@ export interface LibraryEntry {
   updatedAt: string
   slideCount: number
   firstSlidePreview: string
+  firstSlideContent?: string
+  firstSlideIsMdx?: boolean
+  theme?: string
 }
 
 interface LibraryData {
@@ -73,6 +76,9 @@ export async function upsertLibraryEntry(item: {
   type?: 'presentation' | 'notebook'
   slideCount: number
   firstSlidePreview: string
+  firstSlideContent?: string
+  firstSlideIsMdx?: boolean
+  theme?: string
 }): Promise<void> {
   await ensureLoaded()
 
@@ -81,6 +87,9 @@ export async function upsertLibraryEntry(item: {
     existing.title = item.title
     existing.slideCount = item.slideCount
     existing.firstSlidePreview = item.firstSlidePreview
+    existing.firstSlideContent = item.firstSlideContent
+    existing.firstSlideIsMdx = item.firstSlideIsMdx
+    existing.theme = item.theme
     existing.updatedAt = new Date().toISOString()
   } else {
     library.entries.push({
@@ -94,6 +103,9 @@ export async function upsertLibraryEntry(item: {
       updatedAt: new Date().toISOString(),
       slideCount: item.slideCount,
       firstSlidePreview: item.firstSlidePreview,
+      firstSlideContent: item.firstSlideContent,
+      firstSlideIsMdx: item.firstSlideIsMdx,
+      theme: item.theme,
     })
   }
   await saveLibrary()
@@ -128,10 +140,14 @@ async function scanLectaDocumentsFolder(): Promise<void> {
         const isNotebook = yamlContent.includes('type: notebook') || yamlContent.includes('type: "notebook"') || yamlContent.includes("type: 'notebook'")
 
         let preview = ''
+        let fullContent = ''
+        let isMdx = false
         if (config.slides.length > 0) {
           try {
             const mdPath = resolveRelativePath(workspaceDir, config.slides[0].content)
             const md = await readFile(mdPath, 'utf-8')
+            fullContent = md
+            isMdx = config.slides[0].content.endsWith('.mdx')
             preview = md.replace(/<!--.*?-->/gs, '').trim().split('\n').filter((l: string) => l.trim()).slice(0, 5).join('\n').slice(0, 200)
           } catch {}
         }
@@ -147,6 +163,9 @@ async function scanLectaDocumentsFolder(): Promise<void> {
           updatedAt: new Date().toISOString(),
           slideCount: config.slides.length,
           firstSlidePreview: preview,
+          firstSlideContent: fullContent,
+          firstSlideIsMdx: isMdx,
+          theme: config.theme,
         })
         added = true
       } catch {
@@ -372,11 +391,15 @@ export function registerLibraryHandlers(): void {
 
         // Get first slide preview
         let preview = ''
+        let fullContent = ''
+        let isMdx = false
         if (config.slides.length > 0) {
           try {
             const { resolveRelativePath } = await import('../../../packages/shared/src/utils/path-resolver')
             const mdPath = resolveRelativePath(workspaceDir, config.slides[0].content)
             const md = await readFile(mdPath, 'utf-8')
+            fullContent = md
+            isMdx = config.slides[0].content.endsWith('.mdx')
             preview = md.replace(/<!--.*?-->/gs, '').trim().split('\n').filter((l: string) => l.trim()).slice(0, 5).join('\n').slice(0, 200)
           } catch {}
         }
@@ -386,7 +409,10 @@ export function registerLibraryHandlers(): void {
           title: config.title,
           type: isNotebook ? 'notebook' : 'presentation',
           slideCount: config.slides.length,
-          firstSlidePreview: preview
+          firstSlidePreview: preview,
+          firstSlideContent: fullContent,
+          firstSlideIsMdx: isMdx,
+          theme: config.theme,
         })
 
         imported++

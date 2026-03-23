@@ -271,7 +271,21 @@ export function MdxRenderer({ markdown, rootPath, clickStep, onClickSteps }: Mdx
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastSourceRef = useRef<string>('')
   const compileIdRef = useRef(0)  // monotonic id to discard stale compiles
+  const containerRef = useRef<HTMLDivElement>(null)
   const components = useMdxComponents(rootPath)
+
+  // Resolve relative image srcs after render — JSX <img> tags in MDX bypass component overrides,
+  // so we fix up any unresolved relative srcs directly in the DOM
+  useEffect(() => {
+    if (!containerRef.current || !rootPath) return
+    const imgs = containerRef.current.querySelectorAll('img')
+    for (const img of imgs) {
+      const src = img.getAttribute('src')
+      if (src && !src.startsWith('http') && !src.startsWith('data:') && !src.startsWith('lecta-file://') && !src.startsWith('blob:')) {
+        img.src = resolveImageSrc(src, rootPath)
+      }
+    }
+  }, [MdxContent, contentSource, rootPath])
 
   // No click animations for MDX — report 0 steps
   const reportedRef = useRef(false)
@@ -342,7 +356,7 @@ export function MdxRenderer({ markdown, rootPath, clickStep, onClickSteps }: Mdx
   // This prevents the flash-to-plain-markdown during async compilation
   if (MdxContent && !error) {
     const fallbackRender = (
-      <div className="slide-content max-w-none relative">
+      <div className="relative" style={{ width: '100%', height: '100%' }}>
         <div className="mb-3 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-mono">
           <div className="font-semibold mb-1">MDX render error</div>
           <div className="opacity-80">The compiled MDX threw during render. Showing markdown fallback.</div>
@@ -354,7 +368,7 @@ export function MdxRenderer({ markdown, rootPath, clickStep, onClickSteps }: Mdx
     // apply a quick fade to smooth the visual transition
     const isTransitioning = contentSource !== markdown
     return (
-      <div className={`slide-content max-w-none relative transition-opacity duration-150 ${isTransitioning ? 'opacity-70' : 'opacity-100'}`}>
+      <div ref={containerRef} className={`relative transition-opacity duration-150 ${isTransitioning ? 'opacity-70' : 'opacity-100'}`} style={{ width: '100%', height: '100%' }}>
         <MdxErrorBoundary fallback={fallbackRender}>
           <MdxContent components={components} />
         </MdxErrorBoundary>
@@ -365,7 +379,7 @@ export function MdxRenderer({ markdown, rootPath, clickStep, onClickSteps }: Mdx
   // Fallback: render as plain markdown with error indicator
   if (error) {
     return (
-      <div className="slide-content max-w-none relative">
+      <div className="relative" style={{ width: '100%', height: '100%' }}>
         <div className="mb-3 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-mono">
           <div className="font-semibold mb-1">MDX compilation error</div>
           <div className="opacity-80 break-words">{error}</div>
@@ -382,12 +396,8 @@ export function MdxRenderer({ markdown, rootPath, clickStep, onClickSteps }: Mdx
     )
   }
 
-  // Initial loading state — show content as plain markdown while compiling
+  // Initial loading state — show empty container while MDX compiles (avoids flashing raw JSX as text)
   return (
-    <div className="slide-content max-w-none relative">
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-        {markdown}
-      </ReactMarkdown>
-    </div>
+    <div className="relative" style={{ width: '100%', height: '100%' }} />
   )
 }

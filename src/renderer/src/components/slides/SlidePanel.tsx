@@ -19,6 +19,8 @@ export function SlidePanel(): JSX.Element {
   const { showNavigator, editingSlide, editorMode, setEditorMode, slideGroups } = useUIStore()
   const currentSlide = slides[currentSlideIndex]
   const [wysiwygHeaderSlot, setWysiwygHeaderSlot] = useState<HTMLDivElement | null>(null)
+  const [showMarkdown, setShowMarkdown] = useState(false)
+  const [markdownHeight, setMarkdownHeight] = useState(250)
 
   // Compute current group label
   const groupLabel = (() => {
@@ -43,10 +45,12 @@ export function SlidePanel(): JSX.Element {
   const breakOffsetsRef = useRef(breakOffsets)
   breakOffsetsRef.current = breakOffsets
 
-  // Prefetch adjacent MDX slides for instant transitions
+  // Prefetch current + adjacent MDX slides for instant transitions
   useEffect(() => {
+    const curr = slides[currentSlideIndex]
     const prev = slides[currentSlideIndex - 1]
     const next = slides[currentSlideIndex + 1]
+    if (curr?.isMdx) prefetchMdx(curr.markdownContent)
     if (prev?.isMdx) prefetchMdx(prev.markdownContent)
     if (next?.isMdx) prefetchMdx(next.markdownContent)
   }, [currentSlideIndex, slides])
@@ -103,14 +107,28 @@ export function SlidePanel(): JSX.Element {
     editor.onDidChangeModelContent(updateDecorations)
   }
 
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const handleEditorChange = useCallback(
     (value: string | undefined) => {
       if (value !== undefined) {
         updateMarkdownContent(currentSlideIndex, value)
+        // Auto-save after 1.5s of inactivity
+        if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
+        autoSaveTimer.current = setTimeout(() => {
+          saveSlideContent(currentSlideIndex)
+        }, 1500)
       }
     },
-    [currentSlideIndex, updateMarkdownContent]
+    [currentSlideIndex, updateMarkdownContent, saveSlideContent]
   )
+
+  // Cleanup auto-save timer on unmount
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
+    }
+  }, [])
 
   const handleEditorBlur = useCallback(() => {
     const { hasUnsavedChanges } = usePresentationStore.getState()
@@ -171,7 +189,7 @@ export function SlidePanel(): JSX.Element {
         <>
           <div className="h-7 bg-gray-900 border-b border-gray-800 flex items-center px-3 gap-2">
             <button
-              onClick={() => { setEditorMode('wysiwyg'); setDrawingMode(false) }}
+              onClick={() => { setEditorMode('wysiwyg'); setDrawingMode(false); setShowMarkdown(false) }}
               className={`text-[10px] px-2 py-0.5 rounded transition-colors ${
                 editorMode === 'wysiwyg' && !drawingMode ? 'bg-white text-black' : 'text-gray-500 hover:text-gray-300'
               }`}
@@ -184,7 +202,7 @@ export function SlidePanel(): JSX.Element {
                 editorMode === 'markdown' && !drawingMode ? 'bg-white text-black' : 'text-gray-500 hover:text-gray-300'
               }`}
             >
-              Markdown
+              Editor
             </button>
             <button
               onClick={() => setDrawingMode(!drawingMode)}
@@ -198,10 +216,23 @@ export function SlidePanel(): JSX.Element {
               Draw
             </button>
             <div className="flex-1" />
+            {editorMode === 'markdown' && !drawingMode && (
+              <button
+                onClick={() => setShowMarkdown(!showMarkdown)}
+                className={`text-[10px] px-2 py-0.5 rounded transition-colors flex items-center gap-1 ${
+                  showMarkdown ? 'bg-gray-700 text-gray-200' : 'text-gray-500 hover:text-gray-300'
+                }`}
+              >
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
+                </svg>
+                {showMarkdown ? 'Hide Markdown' : 'See Markdown'}
+              </button>
+            )}
             <AIChangeBar />
           </div>
-          {editorMode === 'markdown' && !drawingMode && <SlideEditToolbar editorRef={editorRef} />}
-          {editorMode === 'wysiwyg' && !drawingMode && <div ref={setWysiwygHeaderSlot} className="bg-gray-900 border-b border-gray-800 shrink-0" />}
+          {showMarkdown && editorMode === 'markdown' && !drawingMode && <SlideEditToolbar editorRef={editorRef} />}
+          {editorMode === 'markdown' && !drawingMode && <div ref={setWysiwygHeaderSlot} className="bg-gray-900 border-b border-gray-800 shrink-0" />}
         </>
       )}
 
@@ -230,55 +261,129 @@ export function SlidePanel(): JSX.Element {
               />
             </div>
           </div>
-        ) : editingSlide && editorMode === 'wysiwyg' && currentSlide.isMdx ? (
-          /* MDX visual mode: full-size rendered preview */
+        ) : editingSlide && editorMode === 'wysiwyg' ? (
+          /* Visual: read-only slide preview */
           <SlideCanvas
-            markdown={currentSlide.markdownContent}
+            markdown={activeMarkdown}
             rootPath={presentation?.rootPath}
+            transition={currentSlide.config.transition}
             layout={currentSlide.config.layout}
             slideIndex={currentSlideIndex}
             showGlobalLayers={true}
-            isMdx={true}
+            isMdx={currentSlide.isMdx}
           />
-
-        ) : editingSlide && editorMode === 'wysiwyg' ? (
-          /* WYSIWYG: stacked sub-slide editor */
-          <SubSlideStackEditor
-            subSlides={subSlides}
-            currentSubSlide={currentSubSlide}
-            setCurrentSubSlide={setCurrentSubSlide}
-            slideIndex={currentSlideIndex}
-            currentSlide={currentSlide}
-            presentation={presentation}
-            updateMarkdownContent={updateMarkdownContent}
-            saveSlideContent={saveSlideContent}
-            wysiwygHeaderSlot={wysiwygHeaderSlot}
-          />
-        ) : editingSlide && editorMode === 'markdown' ? (
-          /* Markdown: split view — canvas top, editor bottom */
-          <>
-            <div className="h-[40%] flex-shrink-0 border-b border-gray-800">
-              <SlideCanvas markdown={currentSlide.markdownContent} rootPath={presentation?.rootPath} layout={currentSlide.config.layout} slideIndex={currentSlideIndex} isMdx={currentSlide.isMdx} />
-            </div>
-            <div className="flex-1 min-h-0" onBlur={handleEditorBlur}>
-              <Editor
-                height="100%"
-                language="markdown"
-                value={currentSlide.markdownContent}
-                onChange={handleEditorChange}
-                onMount={handleEditorMount}
-                theme="vs-dark"
-                options={{
-                  fontSize: 14, lineHeight: 20,
-                  fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
-                  minimap: { enabled: false }, scrollBeyondLastLine: true,
-                  padding: { top: 12, bottom: 12 }, lineNumbers: 'on',
-                  renderLineHighlight: 'none', wordWrap: 'on',
-                  automaticLayout: true, tabSize: 2
-                }}
+        ) : editingSlide && editorMode === 'markdown' && currentSlide.isMdx ? (
+          /* MDX Editor mode: visual preview + optional resizable code editor */
+          <div className="flex-1 min-h-0 flex flex-col">
+            <div className="flex-1 min-h-0">
+              <SlideCanvas
+                markdown={currentSlide.markdownContent}
+                rootPath={presentation?.rootPath}
+                layout={currentSlide.config.layout}
+                slideIndex={currentSlideIndex}
+                showGlobalLayers={true}
+                isMdx={true}
               />
             </div>
-          </>
+            {showMarkdown && (
+              <>
+                {/* Drag handle */}
+                <div
+                  className="h-1.5 bg-gray-800 hover:bg-blue-500/50 cursor-row-resize flex-shrink-0 transition-colors"
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    const startY = e.clientY
+                    const startHeight = markdownHeight
+                    const onMouseMove = (ev: MouseEvent) => {
+                      const delta = startY - ev.clientY
+                      setMarkdownHeight(Math.max(100, Math.min(600, startHeight + delta)))
+                    }
+                    const onMouseUp = () => {
+                      document.removeEventListener('mousemove', onMouseMove)
+                      document.removeEventListener('mouseup', onMouseUp)
+                    }
+                    document.addEventListener('mousemove', onMouseMove)
+                    document.addEventListener('mouseup', onMouseUp)
+                  }}
+                />
+                <div className="flex-shrink-0" style={{ height: markdownHeight }} onBlur={handleEditorBlur}>
+                  <Editor
+                    height="100%"
+                    language="mdx"
+                    value={currentSlide.markdownContent}
+                    onChange={handleEditorChange}
+                    onMount={handleEditorMount}
+                    theme="vs-dark"
+                    options={{
+                      fontSize: 14, lineHeight: 20,
+                      fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
+                      minimap: { enabled: false }, scrollBeyondLastLine: true,
+                      padding: { top: 12, bottom: 12 }, lineNumbers: 'on',
+                      renderLineHighlight: 'none', wordWrap: 'on',
+                      automaticLayout: true, tabSize: 2
+                    }}
+                  />
+                </div>
+              </>
+            )}
+          </div>
+        ) : editingSlide && editorMode === 'markdown' ? (
+          /* Non-MDX Editor mode: WYSIWYG editing + optional resizable markdown panel */
+          <div className="flex-1 min-h-0 flex flex-col">
+            <div className="flex-1 min-h-0">
+              <SubSlideStackEditor
+                subSlides={subSlides}
+                currentSubSlide={currentSubSlide}
+                setCurrentSubSlide={setCurrentSubSlide}
+                slideIndex={currentSlideIndex}
+                currentSlide={currentSlide}
+                presentation={presentation}
+                updateMarkdownContent={updateMarkdownContent}
+                saveSlideContent={saveSlideContent}
+                wysiwygHeaderSlot={wysiwygHeaderSlot}
+              />
+            </div>
+            {showMarkdown && (
+              <>
+                <div
+                  className="h-1.5 bg-gray-800 hover:bg-blue-500/50 cursor-row-resize flex-shrink-0 transition-colors"
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    const startY = e.clientY
+                    const startHeight = markdownHeight
+                    const onMouseMove = (ev: MouseEvent) => {
+                      const delta = startY - ev.clientY
+                      setMarkdownHeight(Math.max(100, Math.min(600, startHeight + delta)))
+                    }
+                    const onMouseUp = () => {
+                      document.removeEventListener('mousemove', onMouseMove)
+                      document.removeEventListener('mouseup', onMouseUp)
+                    }
+                    document.addEventListener('mousemove', onMouseMove)
+                    document.addEventListener('mouseup', onMouseUp)
+                  }}
+                />
+                <div className="flex-shrink-0" style={{ height: markdownHeight }} onBlur={handleEditorBlur}>
+                  <Editor
+                    height="100%"
+                    language="markdown"
+                    value={currentSlide.markdownContent}
+                    onChange={handleEditorChange}
+                    onMount={handleEditorMount}
+                    theme="vs-dark"
+                    options={{
+                      fontSize: 14, lineHeight: 20,
+                      fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
+                      minimap: { enabled: false }, scrollBeyondLastLine: true,
+                      padding: { top: 12, bottom: 12 }, lineNumbers: 'on',
+                      renderLineHighlight: 'none', wordWrap: 'on',
+                      automaticLayout: true, tabSize: 2
+                    }}
+                  />
+                </div>
+              </>
+            )}
+          </div>
         ) : (
           /* Preview/read mode: show active sub-slide only */
           <SlideCanvas
@@ -413,8 +518,7 @@ function SlideCanvas({ markdown, rootPath, transition, layout, slideIndex, drawi
     const updateScale = () => {
       const cw = container.clientWidth
       const ch = container.clientHeight
-      const margin = 16
-      const s = Math.min((cw - margin * 2) / SLIDE_W, (ch - margin * 2) / SLIDE_H)
+      const s = Math.min(cw / SLIDE_W, ch / SLIDE_H)
       setCanvasScale(Math.max(0.05, s))
     }
 
@@ -426,33 +530,33 @@ function SlideCanvas({ markdown, rootPath, transition, layout, slideIndex, drawi
 
 
   return (
-    <div ref={containerRef} className="h-full w-full flex items-center justify-center bg-neutral-800 overflow-hidden">
+    <div ref={containerRef} className="h-full w-full relative overflow-hidden" style={{ background: 'var(--slide-bg)' }}>
       <div
         ref={slideRef}
-        className="relative rounded overflow-hidden"
+        className="absolute overflow-hidden"
         data-slide-theme={slideTheme}
         style={{
           width: SLIDE_W,
           height: SLIDE_H,
-          transform: `scale(${canvasScale})`,
+          transform: `translate(-50%, -50%) scale(${canvasScale})`,
           transformOrigin: 'center center',
-          flexShrink: 0,
-          boxShadow: '0 0 0 1px rgba(255,255,255,0.15), 0 4px 24px rgba(0,0,0,0.6), 0 0 80px rgba(0,0,0,0.4)'
+          left: '50%',
+          top: '50%',
         }}
       >
-        <div className="absolute inset-0 rounded" style={{ background: 'var(--slide-bg)' }} />
-        <div ref={transitionRef} className={`absolute inset-0 ${layout === 'blank' ? '' : 'slide-pad'} overflow-hidden ${transition && transition !== 'none' ? `slide-transition-${transition}` : ''} ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
+        <div className="absolute inset-0" style={{ background: 'var(--slide-bg)' }} />
+        <div ref={transitionRef} className={`absolute inset-0 ${layout === 'blank' || isMdx ? '' : 'slide-pad'} overflow-hidden ${transition && transition !== 'none' ? `slide-transition-${transition}` : ''} ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
           <div
             style={{
-              width: layout === 'blank' ? SLIDE_W : SLIDE_W - PAD_H * 2,
-              height: layout === 'blank' ? SLIDE_H : undefined,
+              width: layout === 'blank' || isMdx ? SLIDE_W : SLIDE_W - PAD_H * 2,
+              height: layout === 'blank' || isMdx ? SLIDE_H : undefined,
             }}
           >
             <ContentRenderer markdown={markdown} rootPath={rootPath} isMdx={isMdx} />
           </div>
         </div>
         {/* Positioned images overlay — always visible, outside content scaling */}
-        <PositionedImagesOverlay markdown={markdown} rootPath={rootPath} pad={layout !== 'blank'} />
+        <PositionedImagesOverlay markdown={markdown} rootPath={rootPath} pad={layout !== 'blank' && !isMdx} />
         {/* Draggable elements overlay (text boxes, shapes, positioned images — editable) */}
         {editable && onUpdateMarkdown && (
           <div className="absolute inset-0 slide-pad" style={{ zIndex: 10 }}>
@@ -549,8 +653,8 @@ function EditableSlideCanvas({ slideIndex, breakOffsets, rootPath, layout, subSl
   const numSubSlides = subSlideCount ?? 1
 
   return (
-    <div ref={containerRef} className="h-full w-full bg-neutral-800 overflow-y-auto overflow-x-hidden"
-      data-slide-theme={slideTheme}>
+    <div ref={containerRef} className="h-full w-full overflow-y-auto overflow-x-hidden"
+      data-slide-theme={slideTheme} style={{ background: 'var(--slide-bg)' }}>
       {/* Sub-slide count badge */}
       {numSubSlides > 1 && (
         <div className="sticky top-0 z-10 flex justify-center py-1">
@@ -691,8 +795,8 @@ function SubSlideStackEditor({ subSlides, currentSubSlide, setCurrentSubSlide, s
   }, [currentSubSlide])
 
   return (
-    <div ref={containerRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-4 bg-neutral-800 relative"
-      data-slide-theme={slideTheme}>
+    <div ref={containerRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-4 relative"
+      data-slide-theme={slideTheme} style={{ background: 'var(--slide-bg)' }}>
       {/* Zoom controls */}
       <div className="sticky top-2 z-20 flex justify-end pr-3 mb-1">
         <div className="flex items-center gap-1 bg-gray-900/80 backdrop-blur rounded-full px-1.5 py-0.5 border border-gray-700/50">
@@ -775,8 +879,8 @@ function SubSlideStackEditor({ subSlides, currentSubSlide, setCurrentSubSlide, s
               >
                 {i === currentSubSlide && currentSlide?.isMdx ? (
                   /* MDX sub-slide: read-only rendered preview (WYSIWYG can't handle JSX) */
-                  <div className={`absolute inset-0 ${layout === 'blank' ? '' : 'slide-pad'} overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
-                    <div className="slide-content max-w-none" style={{ width: layout === 'blank' ? SLIDE_W : SLIDE_W - 160 }}>
+                  <div className={`absolute inset-0 overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
+                    <div style={{ width: SLIDE_W, height: SLIDE_H }}>
                       <ContentRenderer markdown={sub.markdown} rootPath={presentation?.rootPath} isMdx={true} />
                     </div>
                   </div>
@@ -792,8 +896,8 @@ function SubSlideStackEditor({ subSlides, currentSubSlide, setCurrentSubSlide, s
                   </div>
                 ) : (
                   /* Other sub-slides: read-only preview */
-                  <div className={`absolute inset-0 ${layout === 'blank' ? '' : 'slide-pad'} overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
-                    <div className="slide-content max-w-none" style={{ width: layout === 'blank' ? SLIDE_W : SLIDE_W - 160 }}>
+                  <div className={`absolute inset-0 ${layout === 'blank' || currentSlide?.isMdx ? '' : 'slide-pad'} overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
+                    <div className={currentSlide?.isMdx ? '' : 'slide-content max-w-none'} style={{ width: layout === 'blank' || currentSlide?.isMdx ? SLIDE_W : SLIDE_W - 160, height: layout === 'blank' || currentSlide?.isMdx ? SLIDE_H : undefined }}>
                       <ContentRenderer markdown={sub.markdown} rootPath={presentation?.rootPath} isMdx={currentSlide?.isMdx} />
                     </div>
                   </div>

@@ -34,6 +34,9 @@ interface RecentDeck {
   type?: 'presentation' | 'notebook'
   slideCount: number
   firstSlidePreview: string
+  firstSlideContent?: string
+  firstSlideIsMdx?: boolean
+  theme?: string
   artifacts: string[]
 }
 
@@ -59,6 +62,7 @@ async function getSettingsPath(): Promise<string> {
 export async function addRecentItem(item: {
   path: string; title: string; type?: 'presentation' | 'notebook'
   slideCount: number; firstSlidePreview: string; artifacts: string[]
+  firstSlideContent?: string; firstSlideIsMdx?: boolean; theme?: string
 }): Promise<void> {
   const entry: RecentDeck = { ...item, date: new Date().toISOString() }
   recentDecks = [entry, ...recentDecks.filter((d) => d.path !== item.path)].slice(0, 20)
@@ -75,6 +79,9 @@ export async function addRecentItem(item: {
       type: item.type,
       slideCount: item.slideCount,
       firstSlidePreview: item.firstSlidePreview,
+      firstSlideContent: item.firstSlideContent,
+      firstSlideIsMdx: item.firstSlideIsMdx,
+      theme: item.theme,
     })
   } catch {}
 }
@@ -109,6 +116,7 @@ async function savePresentationYaml(presentation: Presentation): Promise<void> {
     slides: presentation.slides.map((s) => {
       const slide: Record<string, unknown> = {
         id: s.id,
+        ...(s.title ? { title: s.title } : {}),
         content: s.content,
       }
       if (s.code) slide.code = s.code
@@ -364,6 +372,9 @@ export function registerFileSystemHandlers(): void {
       title: config.title,
       slideCount: config.slides.length,
       firstSlidePreview: preview.slice(0, 200),
+      firstSlideContent: firstSlide?.markdownContent || '',
+      firstSlideIsMdx: firstSlide ? config.slides[0]?.content.endsWith('.mdx') : false,
+      theme: config.theme,
       artifacts: Array.from(allArtifacts)
     })
     await setAIDeckPath(folderPath)

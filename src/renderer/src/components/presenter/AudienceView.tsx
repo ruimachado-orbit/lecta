@@ -264,10 +264,10 @@ function AudienceSlide({ markdown, rootPath, layout, theme, mousePos, isMdx }: {
         }}
       >
         <div className="absolute inset-0" style={{ background: 'var(--slide-bg)' }} />
-        <div className={`absolute inset-0 ${layout === 'blank' ? '' : 'slide-pad'} overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
+        <div className={`absolute inset-0 ${layout === 'blank' || isMdx ? '' : 'slide-pad'} overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
           <div style={{
-            width: layout === 'blank' ? SLIDE_W : SLIDE_W - PAD_H * 2,
-            height: layout === 'blank' ? SLIDE_H : undefined,
+            width: layout === 'blank' || isMdx ? SLIDE_W : SLIDE_W - PAD_H * 2,
+            height: layout === 'blank' || isMdx ? SLIDE_H : undefined,
           }}>
             <ContentRenderer markdown={markdown} rootPath={rootPath} isMdx={isMdx} />
           </div>

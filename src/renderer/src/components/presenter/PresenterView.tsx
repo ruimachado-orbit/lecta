@@ -211,7 +211,7 @@ export function PresenterView(): JSX.Element {
   }
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-black">
+    <div className="h-screen w-screen flex flex-col" style={{ background: 'var(--slide-bg, #000)' }}>
       {/* Top bar */}
       <div className="h-10 flex-shrink-0 bg-gray-900 border-b border-gray-800 flex items-center pl-20 pr-4 gap-3"
            style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
@@ -516,8 +516,7 @@ function PresenterSlide({ markdown, rootPath, layout, theme, isMdx }: {
     const update = () => {
       const cw = container.clientWidth
       const ch = container.clientHeight
-      const margin = 16
-      const s = Math.min((cw - margin * 2) / SLIDE_W, (ch - margin * 2) / SLIDE_H)
+      const s = Math.min(cw / SLIDE_W, ch / SLIDE_H)
       setCanvasScale(Math.max(0.05, s))
     }
     update()
@@ -527,24 +526,25 @@ function PresenterSlide({ markdown, rootPath, layout, theme, isMdx }: {
   }, [])
 
   return (
-    <div ref={containerRef} className="h-full w-full flex items-center justify-center presenter-canvas-bg overflow-hidden">
+    <div ref={containerRef} className="h-full w-full relative presenter-canvas-bg overflow-hidden">
       <div
-        className="relative rounded overflow-hidden presenter-slide-frame"
+        className="absolute overflow-hidden presenter-slide-frame"
         data-slide-theme={theme || 'dark'}
         style={{
           width: SLIDE_W,
           height: SLIDE_H,
-          transform: `scale(${canvasScale})`,
+          transform: `translate(-50%, -50%) scale(${canvasScale})`,
           transformOrigin: 'center center',
-          flexShrink: 0,
+          left: '50%',
+          top: '50%',
         }}
       >
-        <div className="absolute inset-0 rounded" style={{ background: 'var(--slide-bg)' }} />
-        <div className={`absolute inset-0 ${layout === 'blank' ? '' : 'slide-pad'} overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
+        <div className="absolute inset-0" style={{ background: 'var(--slide-bg)' }} />
+        <div className={`absolute inset-0 ${layout === 'blank' || isMdx ? '' : 'slide-pad'} overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
           <div
             style={{
-              width: layout === 'blank' ? SLIDE_W : SLIDE_W - PAD_H * 2,
-              height: layout === 'blank' ? SLIDE_H : undefined,
+              width: layout === 'blank' || isMdx ? SLIDE_W : SLIDE_W - PAD_H * 2,
+              height: layout === 'blank' || isMdx ? SLIDE_H : undefined,
             }}
           >
             <ContentRenderer
@@ -597,8 +597,8 @@ function MiniSlide({ markdown, rootPath, layout, theme, isMdx }: {
         }}
       >
         <div className="absolute inset-0" style={{ background: 'var(--slide-bg)' }} />
-        <div className={`absolute inset-0 ${layout === 'blank' ? '' : 'slide-pad'} overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
-          <div style={{ width: SLIDE_W - 160 }}>
+        <div className={`absolute inset-0 ${layout === 'blank' || isMdx ? '' : 'slide-pad'} overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
+          <div style={{ width: layout === 'blank' || isMdx ? SLIDE_W : SLIDE_W - 160, height: layout === 'blank' || isMdx ? SLIDE_H : undefined }}>
             <ContentRenderer markdown={markdown} rootPath={rootPath} isMdx={isMdx} />
           </div>
         </div>

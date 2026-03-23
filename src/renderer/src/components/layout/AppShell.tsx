@@ -118,7 +118,7 @@ export function AppShell(): JSX.Element {
                   const p = currentSlide?.config.prompts?.[idx]
                   return p ? <PromptPanel key={`${currentSlideIndex}-prompt-${idx}`} prompt={p} promptIndex={idx} /> : null
                 })()}
-                {activeArtifact === 'files' && hasFiles && <ArtifactDrawer />}
+                {activeArtifact === 'files' && hasFiles && <ArtifactDrawer onClose={() => useUIStore.setState({ showRightPane: false })} />}
               </Panel>
             </>
           )}
@@ -287,7 +287,7 @@ function ArtifactIconStrip({
   const hasWebApp = !!currentSlide?.config.webapp
 
   return (
-    <div className="flex flex-col items-center py-2 gap-1 w-7 flex-shrink-0">
+    <div className="flex flex-col items-center py-2 gap-1 w-7 flex-shrink-0 bg-neutral-800">
       {/* Add artifact button */}
       <div className="relative">
         <button

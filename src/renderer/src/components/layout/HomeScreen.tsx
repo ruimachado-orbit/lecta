@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { ContentRenderer } from '../slides/ContentRenderer'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useNotebookStore } from '../../stores/notebook-store'
 import { useUIStore, COLOR_PALETTES } from '../../stores/ui-store'
@@ -15,6 +16,9 @@ interface RecentDeck {
   type?: 'presentation' | 'notebook'
   slideCount?: number
   firstSlidePreview?: string
+  firstSlideContent?: string
+  firstSlideIsMdx?: boolean
+  theme?: string
   artifacts?: string[]
 }
 
@@ -1298,6 +1302,40 @@ function stripMarkdown(text: string): string {
     .trim()
 }
 
+function MiniSlidePreview({ markdown, isMdx, theme, rootPath }: { markdown: string; isMdx?: boolean; theme?: string; rootPath?: string }): JSX.Element {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [scale, setScale] = useState(0.15)
+  const SLIDE_W = 1280
+  const SLIDE_H = 720
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const update = () => setScale(el.clientWidth / SLIDE_W)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  return (
+    <div ref={containerRef} className="w-full aspect-video overflow-hidden relative" style={{ pointerEvents: 'none' }}>
+      <div
+        data-slide-theme={theme || 'dark'}
+        className="absolute top-0 left-0 overflow-hidden"
+        style={{ width: SLIDE_W, height: SLIDE_H, transform: `scale(${scale})`, transformOrigin: 'top left' }}
+      >
+        <div className="absolute inset-0" style={{ background: 'var(--slide-bg)' }} />
+        <div className={`absolute inset-0 ${isMdx ? '' : 'slide-pad'} overflow-hidden`}>
+          <div style={{ width: isMdx ? SLIDE_W : SLIDE_W - 160, height: isMdx ? SLIDE_H : undefined }}>
+            <ContentRenderer markdown={markdown} rootPath={rootPath} isMdx={isMdx} />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function RecentCard({ deck, onClick, onRemove }: { deck: RecentDeck; onClick: () => void; onRemove?: () => void }): JSX.Element {
   const previewLines = (deck.firstSlidePreview || '')
     .split('\n').filter((l) => l.trim()).slice(0, 4)
@@ -1375,14 +1413,14 @@ function RecentCard({ deck, onClick, onRemove }: { deck: RecentDeck; onClick: ()
       className="group text-left rounded-xl border border-gray-800 bg-gray-900 hover:border-gray-600
                  hover:bg-gray-800 transition-all overflow-hidden"
     >
-      <div className="h-28 bg-gray-900 px-3 pb-3 pt-7 border-b border-gray-800 overflow-hidden relative">
-        <span className="absolute top-2 right-2 text-[8px] px-1.5 py-0.5 rounded-full bg-gray-800 text-gray-400">
+      <div className="border-b border-gray-800 overflow-hidden relative">
+        <span className="absolute top-2 right-2 z-10 text-[8px] px-1.5 py-0.5 rounded-full bg-gray-800 text-gray-400">
           Slides
         </span>
         {onRemove && (
           <button
             onClick={(e) => { e.stopPropagation(); onRemove() }}
-            className="absolute top-2 left-2 w-5 h-5 rounded-full bg-gray-800/80 hover:bg-red-600 text-gray-500 hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
+            className="absolute top-2 left-2 z-10 w-5 h-5 rounded-full bg-gray-800/80 hover:bg-red-600 text-gray-500 hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
             title="Remove from recent"
           >
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -1390,31 +1428,12 @@ function RecentCard({ deck, onClick, onRemove }: { deck: RecentDeck; onClick: ()
             </svg>
           </button>
         )}
-        {previewLines.length > 0 ? (
-          <div className="space-y-1">
-            {previewLines.map((line, i) => {
-              const isH1 = line.startsWith('# ')
-              const isH2 = line.startsWith('## ')
-              const isBullet = !!line.match(/^[-*+] /)
-              const text = stripMarkdown(line)
-              return (
-                <div key={i} className={`truncate ${
-                  isH1 ? 'text-[11px] font-bold text-white' :
-                  isH2 ? 'text-[10px] font-semibold text-gray-300' :
-                  isBullet ? 'text-[8px] text-gray-500 pl-2' :
-                  'text-[8px] text-gray-500'
-                }`}>
-                  {isBullet && <span className="mr-1">•</span>}
-                  {text}
-                </div>
-              )
-            })}
-          </div>
-        ) : (
-          <div className="h-full flex items-center justify-center">
-            <span className="text-gray-300 text-2xl font-bold">{deck.title.charAt(0).toUpperCase()}</span>
-          </div>
-        )}
+        <MiniSlidePreview
+          markdown={deck.firstSlideContent || deck.firstSlidePreview || ''}
+          isMdx={deck.firstSlideIsMdx}
+          theme={deck.theme}
+          rootPath={deck.path}
+        />
       </div>
       <div className="p-3">
         <div className="text-sm text-gray-200 font-medium truncate group-hover:text-white">{deck.title}</div>

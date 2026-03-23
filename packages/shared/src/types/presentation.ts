@@ -51,6 +51,7 @@ export type SlideLayout =
 
 export interface SlideConfig {
   id: string
+  title?: string
   content: string
   code?: CodeBlockConfig
   video?: VideoConfig

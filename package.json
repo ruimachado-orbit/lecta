@@ -1,6 +1,6 @@
 {
   "name": "lecta",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Open-source technical presentation platform with executable code blocks",
   "main": "./out/main/index.js",
   "private": true,

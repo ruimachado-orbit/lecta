@@ -437,6 +437,8 @@ html[data-theme="light"] .presenter-slide-frame {
 }
 
 /* Light theme overrides for mermaid */
+[data-slide-theme="light"] .mermaid-diagram .node rect,
+[data-slide-theme="light"] .mermaid-diagram .node .basic,
 [data-slide-theme="minimal"] .mermaid-diagram .node rect,
 [data-slide-theme="minimal"] .mermaid-diagram .node .basic,
 [data-slide-theme="corporate"] .mermaid-diagram .node rect,
@@ -446,6 +448,8 @@ html[data-theme="light"] .presenter-slide-frame {
   fill: rgba(0,0,0,0.03) !important;
   stroke: rgba(0,0,0,0.15) !important;
 }
+[data-slide-theme="light"] .mermaid-diagram .nodeLabel,
+[data-slide-theme="light"] .mermaid-diagram .node text,
 [data-slide-theme="minimal"] .mermaid-diagram .nodeLabel,
 [data-slide-theme="minimal"] .mermaid-diagram .node text,
 [data-slide-theme="corporate"] .mermaid-diagram .nodeLabel,
@@ -455,11 +459,13 @@ html[data-theme="light"] .presenter-slide-frame {
   fill: #1e293b !important;
   color: #1e293b !important;
 }
+[data-slide-theme="light"] .mermaid-diagram .flowchart-link,
 [data-slide-theme="minimal"] .mermaid-diagram .flowchart-link,
 [data-slide-theme="corporate"] .mermaid-diagram .flowchart-link,
 [data-slide-theme="paper"] .mermaid-diagram .flowchart-link {
   stroke: rgba(0,0,0,0.15) !important;
 }
+[data-slide-theme="light"] .mermaid-diagram marker path,
 [data-slide-theme="minimal"] .mermaid-diagram marker path,
 [data-slide-theme="corporate"] .mermaid-diagram marker path,
 [data-slide-theme="paper"] .mermaid-diagram marker path {

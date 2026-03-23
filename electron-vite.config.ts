@@ -30,6 +30,12 @@ export default defineConfig({
       ]
     },
     server: {
+      allowedHosts: [
+        'localhost',
+        '127.0.0.1',
+        'deviant-portsmouth-fighter-petition.trycloudflare.com',
+        '*.trycloudflare.com'
+      ],
       watch: {
         // Ignore non-source files — content writes (slides, yaml, code, mdx)
         // trigger Vite full-page reloads. Glob patterns are unreliable with

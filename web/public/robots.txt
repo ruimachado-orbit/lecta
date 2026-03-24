@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+
+# LLM-friendly documentation
+# See https://llmstxt.org for more information
+Sitemap: https://lecta.orbitplatform.ai/llms.txt

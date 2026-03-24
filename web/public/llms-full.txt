@@ -1,32 +1,55 @@
 # Lecta
 
-> Open-source technical presentation platform with live code execution and multi-provider AI.
+> Open-source desktop application for creating technical presentations with live code execution and multi-provider AI.
 
-Lecta is a desktop application (Electron + React) that puts slides and executable code side by side. Write in Markdown, run real code in-app, generate entire presentations with AI, present with audience sync, and export to PDF or HTML.
+Lecta puts slides and executable code side by side in a single app. Write slides in Markdown or MDX (with full JSX/React component support), run real code in-app across 14 languages, generate entire presentations with AI from 8 providers, present with live audience sync, and export to PDF or HTML.
 
 For the most up-to-date version of this documentation and the full source code, visit the GitHub repository: https://github.com/ruimachado-orbit/lecta
 
-## Features
+## Slides & Editing
 
-### Slides & Editing
 - Split-pane layout — slides on the left, code editor on the right
-- Markdown & WYSIWYG — toggle between raw Markdown and a visual rich-text editor (Tiptap)
+- Markdown (.md) — standard GitHub-flavored Markdown with headings, lists, code blocks, tables, images, blockquotes, rendered with presentation-quality typography
+- MDX (.mdx) — full JSX/React component support for rich interactive slides with inline styles, CSS animations, and custom components
+- WYSIWYG editor — toggle between raw Markdown and a visual rich-text editor (Tiptap) for .md slides
+- Mermaid diagrams — code blocks with `mermaid` language are auto-rendered as interactive flow diagrams
 - 12 slide layouts — default, center, title, section, two-col, two-col-wide-left, two-col-wide-right, three-col, top-bottom, big-number, quote, blank
 - 8 themes — Dark, Light, Executive, Minimal, Corporate, Creative, Keynote Dark, Paper
+- Theme customization — override accent, background, and text colors, plus heading and body fonts per presentation
 - Slide transitions — left, right, top, bottom, none
-- Slide groups — organize slides into named groups with custom colors
+- Slide groups — organize slides into named groups with custom colors, collapse/expand
 - Incremental reveal — manual slide breaks (`----`) with click-to-advance steps
 - Skip slides — hide slides from presentation without deleting them
-- Drawing overlay — freehand pen, lines, arrows, rectangles, ellipses, text annotations with color and fill controls
+- Multi-select slides — shift/cmd-click to select multiple slides for bulk operations
+- Drag-and-drop reordering — rearrange slides and move them between groups
+- Drawing overlay — freehand pen, lines, arrows, rectangles, ellipses, text annotations with color, fill, and line width controls. Drawings persist per slide
+- Spotlight search — command palette for quick navigation across slides
+- Auto-save — background persistence with change detection
+- File watcher — live-reloads code and content when files change on disk
 
-### Code Execution
-- 5 execution engines — JavaScript (sandboxed iframe), Python (Pyodide/WASM), SQL (sql.js/WASM), native (any language via local toolchain), or display-only
+## MDX Slide Capabilities
+
+MDX slides (.mdx files) allow full JSX/React components directly in slide content:
+
+- JSX components — inline and block-level JSX elements (`<div>`, `<span>`, custom styled components)
+- Inline styles — CSS-in-JS via `style={{...}}` attributes
+- CSS animations — `<style>` blocks with keyframe animations rendered directly in slides
+- Custom layouts — CSS Grid, Flexbox, and nested layouts for pixel-perfect slides on the 1280x720 canvas
+- Graceful error handling — falls back to plain Markdown rendering if MDX compilation fails
+- Performance — three-layer caching (processor, compiled output, React components) with background prefetching of adjacent slides
+- Live editing — real-time MDX compilation in the code editor with debounced updates
+- Compilation pipeline — @mdx-js/mdx compiler with remark-gfm (GitHub-flavored Markdown), custom rehypeStyleToObject plugin, and recma-mdx-escape-missing-components for graceful fallback
+
+## Code Execution
+
+- 5 execution engines — JavaScript (sandboxed iframe via Sandpack), Python (Pyodide/WASM with pip package support), SQL (SQLite in WASM via sql.js), native (any language via local toolchain), or display-only
 - 14 languages — JavaScript, TypeScript, Python, SQL, HTML, CSS, JSON, Bash, Go, Rust, Java, C#, Ruby, PHP
-- Real file loading — code comes from actual files on disk, not inline snippets. Edit in VS Code, Lecta auto-reloads
+- Real file loading — code comes from actual files on disk, not inline snippets. Edit in VS Code or any editor, Lecta auto-reloads via file watcher
 - Streaming output — stdout/stderr displayed in real-time with duration tracking
-- Execution controls — run, cancel, timeout (30s default)
+- Execution controls — run, cancel, configurable timeout (30s default)
 
-### AI (7 Providers, 20+ Models)
+## AI (8 Providers, 20+ Models)
+
 - Anthropic — Claude Sonnet 4, Opus 4, Haiku 4
 - OpenAI — GPT-4o, GPT-4o Mini, o3, o3-mini, o4-mini
 - Google Gemini — Gemini 2.5 Pro, 2.5 Flash, 2.0 Flash
@@ -34,120 +57,132 @@ For the most up-to-date version of this documentation and the full source code, 
 - Meta Llama — Llama 4 Maverick, Scout, Llama 3.3 70B
 - xAI — Grok 3, Grok 3 Fast, Grok 3 Mini, Grok 3 Mini Fast
 - Perplexity — Sonar Pro, Sonar, Sonar Reasoning Pro, Sonar Reasoning
+- Ollama (Local) — any model (Llama, Mistral, Phi, Qwen, and more), no API key required
 
-API keys are configured per-provider in Settings with live validation, or per-deck via `.env` files.
+API keys are configured per-provider in Settings with live validation and connectivity testing, or per-deck via `.env` files. Keys load via a fallback chain: deck `.env` file, app-level settings, then process environment variables.
 
-#### AI Capabilities
-- Full presentation generation — describe a topic, get a complete deck with configurable slide count
-- Slide generation — generate individual or bulk slides from prompts
-- Speaker notes — auto-generate structured notes (opening, key points, code walkthrough, transition)
+### AI Capabilities
+
+- Full presentation generation — describe a topic, get a complete deck with configurable slide count (up to 50 slides)
+- Slide generation — generate individual or bulk slides from prompts, insert at start, after current slide, or at end
+- Speaker notes — auto-generate structured notes (opening, key points, code walkthrough, transition) with real-time streaming
 - Slide beautification — one-click McKinsey-style professional formatting across the whole deck
 - Slide improvement — refine slides with natural language instructions
-- Code generation — generate or modify code blocks from prompts
-- Chart generation — create SVG charts from descriptions
-- Inline text — generate text to insert at cursor position
-- Article generation — transform your presentation into a long-form article
-- Image generation — create and edit images via Google Gemini or OpenAI DALL-E
-- Chat agent — multi-turn conversational AI that can read, navigate, and edit your presentation with tool use (auto or ask-first mode)
+- Code generation — generate or modify code blocks from prompts in any supported language
+- Chart generation — create SVG charts from text descriptions
+- Inline text — generate text to insert at cursor position within a slide
+- Article generation — transform your entire presentation into a long-form article, copy to clipboard or save as file
+- Image generation — create images via Google Gemini or OpenAI DALL-E with custom aspect ratios (16:9, 1:1, 9:16)
+- Image editing — edit existing or generated images with AI instructions
+- Image library — browse, manage, and insert all AI-generated and uploaded images
+- Chat agent — multi-turn conversational AI that can read, navigate, and edit your presentation with tool use. Supports auto mode (applies changes immediately) and ask-first mode (requires confirmation before modifying slides). Multiple chat tabs with history
 
-### Presenter Mode & Audience Sync
-- Presenter window — speaker notes, timer, slide preview
-- Audience window — fullscreen presentation on a second display
+## Presenter Mode & Audience Sync
+
+- Presenter window — speaker notes, timer, current and next slide preview on a secondary display
+- Audience window — clean fullscreen presentation view for the audience
 - Live sync — slides, code changes, execution output, artifacts, and mouse pointer all synchronized in real-time
-- Remote control — WebSocket-based remote for controlling presentations
+- Remote control — start a WebSocket-based remote presentation server, generate a URL for remote control from any device
+
+## Export & Import
 
 ### Export
 - PDF — slide-by-slide export with print-quality rendering
 - HTML — self-contained single-file SPA with keyboard navigation and theme support
-- Article — AI-generated long-form document from your slides
+- .lecta archive — compressed portable file containing slides, code, and artifacts for sharing
+- Article — AI-generated long-form document from your slides, save as markdown or copy to clipboard
 
-### Attachments & Media
-- Artifacts — attach PDFs, Excel files, images, or any document to slides
-- Video embeds — URL-based video players per slide
-- Web apps — embedded iframes for live demos
+### Import
+- PowerPoint (.pptx) — layout detection (title, section, two-column, etc.), rich text formatting, images, tables as GFM markdown, speaker notes preserved
+- Jupyter Notebook (.ipynb) — full cell structure with markdown, code, and outputs. Kernel auto-detected (Python, JS, SQL, etc.). Interactive Jupyter-style view with cell execution, reorder, and kernel picker
+- Lecta File (.lecta) — portable archive containing slides, code, and artifacts. Open on any machine with Lecta
+- Slide import — import individual slides from other presentations into the current deck
+
+## Attachments & Media
+
+- Artifacts — attach PDFs, Excel files, documents, or any file to slides as downloadable attachments
+- Video embeds — URL-based video players per slide (YouTube, Vimeo, etc.)
+- Web apps — embedded iframes for live demos and interactive content
 - AI prompts — attach prompts with saved responses to slides
-- Image library — browse and manage AI-generated images
+- Image library — browse and manage all images (AI-generated and uploaded) with metadata tracking
 
-### Notebook Mode
+## Notebook Mode
+
+- Jupyter notebook support — import .ipynb files with full cell structure, code execution, and output rendering
 - Hierarchical notes — parent/child note organization with unlimited nesting
 - Note layouts — lines, blank, agenda, grid
 - Rich content — Markdown, code blocks, videos, web apps per note
+- Cell management — add, delete, reorder cells with support for markdown and code cell types
 - Archive — archive and restore notes
+- Note navigator — hierarchical outline with agenda view and note map
 
-### Library & Organization
-- Presentation library — folders with custom colors, tags with color coding
-- Slide library — save and reuse slide templates with metadata
-- Import — import slides from other `.lecta` files or PowerPoint (PPTX)
-- Recent decks — quick access to recently opened presentations
+## Library & Organization
 
-### Other
-- File watcher — live-reloads code and content when files change on disk
-- Auto-save — background persistence with change detection
-- Spotlight search — command palette for quick navigation
-- Dark/light mode — system-wide theme toggle
-- Keyboard driven — arrow keys to navigate, `Cmd+Enter` to run, `F5` to present
+- Presentation library — central library of all presentations and notebooks with first-slide previews
+- Folders — organize presentations into nested folder hierarchies with custom colors
+- Tags — tag presentations with custom color-coded labels
+- Slide library — save individual slides as reusable templates with metadata and code content
+- Recent decks — quick access to the 20 most recently opened presentations
+- Auto-scan — automatically discovers new presentations in ~/Documents/Lecta
 
-## Install
+## Use with Claude (MCP Server)
 
-### macOS (one-liner)
+Lecta ships with an MCP (Model Context Protocol) server that lets you create and manage presentations directly from Claude Desktop or Claude Code. The MCP server provides 9 tools for full programmatic control over presentations — talk naturally and Claude handles the rest.
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/ruimachado-orbit/lecta/main/install.sh | bash
-```
+What you can say:
+- "Create a 10-slide presentation about microservices"
+- "Add a slide about error handling with a Python code example"
+- "Change the theme to executive"
+- "Add an image to slide 3"
+- "Customize the theme colors to match our brand"
 
-This downloads the latest release, installs it to `/Applications`, and handles macOS Gatekeeper automatically.
+### Setup
 
-### From Source
+1. Open Settings in Lecta and turn on MCP Server under Claude Integration.
+2. Click "Add to Claude Desktop" — this automatically writes the server config to Claude's configuration file.
+3. Restart Claude Desktop — you'll see "lecta" in the MCP tools list.
 
-Prerequisites: Node.js 20+, pnpm 9+
+Changes from Claude appear live in Lecta thanks to the file watcher. No manual refresh needed.
 
-```bash
-git clone git@github.com:ruimachado-orbit/lecta.git
-cd lecta
-make dev
-```
+### Available MCP Tools
 
-`make dev` installs dependencies, creates a `.env` from the template, and launches the app.
+| Tool | What it does |
+|------|-------------|
+| `create_presentation` | Create a new presentation with title, theme, author, slide count (up to 50), and format (md or mdx). Creates the full directory structure. Defaults to MDX format. |
+| `add_slide` | Add a slide with markdown/MDX content, layout, code block (with auto-detected execution engine), and speaker notes. Auto-generates slide ID from heading. |
+| `edit_slide` | Update an existing slide's content, layout, code, notes, transition, or format. Can convert slides between md and mdx formats. |
+| `delete_slide` | Remove a slide by index. Prevents deletion of the last remaining slide. |
+| `list_slides` | Get all slides with metadata (id, title, format, layout, transition, artifact count). Optionally includes full content, code, and notes. |
+| `set_theme` | Switch between the 8 built-in themes. |
+| `add_artifact` | Attach a file (PDF, document, spreadsheet) to a slide as a downloadable artifact. |
+| `add_image` | Add a local image to the presentation. Optionally embed it in a specific slide with alt text and absolute positioning. |
+| `customize_theme` | Override theme colors (accent, background, text) and fonts (heading, body) for the current presentation. |
 
-### Configure AI Providers (Optional)
+The MCP server uses stdio transport, is spawned as a child process, and presentations created via MCP are automatically registered in Lecta's recent decks.
 
-Open Settings in the app to add API keys for any of the 7 supported providers. Keys are validated against the provider's API in real-time.
+## Presentation Format
 
-Alternatively, add keys to a `.env` file at the project root or inside your presentation folder:
-
-```bash
-ANTHROPIC_API_KEY=sk-ant-...
-OPENAI_API_KEY=sk-...
-GEMINI_API_KEY=...
-MISTRAL_API_KEY=...
-```
-
-Keys are loaded using a fallback chain:
-1. Deck's `.env` file (per-presentation)
-2. App-level settings (`~/.lecta/settings.json`)
-3. Process environment variables
-
-## Creating a Presentation
-
-A presentation is a folder with a `lecta.yaml` manifest, markdown slides, code files, and optional artifacts:
+A presentation is a folder with a `lecta.yaml` manifest:
 
 ```
 my-talk/
-  lecta.yaml              # Deck manifest
+  lecta.yaml              # Deck manifest (title, theme, slide config)
   slides/
-    01-intro.md            # Markdown slides
-    02-demo.md
+    01-intro.mdx           # MDX slides (JSX/React components)
+    02-demo.md             # Markdown slides (standard GFM)
   code/
     demo.py                # Real code files
     setup.js
   artifacts/
     diagram.pdf            # Attached documents
+  images/
+    chart.png              # Embedded images
   notes/
-    01-intro.notes.md      # Speaker notes (auto-generated or hand-written)
+    01-intro.notes.md      # Speaker notes
   .env                     # (Optional) API keys for this deck
 ```
 
-### `lecta.yaml` Example
+### lecta.yaml Example
 
 ```yaml
 title: "My Technical Talk"
@@ -156,7 +191,7 @@ theme: "dark"
 
 slides:
   - id: intro
-    content: slides/01-intro.md
+    content: slides/01-intro.mdx
     layout: title
     transition: left
 
@@ -171,22 +206,6 @@ slides:
     artifacts:
       - path: artifacts/diagram.pdf
         label: "Architecture Diagram"
-
-  - id: js-demo
-    content: slides/03-js.md
-    code:
-      file: code/setup.js
-      language: javascript
-      execution: sandpack
-
-  - id: native-demo
-    content: slides/04-native.md
-    code:
-      file: code/server.js
-      language: javascript
-      execution: native
-      command: node
-      args: ["code/server.js"]
 ```
 
 ### Execution Engines
@@ -196,7 +215,7 @@ slides:
 | `sandpack` | JavaScript, TypeScript | Sandboxed iframe, safe in-browser execution |
 | `pyodide` | Python | CPython compiled to WebAssembly, supports pip packages |
 | `sql` | SQL | SQLite in WebAssembly via sql.js, supports seed data |
-| `native` | Any | Runs via your local toolchain (`child_process.spawn`) |
+| `native` | Any | Runs via your local toolchain (child_process.spawn) |
 | `none` | — | Display code without execution |
 
 ### Slide Layouts
@@ -216,12 +235,6 @@ slides:
 | `quote` | Blockquote-style centered layout |
 | `blank` | No padding, full canvas |
 
-### Slide Markdown
-
-Slides are standard GitHub-flavored Markdown. Use headings, lists, code blocks, tables, images, blockquotes — all rendered with presentation-quality typography.
-
-Use `----` to create incremental reveal steps within a single slide.
-
 ## Keyboard Shortcuts
 
 | Shortcut | Action |
@@ -231,97 +244,26 @@ Use `----` to create incremental reveal steps within a single slide.
 | `F5` | Enter presenter mode |
 | `Esc` | Exit presenter mode |
 | `N` | Toggle speaker notes panel |
+| `Shift+N` | Add new slide |
+| `Cmd+/` | Toggle chat agent |
 
-## Use with Claude (MCP Server)
+## Install
 
-Lecta ships with an MCP server that lets you create and manage presentations directly from Claude Desktop or Claude Code. Just talk naturally — Claude handles the rest.
-
-What you can say:
-- "Create a 10-slide presentation about microservices"
-- "Add a slide about error handling with a Python code example"
-- "Change the theme to executive"
-- "List all slides in my presentation"
-
-### Setup
-
-1. Open Settings in Lecta and turn on MCP Server under Claude Integration.
-2. Click "Add to Claude Desktop" — this automatically configures Claude to use Lecta.
-3. Restart Claude Desktop — you'll see "lecta" in the MCP tools list.
-
-Changes from Claude appear live in Lecta thanks to the file watcher.
-
-If running from source, build the MCP server first: `cd packages/mcp-server && npm install && npm run build`
-
-### Available MCP Tools
-
-| Tool | What it does |
-|------|-------------|
-| `create_presentation` | Create a new deck with title, theme, and starter slides |
-| `add_slide` | Add a slide with markdown, code, layout, and speaker notes |
-| `edit_slide` | Update content, layout, code, notes, or transitions |
-| `delete_slide` | Remove a slide |
-| `list_slides` | See all slides and their metadata |
-| `set_theme` | Switch between the 8 built-in themes |
-| `add_artifact` | Attach files (PDFs, images, docs) to a slide |
-
-## Project Structure
-
-```
-lecta/
-  packages/shared/src/        # Shared types, YAML parser, constants
-  packages/mcp-server/        # Claude MCP server
-  src/main/                   # Electron main process (IPC, services)
-    ipc/                      # IPC handlers (file system, settings, library)
-    services/                 # AI, execution, image gen, file watching
-  src/preload/                # Context bridge (type-safe renderer API)
-  src/renderer/src/           # React UI
-    components/               # UI components (slides, AI, layout, notebook)
-    stores/                   # Zustand state management
-    hooks/                    # Custom React hooks
-  web/                        # Next.js landing page and docs
-  example-decks/              # Example presentations to get started
-```
-
-### Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Desktop shell | Electron |
-| Build tool | electron-vite (Vite) |
-| UI | React 19 + TypeScript |
-| Code editor | Monaco Editor |
-| Rich text editor | Tiptap |
-| Styling | Tailwind CSS 4 |
-| State | Zustand |
-| AI | Anthropic, OpenAI, Google GenAI, Mistral, Meta, xAI, Perplexity |
-| Slide rendering | react-markdown + remark-gfm |
-| Image generation | Google Gemini ImageFX, OpenAI DALL-E |
-
-## Development
+### macOS (one-liner)
 
 ```bash
-make install        # Install dependencies
-make dev            # Start in dev mode (hot reload)
-make build          # Production build
-make package-mac    # macOS DMG
-make package-win    # Windows installer
-make package-linux  # Linux AppImage
-make lint           # Lint and format
-make format         # Format code
-make typecheck      # Type check
-make test           # Run tests
-make test-watch     # Run tests in watch mode
-make clean          # Clean build artifacts
+curl -fsSL https://raw.githubusercontent.com/ruimachado-orbit/lecta/main/install.sh | bash
 ```
 
-## Security
+### From Source
 
-- No secrets in the repo — `.env` files are gitignored. Only `.env.example` is committed
-- API key isolation — API keys never leave the Electron main process. The renderer communicates via IPC
-- Sandboxed code execution — JavaScript runs in a sandboxed iframe. Python and SQL run in WebAssembly. Only `native` execution runs with local permissions (opt-in)
-- No `shell: true` — native execution uses `child_process.spawn` without shell mode to prevent injection
-- Context isolation — Electron's `contextIsolation` is enabled; `nodeIntegration` is disabled
-- CSP headers — Content Security Policy restricts script sources in the renderer
+Prerequisites: Node.js 20+, pnpm 9+
+
+```bash
+git clone git@github.com:ruimachado-orbit/lecta.git
+cd lecta
+make dev
+```
 
 ## Links
 

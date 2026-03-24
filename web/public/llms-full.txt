@@ -2,6 +2,8 @@
 
 > Open-source desktop application for creating technical presentations with live code execution and multi-provider AI.
 
+**Note:** Lecta is still in Beta — some features may malfunction. If you encounter issues, please report them at https://github.com/ruimachado-orbit/lecta/issues
+
 Lecta puts slides and executable code side by side in a single app. Write slides in Markdown or MDX (with full JSX/React component support), run real code in-app across 14 languages, generate entire presentations with AI from 8 providers, present with live audience sync, and export to PDF or HTML.
 
 For the most up-to-date version of this documentation and the full source code, visit the GitHub repository: https://github.com/ruimachado-orbit/lecta

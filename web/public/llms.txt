@@ -1,0 +1,25 @@
+# Lecta
+
+> Open-source technical presentation platform with live code execution and multi-provider AI.
+
+Lecta is a desktop application (Electron + React) that puts slides and executable code side by side. Write in Markdown, run real code in-app (JavaScript, Python, SQL, and more), generate presentations with AI, present with audience sync, and export to PDF or HTML. For the full source code, project structure, and detailed documentation, visit the [GitHub repository](https://github.com/ruimachado-orbit/lecta).
+
+## Docs
+
+- [README](https://github.com/ruimachado-orbit/lecta/blob/main/README.md): Complete feature list, installation guide, presentation format, execution engines, slide layouts, keyboard shortcuts, and development setup
+- [Contributing Guide](https://github.com/ruimachado-orbit/lecta/blob/main/.github/CONTRIBUTING.md): How to contribute to the project
+- [Security Policy](https://github.com/ruimachado-orbit/lecta/blob/main/.github/SECURITY.md): Security model and vulnerability reporting
+- [MCP Server](https://github.com/ruimachado-orbit/lecta/tree/main/packages/mcp-server): Claude Desktop and Claude Code integration via Model Context Protocol
+- [Example Decks](https://github.com/ruimachado-orbit/lecta/tree/main/example-decks): Sample presentations demonstrating features and formats
+
+## Website
+
+- [Homepage](https://lecta.orbitplatform.ai/): Landing page with feature overview and download links
+- [Documentation](https://lecta.orbitplatform.ai/docs/): Getting started, themes, slide layouts, AI providers, and Claude integration
+
+## Optional
+
+- [License](https://github.com/ruimachado-orbit/lecta/blob/main/LICENSE): MIT license
+- [Releases](https://github.com/ruimachado-orbit/lecta/releases): Download macOS DMGs and release notes
+- [Project Structure](https://github.com/ruimachado-orbit/lecta/tree/main/src): Source code for the Electron app (main process, renderer, preload)
+- [Shared Package](https://github.com/ruimachado-orbit/lecta/tree/main/packages/shared): Shared types, YAML parser, and constants

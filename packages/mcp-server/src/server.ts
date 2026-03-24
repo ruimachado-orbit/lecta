@@ -9,15 +9,87 @@ import {
   setTheme,
   addArtifact,
   addImage,
+  customizeTheme,
   getDefaultPresentationsPath,
 } from './lib/presentation-io.js'
 import type { SlideLayout, SlideTransition, SupportedLanguage } from './lib/presentation-io.js'
+
+// ── MCP Prompt: The Lecta Presentation Skill ──
+
+const PRESENTATION_SKILL = `You are an expert presentation designer working with Lecta, a technical presentation platform.
+
+## Slide Format — MDX (default)
+Always use format "mdx" for visually rich slides. MDX slides are pure JSX/React:
+- Every slide MUST be a single root <div> covering the full 1280×720 canvas
+- Root div: <div style={{width:'100%',height:'100%',background:'#0a0e1a',padding:'60px 80px',position:'relative',overflow:'hidden'}}>
+- Titles are styled <div>s, NOT markdown # headings
+- Bullets are styled <div>s, NOT markdown "- " lines
+- Bold uses <span style={{fontWeight:700}}>, NOT **bold**
+- NO markdown syntax anywhere in MDX slides
+- Use flexbox, grid, gradients, and border-radius for polished layouts
+- Images: <img src="images/photo.png" style={{maxWidth:'100%',borderRadius:'8px'}} />
+- If not confident with JSX, fall back to format "md" (plain markdown, always supported)
+
+## The 7×7 Rule
+- ONE heading per slide (max 7 words)
+- Max 7 bullet points per slide
+- Each bullet: max 7 words
+- NO paragraphs — use speaker notes for detail
+
+## Deck Structure
+1. **Title slide** (layout: title) — topic + speaker name
+2. **Agenda/Overview** (layout: default) — what you'll cover
+3. **Content slides** — 1 idea per slide, mix layouts
+4. **Summary/Takeaways** (layout: default or big-number) — key points
+5. **Closing** (layout: center or title) — call to action
+
+## Layout Selection Guide
+- **title** — opening slide: big title + subtitle
+- **section** — section dividers between major topics
+- **default** — standard bullet-point content
+- **two-col** — comparisons, pros/cons, before/after
+- **big-number** — key statistics, metrics, KPIs
+- **quote** — testimonials, memorable statements
+- **center** — single key message or announcement
+- **three-col** — three categories side by side
+- **top-bottom** — diagram on top, explanation below
+- **blank** — full-canvas for images or custom layouts
+
+## Theme Selection
+- **dark** / **keynote-dark** — tech talks, developer conferences
+- **executive** — board meetings, leadership reviews
+- **corporate** — client presentations, enterprise
+- **minimal** — academic, clean, content-focused
+- **creative** — startups, creative pitches
+- **paper** — editorial, warm, storytelling
+- **light** — general purpose, safe default
+
+## Workflow
+1. Create the presentation with create_presentation (pick a good theme, format: "mdx")
+2. Edit slide 0 (the title slide) with proper JSX content
+3. Add remaining slides one by one with add_slide (format: "mdx")
+4. Use add_image to embed local images into slides
+5. Use customize_theme to override colors/fonts if needed
+6. Use list_slides to review the deck
+7. Do NOT export — the user views it in the Lecta app`
 
 export function createLectaServer(): McpServer {
   const server = new McpServer({
     name: 'lecta',
     version: '0.1.0',
   })
+
+  // ── MCP Prompt ──
+  server.prompt(
+    'create-deck',
+    'Expert guide for creating professional Lecta presentations with proper layouts, structure, and styling',
+    () => ({
+      messages: [{
+        role: 'user' as const,
+        content: { type: 'text' as const, text: PRESENTATION_SKILL },
+      }],
+    })
+  )
 
   // ── Slide content guidelines (shared across tool descriptions) ──
   const SLIDE_CONTENT_GUIDE = `
@@ -322,6 +394,36 @@ RIGHT (pure JSX — full control over layout and styling, title is a styled div)
               ? `Image added and inserted into slide. Reference: ${result.imagePath}`
               : `Image copied to ${result.imagePath}. For MDX slides use <img src="${result.imagePath}" style={{maxWidth:'100%',borderRadius:'8px'}} /> in slide content. For MD slides use ![alt](${result.imagePath}).`,
           }, null, 2),
+        }],
+      }
+    }
+  )
+
+  // ── customize_theme ──
+  server.tool(
+    'customize_theme',
+    'Customize the presentation theme colors and fonts. Overrides are saved in lecta.yaml and applied on top of the base theme.',
+    {
+      presentation_path: z.string().describe('Root path of the presentation'),
+      accent_color: z.string().optional().describe('Accent color hex (e.g., "#ff6b35")'),
+      bg_color: z.string().optional().describe('Background color hex'),
+      text_color: z.string().optional().describe('Text color hex'),
+      heading_font: z.string().optional().describe('Heading font family (e.g., "Georgia", "Inter")'),
+      body_font: z.string().optional().describe('Body font family'),
+    },
+    async (params) => {
+      const result = await customizeTheme({
+        rootPath: params.presentation_path,
+        accentColor: params.accent_color,
+        bgColor: params.bg_color,
+        textColor: params.text_color,
+        headingFont: params.heading_font,
+        bodyFont: params.body_font,
+      })
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify(result, null, 2),
         }],
       }
     }

@@ -245,6 +245,9 @@ export function serializePresentationYaml(presentation: Presentation): string {
       return group
     })
   }
+  if ((presentation as any).customStyles) {
+    toSerialize.customStyles = (presentation as any).customStyles
+  }
   return stringifyYaml(toSerialize, { lineWidth: 120 })
 }
 
@@ -738,7 +741,34 @@ export async function addImage(opts: {
   return { imagePath, inserted }
 }
 
-// Re-export for convenience
+// ── Theme Customization ──
+
+export async function customizeTheme(opts: {
+  rootPath: string
+  accentColor?: string
+  bgColor?: string
+  textColor?: string
+  headingFont?: string
+  bodyFont?: string
+}): Promise<{ success: boolean; customStyles: Record<string, string> }> {
+  const config = await loadPresentationConfig(opts.rootPath)
+
+  const customStyles: Record<string, string> = {}
+  if (opts.accentColor) customStyles.accentColor = opts.accentColor
+  if (opts.bgColor) customStyles.bgColor = opts.bgColor
+  if (opts.textColor) customStyles.textColor = opts.textColor
+  if (opts.headingFont) customStyles.headingFont = opts.headingFont
+  if (opts.bodyFont) customStyles.bodyFont = opts.bodyFont
+
+  const existing = (config as any).customStyles || {}
+  const merged = { ...existing, ...customStyles }
+
+  ;(config as any).customStyles = merged
+  await savePresentationYaml(config)
+
+  return { success: true, customStyles: merged }
+}
+
 // ── Lecta App Integration ──
 
 /**

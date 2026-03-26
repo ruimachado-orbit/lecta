@@ -109,14 +109,14 @@ install_linux_deb() {
   curl -L --progress-bar -o "$TMP_DEB" "$DEB_URL"
 
   echo "Installing (requires sudo)..."
-  sudo apt install -y "$TMP_DEB"
+  sudo apt-get install -y "$TMP_DEB"
 
   rm -f "$TMP_DEB"
 
   echo ""
   echo "Lecta v${VERSION} installed successfully!"
   echo "Run 'lecta' from your terminal or find Lecta in your application launcher."
-  echo "To uninstall: sudo apt remove lecta"
+  echo "To uninstall: sudo apt-get remove lecta"
 }
 
 install_linux_appimage() {
@@ -124,11 +124,16 @@ install_linux_appimage() {
   if ! ldconfig -p 2>/dev/null | grep -q libfuse.so.2; then
     echo "AppImage requires libfuse2, which is not installed."
     echo ""
-    read -rp "Install it now? [Y/n] " answer
-    case "${answer:-Y}" in
+    if [ -t 0 ]; then
+      read -rp "Install it now? [Y/n] " answer
+    else
+      echo "Non-interactive mode detected, attempting to install libfuse2..."
+      answer="Y"
+    fi
+    case "$answer" in
       [Yy]*|"")
         if command -v apt &>/dev/null; then
-          sudo apt install -y libfuse2
+          sudo apt-get install -y libfuse2
         else
           echo "Please install libfuse2 manually and re-run this script."
           echo ""

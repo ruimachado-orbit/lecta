@@ -53,7 +53,7 @@ export default function InstallSteps({ variant = 'dark' }: Props) {
   }
 
   const autoDescription = platform === 'linux'
-    ? 'Run this in your terminal — it downloads the .deb package and installs via apt:'
+    ? 'Run this in your terminal — it downloads the .deb package and installs via apt-get:'
     : 'Run this in Terminal — it downloads, installs, and handles macOS Gatekeeper:'
 
   return (

@@ -99,17 +99,15 @@ release: build
 	@gh release create "v$(VERSION)" \
 		--repo $(REPO) \
 		--title "v$(VERSION)" \
-		--generate-notes \
+		--generate-notes 2>/dev/null || true
+	@for f in \
 		release/Lecta-$(VERSION)-arm64.dmg \
 		release/Lecta-$(VERSION)-x64.dmg \
 		release/Lecta-$(VERSION)-x86_64.AppImage \
-		release/Lecta-$(VERSION)-amd64.deb 2>/dev/null \
-	|| gh release upload "v$(VERSION)" \
-		--repo $(REPO) --clobber \
-		release/Lecta-$(VERSION)-arm64.dmg \
-		release/Lecta-$(VERSION)-x64.dmg \
-		release/Lecta-$(VERSION)-x86_64.AppImage \
-		release/Lecta-$(VERSION)-amd64.deb
+		release/Lecta-$(VERSION)-amd64.deb; do \
+		[ -f "$$f" ] && gh release upload "v$(VERSION)" --repo $(REPO) --clobber "$$f" \
+			|| echo "⏭  Skipping $$f (not found)"; \
+	done
 	@echo "✅ Released v$(VERSION) → https://github.com/$(REPO)/releases/tag/v$(VERSION)"
 
 # ── Testing ──────────────────────────────────────────────

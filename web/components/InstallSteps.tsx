@@ -25,7 +25,7 @@ const DISTROS = [
     downloadLabel: 'Download .deb',
     downloadUrl: getDebUrl(),
     instruction: 'Install the .deb package with dependencies:',
-    command: 'sudo apt install ./Lecta-*.deb',
+    command: 'sudo apt-get install ./Lecta-*.deb',
   },
   {
     id: 'appimage',

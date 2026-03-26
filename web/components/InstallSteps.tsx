@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import DownloadButton from './DownloadButton'
+import { getDmgUrl, getDebUrl, getAppImageUrl } from '@/lib/config'
 import { usePlatform } from '@/lib/usePlatform'
 
 interface Props {
@@ -9,23 +9,52 @@ interface Props {
 }
 
 const CURL_CMD = 'curl -fsSL https://raw.githubusercontent.com/ruimachado-orbit/lecta/main/install.sh | bash'
-const XATTR_CMD = 'xattr -cr /Applications/Lecta.app'
-const DPKG_CMD = 'sudo dpkg -i Lecta-*.deb'
+
+const DISTROS = [
+  {
+    id: 'macos',
+    label: 'macOS',
+    downloadLabel: 'Download for macOS',
+    downloadUrl: getDmgUrl('arm64'),
+    instruction: 'After dragging Lecta to Applications, clear the quarantine flag:',
+    command: 'xattr -cr /Applications/Lecta.app',
+  },
+  {
+    id: 'deb',
+    label: 'Linux (.deb)',
+    downloadLabel: 'Download .deb',
+    downloadUrl: getDebUrl(),
+    instruction: 'Install the .deb package with dependencies:',
+    command: 'sudo apt install ./Lecta-*.deb',
+  },
+  {
+    id: 'appimage',
+    label: 'Linux (AppImage)',
+    downloadLabel: 'Download AppImage',
+    downloadUrl: getAppImageUrl(),
+    instruction: 'Make it executable and run:',
+    command: 'chmod +x Lecta-*.AppImage && ./Lecta-*.AppImage',
+  },
+] as const
 
 export default function InstallSteps({ variant = 'dark' }: Props) {
   const [tab, setTab] = useState<'auto' | 'manual'>('auto')
   const platform = usePlatform()
   const muted = variant === 'cream' ? 'installMutedCream' : 'installMutedDark'
 
+  const defaultOpen = platform === 'linux' ? 'deb' : 'macos'
+  const [expanded, setExpanded] = useState<string | null>(null)
+
+  // Set default expanded section once platform is detected
+  const activeExpanded = expanded ?? defaultOpen
+
+  const toggle = (id: string) => {
+    setExpanded(activeExpanded === id ? '' : id)
+  }
+
   const autoDescription = platform === 'linux'
-    ? 'Run this in your terminal — it downloads the .deb package and installs via dpkg:'
+    ? 'Run this in your terminal — it downloads the .deb package and installs via apt:'
     : 'Run this in Terminal — it downloads, installs, and handles macOS Gatekeeper:'
-
-  const manualPostStep = platform === 'linux'
-    ? 'After downloading, install the .deb package:'
-    : 'After dragging Lecta to Applications, run this to clear the macOS quarantine flag:'
-
-  const manualCmd = platform === 'linux' ? DPKG_CMD : XATTR_CMD
 
   return (
     <div className="installSteps">
@@ -51,9 +80,27 @@ export default function InstallSteps({ variant = 'dark' }: Props) {
         </div>
       ) : (
         <div className="installPanel">
-          <DownloadButton variant={variant} />
-          <p className={muted} style={{ marginTop: '1.25rem' }}>{manualPostStep}</p>
-          <CopyBlock text={manualCmd} />
+          {DISTROS.map((d) => (
+            <div key={d.id} className="distroSection">
+              <button
+                className={`distroHeader ${activeExpanded === d.id ? 'distroHeaderActive' : ''}`}
+                onClick={() => toggle(d.id)}
+              >
+                <span>{d.label}</span>
+                <ChevronIcon open={activeExpanded === d.id} />
+              </button>
+              {activeExpanded === d.id && (
+                <div className="distroBody">
+                  <a className={variant === 'cream' ? 'btnCream' : 'btnDark'} href={d.downloadUrl} download>
+                    <DownloadIcon />
+                    {d.downloadLabel}
+                  </a>
+                  <p className={muted} style={{ marginTop: '1rem' }}>{d.instruction}</p>
+                  <CopyBlock text={d.command} />
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -85,5 +132,30 @@ function CopyBlock({ text }: { text: string }) {
         )}
       </button>
     </div>
+  )
+}
+
+function DownloadIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+    </svg>
+  )
+}
+
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden="true"
+      style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+    </svg>
   )
 }

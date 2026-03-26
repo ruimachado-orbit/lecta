@@ -95,6 +95,16 @@ curl -fsSL https://raw.githubusercontent.com/ruimachado-orbit/lecta/main/install
 
 This downloads the latest release, installs it to `/Applications`, and handles macOS Gatekeeper automatically.
 
+### Linux (one-liner)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ruimachado-orbit/lecta/main/install.sh | bash
+```
+
+On Debian/Ubuntu, this downloads and installs the `.deb` package via `apt`. On other distros, it falls back to an AppImage installed to `~/.local/bin`.
+
+Both `.deb` and `.AppImage` are available on the [releases page](https://github.com/ruimachado-orbit/lecta/releases).
+
 ### From Source
 
 Prerequisites: [Node.js](https://nodejs.org/) 20+, [pnpm](https://pnpm.io/) 9+
@@ -308,7 +318,7 @@ make build
 # Package as distributable
 make package-mac    # macOS DMG
 make package-win    # Windows installer
-make package-linux  # Linux AppImage
+make package-linux  # Linux .deb + AppImage
 
 # Lint and format
 make lint
@@ -329,10 +339,10 @@ make clean
 
 ## Releasing
 
-Releases are published to [GitHub Releases](https://github.com/ruimachado-orbit/lecta/releases) with macOS DMGs attached.
+Releases are published to [GitHub Releases](https://github.com/ruimachado-orbit/lecta/releases) with macOS DMGs and Linux packages (.deb + AppImage) attached.
 
 ```bash
-# Release current version (build + package + tag + upload DMGs)
+# Release current version (build + package + tag + upload DMGs + Linux packages)
 make release
 
 # Bump version and release (picks one)
@@ -344,8 +354,8 @@ make bump-major     # 0.1.0 → 1.0.0
 Each bump command automatically:
 1. Updates the version in `package.json` and `web/lib/config.ts`
 2. Commits and pushes the version change
-3. Builds the app and packages macOS DMGs (arm64 + x64)
-4. Creates a git tag and GitHub release with the DMGs attached
+3. Builds the app and packages macOS DMGs (arm64 + x64) and Linux packages (.deb + AppImage, x64)
+4. Creates a git tag and GitHub release with all artifacts attached
 
 > **Note:** The app is not yet code-signed with an Apple Developer certificate. The install script (`install.sh`) handles macOS Gatekeeper automatically. If installing manually from the DMG, run:
 > ```bash

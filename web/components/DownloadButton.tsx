@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getDmgUrl, getDebUrl, LATEST_RELEASE_URL, VERSION } from '@/lib/config'
+import { getDmgUrl, getDebUrl, getAppImageUrl, LATEST_RELEASE_URL, VERSION } from '@/lib/config'
 import { usePlatform, detectPlatformSync } from '@/lib/usePlatform'
 
 type Arch = 'arm64' | 'x64' | 'unknown'
@@ -53,15 +53,17 @@ export default function DownloadButton({ variant = 'dark', label, hideNote = fal
     return <button className={cls} disabled><DownloadIcon />{label ?? 'Download'}</button>
   }
 
-  // Linux — link to .deb
+  // Linux — .deb primary, AppImage secondary
   if (platform === 'linux') {
-    const href = getDebUrl()
     const note = `v${VERSION} · Linux x64 · Free · by orbit`
     return (
       <>
-        <a className={cls} href={href} download>
+        <a className={cls} href={getDebUrl()} download>
           <DownloadIcon />
-          {label ?? 'Download for Linux'}
+          {label ?? 'Download .deb'}
+        </a>
+        <a className="btnGhost" href={getAppImageUrl()} download style={{ color: '#fff', marginLeft: '0.75rem' }}>
+          AppImage &darr;
         </a>
         {!hideNote && (
           <span className={variant === 'cream' ? 'downloadNote' : 'downloadNoteHero'}>

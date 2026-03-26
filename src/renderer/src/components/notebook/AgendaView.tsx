@@ -17,15 +17,33 @@ const HOURS = Array.from({ length: 16 }, (_, i) => i + 6) // 06:00 – 21:00
 
 // ── Markdown ↔ Entries ─────────────────────────────────────────────
 
-function parseEntries(md: string): { date: string; entries: AgendaEntry[] }[] {
+interface ParsedAgenda {
+  days: { date: string; entries: AgendaEntry[] }[]
+  hiddenNoteIds: Set<string>
+}
+
+function parseAgendaMd(md: string): ParsedAgenda {
   const days: { date: string; entries: AgendaEntry[] }[] = []
+  const hiddenNoteIds = new Set<string>()
   let current: { date: string; entries: AgendaEntry[] } | null = null
+  let inHidden = false
 
   for (const line of md.split('\n')) {
+    if (line.match(/^##\s+hidden\s*$/i)) {
+      inHidden = true
+      current = null
+      continue
+    }
     const dateMatch = line.match(/^##\s+(\d{4}-\d{2}-\d{2})/)
     if (dateMatch) {
+      inHidden = false
       current = { date: dateMatch[1], entries: [] }
       days.push(current)
+      continue
+    }
+    if (inHidden) {
+      const id = line.replace(/^-\s*/, '').trim()
+      if (id) hiddenNoteIds.add(id)
       continue
     }
     const entryMatch = line.match(/^- \[([ x])\]\s*(?:(\d{1,2}:\d{2})\s+)?(.+)/)
@@ -44,12 +62,12 @@ function parseEntries(md: string): { date: string; entries: AgendaEntry[] }[] {
       current.entries.push({ time, title: parts[0].trim(), detail: parts.slice(1).join(' | ').trim(), done, noteId })
     }
   }
-  return days
+  return { days, hiddenNoteIds }
 }
 
-function serializeAll(days: { date: string; entries: AgendaEntry[] }[]): string {
+function serializeAll(days: { date: string; entries: AgendaEntry[] }[], hiddenNoteIds?: Set<string>): string {
   const sorted = [...days].sort((a, b) => a.date.localeCompare(b.date))
-  return sorted.map((d) => {
+  let md = sorted.map((d) => {
     const lines = [`## ${d.date}`, '']
     for (const e of d.entries) {
       const check = e.done ? 'x' : ' '
@@ -61,6 +79,15 @@ function serializeAll(days: { date: string; entries: AgendaEntry[] }[]): string 
     lines.push('')
     return lines.join('\n')
   }).join('\n')
+
+  if (hiddenNoteIds && hiddenNoteIds.size > 0) {
+    md += '\n## hidden\n\n'
+    for (const id of hiddenNoteIds) {
+      md += `- ${id}\n`
+    }
+  }
+
+  return md
 }
 
 /**
@@ -78,7 +105,7 @@ export async function appendAgendaEntry(
   } catch {
     // File doesn't exist yet
   }
-  const days = parseEntries(md)
+  const { days, hiddenNoteIds } = parseAgendaMd(md)
   const today = new Date().toISOString().slice(0, 10)
   let todayDay = days.find((d) => d.date === today)
   if (!todayDay) {
@@ -93,7 +120,7 @@ export async function appendAgendaEntry(
     noteId: entry.noteId
   })
   todayDay.entries.sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'))
-  await window.electronAPI.writeFile(agendaPath, serializeAll(days))
+  await window.electronAPI.writeFile(agendaPath, serializeAll(days, hiddenNoteIds))
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -200,16 +227,22 @@ export function AgendaView(): JSX.Element {
     return map
   }, [pages])
 
-  const manualDays = useMemo(() => parseEntries(agendaMd), [agendaMd])
+  const { days: manualDays, hiddenNoteIds } = useMemo(() => parseAgendaMd(agendaMd), [agendaMd])
 
-  // Merge manual agenda entries with note-derived entries
+  // Merge manual agenda entries with note-derived entries, deduplicating
+  // note entries that were already persisted to agenda.md by a previous save,
+  // and filtering out note entries the user explicitly deleted
   const getEntries = useCallback((date: string): AgendaEntry[] => {
     const manual = manualDays.find((d) => d.date === date)?.entries ?? []
     const notes = noteEntries.get(date) ?? []
-    const all = [...manual, ...notes]
+    const savedNoteIds = new Set(manual.filter((e) => e.noteId).map((e) => e.noteId))
+    const dedupedNotes = notes.filter((e) =>
+      (!e.noteId || !savedNoteIds.has(e.noteId)) && (!e.noteId || !hiddenNoteIds.has(e.noteId))
+    )
+    const all = [...manual, ...dedupedNotes]
     all.sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'))
     return all
-  }, [manualDays, noteEntries])
+  }, [manualDays, noteEntries, hiddenNoteIds])
 
   // Create a note from a time slot
   const createNoteAtTime = useCallback(async (date: string, time: string, title: string) => {
@@ -224,20 +257,20 @@ export function AgendaView(): JSX.Element {
     }, 100)
   }, [addNote, goToPage])
 
-  const updateAndSave = useCallback((newDays: { date: string; entries: AgendaEntry[] }[]) => {
+  const updateAndSave = useCallback((newDays: { date: string; entries: AgendaEntry[] }[], newHidden?: Set<string>) => {
     if (!notebook?.rootPath) return
-    const md = serializeAll(newDays)
+    const md = serializeAll(newDays, newHidden ?? hiddenNoteIds)
     setAgendaMd(md)
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
       window.electronAPI.writeFile(`${notebook.rootPath}/agenda.md`, md)
     }, 800)
-  }, [notebook?.rootPath])
+  }, [notebook?.rootPath, hiddenNoteIds])
 
-  const setEntriesForDate = useCallback((date: string, entries: AgendaEntry[]) => {
+  const setEntriesForDate = useCallback((date: string, entries: AgendaEntry[], newHidden?: Set<string>) => {
     const existing = manualDays.filter((d) => d.date !== date)
     if (entries.length > 0) existing.push({ date, entries })
-    updateAndSave(existing)
+    updateAndSave(existing, newHidden)
   }, [manualDays, updateAndSave])
 
   const toggleDone = useCallback((date: string, idx: number) => {
@@ -249,9 +282,18 @@ export function AgendaView(): JSX.Element {
   }, [getEntries, setEntriesForDate])
 
   const deleteEntry = useCallback((date: string, idx: number) => {
-    const entries = getEntries(date).filter((_, i) => i !== idx)
-    setEntriesForDate(date, entries)
-  }, [getEntries, setEntriesForDate])
+    const entries = getEntries(date)
+    const removed = entries[idx]
+    const remaining = entries.filter((_, i) => i !== idx)
+    // If deleting a note-derived entry, add to hidden set so it doesn't reappear
+    if (removed?.noteId) {
+      const newHidden = new Set(hiddenNoteIds)
+      newHidden.add(removed.noteId)
+      setEntriesForDate(date, remaining, newHidden)
+    } else {
+      setEntriesForDate(date, remaining)
+    }
+  }, [getEntries, setEntriesForDate, hiddenNoteIds])
 
   const addEntry = useCallback((date: string) => {
     if (!newTitle.trim()) return

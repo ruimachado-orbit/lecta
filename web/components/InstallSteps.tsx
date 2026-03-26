@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import DownloadButton from './DownloadButton'
+import { usePlatform } from '@/lib/usePlatform'
 
 interface Props {
   variant?: 'dark' | 'cream'
@@ -9,10 +10,22 @@ interface Props {
 
 const CURL_CMD = 'curl -fsSL https://raw.githubusercontent.com/ruimachado-orbit/lecta/main/install.sh | bash'
 const XATTR_CMD = 'xattr -cr /Applications/Lecta.app'
+const DPKG_CMD = 'sudo dpkg -i Lecta-*.deb'
 
 export default function InstallSteps({ variant = 'dark' }: Props) {
   const [tab, setTab] = useState<'auto' | 'manual'>('auto')
+  const platform = usePlatform()
   const muted = variant === 'cream' ? 'installMutedCream' : 'installMutedDark'
+
+  const autoDescription = platform === 'linux'
+    ? 'Run this in your terminal — it downloads the .deb package and installs via dpkg:'
+    : 'Run this in Terminal — it downloads, installs, and handles macOS Gatekeeper:'
+
+  const manualPostStep = platform === 'linux'
+    ? 'After downloading, install the .deb package:'
+    : 'After dragging Lecta to Applications, run this to clear the macOS quarantine flag:'
+
+  const manualCmd = platform === 'linux' ? DPKG_CMD : XATTR_CMD
 
   return (
     <div className="installSteps">
@@ -33,14 +46,14 @@ export default function InstallSteps({ variant = 'dark' }: Props) {
 
       {tab === 'auto' ? (
         <div className="installPanel">
-          <p className={muted}>Run this in Terminal — it downloads, installs, and handles macOS Gatekeeper:</p>
+          <p className={muted}>{autoDescription}</p>
           <CopyBlock text={CURL_CMD} />
         </div>
       ) : (
         <div className="installPanel">
           <DownloadButton variant={variant} />
-          <p className={muted} style={{ marginTop: '1.25rem' }}>After dragging Lecta to Applications, run this to clear the macOS quarantine flag:</p>
-          <CopyBlock text={XATTR_CMD} />
+          <p className={muted} style={{ marginTop: '1.25rem' }}>{manualPostStep}</p>
+          <CopyBlock text={manualCmd} />
         </div>
       )}
     </div>

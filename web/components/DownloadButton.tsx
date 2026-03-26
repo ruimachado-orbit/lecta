@@ -1,10 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getDmgUrl, LATEST_RELEASE_URL, VERSION } from '@/lib/config'
+import { getDmgUrl, getDebUrl, LATEST_RELEASE_URL, VERSION } from '@/lib/config'
+import { usePlatform, detectPlatformSync } from '@/lib/usePlatform'
 
 type Arch = 'arm64' | 'x64' | 'unknown'
-type Platform = 'mac' | 'other' | null
 
 interface Props {
   variant?: 'dark' | 'cream'
@@ -16,15 +16,11 @@ interface Props {
 }
 
 export default function DownloadButton({ variant = 'dark', label, hideNote = false, scrollTo }: Props) {
-  const [platform, setPlatform] = useState<Platform>(null)
+  const platform = usePlatform()
   const [arch, setArch] = useState<Arch>('unknown')
 
   useEffect(() => {
-    const ua = navigator.userAgent
-    const isMac = /Macintosh|Mac OS X/.test(ua)
-    if (!isMac) { setPlatform('other'); return }
-
-    setPlatform('mac')
+    if (platform !== 'mac') return
 
     const uad = (navigator as Navigator & {
       userAgentData?: { getHighEntropyValues: (h: string[]) => Promise<{ architecture?: string }> }
@@ -35,38 +31,64 @@ export default function DownloadButton({ variant = 'dark', label, hideNote = fal
         .then(d => setArch(d.architecture === 'arm' ? 'arm64' : 'x64'))
         .catch(() => setArch('arm64'))
     } else {
-      setArch('arm64') // Safari/Firefox default — most new Macs are Apple Silicon
+      setArch('arm64')
     }
-  }, [])
+  }, [platform])
 
   const cls = variant === 'cream' ? 'btnCream' : 'btnDark'
   const archLabel = arch === 'arm64' ? 'Apple Silicon' : arch === 'x64' ? 'Intel' : ''
 
   if (scrollTo) {
+    const downloadLabel = platform === 'linux'
+      ? 'Download for Linux'
+      : label ?? 'Download for macOS'
     return (
       <a className={cls} href={scrollTo}>
-        <DownloadIcon />{label ?? 'Download for macOS'}
+        <DownloadIcon />{downloadLabel}
       </a>
     )
   }
 
   if (platform === null) {
-    return <button className={cls} disabled><DownloadIcon />{label ?? 'Download for macOS'}</button>
+    return <button className={cls} disabled><DownloadIcon />{label ?? 'Download'}</button>
   }
 
-  if (platform === 'other') {
+  // Linux — link to .deb
+  if (platform === 'linux') {
+    const href = getDebUrl()
+    const note = `v${VERSION} · Linux x64 · Free · by orbit`
     return (
       <>
-        <button className={cls} disabled><DownloadIcon />macOS only</button>
+        <a className={cls} href={href} download>
+          <DownloadIcon />
+          {label ?? 'Download for Linux'}
+        </a>
         {!hideNote && (
           <span className={variant === 'cream' ? 'downloadNote' : 'downloadNoteHero'}>
-            lecta requires macOS 13+
+            {note}
           </span>
         )}
       </>
     )
   }
 
+  // Unsupported platform — link to releases
+  if (platform === 'other') {
+    return (
+      <>
+        <a className={cls} href={LATEST_RELEASE_URL} target="_blank" rel="noopener noreferrer">
+          <DownloadIcon />See all downloads
+        </a>
+        {!hideNote && (
+          <span className={variant === 'cream' ? 'downloadNote' : 'downloadNoteHero'}>
+            Available for macOS and Linux
+          </span>
+        )}
+      </>
+    )
+  }
+
+  // macOS
   const href = arch !== 'unknown' ? getDmgUrl(arch) : LATEST_RELEASE_URL
   const note = archLabel
     ? `v${VERSION} · ${archLabel} · Free · by orbit`
@@ -91,10 +113,19 @@ export function useDownloadNote() {
   const [note, setNote] = useState<string | null>(null)
 
   useEffect(() => {
-    const ua = navigator.userAgent
-    const isMac = /Macintosh|Mac OS X/.test(ua)
-    if (!isMac) { setNote('macOS 13+ required'); return }
+    const p = detectPlatformSync()
 
+    if (p === 'linux') {
+      setNote(`v${VERSION} · Linux x64 · Free · by orbit`)
+      return
+    }
+
+    if (p === 'other') {
+      setNote('Available for macOS and Linux')
+      return
+    }
+
+    // macOS
     const uad = (navigator as Navigator & {
       userAgentData?: { getHighEntropyValues: (h: string[]) => Promise<{ architecture?: string }> }
     }).userAgentData

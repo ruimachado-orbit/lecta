@@ -101,7 +101,7 @@ This downloads the latest release, installs it to `/Applications`, and handles m
 curl -fsSL https://raw.githubusercontent.com/ruimachado-orbit/lecta/main/install.sh | bash
 ```
 
-On Debian/Ubuntu, this downloads and installs the `.deb` package via `apt`. On other distros, it falls back to an AppImage installed to `~/.local/bin`.
+On Debian/Ubuntu, this downloads and installs the `.deb` package via `apt-get`. On other distros, it falls back to an AppImage installed to `~/.local/bin`.
 
 Both `.deb` and `.AppImage` are available on the [releases page](https://github.com/ruimachado-orbit/lecta/releases).
 

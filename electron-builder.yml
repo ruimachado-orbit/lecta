@@ -53,6 +53,7 @@ linux:
 
 deb:
   maintainer: "Bruno Selistre <bruno.selistre@orbitplatform.ai>"
+  afterInstall: build/linux/postinst.sh
 
 nsis:
   oneClick: false

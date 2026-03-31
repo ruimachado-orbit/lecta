@@ -61,7 +61,7 @@ REPO    := ruimachado-orbit/lecta
 
 # Sync version from package.json into web/lib/config.ts
 sync-version:
-	@sed -i '' "s/export const VERSION = '.*'/export const VERSION = '$(VERSION)'/" web/lib/config.ts
+	@sed -i.bak "s/export const VERSION = '.*'/export const VERSION = '$(VERSION)'/" web/lib/config.ts && rm -f web/lib/config.ts.bak
 	@echo "📌 Version synced to $(VERSION)"
 
 # Bump helpers — update package.json, sync web config, commit
@@ -89,22 +89,25 @@ _commit-version:
 	@git commit -m "chore: bump version to $(VERSION)"
 	@git push origin main
 
-# Build, tag, and publish a GitHub release with macOS DMGs
+# Build, tag, and publish a GitHub release with macOS DMGs and Linux packages
 release: build
 	@echo "🚀 Releasing v$(VERSION)..."
 	cd "$(CURDIR)" && npx electron-builder --mac --publish never
+	cd "$(CURDIR)" && npx electron-builder --linux --publish never
 	@git tag -a "v$(VERSION)" -m "Release v$(VERSION)" 2>/dev/null || true
 	@git push origin "v$(VERSION)" 2>/dev/null || true
 	@gh release create "v$(VERSION)" \
 		--repo $(REPO) \
 		--title "v$(VERSION)" \
-		--generate-notes \
+		--generate-notes 2>/dev/null || true
+	@for f in \
 		release/Lecta-$(VERSION)-arm64.dmg \
-		release/Lecta-$(VERSION)-x64.dmg 2>/dev/null \
-	|| gh release upload "v$(VERSION)" \
-		--repo $(REPO) --clobber \
-		release/Lecta-$(VERSION)-arm64.dmg \
-		release/Lecta-$(VERSION)-x64.dmg
+		release/Lecta-$(VERSION)-x64.dmg \
+		release/Lecta-$(VERSION)-x86_64.AppImage \
+		release/Lecta-$(VERSION)-amd64.deb; do \
+		[ -f "$$f" ] && gh release upload "v$(VERSION)" --repo $(REPO) --clobber "$$f" \
+			|| echo "⏭  Skipping $$f (not found)"; \
+	done
 	@echo "✅ Released v$(VERSION) → https://github.com/$(REPO)/releases/tag/v$(VERSION)"
 
 # ── Testing ──────────────────────────────────────────────

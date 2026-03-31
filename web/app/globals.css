@@ -1038,6 +1038,36 @@ section {
 .installPanel {
   margin-top: 0.25rem;
 }
+.distroSection {
+  border: none;
+  margin-bottom: 0.25rem;
+  overflow: hidden;
+}
+.distroHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-family: var(--font-body, Lora, serif);
+  font-size: 0.85rem;
+  padding: 1rem 1rem;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s;
+}
+.distroHeader:hover {
+  color: rgba(255, 255, 255, 0.85);
+  background: none;
+}
+.distroHeaderActive {
+  color: var(--dark-text);
+  background: none;
+}
+.distroBody {
+  padding: 1rem;
+}
 .installMutedDark {
   font-size: 0.825rem;
   color: var(--text-muted);

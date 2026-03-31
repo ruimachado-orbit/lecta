@@ -46,6 +46,14 @@ linux:
     - target: AppImage
       arch:
         - x64
+    - target: deb
+      arch:
+        - x64
+  category: Development
+
+deb:
+  maintainer: "Bruno Selistre <bruno.selistre@orbitplatform.ai>"
+  afterInstall: build/linux/postinst.sh
 
 nsis:
   oneClick: false

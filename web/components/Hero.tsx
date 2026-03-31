@@ -33,7 +33,7 @@ export default function Hero() {
     <section className="hero">
       <div className="container">
         <span className="heroKicker">
-          Open source &middot; macOS &middot; Free &middot; Works with Claude
+          Open source &middot; macOS &amp; Linux &middot; Free &middot; Works with Claude
         </span>
         <h1 className="heroWordmark">lecta</h1>
         <p className="heroTagline">Presentations that come to life.</p>

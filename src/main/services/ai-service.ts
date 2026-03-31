@@ -8,20 +8,21 @@ import { getToolSchemas, findTool, type ToolExecutionContext } from './chat-agen
 
 const SLIDE_7x7_RULE = `
 SLIDE CANVAS: 1280×720px with 80px horizontal / 60px vertical padding.
-Usable content area: ~1100×600px. Content must NOT fill the entire area — leave breathing room.
+Usable content area: ~1100×600px. Content should leave breathing room.
 
-MANDATORY 7×7 RULE — NEVER VIOLATE:
-1. EXACTLY ONE # heading per slide (the title, max 7 words)
-2. Maximum 7 bullet points below the heading
-3. Each bullet: maximum 7 words — NO EXCEPTIONS
-4. NO paragraphs, NO long sentences, NO explanations
-5. Every line is a "- " bullet (not a sentence)
-6. Use **bold** on 1-2 key words per bullet only
-7. If you need more content, create another slide — NEVER exceed 7 bullets
+7×7 GUIDELINE (default style — adapt when the user requests something different):
+1. One # heading per slide (aim for max 7 words)
+2. Prefer up to 7 bullet points below the heading
+3. Keep bullets concise (around 7 words each)
+4. Favor bullets over paragraphs for scannability
+5. Use **bold** on 1-2 key words per bullet
+6. If content is dense, consider splitting across slides
 
-WRONG (too long):
+If the user explicitly asks for longer text, paragraphs, different layouts, or a non-bullet style, follow their request — the 7×7 rule is a sensible default, not an absolute constraint.
+
+WRONG (too long for a bullet):
 - Retrieval-Augmented Generation combines document retrieval with generative AI models
-RIGHT (7 words max):
+RIGHT (concise):
 - **RAG** combines retrieval with generation`
 
 const SYSTEM_PROMPT = `You are a technical presentation coach helping a developer prepare speaker notes for a live technical talk.
@@ -433,12 +434,12 @@ Rules:
 CANVAS: 1280×720px with 80px horizontal / 60px vertical padding → usable area ~1100×600px.
 Content must breathe — aim for 50-70% fill. Sparse, high-impact slides beat dense walls of text.
 
-CRITICAL RULES:
+RULES:
 - Output ONLY the improved markdown — no explanations, no wrapping, no code fences around the output
-- NEVER change the meaning or remove information — restructure for clarity and impact
-- NEVER add fake data or made-up content
+- Do not change the meaning or remove information — restructure for clarity and impact
+- Do not add fake data or made-up content
 - Keep the same # title but make it punchier if possible
-- Follow the 7×7 rule: max 7 bullets, max 7 words each. Condense, don't expand.
+- Follow the 7×7 guideline as a default: prefer concise bullets. But preserve the user's style if they intentionally used a different format.
 
 FORMATTING TECHNIQUES — use ALL that apply:
 
@@ -574,7 +575,7 @@ ${SLIDE_7x7_RULE}
 Rules:
 - Output ONLY the improved markdown, nothing else
 - Apply the user's requested changes
-- Enforce the 7×7 rule — condense if needed
+- Follow the 7×7 guideline by default, but respect the user's style preferences
 - For diagrams: use mermaid code blocks`,
       userMessage: `Deck: "${deckTitle}"\n\nCurrent slide:\n${slideContent}${artifactInfo}\n\nImprove this slide: ${userPrompt}`,
       maxTokens: 2048
@@ -695,10 +696,11 @@ SLIDE DESIGN RULES:
 3. **CONTENT & SPACING**:
    The slide canvas is 1280×720px with 80px horizontal and 60px vertical padding → usable area is ~1100×600px.
    Content must NEVER fill the entire usable area. Slides should breathe — aim for 50-70% fill.
-   - Follow the 7×7 rule: ONE heading (max 7 words), max 7 bullets (max 7 words each)
+   - Follow the 7×7 guideline by default: ONE heading (~7 words), up to 7 concise bullets (~7 words each)
    - "title", "section", "big-number", "quote" layouts are intentionally minimal
    - "default" slides: heading + 4-7 concise bullets. Use ## sub-headings for visual breaks
    - "two-col" slides: 3-5 bullets per column max
+   - Adapt structure and density if the user's prompt implies a different style
    - Use multi-level bullets (indent) for hierarchy, not for packing more content
    - Optionally add ONE > **Key Takeaway:** blockquote per slide
    - A slide with only a heading and 1 bullet is too sparse; a slide with 10+ lines is too dense

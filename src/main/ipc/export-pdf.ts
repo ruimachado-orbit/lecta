@@ -1,5 +1,7 @@
 import { ipcMain, BrowserWindow, dialog } from 'electron'
-import { writeFile } from 'fs/promises'
+import { writeFile, readFile, unlink } from 'fs/promises'
+import { join, resolve, extname } from 'path'
+import { tmpdir } from 'os'
 
 export function registerExportHandlers(): void {
   ipcMain.handle(
@@ -26,14 +28,24 @@ export function registerExportHandlers(): void {
       try {
         // Build a single HTML document with all slides as pages
         const fullHtml = buildPdfHtml(slideHtmls, title)
-        await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(fullHtml)}`)
 
-        // Wait for page to finish loading, then a short paint margin
-        await new Promise<void>((resolve) => {
+        // Write to a temp file so that relative image paths (e.g. images/photo.png)
+        // resolve against the presentation's root directory via <base href>
+        const tmpPath = join(tmpdir(), `lecta-export-${Date.now()}.html`)
+        const htmlWithBase = fullHtml.replace(
+          '<head>',
+          `<head>\n  <base href="file://${rootPath.replace(/\\/g, '/')}/">`
+        )
+        await writeFile(tmpPath, htmlWithBase, 'utf-8')
+
+        // Attach listener BEFORE loading so we don't miss the event
+        const loaded = new Promise<void>((resolve) => {
           win.webContents.on('did-finish-load', () => {
-            setTimeout(resolve, 300)
+            setTimeout(resolve, 800)
           })
         })
+        win.loadFile(tmpPath)
+        await loaded
 
         const pdfBuffer = await win.webContents.printToPDF({
           landscape: true,
@@ -43,6 +55,8 @@ export function registerExportHandlers(): void {
         })
 
         await writeFile(result.filePath, pdfBuffer)
+        // Clean up temp file
+        try { await unlink(tmpPath) } catch {}
         return result.filePath
       } finally {
         win.destroy()
@@ -53,7 +67,7 @@ export function registerExportHandlers(): void {
   // Export as self-contained HTML SPA
   ipcMain.handle(
     'export:html',
-    async (_event, slideContents: (string | { content: string; isPreRendered: boolean })[], title: string, theme: string): Promise<string | null> => {
+    async (_event, rootPath: string, slideContents: (string | { content: string; isPreRendered: boolean })[], title: string, theme: string): Promise<string | null> => {
       const result = await dialog.showSaveDialog({
         title: 'Export as HTML',
         defaultPath: `${title || 'presentation'}.html`,
@@ -66,14 +80,21 @@ export function registerExportHandlers(): void {
       const normalized = slideContents.map((s) =>
         typeof s === 'string' ? { content: s, isPreRendered: false } : s
       )
-      const html = buildSpaHtml(normalized, title, theme)
+      // Embed images as base64 data URIs in each slide before JSON serialization
+      const embedded = await Promise.all(
+        normalized.map(async (s) => ({
+          ...s,
+          content: await embedImages(s.content, rootPath)
+        }))
+      )
+      const html = buildSpaHtml(embedded, title, theme)
       await writeFile(result.filePath, html, 'utf-8')
       return result.filePath
     }
   )
 }
 
-function buildSpaHtml(slideData: { content: string; isPreRendered: boolean }[], title: string, theme: string): string {
+export function buildSpaHtml(slideData: { content: string; isPreRendered: boolean }[], title: string, theme: string): string {
   const slidesJson = JSON.stringify(slideData)
   return `<!DOCTYPE html>
 <html lang="en">
@@ -97,6 +118,7 @@ function buildSpaHtml(slideData: { content: string; isPreRendered: boolean }[], 
   .slide code { background: rgba(99,102,241,0.15); padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
   .slide pre { background: rgba(0,0,0,0.3); border-radius: 8px; padding: 16px; margin: 12px 0; overflow-x: auto; }
   .slide pre code { background: none; padding: 0; }
+  .slide img { max-width: 100%; height: auto; border-radius: 8px; }
   .slide blockquote { border-left: 3px solid #6366f1; padding-left: 16px; margin: 12px 0; font-style: italic; opacity: 0.8; }
   .slide table { width: 100%; border-collapse: collapse; margin: 12px 0; }
   .slide th, .slide td { padding: 8px 12px; border-bottom: 1px solid rgba(${theme === 'light' ? '0,0,0' : '255,255,255'},0.1); text-align: left; }
@@ -146,11 +168,11 @@ function render() {
   container.innerHTML = '<div class="slide">' + html + '</div>';
   counter.textContent = (current + 1) + ' / ' + slides.length;
   // Scale slide to fit viewport
-  const slide = container.querySelector('.slide');
-  if (slide) {
+  const el = container.querySelector('.slide');
+  if (el) {
     const sw = window.innerWidth, sh = window.innerHeight;
     const s = Math.min(sw / 1280, sh / 720) * 0.9;
-    slide.style.transform = 'scale(' + s + ')';
+    el.style.transform = 'scale(' + s + ')';
   }
 }
 
@@ -167,7 +189,7 @@ render();
 </html>`
 }
 
-function buildPdfHtml(slideHtmls: string[], title: string): string {
+export function buildPdfHtml(slideHtmls: string[], title: string): string {
   const slides = slideHtmls.map((html, i) => `
     <div class="slide" ${i > 0 ? 'style="page-break-before: always;"' : ''}>
       ${html}
@@ -187,38 +209,54 @@ function buildPdfHtml(slideHtmls: string[], title: string): string {
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #000;
-      color: #fff;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
     .slide {
       width: 1280px;
       height: 720px;
-      padding: 48px;
-      background: #000;
       overflow: hidden;
       position: relative;
     }
-    h1 { font-size: 36px; font-weight: 700; margin-bottom: 24px; color: #fff; }
-    h2 { font-size: 30px; font-weight: 600; margin-bottom: 16px; color: #fff; }
-    h3 { font-size: 24px; font-weight: 500; margin-bottom: 12px; color: #e5e5e5; }
-    p { font-size: 20px; line-height: 1.6; margin-bottom: 16px; color: #d4d4d4; }
-    ul, ol { font-size: 18px; line-height: 1.6; margin-bottom: 16px; margin-left: 24px; color: #d4d4d4; }
-    li { margin-bottom: 8px; }
-    code { background: #262626; padding: 2px 8px; border-radius: 4px; font-family: monospace; font-size: 16px; }
-    pre { background: #171717; padding: 16px; border-radius: 8px; margin-bottom: 16px; overflow: hidden; font-size: 14px; }
-    pre code { background: none; padding: 0; }
-    blockquote { border-left: 4px solid #fff; padding-left: 16px; color: #a3a3a3; font-style: italic; margin-bottom: 16px; }
-    strong { font-weight: 700; }
-    em { font-style: italic; }
-    img { max-width: 100%; height: auto; border-radius: 8px; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
-    th { background: #262626; border: 1px solid #404040; padding: 8px 16px; text-align: left; font-weight: 600; }
-    td { border: 1px solid #404040; padding: 8px 16px; color: #d4d4d4; }
-    hr { border: none; border-top: 1px solid #404040; margin: 32px 0; }
+    img { max-width: 100%; height: auto; }
+    table { width: 100%; border-collapse: collapse; }
   </style>
 </head>
 <body>${slides}</body>
 </html>`
+}
+
+const MIME_TYPES: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.svg': 'image/svg+xml',
+  '.bmp': 'image/bmp',
+  '.ico': 'image/x-icon',
+}
+
+export async function embedImages(html: string, rootPath: string): Promise<string> {
+  // Match src="..." attributes that reference local (non-data-uri, non-http) images
+  const srcRegex = /src=["'](?!data:|https?:\/\/|blob:)([^"']+)["']/g
+  const matches = [...html.matchAll(srcRegex)]
+  if (matches.length === 0) return html
+
+  let result = html
+  for (const match of matches) {
+    const relPath = match[1]
+    const absPath = resolve(rootPath, relPath)
+    const ext = extname(absPath).toLowerCase()
+    const mime = MIME_TYPES[ext]
+    if (!mime) continue
+    try {
+      const data = await readFile(absPath)
+      const dataUri = `data:${mime};base64,${data.toString('base64')}`
+      result = result.replace(match[0], `src="${dataUri}"`)
+    } catch {
+      // Image not found — leave the original src
+    }
+  }
+  return result
 }

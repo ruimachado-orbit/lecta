@@ -5,6 +5,7 @@ export default defineConfig({
     include: [
       'packages/shared/src/**/*.test.ts',
       'src/main/services/**/*.test.ts',
+      'src/main/ipc/**/*.test.ts',
     ],
     globals: true,
   },

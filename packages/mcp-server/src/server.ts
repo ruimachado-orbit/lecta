@@ -42,11 +42,11 @@ Always use format "mdx" for visually rich slides. MDX slides are pure JSX/React:
 - Images: <img src="images/photo.png" style={{maxWidth:'100%',borderRadius:'8px'}} />
 - If not confident with JSX, fall back to format "md" (plain markdown, always supported)
 
-## The 7×7 Rule
-- ONE heading per slide (max 7 words)
-- Max 7 bullet points per slide
-- Each bullet: max 7 words
-- NO paragraphs — use speaker notes for detail
+## The 7×7 Guideline (default style — adapt when the user asks for something different)
+- ONE heading per slide (aim for ~7 words)
+- Prefer up to 7 bullet points per slide
+- Keep bullets concise (~7 words each)
+- Favor bullets over paragraphs for scannability, but follow user preferences when they request a different style
 
 ## Deck Structure
 1. **Title slide** (layout: title) — topic + speaker name
@@ -177,15 +177,16 @@ SLIDE CONTENT GUIDELINES — follow these for every slide:
 
 Canvas: 1280×720px. Slides should fill the entire canvas.
 
-The 7×7 Rule:
-1. ONE title/heading per slide (max 7 words)
-2. Max 7 bullet points below the heading
-3. Each bullet: max 7 words
-4. NO paragraphs or long sentences
-5. Emphasize 1-2 key words per bullet only
-6. If you need more content, create another slide — NEVER exceed 7 bullets
+7×7 Guideline (default style — adapt when the user asks for something different):
+1. One title/heading per slide (aim for ~7 words)
+2. Prefer up to 7 bullet points below the heading
+3. Keep bullets concise (~7 words each)
+4. Favor bullets over paragraphs for scannability
+5. Emphasize 1-2 key words per bullet
+6. If content is dense, consider splitting across slides
+7. When the user requests a different style (longer text, paragraphs, etc.), follow their preference
 
-CRITICAL — MDX format (always use this):
+MDX format (preferred):
 - ALWAYS set format to "mdx" — it produces richer, more visual slides
 - MDX slides must be 100% PURE JSX/React — absolutely NO markdown syntax anywhere
 - DO NOT use markdown headings (# ## ###), markdown bullets (- or *), markdown bold (**text**), markdown code (\`code\`), markdown blockquotes (>), or any other markdown syntax
@@ -278,7 +279,7 @@ RIGHT (pure JSX — full control over layout and styling, title is a styled div)
     {
       presentation_path: z.string().describe('Root path of the presentation (returned by create_presentation)'),
       title: z.string().optional().describe('Short slide title for the navigation bar (not rendered on the slide). Auto-derived from content heading if omitted.'),
-      content: z.string().describe('MDX (preferred) or Markdown content for the slide. For MDX: write pure JSX with a root <div> covering the full canvas — title must be a styled <div>, not a markdown # heading. For MD: start with a single # heading. Follow the 7×7 rule: max 7 bullets, max 7 words each. Keep content sparse — slides should breathe.'),
+      content: z.string().describe('MDX (preferred) or Markdown content for the slide. For MDX: write pure JSX with a root <div> covering the full canvas — title must be a styled <div>, not a markdown # heading. For MD: start with a single # heading. Follow the 7×7 guideline by default (concise bullets, ~7 words each) but adapt to the user\'s requested style.'),
       layout: z.enum(['default', 'center', 'title', 'section', 'two-col', 'two-col-wide-left', 'two-col-wide-right', 'three-col', 'top-bottom', 'big-number', 'quote', 'blank']).optional().describe('Slide layout (default: "default")'),
       code: z.object({
         content: z.string().describe('Code content'),

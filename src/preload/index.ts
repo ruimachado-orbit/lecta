@@ -198,8 +198,8 @@ const api = {
   exportPdf: (rootPath: string, slideHtmls: string[], title: string): Promise<string | null> =>
     ipcRenderer.invoke('export:pdf', rootPath, slideHtmls, title),
 
-  exportHtml: (slideContents: { content: string; isPreRendered: boolean }[] | string[], title: string, theme: string): Promise<string | null> =>
-    ipcRenderer.invoke('export:html', slideContents, title, theme),
+  exportHtml: (rootPath: string, slideContents: { content: string; isPreRendered: boolean }[] | string[], title: string, theme: string): Promise<string | null> =>
+    ipcRenderer.invoke('export:html', rootPath, slideContents, title, theme),
 
   // Presenter sync listener (for audience/presenter windows)
   onPresenterSync: (callback: (slideIndex: number) => void): void => {

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { sanitizeSvg } from '../../utils/sanitize'
 
 /**
  * Custom flow diagram renderer — replaces mermaid for simple presentation diagrams.
@@ -383,7 +384,7 @@ export function FlowDiagram({ chart }: { chart: string }): JSX.Element {
     <div
       className="flow-diagram"
       style={{ margin: '0.75rem 0', width: '100%', maxHeight: '350px', display: 'flex', justifyContent: 'center' }}
-      dangerouslySetInnerHTML={{ __html: svg }}
+      dangerouslySetInnerHTML={{ __html: sanitizeSvg(svg) }}
     />
   )
 }
@@ -427,6 +428,6 @@ function MermaidFallback({ chart }: { chart: string }): JSX.Element {
 
   return (
     <div ref={ref} className="mermaid-diagram" style={{ margin: '1.25rem 0', display: 'flex', justifyContent: 'center', width: '100%' }}
-      dangerouslySetInnerHTML={{ __html: svg }} />
+      dangerouslySetInnerHTML={{ __html: sanitizeSvg(svg) }} />
   )
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import Reveal from './ScrollReveal'
 import { GITHUB_URL } from '@/lib/config'
 import { useContributors } from './ContributorsProvider'
@@ -20,7 +20,7 @@ function Avatar({
   isAI?: boolean
   avatarUrl: string
 }) {
-  const [status, setStatus] = useState<Status>('loading')
+  const [status, setStatus] = useState<Status>(isAI ? 'loaded' : 'loading')
   const initials = name
     .split(' ')
     .map((w) => w[0])
@@ -28,25 +28,17 @@ function Avatar({
     .slice(0, 2)
     .toUpperCase()
 
-  useEffect(() => {
-    if (isAI) return
-    const img = new Image()
-    img.onload = () => setStatus('loaded')
-    img.onerror = () => setStatus('error')
-    img.src = avatarUrl
-  }, [avatarUrl, isAI])
-
   return (
     <div className="avatarWrap">
-      {isAI ? (
-        <img
-          className="avatarImg"
-          src={avatarUrl}
-          alt="Claude"
-        />
-      ) : status === 'loaded' ? (
-        <img className="avatarImg" src={avatarUrl} alt={name} />
-      ) : (
+      <img
+        className="avatarImg"
+        src={avatarUrl}
+        alt={isAI ? 'Claude' : name}
+        onLoad={() => setStatus('loaded')}
+        onError={() => setStatus('error')}
+        style={{ display: status === 'loaded' ? undefined : 'none' }}
+      />
+      {status !== 'loaded' && (
         <div className={`avatarFallback${status === 'loading' ? ' avatarLoading' : ''}`}>
           {status === 'loading' ? '' : initials}
         </div>

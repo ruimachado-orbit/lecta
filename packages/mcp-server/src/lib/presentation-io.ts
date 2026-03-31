@@ -833,4 +833,459 @@ export async function registerInRecentDecks(rootPath: string, title: string, sli
   await writeFile(settingsPath, JSON.stringify(settings, null, 2), 'utf-8')
 }
 
+// ── Design System (shared across all presentations) ──
+
+export interface DesignElement {
+  id: string
+  name: string
+  category: 'component' | 'color-palette' | 'typography' | 'snippet' | 'layout-pattern'
+  description: string
+  content: string  // JSX snippet, CSS values, or markdown
+  tags: string[]
+  createdAt: string
+  updatedAt: string
+}
+
+export interface DesignSystem {
+  version: number
+  elements: DesignElement[]
+}
+
+function getDesignSystemPath(): string {
+  const home = process.env.HOME || process.env.USERPROFILE || ''
+  const base = process.platform === 'darwin'
+    ? join(home, 'Library', 'Application Support', 'Lecta')
+    : process.platform === 'win32'
+      ? join(process.env.APPDATA || join(home, 'AppData', 'Roaming'), 'Lecta')
+      : join(home, '.config', 'Lecta')
+  return join(base, 'design-system.json')
+}
+
+export async function loadDesignSystem(): Promise<DesignSystem> {
+  try {
+    const content = await readFile(getDesignSystemPath(), 'utf-8')
+    return JSON.parse(content)
+  } catch {
+    return { version: 1, elements: [] }
+  }
+}
+
+async function saveDesignSystem(ds: DesignSystem): Promise<void> {
+  const dsPath = getDesignSystemPath()
+  await mkdir(join(dsPath, '..'), { recursive: true })
+  await writeFile(dsPath, JSON.stringify(ds, null, 2), 'utf-8')
+}
+
+export async function listDesignElements(opts?: {
+  category?: string
+  tags?: string[]
+  search?: string
+}): Promise<DesignElement[]> {
+  const ds = await loadDesignSystem()
+  let elements = ds.elements
+
+  if (opts?.category) {
+    elements = elements.filter(e => e.category === opts.category)
+  }
+  if (opts?.tags && opts.tags.length > 0) {
+    elements = elements.filter(e => opts.tags!.some(t => e.tags.includes(t)))
+  }
+  if (opts?.search) {
+    const q = opts.search.toLowerCase()
+    elements = elements.filter(e =>
+      e.name.toLowerCase().includes(q) ||
+      e.description.toLowerCase().includes(q) ||
+      e.tags.some(t => t.toLowerCase().includes(q))
+    )
+  }
+
+  return elements
+}
+
+export async function getDesignElement(id: string): Promise<DesignElement | null> {
+  const ds = await loadDesignSystem()
+  return ds.elements.find(e => e.id === id) || null
+}
+
+export async function saveDesignElement(element: Omit<DesignElement, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<DesignElement> {
+  const ds = await loadDesignSystem()
+  const now = new Date().toISOString()
+
+  if (element.id) {
+    // Update existing
+    const idx = ds.elements.findIndex(e => e.id === element.id)
+    if (idx !== -1) {
+      ds.elements[idx] = { ...ds.elements[idx], ...element, id: element.id, updatedAt: now }
+      await saveDesignSystem(ds)
+      return ds.elements[idx]
+    }
+  }
+
+  // Create new
+  const newElement: DesignElement = {
+    id: `ds-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    name: element.name,
+    category: element.category,
+    description: element.description,
+    content: element.content,
+    tags: element.tags,
+    createdAt: now,
+    updatedAt: now,
+  }
+  ds.elements.unshift(newElement)
+  await saveDesignSystem(ds)
+  return newElement
+}
+
+export async function deleteDesignElement(id: string): Promise<boolean> {
+  const ds = await loadDesignSystem()
+  const before = ds.elements.length
+  ds.elements = ds.elements.filter(e => e.id !== id)
+  if (ds.elements.length < before) {
+    await saveDesignSystem(ds)
+    return true
+  }
+  return false
+}
+
+// ── Slide Library (headless access — reads the Electron slide-library.json) ──
+
+export interface StoredSlide {
+  id: string
+  name: string
+  markdown: string
+  layout?: string
+  codeContent?: string
+  codeLanguage?: string
+  savedAt: string
+  tags?: string[]
+}
+
+function getSlideLibraryPath(): string {
+  const home = process.env.HOME || process.env.USERPROFILE || ''
+  const base = process.platform === 'darwin'
+    ? join(home, 'Library', 'Application Support', 'Lecta')
+    : process.platform === 'win32'
+      ? join(process.env.APPDATA || join(home, 'AppData', 'Roaming'), 'Lecta')
+      : join(home, '.config', 'Lecta')
+  return join(base, 'slide-library.json')
+}
+
+export async function listSlideLibrary(opts?: {
+  tags?: string[]
+  search?: string
+}): Promise<StoredSlide[]> {
+  let slides: StoredSlide[]
+  try {
+    const content = await readFile(getSlideLibraryPath(), 'utf-8')
+    slides = JSON.parse(content)
+  } catch {
+    slides = []
+  }
+
+  if (opts?.tags && opts.tags.length > 0) {
+    slides = slides.filter(s => opts.tags!.some(t => (s.tags || []).includes(t)))
+  }
+  if (opts?.search) {
+    const q = opts.search.toLowerCase()
+    slides = slides.filter(s =>
+      s.name.toLowerCase().includes(q) ||
+      s.markdown.toLowerCase().includes(q) ||
+      (s.tags || []).some(t => t.toLowerCase().includes(q))
+    )
+  }
+
+  return slides
+}
+
+export async function getSlideFromLibrary(id: string): Promise<StoredSlide | null> {
+  const slides = await listSlideLibrary()
+  return slides.find(s => s.id === id) || null
+}
+
+export async function saveSlideToLibrary(slide: {
+  name: string
+  markdown: string
+  layout?: string
+  codeContent?: string
+  codeLanguage?: string
+  tags?: string[]
+}): Promise<StoredSlide> {
+  let slides: StoredSlide[]
+  try {
+    const content = await readFile(getSlideLibraryPath(), 'utf-8')
+    slides = JSON.parse(content)
+  } catch {
+    slides = []
+  }
+
+  const stored: StoredSlide = {
+    id: `slide-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    name: slide.name,
+    markdown: slide.markdown,
+    layout: slide.layout,
+    codeContent: slide.codeContent,
+    codeLanguage: slide.codeLanguage,
+    savedAt: new Date().toISOString(),
+    tags: slide.tags,
+  }
+
+  slides.unshift(stored)
+  const libPath = getSlideLibraryPath()
+  await mkdir(join(libPath, '..'), { recursive: true })
+  await writeFile(libPath, JSON.stringify(slides, null, 2), 'utf-8')
+
+  return stored
+}
+
+export async function insertLibrarySlide(opts: {
+  rootPath: string
+  slideId: string
+  afterIndex?: number
+  format?: 'md' | 'mdx'
+}): Promise<{ slideIndex: number; slideCount: number }> {
+  const stored = await getSlideFromLibrary(opts.slideId)
+  if (!stored) throw new Error(`Slide "${opts.slideId}" not found in the library.`)
+
+  return addSlide({
+    rootPath: opts.rootPath,
+    title: stored.name,
+    content: stored.markdown,
+    layout: (stored.layout as SlideLayout) || undefined,
+    code: stored.codeContent && stored.codeLanguage
+      ? { content: stored.codeContent, language: stored.codeLanguage as SupportedLanguage }
+      : undefined,
+    afterIndex: opts.afterIndex,
+    format: opts.format,
+  })
+}
+
+// ── AI Image Generation (for MCP server — headless, no Electron) ──
+
+type ImageProviderType = 'openai' | 'gemini' | 'nanobanana'
+
+async function loadEnvKey(rootPath: string, key: string): Promise<string | null> {
+  // 1. Check deck's .env file
+  try {
+    const envContent = await readFile(join(rootPath, '.env'), 'utf-8')
+    const regex = new RegExp(`${key}\\s*=\\s*(.+)`)
+    const match = envContent.match(regex)
+    if (match && match[1]) {
+      const val = match[1].trim().replace(/^["']|["']$/g, '')
+      if (val) return val
+    }
+  } catch {}
+
+  // 2. Check app-level settings
+  try {
+    const settingsContent = await readFile(getLectaSettingsPath(), 'utf-8')
+    const settings = JSON.parse(settingsContent)
+    const fieldMap: Record<string, string> = {
+      OPENAI_API_KEY: 'openaiApiKey',
+      GEMINI_API_KEY: 'geminiApiKey',
+      NANOBANANA_API_KEY: 'nanobananaApiKey',
+      IMAGE_PROVIDER: 'imageProvider',
+    }
+    if (fieldMap[key] && settings[fieldMap[key]]) return settings[fieldMap[key]]
+  } catch {}
+
+  // 3. Check process environment
+  if (process.env[key]) return process.env[key]!
+
+  return null
+}
+
+async function generateWithOpenAI(apiKey: string, prompt: string, aspectRatio?: string): Promise<{ base64: string; mimeType: string }> {
+  const sizeMap: Record<string, string> = {
+    '1:1': '1024x1024',
+    '16:9': '1792x1024',
+    '9:16': '1024x1792',
+  }
+  const size = sizeMap[aspectRatio || '16:9'] || '1792x1024'
+
+  const response = await fetch('https://api.openai.com/v1/images/generations', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model: 'dall-e-3',
+      prompt,
+      n: 1,
+      size,
+      response_format: 'b64_json',
+    }),
+  })
+
+  if (!response.ok) {
+    const err = await response.text()
+    throw new Error(`OpenAI image generation failed: ${err}`)
+  }
+
+  const data = await response.json() as any
+  const b64 = data.data?.[0]?.b64_json
+  if (!b64) throw new Error('No image returned from DALL-E')
+  return { base64: b64, mimeType: 'image/png' }
+}
+
+async function generateWithGemini(apiKey: string, prompt: string): Promise<{ base64: string; mimeType: string }> {
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
+      }),
+    }
+  )
+
+  if (!response.ok) {
+    const err = await response.text()
+    throw new Error(`Gemini image generation failed: ${err}`)
+  }
+
+  const data = await response.json() as any
+  const parts = data.candidates?.[0]?.content?.parts
+  if (!parts) throw new Error('No content in Gemini response')
+
+  for (const part of parts) {
+    if (part.inlineData) {
+      return { base64: part.inlineData.data, mimeType: part.inlineData.mimeType || 'image/png' }
+    }
+  }
+  throw new Error('No image was generated by Gemini.')
+}
+
+async function generateWithNanoBanana(apiKey: string, prompt: string, aspectRatio?: string): Promise<{ base64: string; mimeType: string }> {
+  const sizeMap: Record<string, { width: number; height: number }> = {
+    '1:1': { width: 1024, height: 1024 },
+    '16:9': { width: 1792, height: 1024 },
+    '9:16': { width: 1024, height: 1792 },
+  }
+  const size = sizeMap[aspectRatio || '16:9'] || sizeMap['16:9']
+
+  const response = await fetch('https://api.nanobanana.com/v1/images/generate', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'nano-banana-pro-hd',
+      prompt,
+      width: size.width,
+      height: size.height,
+      response_format: 'b64_json',
+    }),
+  })
+
+  if (!response.ok) {
+    const err = await response.text()
+    throw new Error(`Nano Banana image generation failed: ${err}`)
+  }
+
+  const data = await response.json() as any
+  const b64 = data.data?.[0]?.b64_json || data.image?.b64_json
+  if (!b64) throw new Error('No image returned from Nano Banana')
+  return { base64: b64, mimeType: 'image/png' }
+}
+
+export async function generateAIImage(opts: {
+  rootPath: string
+  prompt: string
+  provider?: ImageProviderType
+  aspectRatio?: string
+  slideIndex?: number
+  altText?: string
+}): Promise<{ imagePath: string; inserted: boolean; provider: string }> {
+  // Determine provider
+  let provider: ImageProviderType = opts.provider || 'openai'
+  if (!opts.provider) {
+    const configuredProvider = await loadEnvKey(opts.rootPath, 'IMAGE_PROVIDER')
+    if (configuredProvider === 'gemini' || configuredProvider === 'openai' || configuredProvider === 'nanobanana') {
+      provider = configuredProvider
+    }
+  }
+
+  // Get the appropriate API key
+  let apiKey: string | null = null
+  let keyEnvVar: string
+
+  switch (provider) {
+    case 'nanobanana':
+      keyEnvVar = 'NANOBANANA_API_KEY'
+      apiKey = await loadEnvKey(opts.rootPath, keyEnvVar)
+      if (!apiKey) throw new Error('No Nano Banana API key found. Add NANOBANANA_API_KEY to your .env file or app settings.')
+      break
+    case 'gemini':
+      keyEnvVar = 'GEMINI_API_KEY'
+      apiKey = await loadEnvKey(opts.rootPath, keyEnvVar)
+      if (!apiKey) throw new Error('No Gemini API key found. Add GEMINI_API_KEY to your .env file or app settings.')
+      break
+    case 'openai':
+    default:
+      keyEnvVar = 'OPENAI_API_KEY'
+      apiKey = await loadEnvKey(opts.rootPath, keyEnvVar)
+      if (!apiKey) throw new Error('No OpenAI API key found. Add OPENAI_API_KEY to your .env file or app settings.')
+      break
+  }
+
+  // Generate the image
+  let result: { base64: string; mimeType: string }
+  switch (provider) {
+    case 'nanobanana':
+      result = await generateWithNanoBanana(apiKey, opts.prompt, opts.aspectRatio)
+      break
+    case 'gemini':
+      result = await generateWithGemini(apiKey, opts.prompt)
+      break
+    case 'openai':
+    default:
+      result = await generateWithOpenAI(apiKey, opts.prompt, opts.aspectRatio)
+      break
+  }
+
+  // Save the image to the presentation's images/ directory
+  const ext = result.mimeType === 'image/jpeg' ? '.jpg' : '.png'
+  const fileName = `${Date.now()}-ai-${provider}${ext}`
+  const imagesDir = join(opts.rootPath, 'images')
+  await mkdir(imagesDir, { recursive: true })
+
+  const buffer = Buffer.from(result.base64, 'base64')
+  await writeFile(join(imagesDir, fileName), buffer)
+
+  const imagePath = `images/${fileName}`
+  let inserted = false
+
+  // Insert into slide if slideIndex is provided
+  if (opts.slideIndex != null) {
+    const config = await loadPresentationConfig(opts.rootPath)
+    const slide = config.slides[opts.slideIndex]
+    if (!slide) throw new Error(`Slide at index ${opts.slideIndex} not found`)
+
+    const slidePath = join(opts.rootPath, slide.content)
+    let content = await readFile(slidePath, 'utf-8')
+
+    const isMdx = slide.content.endsWith('.mdx')
+    if (isMdx) {
+      const alt = opts.altText || 'AI generated image'
+      const imgTag = `  <img src="${imagePath}" alt="${alt}" style={{maxWidth:'100%',borderRadius:'8px'}} />`
+      const lastClosingDiv = content.lastIndexOf('</div>')
+      if (lastClosingDiv !== -1) {
+        content = content.slice(0, lastClosingDiv) + imgTag + '\n' + content.slice(lastClosingDiv)
+      } else {
+        content += `\n${imgTag}\n`
+      }
+    } else {
+      const alt = opts.altText || 'AI generated image'
+      content += `\n![${alt}](${imagePath})\n`
+    }
+
+    await writeFile(slidePath, content, 'utf-8')
+    inserted = true
+  }
+
+  return { imagePath, inserted, provider }
+}
+
 export { VALID_THEMES, VALID_LAYOUTS }

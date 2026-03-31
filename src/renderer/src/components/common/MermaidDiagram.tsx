@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import mermaid from 'mermaid'
+import { sanitizeSvg } from '../../utils/sanitize'
 
 // Force fresh init every time the module loads (dev HMR compatibility)
 mermaid.initialize({
@@ -114,7 +115,7 @@ export function MermaidDiagram({ chart }: MermaidDiagramProps): JSX.Element {
     <div
       ref={containerRef}
       className="mermaid-diagram"
-      dangerouslySetInnerHTML={{ __html: svg }}
+      dangerouslySetInnerHTML={{ __html: sanitizeSvg(svg) }}
     />
   )
 }

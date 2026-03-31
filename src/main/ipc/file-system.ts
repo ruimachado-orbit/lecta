@@ -1,6 +1,6 @@
 import { ipcMain, dialog, app } from 'electron'
 import { readFile, writeFile, mkdir, access, copyFile } from 'fs/promises'
-import { join, basename, extname } from 'path'
+import { join, basename, extname, resolve } from 'path'
 import { homedir } from 'os'
 import { stringify as stringifyYaml } from 'yaml'
 import { parsePresentationYaml } from '../../../packages/shared/src/utils/yaml-parser'
@@ -8,6 +8,7 @@ import { resolveRelativePath, detectLanguage } from '../../../packages/shared/sr
 import { DECK_CONFIG_FILE } from '../../../packages/shared/src/constants'
 import { startWatching } from '../services/file-watcher'
 import { setAIDeckPath } from './ai'
+import { allowedFileRoots } from '../index'
 import { setGeminiDeckPath } from './gemini-image'
 import {
   openLectaFile,
@@ -300,6 +301,9 @@ export function registerFileSystemHandlers(): void {
   })
 
   ipcMain.handle('fs:load-presentation', async (_event, folderPath: string): Promise<LoadedPresentation> => {
+    const resolvedRoot = resolve(folderPath)
+    allowedFileRoots.add(resolvedRoot)
+
     const configPath = join(folderPath, DECK_CONFIG_FILE)
 
     try {

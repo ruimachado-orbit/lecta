@@ -16,6 +16,7 @@ import { TabBar } from './TabBar'
 import { PresenterView } from '../presenter/PresenterView'
 import { ChatSidebarPanel } from '../chat/ChatPanel'
 import { AIAlert } from '../ai/AIAlert'
+import { DesignSystemPanel } from '../design/DesignSystemPanel'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useChatStore } from '../../stores/chat-store'
@@ -278,6 +279,7 @@ function ArtifactIconStrip({
 }): JSX.Element {
   const [showAddMenu, setShowAddMenu] = useState(false)
   const [showSlideStore, setShowSlideStore] = useState(false)
+  const [showDesignSystem, setShowDesignSystem] = useState(false)
   const { addCodeToSlide, addArtifact, addVideo, addWebApp, addPrompt: storeAddPrompt, slides, currentSlideIndex, addSlide, presentation } = usePresentationStore()
   const currentSlide = slides[currentSlideIndex]
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
@@ -496,10 +498,44 @@ function ArtifactIconStrip({
         </svg>
       </button>
 
+      {/* Design System button */}
+      <div className="relative">
+        <button
+          onClick={() => { setShowDesignSystem(!showDesignSystem); setShowSlideStore(false) }}
+          className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
+            showDesignSystem ? 'text-violet-400' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
+          }`}
+          title="Design System"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4.098 19.902a3.75 3.75 0 0 0 5.304 0l6.401-6.402M6.75 21A3.75 3.75 0 0 1 3 17.25V4.125C3 3.504 3.504 3 4.125 3h5.25c.621 0 1.125.504 1.125 1.125v4.072M6.75 21a3.75 3.75 0 0 0 3.75-3.75V8.197M6.75 21h13.125c.621 0 1.125-.504 1.125-1.125v-5.25c0-.621-.504-1.125-1.125-1.125h-4.072M10.5 8.197l2.88-2.88c.438-.439 1.15-.439 1.59 0l3.712 3.713c.44.44.44 1.152 0 1.59l-2.879 2.88M6.75 17.25h.008v.008H6.75v-.008Z" />
+          </svg>
+        </button>
+        {showDesignSystem && (
+          <DesignSystemPanel
+            onClose={() => setShowDesignSystem(false)}
+            onInsert={async (content) => {
+              // Insert the design element content into the current slide
+              const state = usePresentationStore.getState()
+              const slide = state.slides[state.currentSlideIndex]
+              const rootPath = state.presentation?.rootPath
+              if (slide && rootPath) {
+                const filePath = `${rootPath}/${slide.config.content}`
+                const existing = slide.markdownContent || ''
+                // Append the element content
+                await window.electronAPI.writeFile(filePath, existing + '\n' + content)
+                await usePresentationStore.getState().loadPresentation(rootPath)
+              }
+              setShowDesignSystem(false)
+            }}
+          />
+        )}
+      </div>
+
       {/* Slide Store button */}
       <div className="relative">
         <button
-          onClick={() => setShowSlideStore(!showSlideStore)}
+          onClick={() => { setShowSlideStore(!showSlideStore); setShowDesignSystem(false) }}
           className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
             showSlideStore ? 'text-indigo-400' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
           }`}

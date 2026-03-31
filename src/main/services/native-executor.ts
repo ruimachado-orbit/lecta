@@ -28,12 +28,18 @@ export class NativeExecutor {
       let stderr = ''
       this.cancelled = false
 
-      // Security: never use shell mode, sanitize the cwd
+      // Security: never use shell mode; only forward safe env vars (no API keys)
+      const SAFE_ENV_KEYS = ['PATH', 'HOME', 'USER', 'SHELL', 'LANG', 'TERM', 'TMPDIR', 'NODE_ENV', 'LC_ALL', 'LC_CTYPE']
+      const safeEnv: Record<string, string> = {}
+      for (const key of SAFE_ENV_KEYS) {
+        if (process.env[key]) safeEnv[key] = process.env[key]!
+      }
+
       this.process = spawn(command, args, {
         cwd,
         shell: false,
         stdio: ['pipe', 'pipe', 'pipe'],
-        env: { ...process.env },
+        env: safeEnv,
         timeout
       })
 

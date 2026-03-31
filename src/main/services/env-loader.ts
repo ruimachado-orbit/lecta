@@ -1,6 +1,64 @@
 import { readFile } from 'fs/promises'
 import { join } from 'path'
-import { app } from 'electron'
+import { loadSettings, getCachedSettings } from '../ipc/settings'
+
+/** Read a setting from cached settings (already decrypted). Falls back to loadSettings() if cache is empty. */
+async function getSettingsValue(field: string): Promise<string | null> {
+  let settings = getCachedSettings()
+  if (!settings || Object.keys(settings).length === 0) {
+    settings = await loadSettings()
+  }
+  const val = settings[field]
+  return typeof val === 'string' && val ? val : null
+}
+
+/** Parse a key=value from a .env file */
+function parseEnvValue(content: string, envVar: string): string | null {
+  const regex = new RegExp(`${envVar}\\s*=\\s*(.+)`)
+  const match = content.match(regex)
+  if (match && match[1]) {
+    const val = match[1].trim().replace(/^["']|["']$/g, '')
+    if (val) return val
+  }
+  return null
+}
+
+/** Read the deck's .env file content (cached per call chain) */
+async function readDeckEnv(deckRootPath: string): Promise<string | null> {
+  try {
+    return await readFile(join(deckRootPath, '.env'), 'utf-8')
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Generic key loader: deck .env → app settings → process env.
+ */
+async function loadKey(
+  envVar: string,
+  settingsField: string,
+  deckRootPath?: string,
+  placeholder?: string
+): Promise<string | null> {
+  // 1. Check deck's .env file
+  if (deckRootPath) {
+    const envContent = await readDeckEnv(deckRootPath)
+    if (envContent) {
+      const key = parseEnvValue(envContent, envVar)
+      if (key && key !== placeholder) return key
+    }
+  }
+
+  // 2. Check app-level settings (decrypted)
+  const settingsVal = await getSettingsValue(settingsField)
+  if (settingsVal) return settingsVal
+
+  // 3. Check process environment
+  if (process.env[envVar]) return process.env[envVar]!
+
+  return null
+}
 
 /**
  * Load the Anthropic API key using the fallback chain:
@@ -9,59 +67,19 @@ import { app } from 'electron'
  * 3. Process environment variable
  */
 export async function loadAnthropicKey(deckRootPath?: string): Promise<string | null> {
-  // 1. Check deck's .env file
-  if (deckRootPath) {
-    try {
-      const envContent = await readFile(join(deckRootPath, '.env'), 'utf-8')
-      const match = envContent.match(/ANTHROPIC_API_KEY\s*=\s*(.+)/)
-      if (match && match[1]) {
-        const key = match[1].trim().replace(/^["']|["']$/g, '')
-        if (key && key !== 'sk-ant-your-key-here') {
-          return key
-        }
-      }
-    } catch {
-      // No .env in deck root
-    }
-  }
-
-  // 2. Check app-level settings
-  try {
-    const settingsPath = join(app.getPath('userData'), 'settings.json')
-    const settingsContent = await readFile(settingsPath, 'utf-8')
-    const settings = JSON.parse(settingsContent)
-    if (settings.anthropicApiKey) {
-      return settings.anthropicApiKey
-    }
-  } catch {
-    // No settings file
-  }
-
-  // 3. Check process environment
-  if (process.env.ANTHROPIC_API_KEY) {
-    return process.env.ANTHROPIC_API_KEY
-  }
-
-  return null
+  return loadKey('ANTHROPIC_API_KEY', 'anthropicApiKey', deckRootPath, 'sk-ant-your-key-here')
 }
 
 /**
- * Load the AI model using the fallback chain:
- * 1. Deck's .env file (ANTHROPIC_MODEL)
- * 2. Process environment variable (ANTHROPIC_MODEL)
- * 3. null (caller uses hardcoded default)
+ * Load the AI model from the deck's .env or process env.
+ * Returns null if not set (caller uses hardcoded default).
  */
 export async function loadAnthropicModel(deckRootPath?: string): Promise<string | null> {
   if (deckRootPath) {
-    try {
-      const envContent = await readFile(join(deckRootPath, '.env'), 'utf-8')
-      const match = envContent.match(/ANTHROPIC_MODEL\s*=\s*(.+)/)
-      if (match && match[1]) {
-        const model = match[1].trim().replace(/^["']|["']$/g, '')
-        if (model) return model
-      }
-    } catch {
-      // No .env in deck root
+    const envContent = await readDeckEnv(deckRootPath)
+    if (envContent) {
+      const model = parseEnvValue(envContent, 'ANTHROPIC_MODEL')
+      if (model) return model
     }
   }
 
@@ -73,120 +91,24 @@ export async function loadAnthropicModel(deckRootPath?: string): Promise<string 
 }
 
 /**
- * Load the Gemini API key using the fallback chain:
- * 1. Deck's .env file (per-presentation)
- * 2. App-level settings
- * 3. Process environment variable
+ * Load the Gemini API key using the fallback chain.
  */
 export async function loadGeminiKey(deckRootPath?: string): Promise<string | null> {
-  // 1. Check deck's .env file
-  if (deckRootPath) {
-    try {
-      const envContent = await readFile(join(deckRootPath, '.env'), 'utf-8')
-      const match = envContent.match(/GEMINI_API_KEY\s*=\s*(.+)/)
-      if (match && match[1]) {
-        const key = match[1].trim().replace(/^["']|["']$/g, '')
-        if (key) return key
-      }
-    } catch {
-      // No .env in deck root
-    }
-  }
-
-  // 2. Check app-level settings
-  try {
-    const settingsPath = join(app.getPath('userData'), 'settings.json')
-    const settingsContent = await readFile(settingsPath, 'utf-8')
-    const settings = JSON.parse(settingsContent)
-    if (settings.geminiApiKey) {
-      return settings.geminiApiKey
-    }
-  } catch {
-    // No settings file
-  }
-
-  // 3. Check process environment
-  if (process.env.GEMINI_API_KEY) {
-    return process.env.GEMINI_API_KEY
-  }
-
-  return null
+  return loadKey('GEMINI_API_KEY', 'geminiApiKey', deckRootPath)
 }
 
 /**
- * Load the OpenAI API key using the fallback chain:
- * 1. Deck's .env file (per-presentation)
- * 2. App-level settings
- * 3. Process environment variable
+ * Load the OpenAI API key using the fallback chain.
  */
 export async function loadOpenAIKey(deckRootPath?: string): Promise<string | null> {
-  if (deckRootPath) {
-    try {
-      const envContent = await readFile(join(deckRootPath, '.env'), 'utf-8')
-      const match = envContent.match(/OPENAI_API_KEY\s*=\s*(.+)/)
-      if (match && match[1]) {
-        const key = match[1].trim().replace(/^["']|["']$/g, '')
-        if (key) return key
-      }
-    } catch {
-      // No .env in deck root
-    }
-  }
-
-  try {
-    const settingsPath = join(app.getPath('userData'), 'settings.json')
-    const settingsContent = await readFile(settingsPath, 'utf-8')
-    const settings = JSON.parse(settingsContent)
-    if (settings.openaiApiKey) {
-      return settings.openaiApiKey
-    }
-  } catch {
-    // No settings file
-  }
-
-  if (process.env.OPENAI_API_KEY) {
-    return process.env.OPENAI_API_KEY
-  }
-
-  return null
+  return loadKey('OPENAI_API_KEY', 'openaiApiKey', deckRootPath)
 }
 
 /**
- * Load the Mistral API key using the fallback chain:
- * 1. Deck's .env file (per-presentation)
- * 2. App-level settings
- * 3. Process environment variable
+ * Load the Mistral API key using the fallback chain.
  */
 export async function loadMistralKey(deckRootPath?: string): Promise<string | null> {
-  if (deckRootPath) {
-    try {
-      const envContent = await readFile(join(deckRootPath, '.env'), 'utf-8')
-      const match = envContent.match(/MISTRAL_API_KEY\s*=\s*(.+)/)
-      if (match && match[1]) {
-        const key = match[1].trim().replace(/^["']|["']$/g, '')
-        if (key) return key
-      }
-    } catch {
-      // No .env in deck root
-    }
-  }
-
-  try {
-    const settingsPath = join(app.getPath('userData'), 'settings.json')
-    const settingsContent = await readFile(settingsPath, 'utf-8')
-    const settings = JSON.parse(settingsContent)
-    if (settings.mistralApiKey) {
-      return settings.mistralApiKey
-    }
-  } catch {
-    // No settings file
-  }
-
-  if (process.env.MISTRAL_API_KEY) {
-    return process.env.MISTRAL_API_KEY
-  }
-
-  return null
+  return loadKey('MISTRAL_API_KEY', 'mistralApiKey', deckRootPath)
 }
 
 /**
@@ -198,27 +120,16 @@ export async function loadMistralKey(deckRootPath?: string): Promise<string | nu
  */
 export async function loadAIModel(deckRootPath?: string): Promise<string | null> {
   if (deckRootPath) {
-    try {
-      const envContent = await readFile(join(deckRootPath, '.env'), 'utf-8')
+    const envContent = await readDeckEnv(deckRootPath)
+    if (envContent) {
       // Prefer AI_MODEL, fall back to ANTHROPIC_MODEL
-      const match = envContent.match(/AI_MODEL\s*=\s*(.+)/) || envContent.match(/ANTHROPIC_MODEL\s*=\s*(.+)/)
-      if (match && match[1]) {
-        const model = match[1].trim().replace(/^["']|["']$/g, '')
-        if (model) return model
-      }
-    } catch {
-      // No .env in deck root
+      const model = parseEnvValue(envContent, 'AI_MODEL') || parseEnvValue(envContent, 'ANTHROPIC_MODEL')
+      if (model) return model
     }
   }
 
-  try {
-    const settingsPath = join(app.getPath('userData'), 'settings.json')
-    const settingsContent = await readFile(settingsPath, 'utf-8')
-    const settings = JSON.parse(settingsContent)
-    if (settings.aiModel) {
-      return settings.aiModel
-    }
-  } catch {}
+  const settingsVal = await getSettingsValue('aiModel')
+  if (settingsVal) return settingsVal
 
   if (process.env.AI_MODEL || process.env.ANTHROPIC_MODEL) {
     return process.env.AI_MODEL || process.env.ANTHROPIC_MODEL || null
@@ -227,48 +138,28 @@ export async function loadAIModel(deckRootPath?: string): Promise<string | null>
   return null
 }
 
+/** Provider ID → { envVar, settingsField } */
+const PROVIDER_KEY_MAP: Record<string, { envVar: string; settingsField: string }> = {
+  anthropic:    { envVar: 'ANTHROPIC_API_KEY',    settingsField: 'anthropicApiKey' },
+  openai:       { envVar: 'OPENAI_API_KEY',       settingsField: 'openaiApiKey' },
+  google:       { envVar: 'GEMINI_API_KEY',        settingsField: 'geminiApiKey' },
+  mistral:      { envVar: 'MISTRAL_API_KEY',       settingsField: 'mistralApiKey' },
+  meta:         { envVar: 'LLAMA_API_KEY',         settingsField: 'llamaApiKey' },
+  xai:          { envVar: 'XAI_API_KEY',           settingsField: 'xaiApiKey' },
+  perplexity:   { envVar: 'PERPLEXITY_API_KEY',    settingsField: 'perplexityApiKey' },
+  ollama:       { envVar: 'OLLAMA_BASE_URL',       settingsField: 'ollamaBaseUrl' },
+  nanobanana:   { envVar: 'NANOBANANA_API_KEY',    settingsField: 'nanobananaApiKey' },
+}
+
 /**
- * Generic key loader for any provider using env var name + settings field name.
+ * Public generic key loader — used by services that need keys for newer providers.
  */
-async function loadGenericKey(
+export async function loadGenericProviderKey(
   envVar: string,
   settingsField: string,
   deckRootPath?: string
 ): Promise<string | null> {
-  if (deckRootPath) {
-    try {
-      const envContent = await readFile(join(deckRootPath, '.env'), 'utf-8')
-      const regex = new RegExp(`${envVar}\\s*=\\s*(.+)`)
-      const match = envContent.match(regex)
-      if (match && match[1]) {
-        const key = match[1].trim().replace(/^["']|["']$/g, '')
-        if (key) return key
-      }
-    } catch {}
-  }
-
-  try {
-    const settingsPath = join(app.getPath('userData'), 'settings.json')
-    const settingsContent = await readFile(settingsPath, 'utf-8')
-    const settings = JSON.parse(settingsContent)
-    if (settings[settingsField]) return settings[settingsField]
-  } catch {}
-
-  if (process.env[envVar]) return process.env[envVar]!
-
-  return null
-}
-
-/** Provider ID → { envVar, settingsField } */
-const PROVIDER_KEY_MAP: Record<string, { envVar: string; settingsField: string }> = {
-  anthropic:   { envVar: 'ANTHROPIC_API_KEY',   settingsField: 'anthropicApiKey' },
-  openai:      { envVar: 'OPENAI_API_KEY',      settingsField: 'openaiApiKey' },
-  google:      { envVar: 'GEMINI_API_KEY',       settingsField: 'geminiApiKey' },
-  mistral:     { envVar: 'MISTRAL_API_KEY',      settingsField: 'mistralApiKey' },
-  meta:        { envVar: 'LLAMA_API_KEY',        settingsField: 'llamaApiKey' },
-  xai:         { envVar: 'XAI_API_KEY',          settingsField: 'xaiApiKey' },
-  perplexity:  { envVar: 'PERPLEXITY_API_KEY',   settingsField: 'perplexityApiKey' },
-  ollama:      { envVar: 'OLLAMA_BASE_URL',      settingsField: 'ollamaBaseUrl' },
+  return loadKey(envVar, settingsField, deckRootPath)
 }
 
 /**
@@ -287,7 +178,7 @@ export async function loadProviderKey(
   }
   // Generic loader for newer providers
   const mapping = PROVIDER_KEY_MAP[providerId]
-  if (mapping) return loadGenericKey(mapping.envVar, mapping.settingsField, deckRootPath)
+  if (mapping) return loadKey(mapping.envVar, mapping.settingsField, deckRootPath)
   return null
 }
 
@@ -305,21 +196,16 @@ export async function getProviderKeySource(
 
   // 1. Check deck's .env file
   if (deckRootPath) {
-    try {
-      const envContent = await readFile(join(deckRootPath, '.env'), 'utf-8')
-      const regex = new RegExp(`${mapping.envVar}\\s*=\\s*(.+)`)
-      const match = envContent.match(regex)
-      if (match && match[1]?.trim().replace(/^["']|["']$/g, '')) return 'env-file'
-    } catch {}
+    const envContent = await readDeckEnv(deckRootPath)
+    if (envContent) {
+      const val = parseEnvValue(envContent, mapping.envVar)
+      if (val) return 'env-file'
+    }
   }
 
   // 2. Check app settings
-  try {
-    const settingsPath = join(app.getPath('userData'), 'settings.json')
-    const settingsContent = await readFile(settingsPath, 'utf-8')
-    const settings = JSON.parse(settingsContent)
-    if (settings[mapping.settingsField]) return 'settings'
-  } catch {}
+  const settingsVal = await getSettingsValue(mapping.settingsField)
+  if (settingsVal) return 'settings'
 
   // 3. Check process env
   if (process.env[mapping.envVar]) return 'env-var'
@@ -333,23 +219,15 @@ export async function getProviderKeySource(
  */
 export async function loadImageProvider(deckRootPath?: string): Promise<string> {
   if (deckRootPath) {
-    try {
-      const envContent = await readFile(join(deckRootPath, '.env'), 'utf-8')
-      const match = envContent.match(/IMAGE_PROVIDER\s*=\s*(.+)/)
-      if (match && match[1]) {
-        return match[1].trim().replace(/^["']|["']$/g, '')
-      }
-    } catch {}
+    const envContent = await readDeckEnv(deckRootPath)
+    if (envContent) {
+      const val = parseEnvValue(envContent, 'IMAGE_PROVIDER')
+      if (val) return val
+    }
   }
 
-  try {
-    const settingsPath = join(app.getPath('userData'), 'settings.json')
-    const settingsContent = await readFile(settingsPath, 'utf-8')
-    const settings = JSON.parse(settingsContent)
-    if (settings.imageProvider) {
-      return settings.imageProvider
-    }
-  } catch {}
+  const settingsVal = await getSettingsValue('imageProvider')
+  if (settingsVal) return settingsVal
 
   return 'openai'
 }

@@ -3,6 +3,7 @@ import { useNotebookStore } from '../../stores/notebook-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useTabsStore } from '../../stores/tabs-store'
 import type { NoteLayout } from '../../../../../packages/shared/src/types/notebook'
+import { sanitizeHtml } from '../../utils/sanitize'
 
 const NOTE_LAYOUTS: { value: NoteLayout; label: string; icon: string }[] = [
   { value: 'lines', label: 'Lines', icon: '\u2261' },
@@ -208,10 +209,10 @@ export function NotebookToolbar({ showAgenda, onToggleAgenda }: {
                           </div>
                           {snippet && (
                             <div className="text-gray-600 truncate mt-0.5" dangerouslySetInnerHTML={{
-                              __html: snippet.replace(
+                              __html: sanitizeHtml(snippet.replace(
                                 new RegExp(`(${searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'),
                                 '<span class="text-white bg-gray-700 px-0.5 rounded">\$1</span>'
-                              )
+                              ))
                             }} />
                           )}
                         </button>

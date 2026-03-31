@@ -1,5 +1,6 @@
 import React from 'react'
 import type { CellOutput } from '../../../../../packages/shared/src/types/notebook'
+import { sanitizeHtml } from '../../utils/sanitize'
 
 interface CellOutputRendererProps {
   outputs: CellOutput[]
@@ -52,7 +53,7 @@ function renderSingleOutput(output: CellOutput, rootPath: string | undefined, in
         <div
           key={index}
           className="cell-output-html overflow-x-auto rounded bg-gray-950 px-3 py-2 text-xs text-gray-200 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-gray-700 [&_td]:px-2 [&_td]:py-1 [&_th]:border [&_th]:border-gray-700 [&_th]:bg-gray-900 [&_th]:px-2 [&_th]:py-1 [&_th]:text-left [&_th]:font-semibold"
-          dangerouslySetInnerHTML={{ __html: html }}
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(html) }}
         />
       )
     }

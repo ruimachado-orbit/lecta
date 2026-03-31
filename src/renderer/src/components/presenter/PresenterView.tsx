@@ -16,7 +16,7 @@ import { useSubSlides } from '../../hooks/useSubSlides'
 type ArtifactType = 'code' | 'video' | 'webapp' | 'prompt' | 'artifact'
 
 export function PresenterView(): JSX.Element {
-  const { slides, currentSlideIndex, nextSlide, prevSlide, presentation } =
+  const { slides, currentSlideIndex, nextSlide, prevSlide, goToSlide, presentation } =
     usePresentationStore()
   const { setPresenting } = useUIStore()
   const { isExecuting, output: executionOutput } = useExecutionStore()
@@ -27,18 +27,31 @@ export function PresenterView(): JSX.Element {
     document.documentElement.setAttribute('data-theme', 'dark')
   }, [])
 
-  // Expose slide state for remote control
+  // Expose slide state for remote control (includes notes + title for phone view)
+  const currentNotes = slides[currentSlideIndex]?.notesContent ?? ''
   useEffect(() => {
-    (window as any).__lectaSlideState = { current: currentSlideIndex + 1, total: slides.length }
+    (window as any).__lectaSlideState = {
+      current: currentSlideIndex + 1,
+      total: slides.length,
+      notes: currentNotes,
+      title: presentation?.title || '',
+    }
     ;(window as any).__lectaRemoteAction = (action: string) => {
       if (action === 'next') nextSlide()
       else if (action === 'prev') prevSlide()
+      else if (action === 'first') goToSlide(0)
+      else if (action === 'last') goToSlide(slides.length - 1)
+    }
+    // Handle remote pointer from phone — forward to audience view via IPC
+    ;(window as any).__lectaRemotePointer = (pos: { x: number; y: number; area: string } | null) => {
+      window.electronAPI.syncPresenterMouse(pos)
     }
     return () => {
       delete (window as any).__lectaSlideState
       delete (window as any).__lectaRemoteAction
+      delete (window as any).__lectaRemotePointer
     }
-  }, [currentSlideIndex, slides.length, nextSlide, prevSlide])
+  }, [currentSlideIndex, slides.length, nextSlide, prevSlide, goToSlide, currentNotes, presentation?.title])
 
   const [activeArtifact, setActiveArtifact] = useState<ArtifactType | null>(null)
   const [artifactExpanded, setArtifactExpanded] = useState(false)
@@ -693,10 +706,27 @@ function SidebarBtn({ active, onClick, title, children }: {
 function RemoteControlButton(): JSX.Element {
   const [remoteUrl, setRemoteUrl] = useState<string | null>(null)
   const [showQR, setShowQR] = useState(false)
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
+
+
+  useEffect(() => {
+    if (showQR && remoteUrl) {
+      import('qrcode').then((QRCode) => {
+        QRCode.toDataURL(remoteUrl, {
+          width: 220,
+          margin: 2,
+          errorCorrectionLevel: 'M',
+          type: 'image/png',
+          color: { dark: '#000000', light: '#ffffff' },
+        }).then((dataUrl) => setQrDataUrl(dataUrl))
+      })
+    } else {
+      setQrDataUrl(null)
+    }
+  }, [showQR, remoteUrl])
 
   const toggleRemote = async () => {
     if (remoteUrl) {
-      // If popup is hidden, show it; otherwise stop the remote
       if (!showQR) {
         setShowQR(true)
       } else {
@@ -728,17 +758,26 @@ function RemoteControlButton(): JSX.Element {
       {showQR && remoteUrl && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setShowQR(false)} />
-          <div className="absolute top-full right-0 mt-2 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-4 w-56">
-            <div className="text-[10px] text-gray-400 uppercase tracking-wider mb-2">Remote Control</div>
-            <div className="text-xs text-white font-mono mb-2 break-all">{remoteUrl}</div>
-            <div className="text-[9px] text-gray-500">Open this URL on your phone to control the presentation</div>
-            <div className="flex gap-1.5 mt-2">
-              <button onClick={() => { navigator.clipboard.writeText(remoteUrl) }}
-                className="flex-1 px-2 py-1 text-[10px] bg-gray-800 hover:bg-gray-700 text-gray-300 rounded transition-colors">
+          <div className="absolute top-full right-0 mt-2 z-50 bg-white border border-gray-200 rounded-xl shadow-2xl p-4 w-64">
+            <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-3">Scan to control</div>
+            <div className="flex justify-center mb-3">
+              {qrDataUrl
+                ? <img src={qrDataUrl} alt="QR Code" className="rounded-lg" width={220} height={220} />
+                : <div className="w-[220px] h-[220px] bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs">Generating…</div>
+              }
+            </div>
+            <div className="text-[9px] text-gray-400 font-mono break-all mb-3 text-center leading-relaxed">{remoteUrl}</div>
+            <div className="flex gap-1.5">
+              <button
+                onClick={() => { navigator.clipboard.writeText(remoteUrl) }}
+                className="flex-1 px-2 py-1.5 text-[10px] bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+              >
                 Copy URL
               </button>
-              <button onClick={async () => { await window.electronAPI.stopRemote(); setRemoteUrl(null); setShowQR(false) }}
-                className="px-2 py-1 text-[10px] bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded transition-colors">
+              <button
+                onClick={async () => { await window.electronAPI.stopRemote(); setRemoteUrl(null); setShowQR(false) }}
+                className="px-2 py-1.5 text-[10px] bg-red-50 hover:bg-red-100 text-red-500 rounded-lg transition-colors"
+              >
                 Stop
               </button>
             </div>

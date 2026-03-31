@@ -1,8 +1,13 @@
-import { join, extname } from 'path'
+import { join, extname, resolve, relative, isAbsolute } from 'path'
 import type { SupportedLanguage } from '../types/presentation'
 
 export function resolveRelativePath(rootPath: string, relativePath: string): string {
-  return join(rootPath, relativePath)
+  const resolved = resolve(rootPath, relativePath)
+  const rel = relative(rootPath, resolved)
+  if (rel.startsWith('..') || isAbsolute(rel)) {
+    throw new Error(`Path traversal detected: ${relativePath}`)
+  }
+  return resolved
 }
 
 const EXTENSION_TO_LANGUAGE: Record<string, SupportedLanguage> = {
@@ -52,7 +57,8 @@ export function getMonacoLanguage(language: SupportedLanguage): string {
     java: 'java',
     csharp: 'csharp',
     ruby: 'ruby',
-    php: 'php'
+    php: 'php',
+    markdown: 'markdown'
   }
   return mapping[language] || 'plaintext'
 }

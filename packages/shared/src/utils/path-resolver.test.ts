@@ -13,6 +13,18 @@ describe('resolveRelativePath', () => {
       '/root/code/src/index.ts'
     )
   })
+
+  it('throws on path traversal with ../', () => {
+    expect(() => resolveRelativePath('/root', '../../etc/passwd')).toThrow('Path traversal')
+  })
+
+  it('throws on path traversal hidden in nested path', () => {
+    expect(() => resolveRelativePath('/root', 'foo/../../etc/passwd')).toThrow('Path traversal')
+  })
+
+  it('throws on parent references that escape root', () => {
+    expect(() => resolveRelativePath('/root/sub', '../file.txt')).toThrow('Path traversal')
+  })
 })
 
 describe('detectLanguage', () => {
@@ -76,7 +88,7 @@ describe('getMonacoLanguage', () => {
     expect(getMonacoLanguage('python')).toBe('python')
   })
 
-  it('returns plaintext for markdown (not in mapping)', () => {
-    expect(getMonacoLanguage('markdown')).toBe('plaintext')
+  it('maps markdown to markdown', () => {
+    expect(getMonacoLanguage('markdown')).toBe('markdown')
   })
 })

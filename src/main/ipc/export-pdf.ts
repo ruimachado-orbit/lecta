@@ -28,8 +28,12 @@ export function registerExportHandlers(): void {
         const fullHtml = buildPdfHtml(slideHtmls, title)
         await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(fullHtml)}`)
 
-        // Wait for rendering
-        await new Promise((r) => setTimeout(r, 1500))
+        // Wait for page to finish loading, then a short paint margin
+        await new Promise<void>((resolve) => {
+          win.webContents.on('did-finish-load', () => {
+            setTimeout(resolve, 300)
+          })
+        })
 
         const pdfBuffer = await win.webContents.printToPDF({
           landscape: true,

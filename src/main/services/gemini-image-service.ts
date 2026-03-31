@@ -1,8 +1,8 @@
 import { GoogleGenAI } from '@google/genai'
 import OpenAI from 'openai'
-import { loadGeminiKey, loadOpenAIKey, loadImageProvider } from './env-loader'
+import { loadGeminiKey, loadOpenAIKey, loadImageProvider, loadGenericProviderKey } from './env-loader'
 
-export type ImageProvider = 'gemini' | 'openai'
+export type ImageProvider = 'gemini' | 'openai' | 'nanobanana'
 
 let currentDeckPath: string | null = null
 
@@ -137,6 +137,57 @@ export class ImageGenerationService {
     return this.generateWithOpenAI(`Edit the following image: ${prompt}`)
   }
 
+  // --- Nano Banana ---
+
+  private async getNanoBananaKey(): Promise<string> {
+    const apiKey = await loadGenericProviderKey('NANOBANANA_API_KEY', 'nanobananaApiKey', currentDeckPath ?? undefined)
+    if (!apiKey) {
+      throw new Error('No Nano Banana API key found. Add NANOBANANA_API_KEY to your .env file.')
+    }
+    return apiKey
+  }
+
+  private async generateWithNanoBanana(prompt: string, aspectRatio?: string): Promise<{ base64: string; mimeType: string }> {
+    const apiKey = await this.getNanoBananaKey()
+
+    const sizeMap: Record<string, { width: number; height: number }> = {
+      '1:1': { width: 1024, height: 1024 },
+      '16:9': { width: 1792, height: 1024 },
+      '9:16': { width: 1024, height: 1792 },
+    }
+    const size = sizeMap[aspectRatio || '16:9'] || sizeMap['16:9']
+
+    const response = await fetch('https://api.nanobanana.com/v1/images/generate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'nano-banana-pro-hd',
+        prompt,
+        width: size.width,
+        height: size.height,
+        response_format: 'b64_json',
+      }),
+    })
+
+    if (!response.ok) {
+      const err = await response.text()
+      throw new Error(`Nano Banana image generation failed: ${err}`)
+    }
+
+    const data = await response.json() as any
+    const b64 = data.data?.[0]?.b64_json || data.image?.b64_json
+    if (!b64) throw new Error('No image returned from Nano Banana')
+    return { base64: b64, mimeType: 'image/png' }
+  }
+
+  private async editWithNanoBanana(prompt: string, _imageBase64: string, _imageMimeType: string): Promise<{ base64: string; mimeType: string }> {
+    // Nano Banana Pro doesn't support direct image editing, so we re-generate from prompt
+    return this.generateWithNanoBanana(`Edit the following image: ${prompt}`)
+  }
+
   // --- Public API ---
 
   async generateImage(params: {
@@ -148,6 +199,9 @@ export class ImageGenerationService {
     const prov = params.provider || this.provider
     if (prov === 'gemini') {
       return this.generateWithGemini(params.prompt)
+    }
+    if (prov === 'nanobanana') {
+      return this.generateWithNanoBanana(params.prompt, params.aspectRatio)
     }
     return this.generateWithOpenAI(params.prompt, params.aspectRatio)
   }
@@ -162,6 +216,9 @@ export class ImageGenerationService {
     if (prov === 'gemini') {
       return this.editWithGemini(params.prompt, params.imageBase64, params.imageMimeType)
     }
+    if (prov === 'nanobanana') {
+      return this.editWithNanoBanana(params.prompt, params.imageBase64, params.imageMimeType)
+    }
     return this.editWithOpenAI(params.prompt, params.imageBase64, params.imageMimeType)
   }
 
@@ -171,6 +228,9 @@ export class ImageGenerationService {
       if (prov === 'gemini') {
         return !!(await loadGeminiKey(currentDeckPath ?? undefined))
       }
+      if (prov === 'nanobanana') {
+        return !!(await loadGenericProviderKey('NANOBANANA_API_KEY', 'nanobananaApiKey', currentDeckPath ?? undefined))
+      }
       return !!(await loadOpenAIKey(currentDeckPath ?? undefined))
     } catch {
       return false
@@ -178,13 +238,15 @@ export class ImageGenerationService {
   }
 
   async getAvailableProviders(): Promise<{ id: ImageProvider; name: string; hasKey: boolean }[]> {
-    const [hasGemini, hasOpenAI] = await Promise.all([
+    const [hasGemini, hasOpenAI, hasNanoBanana] = await Promise.all([
       this.hasApiKey('gemini'),
       this.hasApiKey('openai'),
+      this.hasApiKey('nanobanana'),
     ])
     return [
       { id: 'openai', name: 'OpenAI DALL-E', hasKey: hasOpenAI },
       { id: 'gemini', name: 'Google Gemini', hasKey: hasGemini },
+      { id: 'nanobanana', name: 'Nano Banana Pro HD', hasKey: hasNanoBanana },
     ]
   }
 }

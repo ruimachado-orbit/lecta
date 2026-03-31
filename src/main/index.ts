@@ -1,10 +1,13 @@
 import { config as dotenvConfig } from 'dotenv'
 import { app, BrowserWindow, ipcMain, net, nativeImage, protocol, session, shell } from 'electron'
-import { join } from 'path'
+import { join, resolve, sep } from 'path'
 import { readFile } from 'fs/promises'
 import { registerAllIpcHandlers } from './ipc/register'
 import { loadSettings } from './ipc/settings'
 import { startMcpServer, stopMcpServer } from './services/mcp-manager'
+
+/** Tracks root paths of currently-open decks for lecta-file:// protocol validation */
+export const allowedFileRoots = new Set<string>()
 
 // Load .env from project root (for ANTHROPIC_API_KEY, etc.)
 dotenvConfig()
@@ -20,11 +23,11 @@ if (process.platform === 'darwin') {
   app.setName('Lecta')
   // Patch the dock tooltip in dev mode by modifying the helper plist
   try {
-    const { execSync } = require('child_process')
+    const { execFileSync } = require('child_process')
     const electronPath = process.execPath
     const plistPath = join(electronPath, '..', '..', 'Info.plist')
-    execSync(`/usr/libexec/PlistBuddy -c "Set :CFBundleName Lecta" "${plistPath}" 2>/dev/null || true`)
-    execSync(`/usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Lecta" "${plistPath}" 2>/dev/null || true`)
+    execFileSync('/usr/libexec/PlistBuddy', ['-c', 'Set :CFBundleName Lecta', plistPath], { stdio: 'ignore' })
+    execFileSync('/usr/libexec/PlistBuddy', ['-c', 'Set :CFBundleDisplayName Lecta', plistPath], { stdio: 'ignore' })
   } catch {
     // Non-critical — only affects dev tooltip
   }
@@ -95,14 +98,17 @@ function createWindow(): BrowserWindow {
         ...details.responseHeaders,
         'Content-Security-Policy': [
           `default-src 'self';` +
+            // unsafe-eval required by Monaco Editor and Sandpack code execution
             ` script-src 'self' 'unsafe-eval' blob: https://cdn.jsdelivr.net https://unpkg.com https://esm.sh https://www.youtube.com https://s.ytimg.com;` +
             ` style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net;` +
             ` connect-src 'self' https://cdn.jsdelivr.net https://unpkg.com https://esm.sh https://api.anthropic.com https://generativelanguage.googleapis.com${devConnect};` +
             ` worker-src 'self' blob:;` +
             ` child-src 'self' blob:;` +
-            ` frame-src 'self' blob: https: http://localhost:* http://127.0.0.1:*;` +
+            ` frame-src 'self' blob: https://www.youtube.com https://codesandbox.io http://localhost:* http://127.0.0.1:*;` +
             ` img-src 'self' data: blob: https: file: lecta-file:;` +
-            ` font-src 'self' data: file: blob: https://cdn.jsdelivr.net https://unpkg.com;`
+            ` font-src 'self' data: file: blob: https://cdn.jsdelivr.net https://unpkg.com;` +
+            ` object-src 'none';` +
+            ` base-uri 'self';`
         ]
       }
     })
@@ -142,7 +148,16 @@ app.whenReady().then(() => {
   // Handle lecta-file:// protocol — serves local files to the renderer
   // URL format: lecta-file:///absolute/path/to/file.png
   protocol.handle('lecta-file', async (request) => {
-    const filePath = decodeURIComponent(request.url.replace('lecta-file://', ''))
+    const filePath = resolve(decodeURIComponent(request.url.replace('lecta-file://', '')))
+
+    // Validate the resolved path is within an allowed deck root
+    const isAllowed = Array.from(allowedFileRoots).some(
+      (root) => filePath === root || filePath.startsWith(root + sep)
+    )
+    if (!isAllowed) {
+      return new Response('Forbidden', { status: 403 })
+    }
+
     try {
       const data = await readFile(filePath)
       const ext = filePath.split('.').pop()?.toLowerCase() || ''

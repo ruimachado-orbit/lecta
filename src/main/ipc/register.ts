@@ -12,6 +12,7 @@ import { registerGeminiImageHandlers } from './gemini-image'
 import { registerChatAgentHandlers } from './chat-agent'
 import { registerLibraryHandlers } from './library'
 import { registerMcpHandlers } from './mcp'
+import { registerDesignSystemHandlers } from './design-system'
 
 export function registerAllIpcHandlers(): void {
   registerFileSystemHandlers()
@@ -28,4 +29,5 @@ export function registerAllIpcHandlers(): void {
   registerChatAgentHandlers()
   registerLibraryHandlers()
   registerMcpHandlers()
+  registerDesignSystemHandlers()
 }

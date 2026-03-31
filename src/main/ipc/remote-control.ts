@@ -1,9 +1,10 @@
-import { ipcMain } from 'electron'
+import { ipcMain, BrowserWindow } from 'electron'
 import { startRemoteControl, stopRemoteControl, isRemoteRunning } from '../services/remote-control'
 
 export function registerRemoteControlHandlers(): void {
-  ipcMain.handle('remote:start', async (): Promise<string> => {
-    const { url } = startRemoteControl(3333)
+  ipcMain.handle('remote:start', async (event): Promise<string> => {
+    const senderWindow = BrowserWindow.fromWebContents(event.sender) ?? undefined
+    const { url } = startRemoteControl(3333, senderWindow)
     return url
   })
 

@@ -11,6 +11,18 @@ import {
   addImage,
   customizeTheme,
   getDefaultPresentationsPath,
+  generateAIImage,
+  // Design System
+  listDesignElements,
+  getDesignElement,
+  saveDesignElement,
+  deleteDesignElement,
+  loadDesignSystem,
+  // Slide Library
+  listSlideLibrary,
+  getSlideFromLibrary,
+  saveSlideToLibrary,
+  insertLibrarySlide,
 } from './lib/presentation-io.js'
 import type { SlideLayout, SlideTransition, SupportedLanguage } from './lib/presentation-io.js'
 
@@ -64,14 +76,36 @@ Always use format "mdx" for visually rich slides. MDX slides are pure JSX/React:
 - **paper** — editorial, warm, storytelling
 - **light** — general purpose, safe default
 
+## Design System
+Lecta has a shared design system that stores reusable elements across ALL presentations.
+Before creating slides, ALWAYS call list_design_elements to check for existing:
+- **Components** — Reusable JSX blocks (cards, headers, stat grids, etc.)
+- **Color palettes** — Named color sets for consistent branding
+- **Typography** — Font + size + weight presets
+- **Snippets** — Small JSX pieces (accent bars, bullets, badges)
+- **Layout patterns** — Full-slide JSX templates
+
+When you create a visually polished element, save it with save_design_element so it can be reused.
+Use {{PLACEHOLDER}} syntax in saved components for variable content.
+
+## Slide Library
+Users can save reusable slides to a personal library. Before building from scratch:
+1. Call list_library_slides to check if a suitable slide already exists
+2. Use insert_library_slide to add it to the presentation
+3. After creating a great slide, offer to save_slide_to_library for reuse
+
 ## Workflow
-1. Create the presentation with create_presentation (pick a good theme, format: "mdx")
-2. Edit slide 0 (the title slide) with proper JSX content
-3. Add remaining slides one by one with add_slide (format: "mdx")
-4. Use add_image to embed local images into slides
-5. Use customize_theme to override colors/fonts if needed
-6. Use list_slides to review the deck
-7. Do NOT export — the user views it in the Lecta app`
+1. **Check design system**: list_design_elements — load existing components, colors, typography
+2. **Check slide library**: list_library_slides — see if reusable slides exist
+3. Create the presentation with create_presentation (pick a good theme, format: "mdx")
+4. Edit slide 0 (the title slide) with proper JSX content, using design system elements
+5. Add remaining slides one by one with add_slide (format: "mdx"), reusing saved components
+6. Use generate_ai_image to create images with DALL-E, Gemini, or Nano Banana
+7. Use add_image to embed local images into slides
+8. Use customize_theme to override colors/fonts if needed
+9. Use list_slides to review the deck
+10. **Save good elements**: save_design_element for reusable components, save_slide_to_library for reusable slides
+11. Do NOT export — the user views it in the Lecta app`
 
 export function createLectaServer(): McpServer {
   const server = new McpServer({
@@ -79,7 +113,7 @@ export function createLectaServer(): McpServer {
     version: '0.1.0',
   })
 
-  // ── MCP Prompt ──
+  // ── MCP Prompts ──
   server.prompt(
     'create-deck',
     'Expert guide for creating professional Lecta presentations with proper layouts, structure, and styling',
@@ -89,6 +123,51 @@ export function createLectaServer(): McpServer {
         content: { type: 'text' as const, text: PRESENTATION_SKILL },
       }],
     })
+  )
+
+  server.prompt(
+    'use-design-system',
+    'Load the full design system (all reusable components, palettes, typography, snippets) for building consistent presentations',
+    async () => {
+      const ds = await loadDesignSystem()
+      if (ds.elements.length === 0) {
+        return {
+          messages: [{
+            role: 'user' as const,
+            content: {
+              type: 'text' as const,
+              text: 'The design system is currently empty. As you create presentations, save reusable elements with save_design_element to build up a consistent visual library. Categories: component, color-palette, typography, snippet, layout-pattern.',
+            },
+          }],
+        }
+      }
+
+      const grouped: Record<string, typeof ds.elements> = {}
+      for (const el of ds.elements) {
+        if (!grouped[el.category]) grouped[el.category] = []
+        grouped[el.category].push(el)
+      }
+
+      let text = `# Design System — ${ds.elements.length} elements\n\n`
+      text += 'Use these elements for visual consistency across all presentations.\n\n'
+
+      for (const [category, elements] of Object.entries(grouped)) {
+        text += `## ${category.charAt(0).toUpperCase() + category.slice(1).replace('-', ' ')} (${elements.length})\n\n`
+        for (const el of elements) {
+          text += `### ${el.name} [${el.id}]\n`
+          text += `${el.description}\n`
+          text += `Tags: ${el.tags.join(', ')}\n`
+          text += '```\n' + el.content + '\n```\n\n'
+        }
+      }
+
+      return {
+        messages: [{
+          role: 'user' as const,
+          content: { type: 'text' as const, text },
+        }],
+      }
+    }
   )
 
   // ── Slide content guidelines (shared across tool descriptions) ──
@@ -399,6 +478,56 @@ RIGHT (pure JSX — full control over layout and styling, title is a styled div)
     }
   )
 
+  // ── generate_ai_image ──
+  server.tool(
+    'generate_ai_image',
+    'Generate an AI image from a text prompt and optionally insert it into a slide. Supports multiple image providers: "openai" (DALL-E 3), "gemini" (Google Gemini ImageFX), and "nanobanana" (Nano Banana Pro — best for text in images, 4K HD). The generated image is saved to the presentation\'s images/ directory. If slide_index is provided, the image is automatically embedded into the slide content.',
+    {
+      presentation_path: z.string().describe('Root path of the presentation (returned by create_presentation)'),
+      prompt: z.string().describe('Detailed description of the image to generate. Be specific about subject, style, colors, composition, and mood.'),
+      provider: z.enum(['openai', 'gemini', 'nanobanana']).optional().describe('Image generation provider. "openai" uses DALL-E 3, "gemini" uses Google Gemini ImageFX, "nanobanana" uses Nano Banana Pro (best for text in images, 4K HD). Default: uses the configured provider.'),
+      aspect_ratio: z.enum(['1:1', '16:9', '9:16']).optional().describe('Aspect ratio for the generated image. Default: "16:9" (landscape, ideal for slides).'),
+      slide_index: z.number().optional().describe('0-based slide index to insert the image into. If omitted, the image is saved to images/ without inserting into any slide.'),
+      alt_text: z.string().optional().describe('Alt text for the image when inserted into a slide'),
+    },
+    async (params) => {
+      try {
+        const result = await generateAIImage({
+          rootPath: params.presentation_path,
+          prompt: params.prompt,
+          provider: params.provider,
+          aspectRatio: params.aspect_ratio,
+          slideIndex: params.slide_index,
+          altText: params.alt_text,
+        })
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              imagePath: result.imagePath,
+              inserted: result.inserted,
+              provider: result.provider,
+              message: result.inserted
+                ? `AI image generated with ${result.provider} and inserted into slide ${params.slide_index}. Path: ${result.imagePath}`
+                : `AI image generated with ${result.provider} and saved to ${result.imagePath}. For MDX slides use <img src="${result.imagePath}" style={{maxWidth:'100%',borderRadius:'8px'}} />`,
+            }, null, 2),
+          }],
+        }
+      } catch (err) {
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: false,
+              error: (err as Error).message,
+            }, null, 2),
+          }],
+        }
+      }
+    }
+  )
+
   // ── customize_theme ──
   server.tool(
     'customize_theme',
@@ -425,6 +554,290 @@ RIGHT (pure JSX — full control over layout and styling, title is a styled div)
           type: 'text',
           text: JSON.stringify(result, null, 2),
         }],
+      }
+    }
+  )
+
+  // ══════════════════════════════════════════════════════
+  // ── Design System Tools ──
+  // ══════════════════════════════════════════════════════
+
+  server.tool(
+    'list_design_elements',
+    `List reusable design elements from the shared design system. The design system works like a frontend component library — it stores reusable JSX snippets, color palettes, typography presets, and layout patterns that the AI should use for consistency across presentations.
+
+Categories:
+- "component" — Reusable JSX blocks (cards, headers, stat grids, timelines, icon rows, etc.)
+- "color-palette" — Named color sets (e.g. "brand-primary: #6366f1, brand-secondary: #ec4899")
+- "typography" — Font + size + weight combinations for headings, body, captions
+- "snippet" — Small JSX fragments (styled bullets, accent bars, gradient backgrounds)
+- "layout-pattern" — Full-slide JSX templates with placeholder content
+
+IMPORTANT: Before creating a new presentation, ALWAYS call this tool first to check if there are design elements to reuse. This ensures visual consistency across all the user's decks.`,
+    {
+      category: z.enum(['component', 'color-palette', 'typography', 'snippet', 'layout-pattern']).optional().describe('Filter by category'),
+      tags: z.array(z.string()).optional().describe('Filter by tags (returns elements matching ANY of the tags)'),
+      search: z.string().optional().describe('Search by name, description, or tag'),
+    },
+    async (params) => {
+      const elements = await listDesignElements({
+        category: params.category,
+        tags: params.tags,
+        search: params.search,
+      })
+      return {
+        content: [{
+          type: 'text',
+          text: elements.length === 0
+            ? 'No design elements found. The design system is empty — you can create elements with save_design_element to build up a reusable library.'
+            : JSON.stringify({
+                count: elements.length,
+                elements: elements.map(e => ({
+                  id: e.id,
+                  name: e.name,
+                  category: e.category,
+                  description: e.description,
+                  tags: e.tags,
+                  contentPreview: e.content.length > 300 ? e.content.slice(0, 300) + '...' : e.content,
+                })),
+              }, null, 2),
+        }],
+      }
+    }
+  )
+
+  server.tool(
+    'get_design_element',
+    'Get the full content of a design element by its ID. Returns the complete JSX/CSS/markdown content ready to be used in a slide.',
+    {
+      element_id: z.string().describe('The ID of the design element (from list_design_elements)'),
+    },
+    async (params) => {
+      const element = await getDesignElement(params.element_id)
+      if (!element) {
+        return {
+          content: [{ type: 'text', text: `Design element "${params.element_id}" not found.` }],
+        }
+      }
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify(element, null, 2),
+        }],
+      }
+    }
+  )
+
+  server.tool(
+    'save_design_element',
+    `Save a reusable design element to the shared design system. Elements are shared across ALL presentations — use this to build up a consistent visual language.
+
+Best practices for creating elements:
+- Components: Save self-contained JSX blocks with placeholder content (use {{TITLE}}, {{VALUE}}, {{DESCRIPTION}} placeholders)
+- Color palettes: Save as key-value pairs, e.g. "primary: #6366f1\\nsecondary: #ec4899\\nbg: #0a0e1a"
+- Typography: Save font-family + size + weight + color combos
+- Snippets: Small reusable JSX pieces (accent bars, dividers, icon badges)
+- Layout patterns: Full 1280×720 slide JSX templates with placeholder slots
+
+Use descriptive tags so elements can be found later (e.g. "card", "stats", "header", "dark-theme", "corporate").`,
+    {
+      id: z.string().optional().describe('If provided, updates an existing element. Otherwise creates a new one.'),
+      name: z.string().describe('Short descriptive name (e.g. "Metric Card", "Section Header", "Brand Colors")'),
+      category: z.enum(['component', 'color-palette', 'typography', 'snippet', 'layout-pattern']).describe('Element category'),
+      description: z.string().describe('One-line description of what this element is and when to use it'),
+      content: z.string().describe('The reusable content — JSX snippet, CSS values, color definitions, or full slide template'),
+      tags: z.array(z.string()).describe('Tags for discovery (e.g. ["card", "stats", "dark-theme"])'),
+    },
+    async (params) => {
+      const element = await saveDesignElement({
+        id: params.id,
+        name: params.name,
+        category: params.category,
+        description: params.description,
+        content: params.content,
+        tags: params.tags,
+      })
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            success: true,
+            id: element.id,
+            name: element.name,
+            message: params.id
+              ? `Updated design element "${element.name}".`
+              : `Created design element "${element.name}" (${element.id}). It will now be available across all presentations.`,
+          }, null, 2),
+        }],
+      }
+    }
+  )
+
+  server.tool(
+    'delete_design_element',
+    'Delete a design element from the shared design system.',
+    {
+      element_id: z.string().describe('The ID of the design element to delete'),
+    },
+    async (params) => {
+      const deleted = await deleteDesignElement(params.element_id)
+      return {
+        content: [{
+          type: 'text',
+          text: deleted
+            ? `Design element "${params.element_id}" deleted.`
+            : `Design element "${params.element_id}" not found.`,
+        }],
+      }
+    }
+  )
+
+  // ══════════════════════════════════════════════════════
+  // ── Slide Library Tools ──
+  // ══════════════════════════════════════════════════════
+
+  server.tool(
+    'list_library_slides',
+    'List saved slides from the user\'s slide library. These are reusable slides the user has saved for use across presentations. Use this when the user asks to reuse a slide, or when you want to check if there\'s already a suitable slide before creating one from scratch.',
+    {
+      tags: z.array(z.string()).optional().describe('Filter by tags'),
+      search: z.string().optional().describe('Search by name or content'),
+    },
+    async (params) => {
+      const slides = await listSlideLibrary({
+        tags: params.tags,
+        search: params.search,
+      })
+      return {
+        content: [{
+          type: 'text',
+          text: slides.length === 0
+            ? 'No saved slides in the library.'
+            : JSON.stringify({
+                count: slides.length,
+                slides: slides.map(s => ({
+                  id: s.id,
+                  name: s.name,
+                  layout: s.layout || 'default',
+                  hasCode: !!s.codeContent,
+                  codeLanguage: s.codeLanguage || null,
+                  tags: s.tags || [],
+                  savedAt: s.savedAt,
+                  contentPreview: s.markdown.length > 200 ? s.markdown.slice(0, 200) + '...' : s.markdown,
+                })),
+              }, null, 2),
+        }],
+      }
+    }
+  )
+
+  server.tool(
+    'get_library_slide',
+    'Get the full content of a saved slide from the library by its ID.',
+    {
+      slide_id: z.string().describe('The ID of the saved slide'),
+    },
+    async (params) => {
+      const slide = await getSlideFromLibrary(params.slide_id)
+      if (!slide) {
+        return {
+          content: [{ type: 'text', text: `Slide "${params.slide_id}" not found in the library.` }],
+        }
+      }
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify(slide, null, 2),
+        }],
+      }
+    }
+  )
+
+  server.tool(
+    'insert_library_slide',
+    'Insert a saved slide from the library into the current presentation. The slide\'s markdown content, layout, and code (if any) will be copied into the presentation.',
+    {
+      presentation_path: z.string().describe('Root path of the presentation'),
+      slide_id: z.string().describe('The ID of the saved slide to insert (from list_library_slides)'),
+      after_index: z.number().optional().describe('Insert after this 0-based slide index. If omitted, appends at the end.'),
+      format: z.enum(['md', 'mdx']).optional().describe('Override the file format (default: mdx)'),
+    },
+    async (params) => {
+      try {
+        const result = await insertLibrarySlide({
+          rootPath: params.presentation_path,
+          slideId: params.slide_id,
+          afterIndex: params.after_index,
+          format: params.format,
+        })
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              slideIndex: result.slideIndex,
+              slideCount: result.slideCount,
+              message: `Library slide inserted at position ${result.slideIndex + 1}.`,
+            }, null, 2),
+          }],
+        }
+      } catch (err) {
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({ success: false, error: (err as Error).message }, null, 2),
+          }],
+        }
+      }
+    }
+  )
+
+  server.tool(
+    'save_slide_to_library',
+    'Save a slide from the current presentation to the user\'s reusable slide library. The slide can then be inserted into any future presentation via insert_library_slide.',
+    {
+      presentation_path: z.string().describe('Root path of the presentation'),
+      slide_index: z.number().describe('0-based index of the slide to save'),
+      name: z.string().describe('Name for the saved slide (e.g. "Company Intro", "Q&A Slide")'),
+      tags: z.array(z.string()).optional().describe('Tags for categorization'),
+    },
+    async (params) => {
+      try {
+        const { slides } = await listSlides(params.presentation_path, true)
+        const slide = slides[params.slide_index]
+        if (!slide) {
+          return {
+            content: [{ type: 'text', text: `Slide ${params.slide_index} not found.` }],
+          }
+        }
+
+        const stored = await saveSlideToLibrary({
+          name: params.name,
+          markdown: slide.content || '',
+          layout: slide.layout,
+          codeContent: slide.codeContent,
+          codeLanguage: slide.codeLanguage,
+          tags: params.tags,
+        })
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              id: stored.id,
+              name: stored.name,
+              message: `Slide saved to library as "${stored.name}" (${stored.id}). It can now be reused in any presentation.`,
+            }, null, 2),
+          }],
+        }
+      } catch (err) {
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({ success: false, error: (err as Error).message }, null, 2),
+          }],
+        }
       }
     }
   )

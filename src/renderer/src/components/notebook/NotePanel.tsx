@@ -3,6 +3,7 @@ import { useNotebookStore } from '../../stores/notebook-store'
 import { useUIStore } from '../../stores/ui-store'
 import { NoteEditor } from './NoteEditor'
 import { DrawingOverlay, DrawingToolbar } from '../slides/DrawingOverlay'
+import { sanitizeHtml } from '../../utils/sanitize'
 import Editor, { type OnMount } from '@monaco-editor/react'
 import { requireAI, showAIError } from '../ai/AIAlert'
 
@@ -196,11 +197,11 @@ export function NotePanel(): JSX.Element {
               {/* Render note content underneath */}
               <div className="absolute inset-0 overflow-auto p-12 pointer-events-none opacity-30">
                 <div className="prose prose-invert max-w-none" dangerouslySetInnerHTML={{
-                  __html: currentPage.markdownContent
+                  __html: sanitizeHtml(currentPage.markdownContent
                     .replace(/^# (.+)$/gm, '<h1>$1</h1>')
                     .replace(/^## (.+)$/gm, '<h2>$1</h2>')
                     .replace(/^[-*] (.+)$/gm, '<li>$1</li>')
-                    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>'))
                 }} />
               </div>
               <DrawingOverlay

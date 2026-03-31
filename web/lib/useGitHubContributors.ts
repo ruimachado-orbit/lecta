@@ -69,6 +69,22 @@ export function useGitHubContributors(
 
   useEffect(() => {
     let cancelled = false
+    const cacheKey = `gh-contributors-${repo}`
+    const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
+
+    // Check sessionStorage cache first
+    try {
+      const cached = sessionStorage.getItem(cacheKey)
+      if (cached) {
+        const { data, ts } = JSON.parse(cached)
+        if (Date.now() - ts < CACHE_TTL_MS && Array.isArray(data)) {
+          setContributors(mergeContributorsFromApi(data as ApiContributor[]))
+          setLoading(false)
+          return
+        }
+      }
+    } catch {}
+
     setLoading(true)
     setError(false)
 
@@ -87,6 +103,7 @@ export function useGitHubContributors(
           return
         }
         setContributors(mergeContributorsFromApi(data as ApiContributor[]))
+        try { sessionStorage.setItem(cacheKey, JSON.stringify({ data, ts: Date.now() })) } catch {}
       })
       .catch(() => {
         if (cancelled) return

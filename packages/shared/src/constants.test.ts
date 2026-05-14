@@ -34,7 +34,7 @@ describe('getProviderForModel', () => {
   })
 
   it('finds openai provider for gpt model', () => {
-    const provider = getProviderForModel('gpt-4o')
+    const provider = getProviderForModel('gpt-5.5')
     expect(provider?.id).toBe('openai')
   })
 
@@ -50,8 +50,8 @@ describe('getProviderForModel', () => {
 
 describe('getModelDef', () => {
   it('finds model definition by ID', () => {
-    const model = getModelDef('gpt-4o')
-    expect(model?.name).toBe('GPT-4o')
+    const model = getModelDef('gpt-5.5')
+    expect(model?.name).toBe('GPT-5.5')
     expect(model?.provider).toBe('openai')
   })
 

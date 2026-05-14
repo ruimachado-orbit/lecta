@@ -24,7 +24,7 @@ export function AIAlert(): JSX.Element | null {
         <div className="flex-1 min-w-0">
           <p className="text-sm text-gray-200 leading-snug">{aiAlert}</p>
           <p className="text-xs text-gray-500 mt-0.5">
-            Configure API keys in <span className="text-amber-400 font-medium">Home &gt; Settings</span>
+            Configure AI credentials in <span className="text-amber-400 font-medium">Home &gt; Settings</span>
           </p>
         </div>
         <button
@@ -44,7 +44,7 @@ export function AIAlert(): JSX.Element | null {
 export function requireAI(): boolean {
   const { aiEnabled, setAiAlert } = useUIStore.getState()
   if (!aiEnabled) {
-    setAiAlert('No API key configured. AI features require at least one provider key.')
+    setAiAlert('No AI provider is configured. Add an API key or sign in with Codex.')
     return false
   }
   return true
@@ -55,7 +55,7 @@ export function showAIError(err: unknown): void {
   const { setAiAlert } = useUIStore.getState()
   const msg = err instanceof Error ? err.message : String(err)
   if (msg.includes('API key') || msg.includes('api key') || msg.includes('No Anthropic') || msg.includes('No OpenAI') || msg.includes('No Google') || msg.includes('not found')) {
-    setAiAlert('No API key configured for the selected model.')
+    setAiAlert('No credentials are configured for the selected model.')
   } else if (msg.includes('credit balance') || msg.includes('too low') || msg.includes('purchase credits')) {
     setAiAlert('API credit balance is too low. Please top up your account or switch provider.')
   } else if (msg.includes('401') || msg.includes('Unauthorized') || msg.includes('invalid')) {

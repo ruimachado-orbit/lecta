@@ -104,6 +104,15 @@ export async function loadOpenAIKey(deckRootPath?: string): Promise<string | nul
   return loadKey('OPENAI_API_KEY', 'openaiApiKey', deckRootPath)
 }
 
+export async function loadOpenAIAuthMode(): Promise<'apiKey' | 'codex'> {
+  const mode = await getSettingsValue('openaiAuthMode')
+  return mode === 'codex' ? 'codex' : 'apiKey'
+}
+
+export async function loadCodexBinPath(): Promise<string | null> {
+  return getSettingsValue('codexBinPath')
+}
+
 /**
  * Load the Mistral API key using the fallback chain.
  */
@@ -182,7 +191,7 @@ export async function loadProviderKey(
   return null
 }
 
-export type KeySource = 'env-file' | 'settings' | 'env-var' | null
+export type KeySource = 'env-file' | 'settings' | 'env-var' | 'codex' | null
 
 /**
  * Determine where a provider's key is coming from.

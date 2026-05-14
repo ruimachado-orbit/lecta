@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { DEFAULT_CODEX_MODEL, getProviderForModel } from '../../../../packages/shared/src/constants'
 
 export interface ColorPalette {
   name: string
@@ -24,7 +25,10 @@ export interface ProviderStatus {
   id: string
   hasKey: boolean
   status?: 'connected' | 'invalid' | 'not_configured'
-  keySource?: 'env-file' | 'settings' | 'env-var' | null
+  keySource?: 'env-file' | 'settings' | 'env-var' | 'codex' | null
+  authMode?: 'apiKey' | 'codex'
+  accountEmail?: string
+  accountPlan?: string
 }
 
 interface UIState {
@@ -202,6 +206,13 @@ export const useUIStore = create<UIState>((set, get) => ({
       if (typeof settings.aiModel === 'string' && settings.aiModel) {
         set({ aiModel: settings.aiModel })
       }
+      const currentModel = get().aiModel
+      const activeProvider = getProviderForModel(currentModel)?.id
+      const activeProviderStatus = statuses.find((s: { id: string; hasKey: boolean }) => s.id === activeProvider)
+      const codexStatus = statuses.find((s: { id: string; hasKey: boolean; authMode?: string }) => s.id === 'openai' && s.authMode === 'codex')
+      if ((!activeProviderStatus?.hasKey) && codexStatus?.hasKey) {
+        get().setAiModel(DEFAULT_CODEX_MODEL)
+      }
     } catch {
       set({ aiEnabled: false })
     }
@@ -216,6 +227,12 @@ export const useUIStore = create<UIState>((set, get) => ({
       const statuses = await window.electronAPI.getProviderStatuses()
       const enabled = statuses.some((s: { id: string; hasKey: boolean }) => s.hasKey)
       set({ providerStatuses: statuses, aiEnabled: enabled })
+      const activeProvider = getProviderForModel(get().aiModel)?.id
+      const activeProviderStatus = statuses.find((s: { id: string; hasKey: boolean }) => s.id === activeProvider)
+      const codexStatus = statuses.find((s: { id: string; hasKey: boolean; authMode?: string }) => s.id === 'openai' && s.authMode === 'codex')
+      if ((!activeProviderStatus?.hasKey) && codexStatus?.hasKey) {
+        get().setAiModel(DEFAULT_CODEX_MODEL)
+      }
     } catch {
       // ignore
     }

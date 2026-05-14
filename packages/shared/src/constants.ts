@@ -66,6 +66,18 @@ export interface AIModelDef {
   capabilities: ('text' | 'image' | 'code')[]
 }
 
+export const CODEX_MODELS: AIModelDef[] = [
+  { id: 'gpt-5.5', name: 'GPT-5.5', provider: 'openai', capabilities: ['text', 'code', 'image'] },
+  { id: 'gpt-5.4', name: 'GPT-5.4', provider: 'openai', capabilities: ['text', 'code', 'image'] },
+  { id: 'gpt-5.4-mini', name: 'GPT-5.4 Mini', provider: 'openai', capabilities: ['text', 'code', 'image'] },
+  { id: 'gpt-5.3-codex', name: 'GPT-5.3 Codex', provider: 'openai', capabilities: ['text', 'code', 'image'] },
+  { id: 'gpt-5.3-codex-spark', name: 'GPT-5.3 Codex Spark', provider: 'openai', capabilities: ['text', 'code', 'image'] },
+]
+
+export const OPENAI_API_MODELS: AIModelDef[] = CODEX_MODELS
+
+export const DEFAULT_CODEX_MODEL = CODEX_MODELS[0].id
+
 export const AI_PROVIDERS: AIProviderDef[] = [
   {
     id: 'anthropic',
@@ -85,13 +97,7 @@ export const AI_PROVIDERS: AIProviderDef[] = [
     icon: 'O',
     keyEnvVar: 'OPENAI_API_KEY',
     keySettingsField: 'openaiApiKey',
-    models: [
-      { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai', capabilities: ['text', 'code'] },
-      { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: 'openai', capabilities: ['text', 'code'] },
-      { id: 'o3', name: 'o3', provider: 'openai', capabilities: ['text', 'code'] },
-      { id: 'o3-mini', name: 'o3 Mini', provider: 'openai', capabilities: ['text', 'code'] },
-      { id: 'o4-mini', name: 'o4 Mini', provider: 'openai', capabilities: ['text', 'code'] },
-    ]
+    models: OPENAI_API_MODELS
   },
   {
     id: 'google',
@@ -172,6 +178,9 @@ export function getAllModels(): AIModelDef[] {
 
 /** Find provider by model ID */
 export function getProviderForModel(modelId: string): AIProviderDef | undefined {
+  if (CODEX_MODELS.some((m) => m.id === modelId)) {
+    return AI_PROVIDERS.find((p) => p.id === 'openai')
+  }
   return AI_PROVIDERS.find((p) => p.models.some((m) => m.id === modelId))
 }
 

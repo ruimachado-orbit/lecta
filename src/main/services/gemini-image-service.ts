@@ -1,8 +1,9 @@
 import { GoogleGenAI } from '@google/genai'
 import OpenAI from 'openai'
 import { loadGeminiKey, loadOpenAIKey, loadImageProvider, loadGenericProviderKey } from './env-loader'
+import { getCodexAppServerClient } from './codex-app-server-client'
 
-export type ImageProvider = 'gemini' | 'openai' | 'nanobanana'
+export type ImageProvider = 'gemini' | 'openai' | 'nanobanana' | 'codex'
 
 let currentDeckPath: string | null = null
 
@@ -17,7 +18,7 @@ export class ImageGenerationService {
     this.openaiClient = null
 
     const prov = await loadImageProvider(deckPath)
-    if (prov === 'gemini' || prov === 'openai') {
+    if (prov === 'gemini' || prov === 'openai' || prov === 'nanobanana' || prov === 'codex') {
       this.provider = prov
     }
   }
@@ -125,7 +126,7 @@ export class ImageGenerationService {
       response_format: 'b64_json',
     })
 
-    const data = response.data[0]?.b64_json
+    const data = response.data?.[0]?.b64_json
     if (!data) throw new Error('No image returned from DALL-E')
 
     return { base64: data, mimeType: 'image/png' }
@@ -135,6 +136,26 @@ export class ImageGenerationService {
     // DALL-E 3 doesn't support image editing directly, so we generate a new image from the prompt
     // describing the desired edit
     return this.generateWithOpenAI(`Edit the following image: ${prompt}`)
+  }
+
+  // --- Codex app-server image generation ---
+
+  private async generateWithCodex(prompt: string, aspectRatio?: string): Promise<{ base64: string; mimeType: string }> {
+    return getCodexAppServerClient().generateImage({
+      prompt,
+      aspectRatio,
+      cwd: currentDeckPath ?? undefined,
+    })
+  }
+
+  private async editWithCodex(prompt: string, imageBase64: string, imageMimeType: string, aspectRatio?: string): Promise<{ base64: string; mimeType: string }> {
+    return getCodexAppServerClient().generateImage({
+      prompt,
+      aspectRatio,
+      cwd: currentDeckPath ?? undefined,
+      imageBase64,
+      imageMimeType,
+    })
   }
 
   // --- Nano Banana ---
@@ -203,6 +224,9 @@ export class ImageGenerationService {
     if (prov === 'nanobanana') {
       return this.generateWithNanoBanana(params.prompt, params.aspectRatio)
     }
+    if (prov === 'codex') {
+      return this.generateWithCodex(params.prompt, params.aspectRatio)
+    }
     return this.generateWithOpenAI(params.prompt, params.aspectRatio)
   }
 
@@ -210,6 +234,7 @@ export class ImageGenerationService {
     prompt: string
     imageBase64: string
     imageMimeType: string
+    aspectRatio?: string
     provider?: ImageProvider
   }): Promise<{ base64: string; mimeType: string }> {
     const prov = params.provider || this.provider
@@ -218,6 +243,9 @@ export class ImageGenerationService {
     }
     if (prov === 'nanobanana') {
       return this.editWithNanoBanana(params.prompt, params.imageBase64, params.imageMimeType)
+    }
+    if (prov === 'codex') {
+      return this.editWithCodex(params.prompt, params.imageBase64, params.imageMimeType, params.aspectRatio)
     }
     return this.editWithOpenAI(params.prompt, params.imageBase64, params.imageMimeType)
   }
@@ -231,6 +259,10 @@ export class ImageGenerationService {
       if (prov === 'nanobanana') {
         return !!(await loadGenericProviderKey('NANOBANANA_API_KEY', 'nanobananaApiKey', currentDeckPath ?? undefined))
       }
+      if (prov === 'codex') {
+        const account = await getCodexAppServerClient().accountRead(false)
+        return account.account?.type === 'chatgpt'
+      }
       return !!(await loadOpenAIKey(currentDeckPath ?? undefined))
     } catch {
       return false
@@ -238,13 +270,15 @@ export class ImageGenerationService {
   }
 
   async getAvailableProviders(): Promise<{ id: ImageProvider; name: string; hasKey: boolean }[]> {
-    const [hasGemini, hasOpenAI, hasNanoBanana] = await Promise.all([
+    const [hasGemini, hasOpenAI, hasNanoBanana, hasCodex] = await Promise.all([
       this.hasApiKey('gemini'),
       this.hasApiKey('openai'),
       this.hasApiKey('nanobanana'),
+      this.hasApiKey('codex'),
     ])
     return [
       { id: 'openai', name: 'OpenAI DALL-E', hasKey: hasOpenAI },
+      { id: 'codex', name: 'Codex / ChatGPT Images', hasKey: hasCodex },
       { id: 'gemini', name: 'Google Gemini', hasKey: hasGemini },
       { id: 'nanobanana', name: 'Nano Banana Pro HD', hasKey: hasNanoBanana },
     ]

@@ -70,7 +70,7 @@ export function registerGeminiImageHandlers(): void {
       }
       const imageMimeType = mimeMap[ext] || 'image/png'
 
-      const result = await service.editImage({ prompt, imageBase64, imageMimeType, provider })
+      const result = await service.editImage({ prompt, imageBase64, imageMimeType, aspectRatio, provider })
 
       const outExt = result.mimeType === 'image/jpeg' ? '.jpg' : '.png'
       const fileName = `${Date.now()}-ai-edited${outExt}`

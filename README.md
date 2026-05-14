@@ -26,14 +26,14 @@ Lecta puts slides and executable code side by side — no more switching between
 
 ### AI (7 Providers, 20+ Models)
 - **Anthropic** — Claude Sonnet 4, Opus 4, Haiku 4
-- **OpenAI** — GPT-4o, GPT-4o Mini, o3, o3-mini, o4-mini
+- **OpenAI** — GPT-5.5, GPT-5.4, GPT-5.4 Mini, GPT-5.3 Codex, GPT-5.3 Codex Spark
 - **Google Gemini** — Gemini 2.5 Pro, 2.5 Flash, 2.0 Flash
 - **Mistral** — Large, Medium, Small
 - **Meta Llama** — Llama 4 Maverick, Scout, Llama 3.3 70B
 - **xAI** — Grok 3, Grok 3 Fast, Grok 3 Mini, Grok 3 Mini Fast
 - **Perplexity** — Sonar Pro, Sonar, Sonar Reasoning Pro, Sonar Reasoning
 
-API keys are configured per-provider in Settings with live validation, or per-deck via `.env` files.
+API keys are configured per-provider in Settings with live validation, or per-deck via `.env` files. OpenAI can also use a local Codex CLI ChatGPT sign-in instead of an API key.
 
 #### AI Capabilities
 - **Full presentation generation** — describe a topic, get a complete deck with configurable slide count
@@ -45,7 +45,7 @@ API keys are configured per-provider in Settings with live validation, or per-de
 - **Chart generation** — create SVG charts from descriptions
 - **Inline text** — generate text to insert at cursor position
 - **Article generation** — transform your presentation into a long-form article
-- **Image generation** — create and edit images via Google Gemini or OpenAI DALL-E
+- **Image generation** — create and edit images via Google Gemini, OpenAI DALL-E, or Codex image generation
 - **Chat agent** — multi-turn conversational AI that can read, navigate, and edit your presentation with tool use (auto or ask-first mode)
 
 ### Presenter Mode & Audience Sync
@@ -110,6 +110,15 @@ make dev
 ### Configure AI Providers (Optional)
 
 Open **Settings** in the app to add API keys for any of the 7 supported providers. Keys are validated against the provider's API in real-time.
+
+For OpenAI without an API key, install the Codex CLI and sign in with ChatGPT:
+
+```bash
+npm install -g @openai/codex
+codex login
+```
+
+Then choose **OpenAI account → Codex CLI** in Settings. Lecta uses `codex app-server` locally and keeps ChatGPT tokens inside Codex's own auth storage.
 
 Alternatively, add keys to a `.env` file at the project root or inside your presentation folder:
 
@@ -289,9 +298,9 @@ lecta/
 | Rich text editor | Tiptap |
 | Styling | Tailwind CSS 4 |
 | State | Zustand |
-| AI | Anthropic, OpenAI, Google GenAI, Mistral, Meta, xAI, Perplexity |
+| AI | Anthropic, OpenAI, OpenAI via Codex CLI, Google GenAI, Mistral, Meta, xAI, Perplexity |
 | Slide rendering | react-markdown + remark-gfm |
-| Image generation | Google Gemini ImageFX, OpenAI DALL-E |
+| Image generation | Google Gemini ImageFX, OpenAI DALL-E, Codex image generation |
 
 ## Development
 
@@ -356,6 +365,7 @@ Each bump command automatically:
 
 - **No secrets in the repo** — `.env` files are gitignored. Only `.env.example` (with a placeholder) is committed
 - **API key isolation** — API keys never leave the Electron main process. The renderer communicates via IPC. Keys are validated with live API calls before showing "Connected" status
+- **Codex auth isolation** — ChatGPT sign-in for Codex-backed OpenAI access is owned by the local Codex CLI/app-server. Lecta reads account status and generation results, but does not read or store Codex OAuth tokens
 - **Sandboxed code execution** — JavaScript runs in a sandboxed iframe. Python and SQL run in WebAssembly. Only `native` execution runs with local permissions (opt-in)
 - **No `shell: true`** — native execution uses `child_process.spawn` without shell mode to prevent injection
 - **Context isolation** — Electron's `contextIsolation` is enabled; `nodeIntegration` is disabled

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useUIStore } from '../../stores/ui-store'
-import { AI_PROVIDERS, getProviderForModel, getModelDef } from '../../../../../packages/shared/src/constants'
+import { AI_PROVIDERS, CODEX_MODELS, getProviderForModel, getModelDef } from '../../../../../packages/shared/src/constants'
 import type { AIModelDef } from '../../../../../packages/shared/src/constants'
 
 /**
@@ -86,9 +86,14 @@ export function ModelSelector({ compact = false }: { compact?: boolean; directio
   )
 
   // Build available providers, injecting dynamic Ollama models
+  const statusByProvider = new Map(providerStatuses.map((s) => [s.id, s]))
+
   const availableProviders = AI_PROVIDERS.filter((p) => configuredProviderIds.has(p.id)).map((p) => {
     if (p.id === 'ollama' && ollamaModels.length > 0) {
       return { ...p, models: ollamaModels }
+    }
+    if (p.id === 'openai' && statusByProvider.get('openai')?.authMode === 'codex') {
+      return { ...p, name: 'OpenAI via Codex', models: CODEX_MODELS }
     }
     return p
   })
@@ -105,7 +110,7 @@ export function ModelSelector({ compact = false }: { compact?: boolean; directio
     >
       {availableProviders.length === 0 ? (
         <div className="p-3 text-xs text-gray-500 text-center">
-          No providers configured. Add API keys in Settings.
+          No providers configured. Add credentials in Settings.
         </div>
       ) : (
         availableProviders.map((provider) => (
@@ -177,7 +182,7 @@ export function ModelSelector({ compact = false }: { compact?: boolean; directio
             ? 'border-gray-800 bg-gray-900 cursor-not-allowed opacity-50'
             : 'border-gray-700 hover:border-gray-500 bg-gray-900 hover:bg-gray-800'
         } ${compact ? 'px-2 py-1 text-[10px]' : 'px-2.5 py-1.5 text-xs'}`}
-        title={noProviders ? 'No AI providers configured — add API keys in Settings' : 'Select AI model'}
+        title={noProviders ? 'No AI providers configured — add credentials in Settings' : 'Select AI model'}
       >
         <span className="w-4 h-4 rounded bg-gray-800 flex items-center justify-center text-[9px] font-bold text-gray-400 flex-shrink-0">
           {providerIcon}

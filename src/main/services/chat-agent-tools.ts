@@ -434,7 +434,7 @@ const generateChart: ToolDefinition = {
 const generateImage: ToolDefinition = {
   schema: {
     name: 'generate_image',
-    description: 'Generate an AI image and insert it into the current slide.',
+    description: 'Start AI image generation and insert the generated image into the current slide when it completes.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -458,7 +458,7 @@ const generateImage: ToolDefinition = {
       // Image generation happens via IPC — we return a renderer action to trigger it
       return {
         success: true,
-        result: `Image generation requested. The renderer will handle the actual generation.`,
+        result: 'Image generation started. The generated image will be inserted into the current slide when it finishes.',
         rendererAction: {
           action: 'generateImage',
           params: { prompt, aspectRatio }

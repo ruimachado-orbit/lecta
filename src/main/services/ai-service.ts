@@ -1,10 +1,16 @@
 import Anthropic from '@anthropic-ai/sdk'
 import OpenAI from 'openai'
 import { GoogleGenAI } from '@google/genai'
-import { loadAnthropicKey, loadOpenAIKey, loadGeminiKey, loadAIModel, loadProviderKey, getProviderKeySource } from './env-loader'
+import { loadAnthropicKey, loadOpenAIKey, loadGeminiKey, loadAIModel, loadProviderKey, getProviderKeySource, loadOpenAIAuthMode } from './env-loader'
 import { DEFAULT_AI_MODEL, getProviderForModel, type AIProviderID } from '../../../packages/shared/src/constants'
 import type { PresentationSnapshot, ChatStreamEvent } from '../../../packages/shared/src/types/chat'
 import { getToolSchemas, findTool, type ToolExecutionContext } from './chat-agent-tools'
+import {
+  getCodexAppServerClient,
+  type CodexDynamicToolCall,
+  type CodexDynamicToolResponse,
+  type CodexDynamicToolSpec,
+} from './codex-app-server-client'
 
 const SLIDE_7x7_RULE = `
 SLIDE CANVAS: 1280×720px with 80px horizontal / 60px vertical padding.
@@ -82,6 +88,10 @@ export class AIService {
     const provider = getProviderForModel(this.model)
     // If not found in static providers, assume it's an Ollama model
     return provider?.id ?? 'ollama'
+  }
+
+  private async shouldUseCodexForOpenAI(): Promise<boolean> {
+    return loadOpenAIAuthMode().then((mode) => mode === 'codex')
   }
 
   // ── Provider clients ──
@@ -181,6 +191,10 @@ export class AIService {
       }
 
       case 'openai': {
+        if (await this.shouldUseCodexForOpenAI()) {
+          return this.generateWithCodex(params)
+        }
+
         const client = await this.getOpenAIClient()
         const isReasoning = /^(o[1-9]|o\d+-mini)/.test(this.model)
         const response = await client.chat.completions.create({
@@ -266,6 +280,10 @@ export class AIService {
       }
 
       case 'openai': {
+        if (await this.shouldUseCodexForOpenAI()) {
+          return this.streamGenerateWithCodex(params)
+        }
+
         const client = await this.getOpenAIClient()
         const isReasoning = /^(o[1-9]|o\d+-mini)/.test(this.model)
         const stream = await client.chat.completions.create({
@@ -343,6 +361,39 @@ export class AIService {
       default:
         throw new Error(`Unsupported provider: ${provider}`)
     }
+  }
+
+  private async generateWithCodex(params: {
+    system: string
+    userMessage: string
+    maxTokens: number
+  }): Promise<GenerationResult> {
+    const text = await this.streamGenerateWithCodex({
+      ...params,
+      onChunk: () => {},
+    })
+    return { text }
+  }
+
+  private async streamGenerateWithCodex(params: {
+    system: string
+    userMessage: string
+    maxTokens: number
+    onChunk: (chunk: string) => void
+    dynamicTools?: CodexDynamicToolSpec[]
+    onDynamicToolCall?: (call: CodexDynamicToolCall) => Promise<CodexDynamicToolResponse>
+    finalInstruction?: string | null
+  }): Promise<string> {
+    return getCodexAppServerClient().streamText({
+      system: params.system,
+      userMessage: params.userMessage,
+      cwd: currentDeckPath ?? undefined,
+      model: this.model,
+      onChunk: params.onChunk,
+      dynamicTools: params.dynamicTools,
+      onDynamicToolCall: params.onDynamicToolCall,
+      finalInstruction: params.finalInstruction,
+    })
   }
 
   async generateNotes(
@@ -832,6 +883,10 @@ Generate exactly ${slideCount} slides.`
   async hasApiKey(): Promise<boolean> {
     try {
       const provider = this.getProviderForCurrentModel()
+      if (provider === 'openai' && await this.shouldUseCodexForOpenAI()) {
+        const account = await getCodexAppServerClient().accountRead(false)
+        return account.account?.type === 'chatgpt'
+      }
       const key = await loadProviderKey(provider, currentDeckPath ?? undefined)
       return !!key
     } catch {
@@ -844,6 +899,15 @@ Generate exactly ${slideCount} slides.`
   /** Check if any provider has an API key configured */
   async hasAnyApiKey(): Promise<boolean> {
     for (const p of AIService.ALL_PROVIDER_IDS) {
+      if (p === 'openai' && await this.shouldUseCodexForOpenAI()) {
+        try {
+          const account = await getCodexAppServerClient().accountRead(false)
+          if (account.account?.type === 'chatgpt') return true
+        } catch {
+          // Keep checking other providers.
+        }
+        continue
+      }
       const key = await loadProviderKey(p, currentDeckPath ?? undefined)
       if (key) return true
     }
@@ -898,9 +962,43 @@ Generate exactly ${slideCount} slides.`
   }
 
   /** Get status of all providers with actual API key validation */
-  async getProviderStatuses(): Promise<{ id: string; hasKey: boolean; status: 'connected' | 'invalid' | 'not_configured'; keySource: 'env-file' | 'settings' | 'env-var' | null }[]> {
+  async getProviderStatuses(): Promise<{ id: string; hasKey: boolean; status: 'connected' | 'invalid' | 'not_configured'; keySource: 'env-file' | 'settings' | 'env-var' | 'codex' | null; authMode?: 'apiKey' | 'codex'; accountEmail?: string; accountPlan?: string }[]> {
+    const openaiAuthMode = await loadOpenAIAuthMode()
     return Promise.all(
       AIService.ALL_PROVIDER_IDS.map(async (id) => {
+        if (id === 'openai' && openaiAuthMode === 'codex') {
+          try {
+            const accountResponse = await getCodexAppServerClient().accountRead(false)
+            const account = accountResponse.account
+            if (account?.type === 'chatgpt') {
+              return {
+                id,
+                hasKey: true,
+                status: 'connected' as const,
+                keySource: 'codex' as const,
+                authMode: 'codex' as const,
+                accountEmail: account.email,
+                accountPlan: account.planType,
+              }
+            }
+            return {
+              id,
+              hasKey: false,
+              status: account ? 'invalid' as const : 'not_configured' as const,
+              keySource: 'codex' as const,
+              authMode: 'codex' as const,
+            }
+          } catch {
+            return {
+              id,
+              hasKey: false,
+              status: 'not_configured' as const,
+              keySource: 'codex' as const,
+              authMode: 'codex' as const,
+            }
+          }
+        }
+
         const key = await loadProviderKey(id, currentDeckPath ?? undefined)
         const keySource = await getProviderKeySource(id, currentDeckPath ?? undefined)
         if (!key) return { id, hasKey: false, status: 'not_configured' as const, keySource }
@@ -1112,6 +1210,52 @@ IMPORTANT RULES FOR HTML IN MARKDOWN:
 - Self-closing tags must use /> (e.g., <br/>, <hr/>)`
 
     const anthropicTools = getToolSchemas()
+
+    if (provider === 'openai' && await this.shouldUseCodexForOpenAI()) {
+      const codexDynamicTools: CodexDynamicToolSpec[] = anthropicTools.map((tool) => ({
+        name: tool.name,
+        description: tool.description || '',
+        inputSchema: tool.input_schema,
+      }))
+
+      const conversationText = messages
+        .map((m) => {
+          const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content)
+          return `${m.role.toUpperCase()}:\n${content}`
+        })
+        .join('\n\n')
+
+      const text = await this.streamGenerateWithCodex({
+        system: systemPrompt,
+        userMessage: conversationText,
+        maxTokens: 4096,
+        dynamicTools: codexDynamicTools,
+        onDynamicToolCall: async (call) => {
+          const toolInput = call.arguments && typeof call.arguments === 'object' && !Array.isArray(call.arguments)
+            ? call.arguments as Record<string, unknown>
+            : {}
+          const { result, isError } = await this.executeToolCall(
+            call.callId,
+            call.tool,
+            toolInput,
+            snapshot,
+            actionMode,
+            onEvent,
+            confirmAction
+          )
+
+          return {
+            contentItems: [{ type: 'inputText', text: result }],
+            success: !isError,
+          }
+        },
+        onChunk: (chunk) => onEvent({ type: 'text_delta', text: chunk }),
+        finalInstruction: 'Use the available tools when a request requires inspecting or changing the presentation. After any necessary tool calls, respond concisely with what you did.',
+      })
+
+      onEvent({ type: 'done' })
+      return [...messages, { role: 'assistant', content: text }]
+    }
 
     // --- Anthropic path ---
     if (provider === 'anthropic') {

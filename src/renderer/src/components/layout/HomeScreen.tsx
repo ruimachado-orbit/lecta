@@ -2,12 +2,12 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { ContentRenderer } from '../slides/ContentRenderer'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useNotebookStore } from '../../stores/notebook-store'
-import { useUIStore, COLOR_PALETTES } from '../../stores/ui-store'
+import { useUIStore, COLOR_PALETTES, type ProviderStatus } from '../../stores/ui-store'
 import { useChatStore } from '../../stores/chat-store'
 import { useTabsStore } from '../../stores/tabs-store'
 import { ModelSelector } from '../ai/ModelSelector'
 import { MyPresentations } from '../library/MyPresentations'
-import { AI_PROVIDERS, getProviderForModel } from '../../../../../packages/shared/src/constants'
+import { AI_PROVIDERS, CODEX_MODELS, DEFAULT_CODEX_MODEL, OPENAI_API_MODELS, getProviderForModel } from '../../../../../packages/shared/src/constants'
 
 interface RecentDeck {
   path: string
@@ -836,7 +836,7 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
 
 const PROVIDER_META: Record<string, { name: string; placeholder: string; icon: string; description: string }> = {
   anthropic:   { name: 'Anthropic',    placeholder: 'sk-ant-...',  icon: 'A', description: 'Claude Sonnet 4, Opus 4, Haiku 4' },
-  openai:      { name: 'OpenAI',       placeholder: 'sk-proj-...', icon: 'O', description: 'GPT-4o, o3, o4-mini' },
+  openai:      { name: 'OpenAI',       placeholder: 'sk-proj-...', icon: 'O', description: 'API models or ChatGPT Codex models' },
   google:      { name: 'Google Gemini', placeholder: 'AIza...',    icon: 'G', description: 'Gemini 2.5 Pro, Flash' },
   mistral:     { name: 'Mistral',      placeholder: 'key-...',    icon: 'M', description: 'Mistral Large, Medium, Small' },
   meta:        { name: 'Meta Llama',   placeholder: 'LA-...',     icon: 'L', description: 'Llama 4 Maverick, Scout, 3.3' },
@@ -866,6 +866,8 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
   const [editingProvider, setEditingProvider] = useState<string | null>(null)
   const [editingKey, setEditingKey] = useState('')
   const [keys, setKeys] = useState<Record<string, string>>({})
+  const [openaiAuthMode, setOpenaiAuthMode] = useState<'apiKey' | 'codex'>('apiKey')
+  const [codexBinPath, setCodexBinPath] = useState('')
   const [validating, setValidating] = useState(false)
   const [mcpEnabled, setMcpEnabled] = useState(false)
   const [mcpRunning, setMcpRunning] = useState(false)
@@ -873,7 +875,7 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
   const [mcpMessage, setMcpMessage] = useState<string | null>(null)
 
   useEffect(() => {
-    window.electronAPI.mcpStatus().then((status) => {
+    window.electronAPI.mcpStatus().then((status: { enabled: boolean; running: boolean; inClaudeDesktop: boolean }) => {
       setMcpEnabled(status.enabled)
       setMcpRunning(status.running)
       setMcpInClaude(status.inClaudeDesktop)
@@ -881,7 +883,7 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
   }, [])
 
   useEffect(() => {
-    window.electronAPI.getAppSettings().then((settings) => {
+    window.electronAPI.getAppSettings().then((settings: Record<string, unknown>) => {
       setNativeExec((settings.nativeExecutionEnabled as boolean) || false)
       if (settings.theme === 'light' || settings.theme === 'dark') {
         setTheme(settings.theme)
@@ -889,6 +891,8 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
       if (typeof settings.fontSize === 'number') {
         setFontSize(settings.fontSize)
       }
+      setOpenaiAuthMode(settings.openaiAuthMode === 'codex' ? 'codex' : 'apiKey')
+      setCodexBinPath(typeof settings.codexBinPath === 'string' ? settings.codexBinPath : '')
       // Load all keys
       const loadedKeys: Record<string, string> = {}
       for (const id of ALL_PROVIDER_IDS) {
@@ -908,10 +912,21 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
       nativeExecutionEnabled: nativeExec,
       fontSize,
       palette: palette.name,
-      aiModel
+      aiModel,
+      openaiAuthMode,
+      codexBinPath
     })
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
+  }
+
+  const handleOpenAIAuthMode = async (mode: 'apiKey' | 'codex') => {
+    setOpenaiAuthMode(mode)
+    await window.electronAPI.setAppSettings({ openaiAuthMode: mode })
+    setAiModel(mode === 'codex' ? DEFAULT_CODEX_MODEL : OPENAI_API_MODELS[0].id)
+    setValidating(true)
+    await refreshProviderStatuses()
+    setValidating(false)
   }
 
   const handleSaveKey = async (providerId: string, key: string) => {
@@ -930,6 +945,13 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
     setEditingProvider(providerId)
     setEditingKey(keys[providerId] || '')
   }
+
+  const openaiStatus = providerStatuses.find((s: ProviderStatus) => s.id === 'openai')
+  const codexConnected = openaiAuthMode === 'codex' && openaiStatus?.status === 'connected'
+  const isCodexModelSelected = CODEX_MODELS.some((model) => model.id === aiModel)
+  const codexAccount = openaiStatus?.accountEmail
+    ? `${openaiStatus.accountEmail}${openaiStatus.accountPlan ? ` · ${openaiStatus.accountPlan}` : ''}`
+    : null
 
   return (
     <div className="h-screen flex flex-col bg-gray-950 text-white" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
@@ -1017,7 +1039,66 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
           {/* AI Providers */}
           <section>
             <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-4">AI Providers</h3>
-            <p className="text-[10px] text-gray-600 mb-3">Configure API keys for the LLM providers you want to use. Keys can also be set per-deck via a .env file.</p>
+            <p className="text-[10px] text-gray-600 mb-3">Configure the AI accounts you want Lecta to use. OpenAI can use either an API key or your local Codex ChatGPT sign-in.</p>
+            <div className="mb-4 rounded-xl border border-gray-800 bg-gray-900 p-3">
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <div>
+                  <label className="text-sm text-gray-300 block">OpenAI account</label>
+                  <p className="text-[10px] text-gray-600">Choose how Lecta connects to OpenAI models.</p>
+                </div>
+                <div className="flex gap-1 bg-gray-950 rounded-lg p-0.5 border border-gray-800">
+                  <button
+                    onClick={() => handleOpenAIAuthMode('apiKey')}
+                    className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
+                      openaiAuthMode === 'apiKey' ? 'bg-white text-black' : 'text-gray-400 hover:text-gray-300'
+                    }`}
+                  >
+                    API key
+                  </button>
+                  <button
+                    onClick={() => handleOpenAIAuthMode('codex')}
+                    className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
+                      openaiAuthMode === 'codex' ? 'bg-white text-black' : 'text-gray-400 hover:text-gray-300'
+                    }`}
+                  >
+                    Codex CLI
+                  </button>
+                </div>
+              </div>
+
+              {openaiAuthMode === 'codex' && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-[10px] text-gray-500 block mb-1">Codex command</label>
+                    <input
+                      type="text"
+                      value={codexBinPath}
+                      onChange={(e) => setCodexBinPath(e.target.value)}
+                      placeholder="codex"
+                      className="w-full px-3 py-2 bg-gray-950 text-gray-300 text-xs rounded-lg border border-gray-700 focus:border-indigo-500 focus:outline-none placeholder-gray-600"
+                    />
+                    <p className="text-[10px] text-gray-600 mt-1">Leave blank to use the Codex CLI on PATH. Lecta selects {CODEX_MODELS[0].name} by default.</p>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className={`text-[10px] ${codexConnected ? 'text-green-400' : 'text-gray-500'}`}>
+                      {validating ? 'Checking Codex...' : codexConnected ? `Signed in: ${codexAccount}${isCodexModelSelected ? '' : ' · model will switch to Codex'}` : 'Install Codex, then run codex login with ChatGPT.'}
+                    </p>
+                    <button
+                      onClick={async () => {
+                        await window.electronAPI.setAppSettings({ codexBinPath })
+                        setAiModel(DEFAULT_CODEX_MODEL)
+                        setValidating(true)
+                        await refreshProviderStatuses()
+                        setValidating(false)
+                      }}
+                      className="px-3 py-1.5 rounded-md bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs transition-colors"
+                    >
+                      Check
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
             <div className="grid grid-cols-2 gap-3">
               {ALL_PROVIDER_IDS.map((id) => {
                 const meta = PROVIDER_META[id]
@@ -1041,6 +1122,12 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
                 const isConnected = providerStatus === 'connected'
                 const keySource = status?.keySource ?? null
                 const isFromEnv = keySource === 'env-file' || keySource === 'env-var'
+                const providerModels = id === 'openai' && openaiAuthMode === 'codex'
+                  ? CODEX_MODELS
+                  : AI_PROVIDERS.find((p) => p.id === id)?.models ?? []
+                const providerDescription = id === 'openai' && openaiAuthMode === 'codex'
+                  ? CODEX_MODELS.slice(0, 3).map((model) => model.name).join(', ')
+                  : meta.description
 
                 const selectThisProvider = async (): Promise<void> => {
                   if (id === 'ollama') {
@@ -1050,9 +1137,8 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
                     }
                     return
                   }
-                  const providerDef = AI_PROVIDERS.find((p) => p.id === id)
-                  if (providerDef && providerDef.models.length > 0) {
-                    setAiModel(providerDef.models[0].id)
+                  if (providerModels.length > 0) {
+                    setAiModel(providerModels[0].id)
                   }
                 }
 
@@ -1072,6 +1158,10 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
                     }`}
                     onClick={(e) => {
                       if ((e.target as HTMLElement).closest('button')) return
+                      if (id === 'openai' && openaiAuthMode === 'codex') {
+                        if (isConnected) selectThisProvider()
+                        return
+                      }
                       openKeyModal(id)
                     }}
                   >
@@ -1086,7 +1176,7 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
                               ? 'border-gray-500 hover:border-gray-400'
                               : 'border-gray-700 opacity-40'
                         }`}
-                        title={isConnected ? `Set ${meta.name} as active provider` : 'Configure API key first'}
+                        title={isConnected ? `Set ${meta.name} as active provider` : id === 'openai' && openaiAuthMode === 'codex' ? 'Run codex login first' : 'Configure API key first'}
                       >
                         {isActive && (
                           <div className="w-2 h-2 rounded-full bg-white" />
@@ -1096,7 +1186,7 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
                         {meta.icon}
                       </div>
                       <span className="text-sm font-medium text-gray-200 flex-1">{meta.name}</span>
-                      {(hasKey || keys[id]) && !isFromEnv && (
+                      {(hasKey || keys[id]) && !isFromEnv && keySource !== 'codex' && (
                         <button
                           onClick={() => handleSaveKey(id, '')}
                           className="w-5 h-5 rounded-md flex items-center justify-center text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"
@@ -1109,15 +1199,20 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
                       )}
                       <span className={`w-2 h-2 rounded-full flex-shrink-0 ${validating ? 'bg-gray-500 animate-pulse' : dotColor}`} />
                     </div>
-                    <p className="text-[10px] text-gray-500 leading-tight">{meta.description}</p>
+                    <p className="text-[10px] text-gray-500 leading-tight">{providerDescription}</p>
                     <p className={`text-[10px] mt-1 ${validating ? 'text-gray-500' : labelColor}`}>
                       {validating ? 'Validating...' : (
                         <>
-                          {isActive && 'Active · '}
+                          {isActive && 'Selected · '}
                           {labelText}
                           {isFromEnv && hasKey && (
                             <span className="text-gray-500 ml-1">
                               (from {keySource === 'env-file' ? '.env' : 'env var'})
+                            </span>
+                          )}
+                          {keySource === 'codex' && hasKey && (
+                            <span className="text-gray-500 ml-1">
+                              (Codex CLI)
                             </span>
                           )}
                         </>
@@ -1586,11 +1681,11 @@ function HelpPanel({ onBack }: { onBack: () => void }): JSX.Element {
           {/* AI Providers */}
           <section>
             <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-4">AI Providers</h3>
-            <p className="text-sm text-gray-400 mb-3">Add API keys in Settings to enable AI features.</p>
+            <p className="text-sm text-gray-400 mb-3">Add provider credentials in Settings to enable AI features.</p>
             <div className="space-y-1">
               {[
                 ['Anthropic', 'Claude Sonnet 4, Opus 4, Haiku 4'],
-                ['OpenAI', 'GPT-4o, GPT-4o Mini, o3, o3-mini, o4-mini'],
+                ['OpenAI', 'GPT-5.5, GPT-5.4, GPT-5.4 Mini, GPT-5.3 Codex, GPT-5.3 Codex Spark'],
                 ['Google Gemini', 'Gemini 2.5 Pro, 2.5 Flash, 2.0 Flash'],
                 ['Mistral', 'Large, Medium, Small'],
                 ['Meta Llama', 'Llama 4 Maverick, Scout, 3.3 70B'],

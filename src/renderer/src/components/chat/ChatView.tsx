@@ -161,7 +161,7 @@ function ChatTabContent({
                   </svg>
                 </div>
                 <p className="text-xs text-gray-500">No AI providers configured.</p>
-                <p className="text-xs text-gray-600">Add API keys in Settings to use chat.</p>
+                <p className="text-xs text-gray-600">Add provider credentials in Settings to use chat.</p>
               </div>
             ) : (
               <ChatWelcome onQuickAction={(msg) => { if (!tab.isStreaming) onSend(msg) }} />

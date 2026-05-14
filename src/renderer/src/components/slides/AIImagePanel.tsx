@@ -125,6 +125,13 @@ export function AIImagePanel({ editor, rootPath, onClose }: AIImagePanelProps): 
 
   const currentProvider = providers.find((p) => p.id === selectedProvider)
   const hasKey = currentProvider?.hasKey ?? false
+  const credentialHint = selectedProvider === 'codex'
+    ? 'Run codex login with ChatGPT, then retry.'
+    : selectedProvider === 'openai'
+      ? 'Add OPENAI_API_KEY to your deck .env file.'
+      : selectedProvider === 'nanobanana'
+        ? 'Add NANOBANANA_API_KEY to your deck .env file.'
+        : 'Add GEMINI_API_KEY to your deck .env file.'
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60" onClick={onClose}>
@@ -168,9 +175,9 @@ export function AIImagePanel({ editor, rootPath, onClose }: AIImagePanelProps): 
                 >
                   <div>{p.name}</div>
                   {p.hasKey ? (
-                    <span className="text-[10px] text-green-400">Key configured</span>
+                    <span className="text-[10px] text-green-400">{p.id === 'codex' ? 'Signed in' : 'Key configured'}</span>
                   ) : (
-                    <span className="text-[10px] text-red-400">No API key</span>
+                    <span className="text-[10px] text-red-400">{p.id === 'codex' ? 'Not signed in' : 'No API key'}</span>
                   )}
                 </button>
               ))}
@@ -180,7 +187,7 @@ export function AIImagePanel({ editor, rootPath, onClose }: AIImagePanelProps): 
           {/* No key warning */}
           {!hasKey && (
             <div className="text-xs text-yellow-400 bg-yellow-950/30 border border-yellow-800/40 rounded-lg px-3 py-2">
-              Add <code className="bg-yellow-900/50 px-1 rounded">{selectedProvider === 'openai' ? 'OPENAI_API_KEY' : 'GEMINI_API_KEY'}</code> to your deck's <code className="bg-yellow-900/50 px-1 rounded">.env</code> file.
+              {credentialHint}
             </div>
           )}
 
@@ -204,8 +211,8 @@ export function AIImagePanel({ editor, rootPath, onClose }: AIImagePanelProps): 
             />
           </div>
 
-          {/* Aspect ratio (for DALL-E) */}
-          {selectedProvider === 'openai' && (
+          {/* Aspect ratio */}
+          {(selectedProvider === 'openai' || selectedProvider === 'codex') && (
             <div>
               <label className="block text-xs text-gray-400 mb-1 font-medium">Aspect Ratio</label>
               <div className="flex gap-2">

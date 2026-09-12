@@ -295,9 +295,40 @@ function buildRemoteHtml(token: string): string {
 </html>`
 }
 
-export function startRemoteControl(port = 3333, callerWindow?: BrowserWindow): { url: string; stop: () => void } {
+const PORT_RANGE_SIZE = 10
+let listeningPort: number | null = null
+let currentUrl: string | null = null
+
+/** Bind `srv` to the first free port in [startPort, startPort + PORT_RANGE_SIZE]. Rejects when none is free. */
+function listenOnFreePort(srv: Server, startPort: number): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const tryPort = (port: number): void => {
+      const onError = (err: NodeJS.ErrnoException): void => {
+        srv.removeListener('listening', onListening)
+        if (err.code === 'EADDRINUSE' && port < startPort + PORT_RANGE_SIZE) {
+          tryPort(port + 1)
+        } else {
+          reject(err)
+        }
+      }
+      const onListening = (): void => {
+        srv.removeListener('error', onError)
+        resolve(port)
+      }
+      srv.once('error', onError)
+      srv.once('listening', onListening)
+      srv.listen(port, '0.0.0.0')
+    }
+    tryPort(startPort)
+  })
+}
+
+export async function startRemoteControl(port = 3333, callerWindow?: BrowserWindow): Promise<{ url: string; stop: () => void }> {
   if (server) {
     server.close()
+    server = null
+    listeningPort = null
+    currentUrl = null
   }
 
   sourceWindow = callerWindow ?? null
@@ -371,27 +402,51 @@ export function startRemoteControl(port = 3333, callerWindow?: BrowserWindow): {
     }
   }
 
-  server = createServer((req, res) => {
+  const srv = createServer((req, res) => {
     handler(req, res).catch(() => {
       try { res.writeHead(500, { 'Content-Type': 'text/plain' }); res.end('Error') } catch { /* already sent */ }
     })
   })
 
-  // Absorb all socket/server errors — never crash the main process
-  server.on('error', () => {})
-  server.on('clientError', (_err, socket) => { try { socket.destroy() } catch { /* ignore */ } })
+  srv.on('clientError', (_err, socket) => { try { socket.destroy() } catch { /* ignore */ } })
 
-  server.listen(port, '0.0.0.0')
+  let boundPort: number
+  try {
+    boundPort = await listenOnFreePort(srv, port)
+  } catch (err) {
+    try { srv.close() } catch { /* ignore */ }
+    authToken = ''
+    sourceWindow = null
+    throw new Error(`Remote control could not start: ${(err as Error).message}`)
+  }
+
+  // Absorb runtime socket/server errors after bind — never crash the main process
+  srv.on('error', () => {})
+  srv.on('close', () => {
+    if (server === srv) {
+      server = null
+      listeningPort = null
+      currentUrl = null
+    }
+  })
+
+  server = srv
+  listeningPort = boundPort
 
   const ip = getLocalIP()
   // Token in path so the URL contains only alphanumeric + slashes — recognized as a link by all QR readers
-  const url = `http://${ip}:${port}/${authToken}`
+  const url = `http://${ip}:${boundPort}/${authToken}`
+  currentUrl = url
 
   return {
     url,
     stop: () => {
-      server?.close()
-      server = null
+      if (server === srv) {
+        server = null
+        listeningPort = null
+        currentUrl = null
+      }
+      srv.close()
     }
   }
 }
@@ -399,11 +454,18 @@ export function startRemoteControl(port = 3333, callerWindow?: BrowserWindow): {
 export function stopRemoteControl(): void {
   server?.close()
   server = null
+  listeningPort = null
+  currentUrl = null
   authToken = ''
   sourceWindow = null
   requestLog.clear()
 }
 
 export function isRemoteRunning(): boolean {
-  return server !== null
+  return server !== null && server.listening && listeningPort !== null
+}
+
+/** URL of the running remote, or null when not listening. */
+export function getRemoteUrl(): string | null {
+  return isRemoteRunning() ? currentUrl : null
 }

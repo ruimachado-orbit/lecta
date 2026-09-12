@@ -1,10 +1,10 @@
 import { ipcMain, BrowserWindow } from 'electron'
-import { startRemoteControl, stopRemoteControl, isRemoteRunning } from '../services/remote-control'
+import { startRemoteControl, stopRemoteControl, isRemoteRunning, getRemoteUrl } from '../services/remote-control'
 
 export function registerRemoteControlHandlers(): void {
   ipcMain.handle('remote:start', async (event): Promise<string> => {
     const senderWindow = BrowserWindow.fromWebContents(event.sender) ?? undefined
-    const { url } = startRemoteControl(3333, senderWindow)
+    const { url } = await startRemoteControl(3333, senderWindow)
     return url
   })
 
@@ -14,6 +14,7 @@ export function registerRemoteControlHandlers(): void {
 
   ipcMain.handle('remote:status', async (): Promise<{ running: boolean; url?: string }> => {
     const running = isRemoteRunning()
-    return { running }
+    const url = getRemoteUrl()
+    return url ? { running, url } : { running }
   })
 }

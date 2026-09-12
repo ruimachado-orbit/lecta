@@ -1,6 +1,7 @@
 import { ipcMain, app } from 'electron'
-import { readFile, writeFile, mkdir } from 'fs/promises'
+import { readFile } from 'fs/promises'
 import { join } from 'path'
+import { atomicWriteFile, withLock } from '../services/safe-fs'
 
 export interface StoredSlide {
   id: string
@@ -17,24 +18,38 @@ const getLibraryPath = (): string =>
   join(app.getPath('userData'), 'slide-library.json')
 
 let cachedLibrary: StoredSlide[] | null = null
+/** Set when the on-disk file exists but could not be parsed — we must never overwrite it. */
+let loadError: Error | null = null
 
 async function loadLibrary(): Promise<StoredSlide[]> {
   if (cachedLibrary) return cachedLibrary
   try {
     const content = await readFile(getLibraryPath(), 'utf-8')
-    cachedLibrary = JSON.parse(content)
-    return cachedLibrary!
-  } catch {
-    cachedLibrary = []
+    const parsed = JSON.parse(content)
+    if (!Array.isArray(parsed)) throw new Error('slide-library.json is not an array')
+    cachedLibrary = parsed as StoredSlide[]
+    loadError = null
     return cachedLibrary
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      loadError = null
+      cachedLibrary = []
+      return cachedLibrary
+    }
+    // Corrupt file: serve an empty in-memory copy but refuse to write over it
+    loadError = err as Error
+    return []
   }
 }
 
 async function saveLibrary(library: StoredSlide[]): Promise<void> {
-  cachedLibrary = library
-  const dir = app.getPath('userData')
-  await mkdir(dir, { recursive: true })
-  await writeFile(getLibraryPath(), JSON.stringify(library, null, 2))
+  if (loadError) {
+    throw new Error(`Refusing to overwrite unreadable slide-library.json: ${loadError.message}`)
+  }
+  await withLock('slide-library', async () => {
+    cachedLibrary = library
+    await atomicWriteFile(getLibraryPath(), JSON.stringify(library, null, 2))
+  })
 }
 
 export function registerSlideLibraryHandlers(): void {

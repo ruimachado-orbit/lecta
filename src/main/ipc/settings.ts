@@ -1,7 +1,9 @@
 import { ipcMain, app, safeStorage } from 'electron'
-import { readFile, writeFile, mkdir } from 'fs/promises'
+import { readFile } from 'fs/promises'
 import { join } from 'path'
-import { parseSettings } from '../schemas/settings'
+import type { z } from 'zod'
+import { parseSettings, SettingsSchema } from '../schemas/settings'
+import { atomicWriteFile, withLock } from '../services/safe-fs'
 
 const getSettingsPath = (): string =>
   join(app.getPath('userData'), 'settings.json')
@@ -118,19 +120,72 @@ export function getCachedSettings(): Record<string, unknown> {
 }
 
 async function saveSettings(settings: Record<string, unknown>): Promise<void> {
-  cachedSettings = { ...cachedSettings, ...settings }
-  const dir = app.getPath('userData')
-  await mkdir(dir, { recursive: true })
-  const toWrite = encryptSettings(cachedSettings)
-  await writeFile(getSettingsPath(), JSON.stringify(toWrite, null, 2))
+  await withLock('settings', async () => {
+    cachedSettings = { ...cachedSettings, ...settings }
+    const toWrite = encryptSettings(cachedSettings)
+    // Secrets live in this file — owner-only permissions, atomic replace
+    await atomicWriteFile(getSettingsPath(), JSON.stringify(toWrite, null, 2), { mode: 0o600 })
+  })
+}
+
+/**
+ * Settings as exposed to the renderer: every secret is replaced by '' and
+ * `configuredKeys[field]` says whether a value is stored for that field.
+ * The renderer must never receive decrypted API keys.
+ */
+export function redactSettings(settings: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = { ...settings }
+  const configuredKeys: Record<string, boolean> = {}
+  for (const field of SENSITIVE_FIELDS) {
+    const val = result[field]
+    configuredKeys[field] = typeof val === 'string' && val.length > 0
+    result[field] = ''
+  }
+  result.configuredKeys = configuredKeys
+  return result
+}
+
+/**
+ * Normalize a settings patch coming from the renderer.
+ * - For sensitive fields: '' / undefined means "unchanged" (dropped from the patch),
+ *   `null` means "clear", any other string is the new value.
+ * - Renderer-only fields (configuredKeys) are never persisted.
+ * - Known fields that fail schema validation are dropped.
+ */
+function sanitizePatch(patch: unknown): Record<string, unknown> {
+  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) return {}
+  const result: Record<string, unknown> = {}
+  const shape = SettingsSchema.shape as Record<string, z.ZodTypeAny>
+  for (const [key, value] of Object.entries(patch as Record<string, unknown>)) {
+    if (key === 'configuredKeys') continue
+    if (SENSITIVE_FIELDS.includes(key)) {
+      if (value === null) {
+        result[key] = ''
+      } else if (typeof value === 'string' && value.length > 0) {
+        result[key] = value
+      }
+      // '' or undefined -> unchanged
+      continue
+    }
+    if (key in shape) {
+      const parsed = shape[key].safeParse(value)
+      if (!parsed.success) continue
+      result[key] = parsed.data
+      continue
+    }
+    result[key] = value
+  }
+  return result
 }
 
 export function registerSettingsHandlers(): void {
   ipcMain.handle('settings:get', async () => {
-    return loadSettings()
+    return redactSettings(await loadSettings())
   })
 
   ipcMain.handle('settings:set', async (_event, settings: Record<string, unknown>) => {
-    await saveSettings(settings)
+    const patch = sanitizePatch(settings)
+    if (Object.keys(patch).length === 0) return
+    await saveSettings(patch)
   })
 }

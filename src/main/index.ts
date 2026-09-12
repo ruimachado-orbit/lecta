@@ -1,13 +1,14 @@
 import { config as dotenvConfig } from 'dotenv'
 import { app, BrowserWindow, ipcMain, net, nativeImage, protocol, session, shell } from 'electron'
-import { join, resolve, sep } from 'path'
+import { join, resolve } from 'path'
 import { readFile } from 'fs/promises'
 import { registerAllIpcHandlers } from './ipc/register'
 import { loadSettings } from './ipc/settings'
 import { startMcpServer, stopMcpServer } from './services/mcp-manager'
+import { isInsideOpenDeck } from './services/deck-roots'
 
 /** Tracks root paths of currently-open decks for lecta-file:// protocol validation */
-export const allowedFileRoots = new Set<string>()
+export { allowedFileRoots } from './services/deck-roots'
 
 // Load .env from project root (for ANTHROPIC_API_KEY, etc.)
 dotenvConfig()
@@ -127,10 +128,7 @@ function createWindow(): BrowserWindow {
     win.show()
   })
 
-  win.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
-    return { action: 'deny' }
-  })
+  // Window-open / navigation guards are installed globally in 'web-contents-created'
 
   // In dev mode, electron-vite sets ELECTRON_RENDERER_URL
   if (isDev) {
@@ -142,19 +140,57 @@ function createWindow(): BrowserWindow {
   return win
 }
 
+/** URLs the app's own windows may navigate to (renderer bundle, devtools, dev server). */
+function isAppUrl(url: string): boolean {
+  const isDev = !!process.env['ELECTRON_RENDERER_URL']
+  if (url.startsWith('file://') || url.startsWith('devtools://') || url === 'about:blank') return true
+  if (isDev && (url.startsWith('http://localhost:') || url.startsWith('http://127.0.0.1:'))) return true
+  const rendererUrl = process.env['ELECTRON_RENDERER_URL']
+  if (rendererUrl && url.startsWith(rendererUrl)) return true
+  return false
+}
+
+// Security guards applied to EVERY webContents (main, presenter, audience, webview guests)
+app.on('web-contents-created', (_event, wc) => {
+  const isWebviewGuest = wc.getType() === 'webview'
+
+  wc.on('will-navigate', (e, url) => {
+    if (isWebviewGuest) {
+      // Guests are isolated (no preload / node) — allow ordinary web navigation only
+      if (!/^https?:/.test(url) && url !== 'about:blank') e.preventDefault()
+      return
+    }
+    if (!isAppUrl(url)) e.preventDefault()
+  })
+
+  wc.setWindowOpenHandler(({ url }) => {
+    if (/^https?:/.test(url)) shell.openExternal(url)
+    return { action: 'deny' }
+  })
+
+  wc.on('will-attach-webview', (_e, prefs) => {
+    delete prefs.preload
+    prefs.nodeIntegration = false
+    prefs.contextIsolation = true
+  })
+})
+
 app.whenReady().then(() => {
   app.setAppUserModelId('com.lecta.app')
 
   // Handle lecta-file:// protocol — serves local files to the renderer
   // URL format: lecta-file:///absolute/path/to/file.png
   protocol.handle('lecta-file', async (request) => {
-    const filePath = resolve(decodeURIComponent(request.url.replace('lecta-file://', '')))
+    let filePath: string
+    try {
+      filePath = resolve(decodeURIComponent(request.url.replace('lecta-file://', '')))
+    } catch {
+      // Malformed percent-encoding (URIError)
+      return new Response('Bad request', { status: 400 })
+    }
 
     // Validate the resolved path is within an allowed deck root
-    const isAllowed = Array.from(allowedFileRoots).some(
-      (root) => filePath === root || filePath.startsWith(root + sep)
-    )
-    if (!isAllowed) {
+    if (!isInsideOpenDeck(filePath)) {
       return new Response('Forbidden', { status: 403 })
     }
 

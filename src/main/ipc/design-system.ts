@@ -1,6 +1,7 @@
 import { ipcMain, app } from 'electron'
-import { readFile, writeFile, mkdir } from 'fs/promises'
+import { readFile } from 'fs/promises'
 import { join } from 'path'
+import { atomicWriteFile, withLock } from '../services/safe-fs'
 
 export interface DesignElement {
   id: string
@@ -22,24 +23,40 @@ const getDesignSystemPath = (): string =>
   join(app.getPath('userData'), 'design-system.json')
 
 let cached: DesignSystem | null = null
+/** Set when the on-disk file exists but could not be parsed — we must never overwrite it. */
+let loadError: Error | null = null
 
 async function load(): Promise<DesignSystem> {
   if (cached) return cached
   try {
     const content = await readFile(getDesignSystemPath(), 'utf-8')
-    cached = JSON.parse(content)
-    return cached!
-  } catch {
-    cached = { version: 1, elements: [] }
+    const parsed = JSON.parse(content)
+    if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.elements)) {
+      throw new Error('design-system.json has an unexpected shape')
+    }
+    cached = parsed as DesignSystem
+    loadError = null
     return cached
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      loadError = null
+      cached = { version: 1, elements: [] }
+      return cached
+    }
+    // Corrupt file: serve an empty in-memory copy but refuse to write over it
+    loadError = err as Error
+    return { version: 1, elements: [] }
   }
 }
 
 async function save(ds: DesignSystem): Promise<void> {
-  cached = ds
-  const dir = app.getPath('userData')
-  await mkdir(dir, { recursive: true })
-  await writeFile(getDesignSystemPath(), JSON.stringify(ds, null, 2))
+  if (loadError) {
+    throw new Error(`Refusing to overwrite unreadable design-system.json: ${loadError.message}`)
+  }
+  await withLock('design-system', async () => {
+    cached = ds
+    await atomicWriteFile(getDesignSystemPath(), JSON.stringify(ds, null, 2))
+  })
 }
 
 export function registerDesignSystemHandlers(): void {

@@ -1,19 +1,21 @@
 /**
- * Manages the MCP server lifecycle and Claude Desktop integration.
- * - Spawns/stops the MCP server as a child process
- * - Reads/writes the Claude Desktop config to register Lecta as an MCP server
+ * Manages Lecta's MCP integration with Claude Desktop.
  *
- * In production (DMG), users don't have Node.js installed.
- * We use Electron's own binary with ELECTRON_RUN_AS_NODE=1
- * to run the MCP server as a plain Node.js script.
+ * The app does NOT spawn the MCP server itself: Claude Desktop launches the
+ * server it finds in claude_desktop_config.json (stdio transport). This module
+ * only tracks whether the integration is enabled and manages that registration.
+ *
+ * In production (DMG), users don't have Node.js installed, so the registered
+ * command is Electron's own binary with ELECTRON_RUN_AS_NODE=1.
  */
 
-import { spawn, ChildProcess } from 'child_process'
-import { readFile, writeFile, mkdir } from 'fs/promises'
+import { readFile } from 'fs/promises'
 import { join } from 'path'
 import { app } from 'electron'
+import { atomicWriteFile } from './safe-fs'
 
-let mcpProcess: ChildProcess | null = null
+/** Whether the MCP integration is enabled (Claude Desktop spawns the actual process). */
+let mcpEnabled = false
 
 const isDev = (): boolean => !!process.env['ELECTRON_RENDERER_URL']
 
@@ -25,58 +27,23 @@ function getMcpServerPath(): string {
   return join(process.resourcesPath, 'mcp-server', 'dist', 'index.js')
 }
 
-/**
- * Get the Node.js-compatible command + env for spawning scripts.
- * In dev: use system `node`.
- * In production: use Electron's own binary with ELECTRON_RUN_AS_NODE=1.
- */
-function getNodeRuntime(): { command: string; env: Record<string, string> } {
-  if (isDev()) {
-    return { command: 'node', env: {} }
-  }
-  // In production, Electron's binary IS Node.js when ELECTRON_RUN_AS_NODE=1
-  return {
-    command: process.execPath,
-    env: { ELECTRON_RUN_AS_NODE: '1' },
-  }
-}
-
-/** Start the MCP server as a background child process */
+/** Enable the MCP integration. No process is spawned — Claude Desktop starts the server from its config. */
 export function startMcpServer(): void {
-  if (mcpProcess) return // already running
-
-  const serverPath = getMcpServerPath()
-  const runtime = getNodeRuntime()
-
-  mcpProcess = spawn(runtime.command, [serverPath], {
-    stdio: 'pipe',
-    env: { ...process.env, ...runtime.env },
-  })
-
-  mcpProcess.on('error', (err) => {
-    console.error('[MCP] Failed to start server:', err.message)
-    mcpProcess = null
-  })
-
-  mcpProcess.on('exit', (code) => {
-    console.log(`[MCP] Server exited with code ${code}`)
-    mcpProcess = null
-  })
-
-  console.log(`[MCP] Server started (pid: ${mcpProcess.pid})`)
+  if (mcpEnabled) return
+  mcpEnabled = true
+  console.log('[MCP] Integration enabled (server is launched by Claude Desktop)')
 }
 
-/** Stop the MCP server if running */
+/** Disable the MCP integration. */
 export function stopMcpServer(): void {
-  if (!mcpProcess) return
-  mcpProcess.kill()
-  mcpProcess = null
-  console.log('[MCP] Server stopped')
+  if (!mcpEnabled) return
+  mcpEnabled = false
+  console.log('[MCP] Integration disabled')
 }
 
-/** Check if the MCP server is running */
+/** Whether the MCP integration is enabled in this app session. */
 export function isMcpServerRunning(): boolean {
-  return mcpProcess !== null && !mcpProcess.killed
+  return mcpEnabled
 }
 
 // ── Claude Desktop Config ──
@@ -92,21 +59,50 @@ function getClaudeConfigPath(): string {
   return join(app.getPath('home'), '.config', 'claude', 'claude_desktop_config.json')
 }
 
+function parseClaudeConfig(content: string, configPath: string): Record<string, any> {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(content)
+  } catch (err) {
+    throw new Error(
+      `Claude Desktop config at ${configPath} is not valid JSON (${(err as Error).message}). ` +
+        'Fix or remove the file manually; Lecta will not overwrite it.'
+    )
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(`Claude Desktop config at ${configPath} is not a JSON object. Lecta will not overwrite it.`)
+  }
+  return parsed as Record<string, any>
+}
+
+/**
+ * Read claude_desktop_config.json. A missing file yields an empty config
+ * (start fresh); an unreadable or unparsable file throws so we never clobber it.
+ */
+async function readClaudeConfig(configPath: string): Promise<Record<string, any>> {
+  let content: string
+  try {
+    content = await readFile(configPath, 'utf-8')
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return {}
+    throw new Error(`Could not read Claude Desktop config: ${(err as Error).message}`)
+  }
+  return parseClaudeConfig(content, configPath)
+}
+
 /** Add Lecta to the Claude Desktop MCP config */
 export async function addToClaudeDesktop(): Promise<{ success: boolean; message: string }> {
   const configPath = getClaudeConfigPath()
   const serverPath = getMcpServerPath()
 
-  let config: Record<string, any> = {}
-
+  let config: Record<string, any>
   try {
-    const content = await readFile(configPath, 'utf-8')
-    config = JSON.parse(content)
-  } catch {
-    // File doesn't exist or is invalid — start fresh
+    config = await readClaudeConfig(configPath)
+  } catch (err) {
+    return { success: false, message: (err as Error).message }
   }
 
-  if (!config.mcpServers) {
+  if (!config.mcpServers || typeof config.mcpServers !== 'object') {
     config.mcpServers = {}
   }
 
@@ -125,9 +121,7 @@ export async function addToClaudeDesktop(): Promise<{ success: boolean; message:
     }
   }
 
-  const configDir = join(configPath, '..')
-  await mkdir(configDir, { recursive: true })
-  await writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8')
+  await atomicWriteFile(configPath, JSON.stringify(config, null, 2), { backup: true })
 
   return {
     success: true,
@@ -139,20 +133,30 @@ export async function addToClaudeDesktop(): Promise<{ success: boolean; message:
 export async function removeFromClaudeDesktop(): Promise<{ success: boolean; message: string }> {
   const configPath = getClaudeConfigPath()
 
+  let content: string
   try {
-    const content = await readFile(configPath, 'utf-8')
-    const config = JSON.parse(content)
-
-    if (config.mcpServers?.lecta) {
-      delete config.mcpServers.lecta
-      await writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8')
-      return { success: true, message: 'Removed Lecta from Claude Desktop config.' }
+    content = await readFile(configPath, 'utf-8')
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      return { success: true, message: 'Claude Desktop config not found — nothing to remove.' }
     }
-
-    return { success: true, message: 'Lecta was not in Claude Desktop config.' }
-  } catch {
-    return { success: true, message: 'Claude Desktop config not found — nothing to remove.' }
+    return { success: false, message: `Could not read Claude Desktop config: ${(err as Error).message}` }
   }
+
+  let config: Record<string, any>
+  try {
+    config = parseClaudeConfig(content, configPath)
+  } catch (err) {
+    return { success: false, message: (err as Error).message }
+  }
+
+  if (config.mcpServers?.lecta) {
+    delete config.mcpServers.lecta
+    await atomicWriteFile(configPath, JSON.stringify(config, null, 2), { backup: true })
+    return { success: true, message: 'Removed Lecta from Claude Desktop config.' }
+  }
+
+  return { success: true, message: 'Lecta was not in Claude Desktop config.' }
 }
 
 /** Check if Lecta is already configured in Claude Desktop */

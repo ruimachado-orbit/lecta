@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest'
-import { NativeExecutor } from './native-executor'
+import { describe, it, expect } from 'vitest'
+import { NativeExecutor, MAX_OUTPUT_BYTES } from './native-executor'
 
 describe('NativeExecutor', () => {
   it('executes a simple command and captures stdout', async () => {
@@ -62,7 +62,44 @@ describe('NativeExecutor', () => {
     const executor = new NativeExecutor()
     const result = await executor.execute('sleep', ['10'], process.cwd(), 500)
     // Should be killed before completing
-    expect(result.duration).toBeLessThan(5000)
+    expect(result.status).toBe('timeout')
+    expect(result.duration).toBeLessThan(3000)
+  })
+
+  it('escalates to SIGKILL when the child ignores SIGTERM (timeout)', async () => {
+    const executor = new NativeExecutor()
+    const start = Date.now()
+    const result = await executor.execute('bash', ['-c', "trap '' TERM; sleep 30"], process.cwd(), 300)
+    expect(result.status).toBe('timeout')
+    expect(Date.now() - start).toBeLessThan(3000)
+  })
+
+  it('escalates to SIGKILL when the child ignores SIGTERM (cancel)', async () => {
+    const executor = new NativeExecutor()
+    const promise = executor.execute('bash', ['-c', "trap '' TERM; sleep 30"], process.cwd(), 30000)
+    await new Promise((r) => setTimeout(r, 100))
+    const start = Date.now()
+    executor.cancel()
+    const result = await promise
+    expect(result.status).toBe('cancelled')
+    expect(Date.now() - start).toBeLessThan(3000)
+  })
+
+  it('caps accumulated output and kills the process', async () => {
+    const executor = new NativeExecutor()
+    const chunks: string[] = []
+    executor.onStdout((data) => chunks.push(data))
+    const result = await executor.execute(
+      'node',
+      ['-e', "const s='x'.repeat(262144); setInterval(() => process.stdout.write(s), 1)"],
+      process.cwd(),
+      10000
+    )
+    expect(result.status).toBe('error')
+    expect(result.stderr).toContain('[output truncated]')
+    expect(result.stdout.length).toBeLessThanOrEqual(MAX_OUTPUT_BYTES)
+    expect(chunks.join('').length).toBeLessThanOrEqual(MAX_OUTPUT_BYTES)
+    expect(result.duration).toBeLessThan(3000)
   })
 
   it('executes multiline node script', async () => {

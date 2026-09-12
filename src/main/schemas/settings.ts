@@ -25,10 +25,27 @@ export const SettingsSchema = z.object({
 
 export type Settings = z.infer<typeof SettingsSchema>
 
-/** Safely parse and validate settings JSON, falling back to defaults on invalid data */
+/**
+ * Safely parse and validate settings JSON. Validation is per field: an invalid
+ * value is dropped (and replaced by its default) without discarding the other
+ * fields. Unknown keys are passed through unchanged.
+ */
 export function parseSettings(raw: unknown): Settings {
-  const result = SettingsSchema.safeParse(raw)
-  if (result.success) return result.data
-  // If validation fails, return defaults merged with whatever is valid
+  const input: Record<string, unknown> =
+    raw && typeof raw === 'object' && !Array.isArray(raw) ? { ...(raw as Record<string, unknown>) } : {}
+
+  const sanitized: Record<string, unknown> = { ...input }
+  for (const [key, fieldSchema] of Object.entries(SettingsSchema.shape)) {
+    const result = (fieldSchema as z.ZodTypeAny).safeParse(input[key])
+    if (result.success) {
+      sanitized[key] = result.data
+    } else {
+      // Drop only this invalid field; the schema default is applied below
+      delete sanitized[key]
+    }
+  }
+
+  const parsed = SettingsSchema.safeParse(sanitized)
+  if (parsed.success) return parsed.data
   return SettingsSchema.parse({})
 }

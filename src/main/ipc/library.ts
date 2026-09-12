@@ -1,7 +1,10 @@
 import { ipcMain, app, dialog } from 'electron'
-import { readFile, writeFile, mkdir, stat, readdir } from 'fs/promises'
-import { join } from 'path'
+import { readFile, mkdir, stat, readdir, rm } from 'fs/promises'
+import { join, resolve, extname } from 'path'
 import { homedir } from 'os'
+import { DECK_CONFIG_FILE } from '../../../packages/shared/src/constants'
+import { atomicWriteFile, withLock } from '../services/safe-fs'
+import { isInsideOpenDeck, isInsideRoot } from '../services/deck-roots'
 
 // ── Types ──
 
@@ -38,20 +41,52 @@ interface LibraryData {
 
 let library: LibraryData = { folders: [], entries: [], tagColors: {} }
 let libraryLoaded = false
+/**
+ * True when library.json exists but could not be read/parsed. The in-memory
+ * library is then empty for reasons that have nothing to do with the user's
+ * data, so writing it back would destroy the whole library: never save.
+ */
+let libraryUnreadable = false
 
 function getLibraryPath(): string {
   return join(app.getPath('userData'), 'library.json')
 }
 
+function emptyLibrary(): LibraryData {
+  return { folders: [], entries: [], tagColors: {} }
+}
+
 async function loadLibrary(): Promise<LibraryData> {
+  let content: string
   try {
-    const content = await readFile(getLibraryPath(), 'utf-8')
-    library = JSON.parse(content)
+    content = await readFile(getLibraryPath(), 'utf-8')
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      library = emptyLibrary()
+      libraryUnreadable = false
+    } else {
+      console.warn('[library] library.json is unreadable; not touching it:', err)
+      library = emptyLibrary()
+      libraryUnreadable = true
+    }
+    libraryLoaded = true
+    return library
+  }
+
+  try {
+    const parsed = JSON.parse(content) as LibraryData
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('library.json is not an object')
+    }
+    library = parsed
     if (!library.folders) library.folders = []
     if (!library.entries) library.entries = []
     if (!library.tagColors) library.tagColors = {}
-  } catch {
-    library = { folders: [], entries: [], tagColors: {} }
+    libraryUnreadable = false
+  } catch (err) {
+    console.warn('[library] library.json failed to parse; keeping it as-is:', err)
+    library = emptyLibrary()
+    libraryUnreadable = true
   }
   libraryLoaded = true
   return library
@@ -62,10 +97,124 @@ async function ensureLoaded(): Promise<void> {
 }
 
 async function saveLibrary(): Promise<void> {
+  if (libraryUnreadable) {
+    console.warn('[library] Refusing to overwrite an unparsable library.json')
+    return
+  }
   try {
-    await mkdir(app.getPath('userData'), { recursive: true })
-    await writeFile(getLibraryPath(), JSON.stringify(library, null, 2))
-  } catch {}
+    await withLock('library', async () => {
+      await mkdir(app.getPath('userData'), { recursive: true })
+      await atomicWriteFile(getLibraryPath(), JSON.stringify(library, null, 2))
+    })
+  } catch (err) {
+    console.warn('[library] Failed to save library.json:', err)
+  }
+}
+
+// ── Path validation ──
+
+function getLectaDocumentsDir(): string {
+  return join(homedir(), 'Documents', 'Lecta')
+}
+
+/**
+ * A path the renderer asked us to open or delete must (a) live in a place the
+ * library owns — ~/Documents/Lecta, the app's userData dir — or in an open
+ * deck, and (b) actually be a deck: a `.lecta` file or a directory holding a
+ * lecta.yaml. Returns the resolved path, or null when it is neither.
+ */
+async function validateDeckPath(deckPath: unknown): Promise<string | null> {
+  if (typeof deckPath !== 'string' || deckPath.length === 0) return null
+  const resolved = resolve(deckPath)
+
+  const inManagedLocation =
+    isInsideRoot(resolved, getLectaDocumentsDir()) ||
+    isInsideRoot(resolved, app.getPath('userData')) ||
+    isInsideOpenDeck(resolved)
+  if (!inManagedLocation) return null
+
+  try {
+    const s = await stat(resolved)
+    if (s.isDirectory()) {
+      await stat(join(resolved, DECK_CONFIG_FILE))
+      return resolved
+    }
+    return extname(resolved).toLowerCase() === '.lecta' ? resolved : null
+  } catch {
+    return null
+  }
+}
+
+/** Delete a deck file/folder after validating it really is one of ours. */
+async function deleteDeckAtPath(deckPath: string): Promise<void> {
+  const validated = await validateDeckPath(deckPath)
+  if (!validated) {
+    console.warn(`[library] Refusing to delete a path that is not a managed deck: ${deckPath}`)
+    return
+  }
+  try {
+    const s = await stat(validated)
+    await rm(validated, { recursive: s.isDirectory() })
+  } catch (err) {
+    console.warn(`[library] Failed to delete ${validated}:`, err)
+  }
+}
+
+/**
+ * Read a deck's metadata for the library. `.lecta` archives are inspected in a
+ * throwaway directory so a deck that is currently open keeps its workspace.
+ */
+async function readDeckMetadata(deckPath: string): Promise<{
+  title: string
+  type: 'presentation' | 'notebook'
+  slideCount: number
+  preview: string
+  fullContent: string
+  isMdx: boolean
+  theme?: string
+} | null> {
+  const { parsePresentationYaml } = await import('../../../packages/shared/src/utils/yaml-parser')
+  const { resolveRelativePath } = await import('../../../packages/shared/src/utils/path-resolver')
+
+  const fromDir = async (dir: string): Promise<{
+    title: string; type: 'presentation' | 'notebook'; slideCount: number
+    preview: string; fullContent: string; isMdx: boolean; theme?: string
+  }> => {
+    const yamlContent = await readFile(join(dir, DECK_CONFIG_FILE), 'utf-8')
+    const config = parsePresentationYaml(yamlContent, dir)
+    const isNotebook = /^type:\s*["']?notebook["']?\s*$/m.test(yamlContent)
+
+    let preview = ''
+    let fullContent = ''
+    let isMdx = false
+    if (config.slides.length > 0) {
+      try {
+        const md = await readFile(resolveRelativePath(dir, config.slides[0].content), 'utf-8')
+        fullContent = md
+        isMdx = config.slides[0].content.endsWith('.mdx')
+        preview = md.replace(/<!--.*?-->/gs, '').trim().split('\n').filter((l: string) => l.trim()).slice(0, 5).join('\n').slice(0, 200)
+      } catch { /* first slide missing — no preview */ }
+    }
+
+    return {
+      title: config.title,
+      type: isNotebook ? 'notebook' : 'presentation',
+      slideCount: config.slides.length,
+      preview,
+      fullContent,
+      isMdx,
+      theme: config.theme
+    }
+  }
+
+  try {
+    const s = await stat(deckPath)
+    if (s.isDirectory()) return await fromDir(deckPath)
+    const { withExtractedLectaFile } = await import('../services/lecta-file')
+    return await withExtractedLectaFile(deckPath, fromDir)
+  } catch {
+    return null
+  }
 }
 
 // ── Public: upsert from recent decks / on open ──
@@ -113,70 +262,46 @@ export async function upsertLibraryEntry(item: {
 
 /** Scan ~/Documents/Lecta for .lecta files and auto-add missing ones to the library */
 async function scanLectaDocumentsFolder(): Promise<void> {
-  const lectaDir = join(homedir(), 'Documents', 'Lecta')
+  const lectaDir = getLectaDocumentsDir()
+  let files: string[]
   try {
-    const files = await readdir(lectaDir)
-    const lectaFiles = files.filter((f) => f.endsWith('.lecta'))
-    const existingPaths = new Set(library.entries.map((e) => e.path))
-
-    let added = false
-    for (const file of lectaFiles) {
-      const filePath = join(lectaDir, file)
-      if (existingPaths.has(filePath)) continue
-
-      try {
-        const { openLectaFile, registerWorkspace } = await import('../services/lecta-file')
-        const { parsePresentationYaml } = await import('../../../packages/shared/src/utils/yaml-parser')
-        const { DECK_CONFIG_FILE } = await import('../../../packages/shared/src/constants')
-        const { resolveRelativePath } = await import('../../../packages/shared/src/utils/path-resolver')
-
-        const workspaceDir = await openLectaFile(filePath)
-        registerWorkspace(workspaceDir, filePath)
-
-        const configPath = join(workspaceDir, DECK_CONFIG_FILE)
-        const yamlContent = await readFile(configPath, 'utf-8')
-        const config = parsePresentationYaml(yamlContent, workspaceDir)
-
-        const isNotebook = yamlContent.includes('type: notebook') || yamlContent.includes('type: "notebook"') || yamlContent.includes("type: 'notebook'")
-
-        let preview = ''
-        let fullContent = ''
-        let isMdx = false
-        if (config.slides.length > 0) {
-          try {
-            const mdPath = resolveRelativePath(workspaceDir, config.slides[0].content)
-            const md = await readFile(mdPath, 'utf-8')
-            fullContent = md
-            isMdx = config.slides[0].content.endsWith('.mdx')
-            preview = md.replace(/<!--.*?-->/gs, '').trim().split('\n').filter((l: string) => l.trim()).slice(0, 5).join('\n').slice(0, 200)
-          } catch {}
-        }
-
-        library.entries.push({
-          id: `lib-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-          path: filePath,
-          title: config.title,
-          type: isNotebook ? 'notebook' : 'presentation',
-          folderId: null,
-          tags: [],
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          slideCount: config.slides.length,
-          firstSlidePreview: preview,
-          firstSlideContent: fullContent,
-          firstSlideIsMdx: isMdx,
-          theme: config.theme,
-        })
-        added = true
-      } catch {
-        // Skip files that fail to parse
-      }
-    }
-
-    if (added) await saveLibrary()
+    files = await readdir(lectaDir)
   } catch {
     // ~/Documents/Lecta doesn't exist yet — that's fine
+    return
   }
+
+  const existingPaths = new Set(library.entries.map((e) => e.path))
+  let added = false
+
+  for (const file of files) {
+    if (!file.endsWith('.lecta')) continue
+    const filePath = join(lectaDir, file)
+    if (existingPaths.has(filePath)) continue
+
+    // Inspect the archive without disturbing the workspace of an open deck
+    const meta = await readDeckMetadata(filePath)
+    if (!meta) continue
+
+    library.entries.push({
+      id: `lib-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      path: filePath,
+      title: meta.title,
+      type: meta.type,
+      folderId: null,
+      tags: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      slideCount: meta.slideCount,
+      firstSlidePreview: meta.preview,
+      firstSlideContent: meta.fullContent,
+      firstSlideIsMdx: meta.isMdx,
+      theme: meta.theme,
+    })
+    added = true
+  }
+
+  if (added) await saveLibrary()
 }
 
 // ── IPC Handlers ──
@@ -269,15 +394,7 @@ export function registerLibraryHandlers(): void {
     await saveLibrary()
 
     if (deleteFile && entry) {
-      try {
-        const { rm } = await import('fs/promises')
-        const s = await stat(entry.path)
-        if (s.isDirectory()) {
-          await rm(entry.path, { recursive: true })
-        } else {
-          await rm(entry.path)
-        }
-      } catch {}
+      await deleteDeckAtPath(entry.path)
     }
   })
 
@@ -320,15 +437,7 @@ export function registerLibraryHandlers(): void {
       // Delete all entries in this folder
       const toDelete = library.entries.filter((e) => e.folderId === folderId)
       for (const entry of toDelete) {
-        try {
-          const s = await stat(entry.path)
-          const { rm } = await import('fs/promises')
-          if (s.isDirectory()) {
-            await rm(entry.path, { recursive: true })
-          } else {
-            await rm(entry.path)
-          }
-        } catch {}
+        await deleteDeckAtPath(entry.path)
       }
       library.entries = library.entries.filter((e) => e.folderId !== folderId)
     } else {
@@ -347,7 +456,7 @@ export function registerLibraryHandlers(): void {
     await ensureLoaded()
     const result = await dialog.showOpenDialog({
       properties: ['openFile', 'openDirectory', 'multiSelections'],
-      defaultPath: join(homedir(), 'Documents', 'Lecta'),
+      defaultPath: getLectaDocumentsDir(),
       filters: [
         { name: 'Lecta Presentations', extensions: ['lecta'] },
         { name: 'All Files', extensions: ['*'] }
@@ -359,66 +468,22 @@ export function registerLibraryHandlers(): void {
 
     let imported = 0
     for (const filePath of result.filePaths) {
-      try {
-        const { parsePresentationYaml } = await import('../../../packages/shared/src/utils/yaml-parser')
-        const { DECK_CONFIG_FILE } = await import('../../../packages/shared/src/constants')
+      // A `.lecta` archive is inspected in a throwaway dir and recorded under
+      // its own path — never under the temp workspace, which is disposable.
+      const meta = await readDeckMetadata(filePath)
+      if (!meta) continue
 
-        let workspaceDir: string
-
-        // Check if it's a .lecta file or a directory with lecta.yaml
-        const s = await stat(filePath)
-        if (s.isDirectory()) {
-          // Folder — check if it has a lecta.yaml
-          try {
-            await stat(join(filePath, DECK_CONFIG_FILE))
-            workspaceDir = filePath
-          } catch {
-            continue // Not a valid presentation folder
-          }
-        } else {
-          // .lecta file — extract to workspace
-          const { openLectaFile, registerWorkspace } = await import('../services/lecta-file')
-          workspaceDir = await openLectaFile(filePath)
-          registerWorkspace(workspaceDir, filePath)
-        }
-
-        // Read config to get metadata
-        const configPath = join(workspaceDir, DECK_CONFIG_FILE)
-        const yamlContent = await readFile(configPath, 'utf-8')
-        const config = parsePresentationYaml(yamlContent, workspaceDir)
-
-        const isNotebook = yamlContent.includes('type: notebook') || yamlContent.includes('type: "notebook"') || yamlContent.includes("type: 'notebook'")
-
-        // Get first slide preview
-        let preview = ''
-        let fullContent = ''
-        let isMdx = false
-        if (config.slides.length > 0) {
-          try {
-            const { resolveRelativePath } = await import('../../../packages/shared/src/utils/path-resolver')
-            const mdPath = resolveRelativePath(workspaceDir, config.slides[0].content)
-            const md = await readFile(mdPath, 'utf-8')
-            fullContent = md
-            isMdx = config.slides[0].content.endsWith('.mdx')
-            preview = md.replace(/<!--.*?-->/gs, '').trim().split('\n').filter((l: string) => l.trim()).slice(0, 5).join('\n').slice(0, 200)
-          } catch {}
-        }
-
-        await upsertLibraryEntry({
-          path: workspaceDir,
-          title: config.title,
-          type: isNotebook ? 'notebook' : 'presentation',
-          slideCount: config.slides.length,
-          firstSlidePreview: preview,
-          firstSlideContent: fullContent,
-          firstSlideIsMdx: isMdx,
-          theme: config.theme,
-        })
-
-        imported++
-      } catch {
-        // Skip files that fail to import
-      }
+      await upsertLibraryEntry({
+        path: filePath,
+        title: meta.title,
+        type: meta.type,
+        slideCount: meta.slideCount,
+        firstSlidePreview: meta.preview,
+        firstSlideContent: meta.fullContent,
+        firstSlideIsMdx: meta.isMdx,
+        theme: meta.theme,
+      })
+      imported++
     }
 
     return imported

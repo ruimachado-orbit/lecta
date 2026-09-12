@@ -1,11 +1,12 @@
 import { ipcMain } from 'electron'
-import { readFile, writeFile, mkdir } from 'fs/promises'
-import { join } from 'path'
+import { readFile, mkdir } from 'fs/promises'
+import { join, dirname } from 'path'
 import { stringify as stringifyYaml } from 'yaml'
 import { parseNotebookYaml } from '../../../packages/shared/src/utils/notebook-parser'
-import { resolveRelativePath } from '../../../packages/shared/src/utils/path-resolver'
 import { DECK_CONFIG_FILE } from '../../../packages/shared/src/constants'
 import { autoSave } from '../services/lecta-file'
+import { registerDeckRoot, assertInsideOpenDeck, resolveInsideDeck } from '../services/deck-roots'
+import { atomicWriteFile, writeFileIfMissing, withLock } from '../services/safe-fs'
 import { addRecentItem } from './file-system'
 import type {
   LoadedNote,
@@ -72,29 +73,36 @@ async function saveNotebookYaml(notebook: Notebook): Promise<void> {
     pages: notebook.pages.map(serializeNote)
   }
 
-  await writeFile(configPath, stringifyYaml(toSerialize, { lineWidth: 120 }), 'utf-8')
+  await atomicWriteFile(configPath, stringifyYaml(toSerialize, { lineWidth: 120 }))
   await autoSave(notebook.rootPath)
 }
 
 /** Recursively load a note and its children */
 async function loadNote(noteConfig: NoteConfig, rootPath: string, depth: number): Promise<LoadedNote> {
-  const mdPath = resolveRelativePath(rootPath, noteConfig.content)
   let markdownContent = ''
   try {
-    markdownContent = await readFile(mdPath, 'utf-8')
-  } catch {
-    // File doesn't exist yet — create it
-    await mkdir(join(rootPath, 'pages'), { recursive: true })
-    await writeFile(mdPath, '', 'utf-8')
+    const mdPath = resolveInsideDeck(rootPath, noteConfig.content)
+    try {
+      markdownContent = await readFile(mdPath, 'utf-8')
+    } catch {
+      // File doesn't exist yet — create it (never truncate one that appeared meanwhile)
+      await mkdir(dirname(mdPath), { recursive: true })
+      await writeFileIfMissing(mdPath, '')
+    }
+  } catch (err) {
+    // A content path that escapes the notebook is ignored, loudly
+    console.warn(`[notebook-fs] Note "${noteConfig.id}" content path is outside the notebook; ignoring:`, err)
   }
 
   let codeContent: string | null = null
   if (noteConfig.code) {
-    const codePath = resolveRelativePath(rootPath, noteConfig.code.file)
+    codeContent = ''
     try {
-      codeContent = await readFile(codePath, 'utf-8')
-    } catch {
-      codeContent = ''
+      codeContent = await readFile(resolveInsideDeck(rootPath, noteConfig.code.file), 'utf-8')
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+        console.warn(`[notebook-fs] Note "${noteConfig.id}" code file unreadable:`, err)
+      }
     }
   }
 
@@ -136,12 +144,50 @@ async function loadAllNotes(config: Notebook): Promise<LoadedNote[]> {
   return flattenNotes(tree)
 }
 
+/** Read + parse lecta.yaml for the notebook at `root` (caller holds the lock). */
+async function readNotebookConfig(root: string): Promise<Notebook> {
+  const yamlContent = await readFile(join(root, DECK_CONFIG_FILE), 'utf-8')
+  return parseNotebookYaml(yamlContent, root)
+}
+
+/**
+ * Read → mutate → write lecta.yaml for an open notebook, serialized per root
+ * and written atomically, then reload the notebook for the renderer.
+ */
+async function updateNotebook(
+  rootPath: string,
+  mutate: (config: Notebook, root: string) => void | Promise<void>
+): Promise<LoadedNotebook> {
+  const root = assertInsideOpenDeck(rootPath)
+  return withLock(root, async () => {
+    const config = await readNotebookConfig(root)
+    await mutate(config, root)
+    await saveNotebookYaml(config)
+
+    const reloadedConfig = await readNotebookConfig(root)
+    const pages = await loadAllNotes(reloadedConfig)
+    return { config: reloadedConfig, pages }
+  })
+}
+
+/** Create a content file under the notebook, never truncating an existing one. */
+async function createContentFile(root: string, relativePath: string, content: string): Promise<void> {
+  const abs = resolveInsideDeck(root, relativePath)
+  await mkdir(dirname(abs), { recursive: true })
+  await writeFileIfMissing(abs, content)
+}
+
 export function registerNotebookHandlers(): void {
   // Load a notebook
   ipcMain.handle('nb:load', async (_event, folderPath: string): Promise<LoadedNotebook> => {
-    const configPath = join(folderPath, DECK_CONFIG_FILE)
-    const yamlContent = await readFile(configPath, 'utf-8')
+    if (typeof folderPath !== 'string' || folderPath.length === 0) {
+      throw new Error('No notebook path given')
+    }
+    const yamlContent = await readFile(join(folderPath, DECK_CONFIG_FILE), 'utf-8')
     const config = parseNotebookYaml(yamlContent, folderPath)
+
+    // Only a notebook whose lecta.yaml parsed becomes readable via lecta-file:// and nb:*
+    const root = registerDeckRoot(folderPath)
     const pages = await loadAllNotes(config)
 
     // Track in recent items
@@ -150,7 +196,7 @@ export function registerNotebookHandlers(): void {
       ?.replace(/<!--.*?-->/gs, '').replace(/<[^>]+>/g, '')
       .trim().split('\n').filter((l: string) => l.trim()).slice(0, 5).join('\n') || ''
     await addRecentItem({
-      path: folderPath,
+      path: root,
       title: config.title,
       type: 'notebook',
       slideCount: pages.length,
@@ -164,515 +210,367 @@ export function registerNotebookHandlers(): void {
   // Add a new note (top-level, with today's date)
   ipcMain.handle(
     'nb:add-note',
-    async (_event, rootPath: string, noteId: string, afterIndex: number): Promise<LoadedNotebook> => {
-      const configPath = join(rootPath, DECK_CONFIG_FILE)
-      const yamlContent = await readFile(configPath, 'utf-8')
-      const config = parseNotebookYaml(yamlContent, rootPath)
+    async (_event, rootPath: string, noteId: string, afterIndex: number): Promise<LoadedNotebook> =>
+      updateNotebook(rootPath, async (config, root) => {
+        const contentPath = `pages/${noteId}.md`
+        await createContentFile(root, contentPath, `# ${noteId.replace(/-/g, ' ')}\n\n`)
 
-      const contentPath = `pages/${noteId}.md`
-      await mkdir(join(rootPath, 'pages'), { recursive: true })
-      await writeFile(join(rootPath, contentPath), `# ${noteId.replace(/-/g, ' ')}\n\n`, 'utf-8')
+        const newNote: NoteConfig = {
+          id: noteId,
+          content: contentPath,
+          createdAt: new Date().toISOString(),
+          artifacts: []
+        }
 
-      const newNote: NoteConfig = {
-        id: noteId,
-        content: contentPath,
-        createdAt: new Date().toISOString(),
-        artifacts: []
-      }
-
-      // Insert after the specified index (top-level only for now)
-      config.pages.splice(afterIndex + 1, 0, newNote)
-      await saveNotebookYaml(config)
-
-      const reloaded = await readFile(configPath, 'utf-8')
-      const reloadedConfig = parseNotebookYaml(reloaded, rootPath)
-      const pages = await loadAllNotes(reloadedConfig)
-      return { config: reloadedConfig, pages }
-    }
+        // Insert after the specified index (top-level only for now)
+        config.pages.splice(afterIndex + 1, 0, newNote)
+      })
   )
 
   // Add a subnote under a parent
   ipcMain.handle(
     'nb:add-subnote',
-    async (_event, rootPath: string, parentId: string, noteId: string): Promise<LoadedNotebook> => {
-      const configPath = join(rootPath, DECK_CONFIG_FILE)
-      const yamlContent = await readFile(configPath, 'utf-8')
-      const config = parseNotebookYaml(yamlContent, rootPath)
+    async (_event, rootPath: string, parentId: string, noteId: string): Promise<LoadedNotebook> =>
+      updateNotebook(rootPath, async (config, root) => {
+        const contentPath = `pages/${noteId}.md`
+        const title = noteId.replace(/^note-\d+$/, 'Untitled').replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+        await createContentFile(root, contentPath, `## ${title}\n\n`)
 
-      const contentPath = `pages/${noteId}.md`
-      const title = noteId.replace(/^note-\d+$/, 'Untitled').replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-      await mkdir(join(rootPath, 'pages'), { recursive: true })
-      await writeFile(join(rootPath, contentPath), `## ${title}\n\n`, 'utf-8')
-
-      const newNote: NoteConfig = {
-        id: noteId,
-        content: contentPath,
-        createdAt: new Date().toISOString(),
-        artifacts: []
-      }
-
-      // Find parent in tree and add child
-      function addChild(notes: NoteConfig[]): boolean {
-        for (const note of notes) {
-          if (note.id === parentId) {
-            if (!note.children) note.children = []
-            note.children.push(newNote)
-            return true
-          }
-          if (note.children && addChild(note.children)) return true
+        const newNote: NoteConfig = {
+          id: noteId,
+          content: contentPath,
+          createdAt: new Date().toISOString(),
+          artifacts: []
         }
-        return false
-      }
 
-      addChild(config.pages)
-      await saveNotebookYaml(config)
+        // Find parent in tree and add child
+        function addChild(notes: NoteConfig[]): boolean {
+          for (const note of notes) {
+            if (note.id === parentId) {
+              if (!note.children) note.children = []
+              note.children.push(newNote)
+              return true
+            }
+            if (note.children && addChild(note.children)) return true
+          }
+          return false
+        }
 
-      const reloaded = await readFile(configPath, 'utf-8')
-      const reloadedConfig = parseNotebookYaml(reloaded, rootPath)
-      const pages = await loadAllNotes(reloadedConfig)
-      return { config: reloadedConfig, pages }
-    }
+        addChild(config.pages)
+      })
   )
 
   // Delete a note (and all children)
   ipcMain.handle(
     'nb:delete-note',
-    async (_event, rootPath: string, noteId: string): Promise<LoadedNotebook> => {
-      const configPath = join(rootPath, DECK_CONFIG_FILE)
-      const yamlContent = await readFile(configPath, 'utf-8')
-      const config = parseNotebookYaml(yamlContent, rootPath)
+    async (_event, rootPath: string, noteId: string): Promise<LoadedNotebook> =>
+      updateNotebook(rootPath, (config) => {
+        function removeNote(notes: NoteConfig[]): NoteConfig[] {
+          return notes.filter((n) => {
+            if (n.id === noteId) return false
+            if (n.children) n.children = removeNote(n.children)
+            return true
+          })
+        }
 
-      function removeNote(notes: NoteConfig[]): NoteConfig[] {
-        return notes.filter((n) => {
-          if (n.id === noteId) return false
-          if (n.children) n.children = removeNote(n.children)
-          return true
-        })
-      }
-
-      config.pages = removeNote(config.pages)
-      await saveNotebookYaml(config)
-
-      const reloaded = await readFile(configPath, 'utf-8')
-      const reloadedConfig = parseNotebookYaml(reloaded, rootPath)
-      const pages = await loadAllNotes(reloadedConfig)
-      return { config: reloadedConfig, pages }
-    }
+        config.pages = removeNote(config.pages)
+      })
   )
 
   // Set note layout
   ipcMain.handle(
     'nb:set-layout',
-    async (_event, rootPath: string, noteId: string, layout: string): Promise<LoadedNotebook> => {
-      const configPath = join(rootPath, DECK_CONFIG_FILE)
-      const yamlContent = await readFile(configPath, 'utf-8')
-      const config = parseNotebookYaml(yamlContent, rootPath)
-
-      function setLayout(notes: NoteConfig[]): boolean {
-        for (const note of notes) {
-          if (note.id === noteId) {
-            note.layout = layout as NoteLayout
-            return true
+    async (_event, rootPath: string, noteId: string, layout: string): Promise<LoadedNotebook> =>
+      updateNotebook(rootPath, (config) => {
+        function setLayout(notes: NoteConfig[]): boolean {
+          for (const note of notes) {
+            if (note.id === noteId) {
+              note.layout = layout as NoteLayout
+              return true
+            }
+            if (note.children && setLayout(note.children)) return true
           }
-          if (note.children && setLayout(note.children)) return true
+          return false
         }
-        return false
-      }
 
-      setLayout(config.pages)
-      await saveNotebookYaml(config)
-
-      const reloaded = await readFile(configPath, 'utf-8')
-      const reloadedConfig = parseNotebookYaml(reloaded, rootPath)
-      const pages = await loadAllNotes(reloadedConfig)
-      return { config: reloadedConfig, pages }
-    }
+        setLayout(config.pages)
+      })
   )
 
   // Rename a note
   ipcMain.handle(
     'nb:rename-note',
-    async (_event, rootPath: string, noteId: string, newId: string): Promise<LoadedNotebook> => {
-      const configPath = join(rootPath, DECK_CONFIG_FILE)
-      const yamlContent = await readFile(configPath, 'utf-8')
-      const config = parseNotebookYaml(yamlContent, rootPath)
-
-      function rename(notes: NoteConfig[]): boolean {
-        for (const note of notes) {
-          if (note.id === noteId) { note.id = newId; return true }
-          if (note.children && rename(note.children)) return true
+    async (_event, rootPath: string, noteId: string, newId: string): Promise<LoadedNotebook> =>
+      updateNotebook(rootPath, (config) => {
+        function rename(notes: NoteConfig[]): boolean {
+          for (const note of notes) {
+            if (note.id === noteId) { note.id = newId; return true }
+            if (note.children && rename(note.children)) return true
+          }
+          return false
         }
-        return false
-      }
 
-      rename(config.pages)
-      await saveNotebookYaml(config)
-
-      const reloaded = await readFile(configPath, 'utf-8')
-      const reloadedConfig = parseNotebookYaml(reloaded, rootPath)
-      const pages = await loadAllNotes(reloadedConfig)
-      return { config: reloadedConfig, pages }
-    }
+        rename(config.pages)
+      })
   )
 
   // Archive a note (set archivedAt timestamp)
   ipcMain.handle(
     'nb:archive-note',
-    async (_event, rootPath: string, noteId: string): Promise<LoadedNotebook> => {
-      const configPath = join(rootPath, DECK_CONFIG_FILE)
-      const yamlContent = await readFile(configPath, 'utf-8')
-      const config = parseNotebookYaml(yamlContent, rootPath)
-
-      function archiveNote(notes: NoteConfig[]): boolean {
-        for (const note of notes) {
-          if (note.id === noteId) {
-            note.archivedAt = new Date().toISOString()
-            return true
+    async (_event, rootPath: string, noteId: string): Promise<LoadedNotebook> =>
+      updateNotebook(rootPath, (config) => {
+        function archiveNote(notes: NoteConfig[]): boolean {
+          for (const note of notes) {
+            if (note.id === noteId) {
+              note.archivedAt = new Date().toISOString()
+              return true
+            }
+            if (note.children && archiveNote(note.children)) return true
           }
-          if (note.children && archiveNote(note.children)) return true
+          return false
         }
-        return false
-      }
 
-      archiveNote(config.pages)
-      await saveNotebookYaml(config)
-
-      const reloaded = await readFile(configPath, 'utf-8')
-      const reloadedConfig = parseNotebookYaml(reloaded, rootPath)
-      const pages = await loadAllNotes(reloadedConfig)
-      return { config: reloadedConfig, pages }
-    }
+        archiveNote(config.pages)
+      })
   )
 
   // Unarchive a note (remove archivedAt)
   ipcMain.handle(
     'nb:unarchive-note',
-    async (_event, rootPath: string, noteId: string): Promise<LoadedNotebook> => {
-      const configPath = join(rootPath, DECK_CONFIG_FILE)
-      const yamlContent = await readFile(configPath, 'utf-8')
-      const config = parseNotebookYaml(yamlContent, rootPath)
-
-      function unarchive(notes: NoteConfig[]): boolean {
-        for (const note of notes) {
-          if (note.id === noteId) {
-            delete note.archivedAt
-            return true
+    async (_event, rootPath: string, noteId: string): Promise<LoadedNotebook> =>
+      updateNotebook(rootPath, (config) => {
+        function unarchive(notes: NoteConfig[]): boolean {
+          for (const note of notes) {
+            if (note.id === noteId) {
+              delete note.archivedAt
+              return true
+            }
+            if (note.children && unarchive(note.children)) return true
           }
-          if (note.children && unarchive(note.children)) return true
+          return false
         }
-        return false
-      }
 
-      unarchive(config.pages)
-      await saveNotebookYaml(config)
-
-      const reloaded = await readFile(configPath, 'utf-8')
-      const reloadedConfig = parseNotebookYaml(reloaded, rootPath)
-      const pages = await loadAllNotes(reloadedConfig)
-      return { config: reloadedConfig, pages }
-    }
+        unarchive(config.pages)
+      })
   )
 
   // Add code to a note
   ipcMain.handle(
     'nb:add-code',
-    async (_event, rootPath: string, noteId: string, language: string): Promise<LoadedNotebook> => {
-      const configPath = join(rootPath, DECK_CONFIG_FILE)
-      const yamlContent = await readFile(configPath, 'utf-8')
-      const config = parseNotebookYaml(yamlContent, rootPath)
-
-      const extMap: Record<string, string> = {
-        javascript: '.js', typescript: '.ts', python: '.py', sql: '.sql',
-        html: '.html', css: '.css', json: '.json', bash: '.sh',
-        rust: '.rs', go: '.go', markdown: '.md'
-      }
-      const ext = extMap[language] || '.txt'
-      const codeFile = `code/${noteId}${ext}`
-
-      await mkdir(join(rootPath, 'code'), { recursive: true })
-      await writeFile(join(rootPath, codeFile), '', 'utf-8')
-
-      const engineMap: Record<string, string> = {
-        javascript: 'sandpack', typescript: 'sandpack', python: 'pyodide', sql: 'sql'
-      }
-
-      function addCode(notes: NoteConfig[]): boolean {
-        for (const note of notes) {
-          if (note.id === noteId) {
-            note.code = {
-              file: codeFile,
-              language: language as any,
-              execution: (engineMap[language] || 'none') as any
-            }
-            return true
-          }
-          if (note.children && addCode(note.children)) return true
+    async (_event, rootPath: string, noteId: string, language: string): Promise<LoadedNotebook> =>
+      updateNotebook(rootPath, async (config, root) => {
+        const extMap: Record<string, string> = {
+          javascript: '.js', typescript: '.ts', python: '.py', sql: '.sql',
+          html: '.html', css: '.css', json: '.json', bash: '.sh',
+          rust: '.rs', go: '.go', markdown: '.md'
         }
-        return false
-      }
+        const ext = extMap[language] || '.txt'
+        const codeFile = `code/${noteId}${ext}`
 
-      addCode(config.pages)
-      await saveNotebookYaml(config)
+        // Never truncate an existing code file
+        await createContentFile(root, codeFile, '')
 
-      const reloaded = await readFile(configPath, 'utf-8')
-      const reloadedConfig = parseNotebookYaml(reloaded, rootPath)
-      const pages = await loadAllNotes(reloadedConfig)
-      return { config: reloadedConfig, pages }
-    }
+        const engineMap: Record<string, string> = {
+          javascript: 'sandpack', typescript: 'sandpack', python: 'pyodide', sql: 'sql'
+        }
+
+        function addCode(notes: NoteConfig[]): boolean {
+          for (const note of notes) {
+            if (note.id === noteId) {
+              note.code = {
+                file: codeFile,
+                language: language as any,
+                execution: (engineMap[language] || 'none') as any
+              }
+              return true
+            }
+            if (note.children && addCode(note.children)) return true
+          }
+          return false
+        }
+
+        addCode(config.pages)
+      })
   )
 
   // Add video to a note
   ipcMain.handle(
     'nb:add-video',
-    async (_event, rootPath: string, noteId: string, url: string): Promise<LoadedNotebook> => {
-      const configPath = join(rootPath, DECK_CONFIG_FILE)
-      const yamlContent = await readFile(configPath, 'utf-8')
-      const config = parseNotebookYaml(yamlContent, rootPath)
-
-      function addVid(notes: NoteConfig[]): boolean {
-        for (const note of notes) {
-          if (note.id === noteId) { (note as any).video = { url }; return true }
-          if (note.children && addVid(note.children)) return true
+    async (_event, rootPath: string, noteId: string, url: string): Promise<LoadedNotebook> =>
+      updateNotebook(rootPath, (config) => {
+        function addVid(notes: NoteConfig[]): boolean {
+          for (const note of notes) {
+            if (note.id === noteId) { (note as any).video = { url }; return true }
+            if (note.children && addVid(note.children)) return true
+          }
+          return false
         }
-        return false
-      }
 
-      addVid(config.pages)
-      await saveNotebookYaml(config)
-
-      const reloaded = await readFile(configPath, 'utf-8')
-      const reloadedConfig = parseNotebookYaml(reloaded, rootPath)
-      const pages = await loadAllNotes(reloadedConfig)
-      return { config: reloadedConfig, pages }
-    }
+        addVid(config.pages)
+      })
   )
 
   // Add webapp to a note
   ipcMain.handle(
     'nb:add-webapp',
-    async (_event, rootPath: string, noteId: string, url: string): Promise<LoadedNotebook> => {
-      const configPath = join(rootPath, DECK_CONFIG_FILE)
-      const yamlContent = await readFile(configPath, 'utf-8')
-      const config = parseNotebookYaml(yamlContent, rootPath)
-
-      function addWeb(notes: NoteConfig[]): boolean {
-        for (const note of notes) {
-          if (note.id === noteId) { (note as any).webapp = { url }; return true }
-          if (note.children && addWeb(note.children)) return true
+    async (_event, rootPath: string, noteId: string, url: string): Promise<LoadedNotebook> =>
+      updateNotebook(rootPath, (config) => {
+        function addWeb(notes: NoteConfig[]): boolean {
+          for (const note of notes) {
+            if (note.id === noteId) { (note as any).webapp = { url }; return true }
+            if (note.children && addWeb(note.children)) return true
+          }
+          return false
         }
-        return false
-      }
 
-      addWeb(config.pages)
-      await saveNotebookYaml(config)
-
-      const reloaded = await readFile(configPath, 'utf-8')
-      const reloadedConfig = parseNotebookYaml(reloaded, rootPath)
-      const pages = await loadAllNotes(reloadedConfig)
-      return { config: reloadedConfig, pages }
-    }
+        addWeb(config.pages)
+      })
   )
 
   // Set notebook default layout (persists to YAML)
   ipcMain.handle(
     'nb:set-default-layout',
-    async (_event, rootPath: string, layout: string): Promise<LoadedNotebook> => {
-      const configPath = join(rootPath, DECK_CONFIG_FILE)
-      const yamlContent = await readFile(configPath, 'utf-8')
-      const config = parseNotebookYaml(yamlContent, rootPath)
-
-      config.defaultLayout = layout as NoteLayout
-      await saveNotebookYaml(config)
-
-      const reloaded = await readFile(configPath, 'utf-8')
-      const reloadedConfig = parseNotebookYaml(reloaded, rootPath)
-      const pages = await loadAllNotes(reloadedConfig)
-      return { config: reloadedConfig, pages }
-    }
+    async (_event, rootPath: string, layout: string): Promise<LoadedNotebook> =>
+      updateNotebook(rootPath, (config) => {
+        config.defaultLayout = layout as NoteLayout
+      })
   )
 
   // Set notebook kernel (persists to YAML)
   ipcMain.handle(
     'nb:set-kernel',
-    async (_event, rootPath: string, kernel: string): Promise<LoadedNotebook> => {
-      const configPath = join(rootPath, DECK_CONFIG_FILE)
-      const yamlContent = await readFile(configPath, 'utf-8')
-      const config = parseNotebookYaml(yamlContent, rootPath)
-
-      config.kernel = kernel as any
-      await saveNotebookYaml(config)
-
-      const reloaded = await readFile(configPath, 'utf-8')
-      const reloadedConfig = parseNotebookYaml(reloaded, rootPath)
-      const pages = await loadAllNotes(reloadedConfig)
-      return { config: reloadedConfig, pages }
-    }
+    async (_event, rootPath: string, kernel: string): Promise<LoadedNotebook> =>
+      updateNotebook(rootPath, (config) => {
+        config.kernel = kernel as any
+      })
   )
 
   // Save note content (write markdown to disk + autoSave)
   ipcMain.handle(
     'nb:save-content',
     async (_event, rootPath: string, contentPath: string, content: string): Promise<void> => {
-      const fullPath = join(rootPath, contentPath)
-      await writeFile(fullPath, content, 'utf-8')
-      await autoSave(rootPath)
+      const root = assertInsideOpenDeck(rootPath)
+      if (typeof content !== 'string') throw new Error('Note content must be a string')
+      const fullPath = resolveInsideDeck(root, contentPath)
+      await mkdir(dirname(fullPath), { recursive: true })
+      await atomicWriteFile(fullPath, content)
+      await autoSave(root)
     }
   )
 
   // Reorder a note (move from one index to another in the top-level pages array)
   ipcMain.handle(
     'nb:reorder-note',
-    async (_event, rootPath: string, fromIndex: number, toIndex: number): Promise<LoadedNotebook> => {
-      const configPath = join(rootPath, DECK_CONFIG_FILE)
-      const yamlContent = await readFile(configPath, 'utf-8')
-      const config = parseNotebookYaml(yamlContent, rootPath)
+    async (_event, rootPath: string, fromIndex: number, toIndex: number): Promise<LoadedNotebook> =>
+      updateNotebook(rootPath, (config) => {
+        if (fromIndex < 0 || fromIndex >= config.pages.length || toIndex < 0 || toIndex >= config.pages.length) {
+          throw new Error(`Invalid reorder indices: ${fromIndex} -> ${toIndex}`)
+        }
 
-      if (fromIndex < 0 || fromIndex >= config.pages.length || toIndex < 0 || toIndex >= config.pages.length) {
-        throw new Error(`Invalid reorder indices: ${fromIndex} -> ${toIndex}`)
-      }
+        const [moved] = config.pages.splice(fromIndex, 1)
+        config.pages.splice(toIndex, 0, moved)
 
-      const [moved] = config.pages.splice(fromIndex, 1)
-      config.pages.splice(toIndex, 0, moved)
-
-      // Update cellIndex values to reflect new order
-      config.pages.forEach((page, i) => {
-        if (page.cellIndex != null) page.cellIndex = i
+        // Update cellIndex values to reflect new order
+        config.pages.forEach((page, i) => {
+          if (page.cellIndex != null) page.cellIndex = i
+        })
       })
-
-      await saveNotebookYaml(config)
-
-      const reloaded = await readFile(configPath, 'utf-8')
-      const reloadedConfig = parseNotebookYaml(reloaded, rootPath)
-      const pages = await loadAllNotes(reloadedConfig)
-      return { config: reloadedConfig, pages }
-    }
   )
 
   // Update cell outputs
   ipcMain.handle(
     'nb:update-outputs',
-    async (_event, rootPath: string, noteId: string, outputs: CellOutput[]): Promise<LoadedNotebook> => {
-      const configPath = join(rootPath, DECK_CONFIG_FILE)
-      const yamlContent = await readFile(configPath, 'utf-8')
-      const config = parseNotebookYaml(yamlContent, rootPath)
-
-      function updateOutputs(notes: NoteConfig[]): boolean {
-        for (const note of notes) {
-          if (note.id === noteId) {
-            note.outputs = outputs
-            return true
+    async (_event, rootPath: string, noteId: string, outputs: CellOutput[]): Promise<LoadedNotebook> =>
+      updateNotebook(rootPath, (config) => {
+        function updateOutputs(notes: NoteConfig[]): boolean {
+          for (const note of notes) {
+            if (note.id === noteId) {
+              note.outputs = outputs
+              return true
+            }
+            if (note.children && updateOutputs(note.children)) return true
           }
-          if (note.children && updateOutputs(note.children)) return true
+          return false
         }
-        return false
-      }
 
-      updateOutputs(config.pages)
-      await saveNotebookYaml(config)
-
-      const reloaded = await readFile(configPath, 'utf-8')
-      const reloadedConfig = parseNotebookYaml(reloaded, rootPath)
-      const pages = await loadAllNotes(reloadedConfig)
-      return { config: reloadedConfig, pages }
-    }
+        updateOutputs(config.pages)
+      })
   )
 
   // Toggle cell type between markdown and code
   ipcMain.handle(
     'nb:toggle-cell-type',
-    async (_event, rootPath: string, noteId: string): Promise<LoadedNotebook> => {
-      const configPath = join(rootPath, DECK_CONFIG_FILE)
-      const yamlContent = await readFile(configPath, 'utf-8')
-      const config = parseNotebookYaml(yamlContent, rootPath)
+    async (_event, rootPath: string, noteId: string): Promise<LoadedNotebook> =>
+      updateNotebook(rootPath, async (config, root) => {
+        const pending: Promise<void>[] = []
 
-      function toggle(notes: NoteConfig[]): boolean {
-        for (const note of notes) {
-          if (note.id === noteId) {
-            if (note.cellType === 'code') {
-              // Switch to markdown — remove code block
-              note.cellType = 'markdown'
-              delete note.code
-              note.outputs = undefined
-            } else {
-              // Switch to code — use the notebook's kernel language
-              const kc = kernelToCodeConfig(config.kernel)
-              note.cellType = 'code'
-              const codeFile = `code/${noteId}${kc.ext}`
-              note.code = {
-                file: codeFile,
-                language: kc.language,
-                execution: kc.execution
+        function toggle(notes: NoteConfig[]): boolean {
+          for (const note of notes) {
+            if (note.id === noteId) {
+              if (note.cellType === 'code') {
+                // Switch to markdown — remove code block
+                note.cellType = 'markdown'
+                delete note.code
+                note.outputs = undefined
+              } else {
+                // Switch to code — use the notebook's kernel language
+                const kc = kernelToCodeConfig(config.kernel)
+                note.cellType = 'code'
+                const codeFile = `code/${noteId}${kc.ext}`
+                note.code = {
+                  file: codeFile,
+                  language: kc.language,
+                  execution: kc.execution
+                }
+                // Create the code file if it doesn't exist (never truncate)
+                pending.push(createContentFile(root, codeFile, ''))
               }
-              // Create the code file if it doesn't exist
-              const codePath = join(rootPath, codeFile)
-              mkdir(join(rootPath, 'code'), { recursive: true })
-                .then(() => writeFile(codePath, '', 'utf-8'))
-                .catch(() => {})
+              return true
             }
-            return true
+            if (note.children && toggle(note.children)) return true
           }
-          if (note.children && toggle(note.children)) return true
+          return false
         }
-        return false
-      }
 
-      toggle(config.pages)
-      await saveNotebookYaml(config)
-
-      const reloaded = await readFile(configPath, 'utf-8')
-      const reloadedConfig = parseNotebookYaml(reloaded, rootPath)
-      const pages = await loadAllNotes(reloadedConfig)
-      return { config: reloadedConfig, pages }
-    }
+        toggle(config.pages)
+        await Promise.all(pending)
+      })
   )
 
   // Add a cell after a given index (for Jupyter-style notebooks)
   ipcMain.handle(
     'nb:add-cell',
-    async (_event, rootPath: string, afterIndex: number, cellType: CellType): Promise<LoadedNotebook> => {
-      const configPath = join(rootPath, DECK_CONFIG_FILE)
-      const yamlContent = await readFile(configPath, 'utf-8')
-      const config = parseNotebookYaml(yamlContent, rootPath)
+    async (_event, rootPath: string, afterIndex: number, cellType: CellType): Promise<LoadedNotebook> =>
+      updateNotebook(rootPath, async (config, root) => {
+        const cellNum = String(config.pages.length + 1).padStart(2, '0')
+        const cellId = `cell-${cellNum}`
+        const mdPath = `pages/${cellId}.md`
 
-      const cellNum = String(config.pages.length + 1).padStart(2, '0')
-      const cellId = `cell-${cellNum}`
-      const mdPath = `pages/${cellId}.md`
+        const newNote: NoteConfig = {
+          id: cellId,
+          content: mdPath,
+          cellType,
+          cellIndex: afterIndex + 1,
+          createdAt: new Date().toISOString(),
+          artifacts: []
+        }
 
-      await mkdir(join(rootPath, 'pages'), { recursive: true })
+        if (cellType === 'code') {
+          const kc = kernelToCodeConfig(config.kernel)
+          const codeFile = `code/${cellId}${kc.ext}`
+          await createContentFile(root, codeFile, '')
+          await createContentFile(root, mdPath, `<!-- Code Cell -->\n`)
+          newNote.code = { file: codeFile, language: kc.language, execution: kc.execution }
+        } else {
+          await createContentFile(root, mdPath, '')
+        }
 
-      const newNote: NoteConfig = {
-        id: cellId,
-        content: mdPath,
-        cellType,
-        cellIndex: afterIndex + 1,
-        createdAt: new Date().toISOString(),
-        artifacts: []
-      }
+        config.pages.splice(afterIndex + 1, 0, newNote)
 
-      if (cellType === 'code') {
-        const kc = kernelToCodeConfig(config.kernel)
-        const codeFile = `code/${cellId}${kc.ext}`
-        await mkdir(join(rootPath, 'code'), { recursive: true })
-        await writeFile(join(rootPath, codeFile), '', 'utf-8')
-        await writeFile(join(rootPath, mdPath), `<!-- Code Cell -->\n`, 'utf-8')
-        newNote.code = { file: codeFile, language: kc.language, execution: kc.execution }
-      } else {
-        await writeFile(join(rootPath, mdPath), '', 'utf-8')
-      }
-
-      config.pages.splice(afterIndex + 1, 0, newNote)
-
-      // Re-index cells
-      config.pages.forEach((page, i) => {
-        if (page.cellIndex != null) page.cellIndex = i
+        // Re-index cells
+        config.pages.forEach((page, i) => {
+          if (page.cellIndex != null) page.cellIndex = i
+        })
       })
-
-      await saveNotebookYaml(config)
-
-      const reloaded = await readFile(configPath, 'utf-8')
-      const reloadedConfig = parseNotebookYaml(reloaded, rootPath)
-      const pages = await loadAllNotes(reloadedConfig)
-      return { config: reloadedConfig, pages }
-    }
   )
 }

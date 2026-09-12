@@ -1,7 +1,8 @@
-import { writeFile, mkdtemp, rm } from 'fs/promises'
+import { writeFile, mkdtemp, rm, readdir } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
-import { buildPdfHtml, buildSpaHtml, embedImages } from './export-pdf'
+import { EventEmitter } from 'events'
+import { buildPdfHtml, buildSpaHtml, embedImages, renderPdf, type PdfRenderWindow } from './export-pdf'
 
 let tempDir: string
 
@@ -204,5 +205,63 @@ describe('embedImages', () => {
       const result = await embedImages(html, tempDir)
       expect(result).toContain(`data:${mime};base64,`)
     }
+  })
+})
+
+/** Fake BrowserWindow: `mode` decides how the load resolves. */
+function fakeWindow(mode: 'finish' | 'fail' | 'hang'): PdfRenderWindow & { destroyed: boolean; printed: boolean } {
+  const emitter = new EventEmitter()
+  const win = {
+    destroyed: false,
+    printed: false,
+    webContents: {
+      once: (event: string, listener: (...args: any[]) => void) => emitter.once(event, listener),
+      removeListener: (event: string, listener: (...args: any[]) => void) => emitter.removeListener(event, listener),
+      printToPDF: async () => {
+        win.printed = true
+        return Buffer.from('%PDF-fake')
+      }
+    },
+    loadFile: async (_path: string) => {
+      if (mode === 'finish') setTimeout(() => emitter.emit('did-finish-load'), 5)
+      if (mode === 'fail') {
+        setTimeout(() => emitter.emit('did-fail-load', {}, -6, 'ERR_FILE_NOT_FOUND'), 5)
+        throw new Error('ERR_FILE_NOT_FOUND')
+      }
+      // 'hang': never emits anything
+    },
+    destroy: () => { win.destroyed = true }
+  }
+  return win
+}
+
+describe('renderPdf', () => {
+  it('resolves with the printed buffer and cleans up on success', async () => {
+    const win = fakeWindow('finish')
+    const pdf = await renderPdf(win, tempDir, ['<div>S1</div>'], 'Deck', { tmpDir: tempDir, settleMs: 1 })
+    expect(pdf.toString()).toBe('%PDF-fake')
+    expect(win.printed).toBe(true)
+    expect(win.destroyed).toBe(true)
+    expect(await readdir(tempDir)).toEqual([])
+  })
+
+  it('rejects on did-fail-load, destroys the window and unlinks the temp file', async () => {
+    const win = fakeWindow('fail')
+    await expect(
+      renderPdf(win, tempDir, ['<div>S1</div>'], 'Deck', { tmpDir: tempDir, settleMs: 1 })
+    ).rejects.toThrow(/failed to load slides \(-6: ERR_FILE_NOT_FOUND\)/)
+    expect(win.printed).toBe(false)
+    expect(win.destroyed).toBe(true)
+    expect(await readdir(tempDir)).toEqual([])
+  })
+
+  it('rejects when the load never finishes within the timeout', async () => {
+    const win = fakeWindow('hang')
+    await expect(
+      renderPdf(win, tempDir, ['<div>S1</div>'], 'Deck', { tmpDir: tempDir, loadTimeoutMs: 20, settleMs: 1 })
+    ).rejects.toThrow(/timed out after 20 ms/)
+    expect(win.printed).toBe(false)
+    expect(win.destroyed).toBe(true)
+    expect(await readdir(tempDir)).toEqual([])
   })
 })

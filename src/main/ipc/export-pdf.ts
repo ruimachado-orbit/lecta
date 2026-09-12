@@ -2,11 +2,107 @@ import { ipcMain, BrowserWindow, dialog } from 'electron'
 import { writeFile, readFile, unlink } from 'fs/promises'
 import { join, resolve, extname } from 'path'
 import { tmpdir } from 'os'
+import { assertInsideOpenDeck } from '../services/deck-roots'
+
+/** How long we wait for the hidden window to load the slides before giving up. */
+export const PDF_LOAD_TIMEOUT_MS = 60_000
+/** Settle time after `did-finish-load` so fonts/images finish painting. */
+const PDF_SETTLE_MS = 800
+
+/**
+ * The slice of BrowserWindow that PDF rendering needs. Kept structural so the
+ * load/print flow can be exercised in tests with a fake window.
+ */
+export interface PdfRenderWindow {
+  loadFile(filePath: string): Promise<void>
+  destroy(): void
+  webContents: {
+    once(event: string, listener: (...args: any[]) => void): unknown
+    removeListener(event: string, listener: (...args: any[]) => void): unknown
+    printToPDF(options: Record<string, unknown>): Promise<Buffer>
+  }
+}
+
+export interface RenderPdfOptions {
+  /** Directory for the temporary HTML file (defaults to the OS temp dir). */
+  tmpDir?: string
+  loadTimeoutMs?: number
+  settleMs?: number
+}
+
+/**
+ * Render `slideHtmls` to a PDF buffer in the given hidden window. The window
+ * is always destroyed and the temporary HTML file always unlinked, whether the
+ * load succeeds, fails (`did-fail-load`) or times out.
+ */
+export async function renderPdf(
+  win: PdfRenderWindow,
+  rootPath: string,
+  slideHtmls: string[],
+  title: string,
+  options: RenderPdfOptions = {}
+): Promise<Buffer> {
+  const loadTimeoutMs = options.loadTimeoutMs ?? PDF_LOAD_TIMEOUT_MS
+  const settleMs = options.settleMs ?? PDF_SETTLE_MS
+  const tmpPath = join(options.tmpDir ?? tmpdir(), `lecta-export-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.html`)
+
+  try {
+    // Build a single HTML document with all slides as pages.
+    // Written to a temp file so that relative image paths (e.g. images/photo.png)
+    // resolve against the presentation's root directory via <base href>.
+    const fullHtml = buildPdfHtml(slideHtmls, title)
+    const htmlWithBase = fullHtml.replace(
+      '<head>',
+      `<head>\n  <base href="file://${rootPath.replace(/\\/g, '/')}/">`
+    )
+    await writeFile(tmpPath, htmlWithBase, 'utf-8')
+
+    // Attach listeners BEFORE loading so we don't miss the events
+    const loaded = new Promise<void>((resolveLoad, rejectLoad) => {
+      let settleTimer: NodeJS.Timeout | null = null
+      const cleanup = (): void => {
+        clearTimeout(timeout)
+        if (settleTimer) clearTimeout(settleTimer)
+        win.webContents.removeListener('did-finish-load', onFinish)
+        win.webContents.removeListener('did-fail-load', onFail)
+      }
+      const onFinish = (): void => {
+        clearTimeout(timeout)
+        settleTimer = setTimeout(() => { cleanup(); resolveLoad() }, settleMs)
+      }
+      const onFail = (_event: unknown, errorCode: number, errorDescription: string): void => {
+        cleanup()
+        rejectLoad(new Error(`PDF export failed to load slides (${errorCode}: ${errorDescription})`))
+      }
+      const timeout = setTimeout(() => {
+        cleanup()
+        rejectLoad(new Error(`PDF export timed out after ${loadTimeoutMs} ms while loading slides`))
+      }, loadTimeoutMs)
+      win.webContents.once('did-finish-load', onFinish)
+      win.webContents.once('did-fail-load', onFail)
+    })
+    // loadFile's own rejection is reported through did-fail-load; swallow the duplicate
+    win.loadFile(tmpPath).catch(() => {})
+    await loaded
+
+    return await win.webContents.printToPDF({
+      landscape: true,
+      printBackground: true,
+      preferCSSPageSize: true,
+      margins: { top: 0, bottom: 0, left: 0, right: 0 }
+    })
+  } finally {
+    try { win.destroy() } catch { /* already destroyed */ }
+    await unlink(tmpPath).catch(() => {})
+  }
+}
 
 export function registerExportHandlers(): void {
   ipcMain.handle(
     'export:pdf',
     async (_event, rootPath: string, slideHtmls: string[], title: string): Promise<string | null> => {
+      // The deck root becomes <base href> for the rendered page: confine it
+      const deckRoot = assertInsideOpenDeck(rootPath)
       const result = await dialog.showSaveDialog({
         title: 'Export as PDF',
         defaultPath: `${title || 'presentation'}.pdf`,
@@ -25,42 +121,9 @@ export function registerExportHandlers(): void {
         }
       })
 
-      try {
-        // Build a single HTML document with all slides as pages
-        const fullHtml = buildPdfHtml(slideHtmls, title)
-
-        // Write to a temp file so that relative image paths (e.g. images/photo.png)
-        // resolve against the presentation's root directory via <base href>
-        const tmpPath = join(tmpdir(), `lecta-export-${Date.now()}.html`)
-        const htmlWithBase = fullHtml.replace(
-          '<head>',
-          `<head>\n  <base href="file://${rootPath.replace(/\\/g, '/')}/">`
-        )
-        await writeFile(tmpPath, htmlWithBase, 'utf-8')
-
-        // Attach listener BEFORE loading so we don't miss the event
-        const loaded = new Promise<void>((resolve) => {
-          win.webContents.on('did-finish-load', () => {
-            setTimeout(resolve, 800)
-          })
-        })
-        win.loadFile(tmpPath)
-        await loaded
-
-        const pdfBuffer = await win.webContents.printToPDF({
-          landscape: true,
-          printBackground: true,
-          preferCSSPageSize: true,
-          margins: { top: 0, bottom: 0, left: 0, right: 0 }
-        })
-
-        await writeFile(result.filePath, pdfBuffer)
-        // Clean up temp file
-        try { await unlink(tmpPath) } catch {}
-        return result.filePath
-      } finally {
-        win.destroy()
-      }
+      const pdfBuffer = await renderPdf(win, deckRoot, slideHtmls, title)
+      await writeFile(result.filePath, pdfBuffer)
+      return result.filePath
     }
   )
 
@@ -68,6 +131,8 @@ export function registerExportHandlers(): void {
   ipcMain.handle(
     'export:html',
     async (_event, rootPath: string, slideContents: (string | { content: string; isPreRendered: boolean })[], title: string, theme: string): Promise<string | null> => {
+      // Images are inlined from this root: it must belong to an open deck
+      const deckRoot = assertInsideOpenDeck(rootPath)
       const result = await dialog.showSaveDialog({
         title: 'Export as HTML',
         defaultPath: `${title || 'presentation'}.html`,
@@ -84,7 +149,7 @@ export function registerExportHandlers(): void {
       const embedded = await Promise.all(
         normalized.map(async (s) => ({
           ...s,
-          content: await embedImages(s.content, rootPath)
+          content: await embedImages(s.content, deckRoot)
         }))
       )
       const html = buildSpaHtml(embedded, title, theme)

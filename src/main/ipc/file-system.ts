@@ -1,21 +1,30 @@
 import { ipcMain, dialog, app } from 'electron'
 import { readFile, writeFile, mkdir, access, copyFile } from 'fs/promises'
-import { join, basename, extname, resolve } from 'path'
+import { join, basename, dirname, extname, resolve } from 'path'
 import { homedir } from 'os'
 import { stringify as stringifyYaml } from 'yaml'
 import { parsePresentationYaml } from '../../../packages/shared/src/utils/yaml-parser'
-import { resolveRelativePath, detectLanguage } from '../../../packages/shared/src/utils/path-resolver'
 import { DECK_CONFIG_FILE } from '../../../packages/shared/src/constants'
-import { startWatching } from '../services/file-watcher'
+import { startWatching, stopWatching, addFileToWatch, markOwnWrite } from '../services/file-watcher'
 import { setAIDeckPath } from './ai'
-import { allowedFileRoots } from '../index'
+import {
+  registerDeckRoot,
+  unregisterDeckRoot,
+  assertInsideOpenDeck,
+  resolveInsideDeck
+} from '../services/deck-roots'
+import { atomicWriteFile, writeFileIfMissing, withLock } from '../services/safe-fs'
 import { setGeminiDeckPath } from './gemini-image'
+import { getCachedSettings } from './settings'
 import {
   openLectaFile,
   saveLectaFile,
   createLectaFile,
+  withExtractedLectaFile,
   registerWorkspace,
-  autoSave
+  unregisterWorkspace,
+  autoSave,
+  flushAutoSave
 } from '../services/lecta-file'
 import { importPptx } from '../services/pptx-importer'
 import { importIpynb } from '../services/ipynb-importer'
@@ -87,25 +96,106 @@ export async function addRecentItem(item: {
   } catch {}
 }
 
+/**
+ * Persist `recentDecks` into settings.json. Runs under the shared 'settings'
+ * lock and writes atomically (0600). A settings file that exists but cannot
+ * be parsed is left untouched — never rewrite what we failed to read.
+ */
 async function persistRecentDecks(): Promise<void> {
   try {
-    const settingsPath = await getSettingsPath()
-    let settings: Record<string, unknown> = {}
-    try {
-      const content = await readFile(settingsPath, 'utf-8')
-      settings = JSON.parse(content)
-    } catch { /* fresh settings */ }
-    settings.recentDecks = recentDecks
-    const { app } = await import('electron')
-    await mkdir(app.getPath('userData'), { recursive: true })
-    await writeFile(settingsPath, JSON.stringify(settings, null, 2))
-  } catch {
-    // Non-critical, ignore
+    await withLock('settings', async () => {
+      const settingsPath = await getSettingsPath()
+      let settings: Record<string, unknown> = {}
+      try {
+        const content = await readFile(settingsPath, 'utf-8')
+        settings = JSON.parse(content)
+        if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
+          throw new Error('settings.json is not an object')
+        }
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+          console.warn('[file-system] settings.json unreadable; not persisting recent decks:', err)
+          return
+        }
+      }
+      settings.recentDecks = recentDecks
+      await atomicWriteFile(settingsPath, JSON.stringify(settings, null, 2), { mode: 0o600 })
+      // Keep the settings module's cache in step: its next save() writes the
+      // whole cached object back and would otherwise restore a stale list.
+      getCachedSettings().recentDecks = recentDecks
+    })
+  } catch (err) {
+    // Non-critical
+    console.warn('[file-system] Failed to persist recent decks:', err)
   }
 }
 
-/** Write the current presentation config back to lecta.yaml */
-async function savePresentationYaml(presentation: Presentation): Promise<void> {
+/** Presentation handlers must never rewrite a notebook's lecta.yaml as a presentation. */
+function looksLikeNotebook(yamlContent: string): boolean {
+  return /^type:\s*["']?notebook["']?\s*$/m.test(yamlContent)
+}
+
+/** Read + parse lecta.yaml for the deck at `root` (caller holds the lock). */
+async function readPresentationConfig(root: string): Promise<Presentation> {
+  const yamlContent = await readFile(join(root, DECK_CONFIG_FILE), 'utf-8')
+  if (looksLikeNotebook(yamlContent)) {
+    throw new Error('This deck is a notebook; use the notebook handlers')
+  }
+  return parsePresentationYaml(yamlContent, root)
+}
+
+/**
+ * Read → mutate → write lecta.yaml for an open deck, serialized per deck root
+ * and written atomically. Returns the mutated config.
+ */
+async function mutatePresentationConfig(
+  rootPath: string,
+  mutate: (config: Presentation, root: string) => void | Promise<void>
+): Promise<Presentation> {
+  const root = assertInsideOpenDeck(rootPath)
+  return withLock(root, async () => {
+    const config = await readPresentationConfig(root)
+    await mutate(config, root)
+    await writePresentationYaml(config)
+    await autoSave(root)
+    return config
+  })
+}
+
+/** Like `mutatePresentationConfig`, then reload the full presentation for the renderer. */
+async function updatePresentation(
+  rootPath: string,
+  mutate: (config: Presentation, root: string) => void | Promise<void>
+): Promise<LoadedPresentation> {
+  const root = assertInsideOpenDeck(rootPath)
+  return withLock(root, async () => {
+    const config = await readPresentationConfig(root)
+    await mutate(config, root)
+    await writePresentationYaml(config)
+    await autoSave(root)
+
+    const reloadedConfig = await readPresentationConfig(root)
+    const slides = await loadAllSlides(reloadedConfig, root)
+    return { config: reloadedConfig, slides }
+  })
+}
+
+/**
+ * Create a new content file under `slides/`, picking a non-colliding name so
+ * an existing slide file is never truncated. Returns the deck-relative path.
+ */
+async function createSlideFile(root: string, baseName: string, ext: string, content: string): Promise<string> {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const rel = `slides/${baseName}${attempt === 0 ? '' : `-${attempt + 1}`}${ext}`
+    const abs = resolveInsideDeck(root, rel)
+    await mkdir(dirname(abs), { recursive: true })
+    if (await writeFileIfMissing(abs, content)) return rel
+  }
+  throw new Error(`Could not find a free filename for slides/${baseName}${ext}`)
+}
+
+/** Write the current presentation config back to lecta.yaml (atomic; caller holds the deck lock and triggers autoSave) */
+async function writePresentationYaml(presentation: Presentation): Promise<void> {
   const configPath = join(presentation.rootPath, DECK_CONFIG_FILE)
 
   // Build a clean object without rootPath for serialization
@@ -143,10 +233,7 @@ async function savePresentationYaml(presentation: Presentation): Promise<void> {
     })
   }
 
-  await writeFile(configPath, stringifyYaml(toSerialize, { lineWidth: 120 }), 'utf-8')
-
-  // Auto-save to .lecta file if workspace is from one
-  await autoSave(presentation.rootPath)
+  await atomicWriteFile(configPath, stringifyYaml(toSerialize, { lineWidth: 120 }))
 }
 
 const LANGUAGE_TO_ENGINE: Partial<Record<SupportedLanguage, ExecutionEngine>> = {
@@ -212,6 +299,9 @@ export function registerFileSystemHandlers(): void {
 
   // Open a .lecta file by path — extract to workspace and return workspace dir
   ipcMain.handle('fs:open-lecta-path', async (_event, lectaFilePath: string): Promise<string> => {
+    if (typeof lectaFilePath !== 'string' || extname(lectaFilePath).toLowerCase() !== '.lecta') {
+      throw new Error('Not a .lecta file')
+    }
     const workspaceDir = await openLectaFile(lectaFilePath)
     registerWorkspace(workspaceDir, lectaFilePath)
     return workspaceDir
@@ -231,31 +321,29 @@ export function registerFileSystemHandlers(): void {
 
     const selected = result.filePaths[0]
     try {
-      const workspaceDir = await openLectaFile(selected)
-      const configPath = join(workspaceDir, DECK_CONFIG_FILE)
-      const yamlContent = await readFile(configPath, 'utf-8')
-      const config = parsePresentationYaml(yamlContent, workspaceDir)
+      // Extract to a throwaway dir: the selected deck may be open, and its
+      // live workspace must not be replaced or removed.
+      return await withExtractedLectaFile(selected, async (workspaceDir) => {
+        const configPath = join(workspaceDir, DECK_CONFIG_FILE)
+        const yamlContent = await readFile(configPath, 'utf-8')
+        const config = parsePresentationYaml(yamlContent, workspaceDir)
 
-      const slides: { id: string; markdown: string; layout?: string }[] = []
-      for (const slideConfig of config.slides) {
-        const mdPath = join(workspaceDir, slideConfig.content)
-        try {
-          const markdown = await readFile(mdPath, 'utf-8')
-          slides.push({
-            id: slideConfig.id,
-            markdown,
-            layout: slideConfig.layout
-          })
-        } catch {
-          slides.push({ id: slideConfig.id, markdown: `# ${slideConfig.id}` })
+        const slides: { id: string; markdown: string; layout?: string }[] = []
+        for (const slideConfig of config.slides) {
+          try {
+            const mdPath = resolveInsideDeck(workspaceDir, slideConfig.content)
+            const markdown = await readFile(mdPath, 'utf-8')
+            slides.push({
+              id: slideConfig.id,
+              markdown,
+              layout: slideConfig.layout
+            })
+          } catch {
+            slides.push({ id: slideConfig.id, markdown: `# ${slideConfig.id}` })
+          }
         }
-      }
-
-      // Clean up temp workspace
-      const { rm } = await import('fs/promises')
-      await rm(workspaceDir, { recursive: true, force: true }).catch(() => {})
-
-      return slides
+        return slides
+      })
     } catch {
       return null
     }
@@ -295,15 +383,25 @@ export function registerFileSystemHandlers(): void {
     return workspaceDir
   })
 
-  // Save workspace back to .lecta file explicitly
+  // Save workspace back to .lecta file explicitly (runs any pending auto-save now)
   ipcMain.handle('fs:save-lecta', async (_event, rootPath: string): Promise<void> => {
-    await autoSave(rootPath)
+    await flushAutoSave(assertInsideOpenDeck(rootPath))
+  })
+
+  // Close a deck: flush pending saves, stop watchers, forget the workspace and
+  // drop the root from the allow-list (lecta-file:// and fs:* stop serving it).
+  ipcMain.handle('fs:close-presentation', async (_event, rootPath: string): Promise<void> => {
+    if (typeof rootPath !== 'string' || rootPath.length === 0) return
+    const root = resolve(rootPath)
+    stopWatching(root)
+    await unregisterWorkspace(root)
+    unregisterDeckRoot(root)
   })
 
   ipcMain.handle('fs:load-presentation', async (_event, folderPath: string): Promise<LoadedPresentation> => {
-    const resolvedRoot = resolve(folderPath)
-    allowedFileRoots.add(resolvedRoot)
-
+    if (typeof folderPath !== 'string' || folderPath.length === 0) {
+      throw new Error('No presentation path given')
+    }
     const configPath = join(folderPath, DECK_CONFIG_FILE)
 
     try {
@@ -315,44 +413,18 @@ export function registerFileSystemHandlers(): void {
     const yamlContent = await readFile(configPath, 'utf-8')
 
     // Check if this is a notebook — return a special marker so the renderer can redirect
-    if (yamlContent.includes('type: notebook') || yamlContent.includes('type: "notebook"')) {
+    // (nb:load registers the root once the notebook YAML parses)
+    if (looksLikeNotebook(yamlContent)) {
       return { __notebook: true, rootPath: folderPath } as any
     }
 
     const config = parsePresentationYaml(yamlContent, folderPath)
 
+    // Only a deck whose lecta.yaml parsed becomes readable via lecta-file:// and fs:*
+    const resolvedRoot = registerDeckRoot(folderPath)
+
     // Load all slide content
-    const slides: LoadedSlide[] = await Promise.all(
-      config.slides.map(async (slideConfig) => {
-        const markdownPath = resolveRelativePath(folderPath, slideConfig.content)
-        const markdownContent = await readFile(markdownPath, 'utf-8')
-
-        let codeContent: string | null = null
-        if (slideConfig.code) {
-          const codePath = resolveRelativePath(folderPath, slideConfig.code.file)
-          codeContent = await readFile(codePath, 'utf-8')
-        }
-
-        let notesContent: string | null = null
-        if (slideConfig.notes) {
-          try {
-            const notesPath = resolveRelativePath(folderPath, slideConfig.notes)
-            notesContent = await readFile(notesPath, 'utf-8')
-          } catch {
-            // Notes file doesn't exist yet, that's fine
-          }
-        }
-
-        return {
-          config: slideConfig,
-          markdownContent,
-          codeContent,
-          codeLanguage: slideConfig.code?.language ?? null,
-          notesContent,
-          isMdx: slideConfig.content.endsWith('.mdx')
-        }
-      })
-    )
+    const slides: LoadedSlide[] = await loadAllSlides(config, resolvedRoot)
 
     // Track recent decks and set AI deck path
     const allArtifacts = new Set<string>()
@@ -387,8 +459,8 @@ export function registerFileSystemHandlers(): void {
     // Start watching code files for changes
     const codeFiles = config.slides
       .filter((s) => s.code)
-      .map((s) => resolveRelativePath(folderPath, s.code!.file))
-    startWatching(codeFiles)
+      .map((s) => resolveInsideDeck(resolvedRoot, s.code!.file))
+    startWatching(resolvedRoot, codeFiles)
 
     return { config, slides }
   })
@@ -404,7 +476,8 @@ export function registerFileSystemHandlers(): void {
     }
 
     const parentDir = result.filePaths[0]
-    const projectDir = join(parentDir, name)
+    // `name` comes from the renderer: keep the new folder inside the chosen parent
+    const projectDir = resolveInsideDeck(parentDir, name)
 
     // Create folder structure
     await mkdir(join(projectDir, 'slides'), { recursive: true })
@@ -418,17 +491,12 @@ export function registerFileSystemHandlers(): void {
     )
 
     // Write lecta.yaml
-    const yaml = [
-      `title: "${name}"`,
-      `author: ""`,
-      `theme: "dark"`,
-      ``,
-      `slides:`,
-      `  - id: welcome`,
-      `    content: slides/01-welcome.md`,
-      `    artifacts: []`,
-      ``
-    ].join('\n')
+    const yaml = stringifyYaml({
+      title: name,
+      author: '',
+      theme: 'dark',
+      slides: [{ id: 'welcome', content: 'slides/01-welcome.md', artifacts: [] }]
+    })
 
     await writeFile(join(projectDir, DECK_CONFIG_FILE), yaml, 'utf-8')
 
@@ -438,42 +506,28 @@ export function registerFileSystemHandlers(): void {
   // Add a new slide to the presentation
   ipcMain.handle(
     'fs:add-slide',
-    async (_event, rootPath: string, slideId: string, afterIndex: number, format?: string): Promise<LoadedPresentation> => {
-      const configPath = join(rootPath, DECK_CONFIG_FILE)
-      const yamlContent = await readFile(configPath, 'utf-8')
-      const config = parsePresentationYaml(yamlContent, rootPath)
+    async (_event, rootPath: string, slideId: string, afterIndex: number, format?: string): Promise<LoadedPresentation> =>
+      updatePresentation(rootPath, async (config, root) => {
+        // Determine slide number and extension for file naming
+        const slideNum = String(config.slides.length + 1).padStart(2, '0')
+        const ext = format === 'mdx' ? '.mdx' : '.md'
 
-      // Determine slide number and extension for file naming
-      const slideNum = String(config.slides.length + 1).padStart(2, '0')
-      const ext = format === 'mdx' ? '.mdx' : '.md'
-      const contentPath = `slides/${slideNum}-${slideId}${ext}`
+        // Create the content file (never truncates an existing one)
+        const title = slideId.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+        const initialContent = format === 'mdx'
+          ? `# ${title}\n\nThis is an MDX slide. You can use JSX here for richer visuals.\n`
+          : `# ${title}\n\n`
+        const contentPath = await createSlideFile(root, `${slideNum}-${slideId}`, ext, initialContent)
 
-      // Create the content file
-      const title = slideId.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-      const initialContent = format === 'mdx'
-        ? `# ${title}\n\nThis is an MDX slide. You can use JSX here for richer visuals.\n`
-        : `# ${title}\n\n`
-      await mkdir(join(rootPath, 'slides'), { recursive: true })
-      await writeFile(join(rootPath, contentPath), initialContent, 'utf-8')
-
-      // Insert new slide config
-      const newSlide: SlideConfig = {
-        id: slideId,
-        content: contentPath,
-        prompts: [],
-        artifacts: []
-      }
-      config.slides.splice(afterIndex + 1, 0, newSlide)
-
-      // Save and reload
-      await savePresentationYaml(config)
-
-      // Re-invoke load to get the full LoadedPresentation
-      const reloaded = await readFile(configPath, 'utf-8')
-      const reloadedConfig = parsePresentationYaml(reloaded, rootPath)
-      const slides = await loadAllSlides(reloadedConfig, rootPath)
-      return { config: reloadedConfig, slides }
-    }
+        // Insert new slide config
+        const newSlide: SlideConfig = {
+          id: slideId,
+          content: contentPath,
+          prompts: [],
+          artifacts: []
+        }
+        config.slides.splice(afterIndex + 1, 0, newSlide)
+      })
   )
 
   // Add code to an existing slide
@@ -485,50 +539,48 @@ export function registerFileSystemHandlers(): void {
       slideIndex: number,
       language: SupportedLanguage
     ): Promise<LoadedPresentation> => {
-      const configPath = join(rootPath, DECK_CONFIG_FILE)
-      const yamlContent = await readFile(configPath, 'utf-8')
-      const config = parsePresentationYaml(yamlContent, rootPath)
+      let createdCodePath: string | null = null
+      const result = await updatePresentation(rootPath, async (config, root) => {
+        const slide = config.slides[slideIndex]
+        if (!slide) throw new Error(`Slide at index ${slideIndex} not found`)
+        if (slide.code) throw new Error('Slide already has code attached')
 
-      const slide = config.slides[slideIndex]
-      if (!slide) throw new Error(`Slide at index ${slideIndex} not found`)
-      if (slide.code) throw new Error('Slide already has code attached')
-
-      // Determine file extension
-      const extMap: Partial<Record<SupportedLanguage, string>> = {
-        javascript: '.js', typescript: '.ts', python: '.py', sql: '.sql',
-        html: '.html', css: '.css', json: '.json', bash: '.sh',
-        rust: '.rs', go: '.go', java: '.java', csharp: '.cs', ruby: '.rb', php: '.php',
-        markdown: '.md'
-      }
-      const ext = extMap[language] || '.txt'
-      const codeFile = `code/${slide.id}${ext}`
-
-      // Create the code file
-      await mkdir(join(rootPath, 'code'), { recursive: true })
-      await writeFile(join(rootPath, codeFile), '', 'utf-8')
-
-      // Update slide config
-      const engine = LANGUAGE_TO_ENGINE[language] || 'native'
-      slide.code = {
-        file: codeFile,
-        language,
-        execution: engine
-      }
-      if (engine === 'native') {
-        const cmdMap: Partial<Record<SupportedLanguage, string>> = {
-          javascript: 'node', bash: 'bash', python: 'python3',
-          rust: 'rustc', go: 'go', ruby: 'ruby', php: 'php'
+        // Determine file extension
+        const extMap: Partial<Record<SupportedLanguage, string>> = {
+          javascript: '.js', typescript: '.ts', python: '.py', sql: '.sql',
+          html: '.html', css: '.css', json: '.json', bash: '.sh',
+          rust: '.rs', go: '.go', java: '.java', csharp: '.cs', ruby: '.rb', php: '.php',
+          markdown: '.md'
         }
-        slide.code.command = cmdMap[language] || language
-        slide.code.args = [codeFile]
-      }
+        const ext = extMap[language] || '.txt'
+        const codeFile = `code/${slide.id}${ext}`
 
-      await savePresentationYaml(config)
+        // Create the code file only if it does not exist yet (never truncate)
+        const codePath = resolveInsideDeck(root, codeFile)
+        await mkdir(dirname(codePath), { recursive: true })
+        await writeFileIfMissing(codePath, '')
+        createdCodePath = codePath
 
-      const reloaded = await readFile(configPath, 'utf-8')
-      const reloadedConfig = parsePresentationYaml(reloaded, rootPath)
-      const slides = await loadAllSlides(reloadedConfig, rootPath)
-      return { config: reloadedConfig, slides }
+        // Update slide config
+        const engine = LANGUAGE_TO_ENGINE[language] || 'native'
+        slide.code = {
+          file: codeFile,
+          language,
+          execution: engine
+        }
+        if (engine === 'native') {
+          const cmdMap: Partial<Record<SupportedLanguage, string>> = {
+            javascript: 'node', bash: 'bash', python: 'python3',
+            rust: 'rustc', go: 'go', ruby: 'ruby', php: 'php'
+          }
+          slide.code.command = cmdMap[language] || language
+          slide.code.args = [codeFile]
+        }
+      })
+
+      // Follow external edits to the new code file
+      if (createdCodePath) addFileToWatch(result.config.rootPath, createdCodePath)
+      return result
     }
   )
 
@@ -545,101 +597,62 @@ export function registerFileSystemHandlers(): void {
         return null
       }
 
-      const configPath = join(rootPath, DECK_CONFIG_FILE)
-      const yamlContent = await readFile(configPath, 'utf-8')
-      const config = parsePresentationYaml(yamlContent, rootPath)
+      return updatePresentation(rootPath, async (config, root) => {
+        const slide = config.slides[slideIndex]
+        if (!slide) throw new Error(`Slide at index ${slideIndex} not found`)
 
-      const slide = config.slides[slideIndex]
-      if (!slide) throw new Error(`Slide at index ${slideIndex} not found`)
+        // Copy each file into artifacts/ folder and add to config
+        await mkdir(join(root, 'artifacts'), { recursive: true })
+        for (const filePath of result.filePaths) {
+          const fileName = basename(filePath)
+          const destPath = resolveInsideDeck(root, `artifacts/${fileName}`)
+          await copyFile(filePath, destPath)
 
-      // Copy each file into artifacts/ folder and add to config
-      await mkdir(join(rootPath, 'artifacts'), { recursive: true })
-      for (const filePath of result.filePaths) {
-        const fileName = basename(filePath)
-        const destPath = join(rootPath, 'artifacts', fileName)
-        await copyFile(filePath, destPath)
-
-        const label = fileName.replace(extname(fileName), '')
-        slide.artifacts.push({
-          path: `artifacts/${fileName}`,
-          label
-        })
-      }
-
-      await savePresentationYaml(config)
-
-      const reloaded = await readFile(configPath, 'utf-8')
-      const reloadedConfig = parsePresentationYaml(reloaded, rootPath)
-      const slides = await loadAllSlides(reloadedConfig, rootPath)
-      return { config: reloadedConfig, slides }
+          const label = fileName.replace(extname(fileName), '')
+          slide.artifacts.push({
+            path: `artifacts/${fileName}`,
+            label
+          })
+        }
+      })
     }
   )
 
   // Add a video to a slide
   ipcMain.handle(
     'fs:add-video',
-    async (_event, rootPath: string, slideIndex: number, url: string, label?: string): Promise<LoadedPresentation> => {
-      const configPath = join(rootPath, DECK_CONFIG_FILE)
-      const yamlContent = await readFile(configPath, 'utf-8')
-      const config = parsePresentationYaml(yamlContent, rootPath)
+    async (_event, rootPath: string, slideIndex: number, url: string, label?: string): Promise<LoadedPresentation> =>
+      updatePresentation(rootPath, (config) => {
+        const slide = config.slides[slideIndex]
+        if (!slide) throw new Error(`Slide at index ${slideIndex} not found`)
 
-      const slide = config.slides[slideIndex]
-      if (!slide) throw new Error(`Slide at index ${slideIndex} not found`)
-
-      slide.video = { url, label }
-
-      await savePresentationYaml(config)
-
-      const reloaded = await readFile(configPath, 'utf-8')
-      const reloadedConfig = parsePresentationYaml(reloaded, rootPath)
-      const slides = await loadAllSlides(reloadedConfig, rootPath)
-      return { config: reloadedConfig, slides }
-    }
+        slide.video = { url, label }
+      })
   )
 
   // Add a webapp to a slide
   ipcMain.handle(
     'fs:add-webapp',
-    async (_event, rootPath: string, slideIndex: number, url: string, label?: string): Promise<LoadedPresentation> => {
-      const configPath = join(rootPath, DECK_CONFIG_FILE)
-      const yamlContent = await readFile(configPath, 'utf-8')
-      const config = parsePresentationYaml(yamlContent, rootPath)
+    async (_event, rootPath: string, slideIndex: number, url: string, label?: string): Promise<LoadedPresentation> =>
+      updatePresentation(rootPath, (config) => {
+        const slide = config.slides[slideIndex]
+        if (!slide) throw new Error(`Slide at index ${slideIndex} not found`)
 
-      const slide = config.slides[slideIndex]
-      if (!slide) throw new Error(`Slide at index ${slideIndex} not found`)
-
-      slide.webapp = { url, label }
-
-      await savePresentationYaml(config)
-
-      const reloaded = await readFile(configPath, 'utf-8')
-      const reloadedConfig = parsePresentationYaml(reloaded, rootPath)
-      const slides = await loadAllSlides(reloadedConfig, rootPath)
-      return { config: reloadedConfig, slides }
-    }
+        slide.webapp = { url, label }
+      })
   )
 
   // Add a prompt artifact to a slide
   ipcMain.handle(
     'fs:add-prompt',
-    async (_event, rootPath: string, slideIndex: number, prompt: string, label?: string): Promise<LoadedPresentation> => {
-      const configPath = join(rootPath, DECK_CONFIG_FILE)
-      const yamlContent = await readFile(configPath, 'utf-8')
-      const config = parsePresentationYaml(yamlContent, rootPath)
+    async (_event, rootPath: string, slideIndex: number, prompt: string, label?: string): Promise<LoadedPresentation> =>
+      updatePresentation(rootPath, (config) => {
+        const slide = config.slides[slideIndex]
+        if (!slide) throw new Error(`Slide at index ${slideIndex} not found`)
 
-      const slide = config.slides[slideIndex]
-      if (!slide) throw new Error(`Slide at index ${slideIndex} not found`)
-
-      if (!slide.prompts) slide.prompts = []
-      slide.prompts.push({ prompt, label })
-
-      await savePresentationYaml(config)
-
-      const reloaded = await readFile(configPath, 'utf-8')
-      const reloadedConfig = parsePresentationYaml(reloaded, rootPath)
-      const slides = await loadAllSlides(reloadedConfig, rootPath)
-      return { config: reloadedConfig, slides }
-    }
+        if (!slide.prompts) slide.prompts = []
+        slide.prompts.push({ prompt, label })
+      })
   )
 
   // Update a prompt's text and/or response
@@ -652,27 +665,17 @@ export function registerFileSystemHandlers(): void {
       promptIndex: number,
       promptText: string,
       response?: string
-    ): Promise<LoadedPresentation> => {
-      const configPath = join(rootPath, DECK_CONFIG_FILE)
-      const yamlContent = await readFile(configPath, 'utf-8')
-      const config = parsePresentationYaml(yamlContent, rootPath)
+    ): Promise<LoadedPresentation> =>
+      updatePresentation(rootPath, (config) => {
+        const slide = config.slides[slideIndex]
+        if (!slide) throw new Error(`Slide at index ${slideIndex} not found`)
+        if (!slide.prompts?.[promptIndex]) throw new Error(`Prompt at index ${promptIndex} not found`)
 
-      const slide = config.slides[slideIndex]
-      if (!slide) throw new Error(`Slide at index ${slideIndex} not found`)
-      if (!slide.prompts?.[promptIndex]) throw new Error(`Prompt at index ${promptIndex} not found`)
-
-      slide.prompts[promptIndex].prompt = promptText
-      if (response !== undefined) {
-        slide.prompts[promptIndex].response = response
-      }
-
-      await savePresentationYaml(config)
-
-      const reloaded = await readFile(configPath, 'utf-8')
-      const reloadedConfig = parsePresentationYaml(reloaded, rootPath)
-      const slides = await loadAllSlides(reloadedConfig, rootPath)
-      return { config: reloadedConfig, slides }
-    }
+        slide.prompts[promptIndex].prompt = promptText
+        if (response !== undefined) {
+          slide.prompts[promptIndex].response = response
+        }
+      })
   )
 
   // Add multiple slides at once (for AI bulk generation)
@@ -683,130 +686,90 @@ export function registerFileSystemHandlers(): void {
       rootPath: string,
       slides: { id: string; markdown: string }[],
       afterIndex: number
-    ): Promise<LoadedPresentation> => {
-      const configPath = join(rootPath, DECK_CONFIG_FILE)
-      const yamlContent = await readFile(configPath, 'utf-8')
-      const config = parsePresentationYaml(yamlContent, rootPath)
+    ): Promise<LoadedPresentation> =>
+      updatePresentation(rootPath, async (config, root) => {
+        const newConfigs: SlideConfig[] = []
+        for (let i = 0; i < slides.length; i++) {
+          const slide = slides[i]
+          const slideNum = String(config.slides.length + i + 1).padStart(2, '0')
+          const contentPath = await createSlideFile(root, `${slideNum}-${slide.id}`, '.md', slide.markdown)
 
-      await mkdir(join(rootPath, 'slides'), { recursive: true })
+          newConfigs.push({
+            id: slide.id,
+            content: contentPath,
+            prompts: [],
+            artifacts: []
+          })
+        }
 
-      const newConfigs: SlideConfig[] = []
-      for (let i = 0; i < slides.length; i++) {
-        const slide = slides[i]
-        const slideNum = String(config.slides.length + i + 1).padStart(2, '0')
-        const contentPath = `slides/${slideNum}-${slide.id}.md`
-
-        await writeFile(join(rootPath, contentPath), slide.markdown, 'utf-8')
-
-        newConfigs.push({
-          id: slide.id,
-          content: contentPath,
-          prompts: [],
-          artifacts: []
-        })
-      }
-
-      // Insert after the specified index
-      config.slides.splice(afterIndex + 1, 0, ...newConfigs)
-
-      await savePresentationYaml(config)
-
-      const reloaded = await readFile(configPath, 'utf-8')
-      const reloadedConfig = parsePresentationYaml(reloaded, rootPath)
-      const loadedSlides = await loadAllSlides(reloadedConfig, rootPath)
-      return { config: reloadedConfig, slides: loadedSlides }
-    }
+        // Insert after the specified index
+        config.slides.splice(afterIndex + 1, 0, ...newConfigs)
+      })
   )
 
   // Delete a slide
   ipcMain.handle(
     'fs:delete-slide',
-    async (_event, rootPath: string, slideIndex: number): Promise<LoadedPresentation> => {
-      const configPath = join(rootPath, DECK_CONFIG_FILE)
-      const yamlContent = await readFile(configPath, 'utf-8')
-      const config = parsePresentationYaml(yamlContent, rootPath)
+    async (_event, rootPath: string, slideIndex: number): Promise<LoadedPresentation> =>
+      updatePresentation(rootPath, (config) => {
+        if (config.slides.length <= 1) throw new Error('Cannot delete the last slide')
 
-      if (config.slides.length <= 1) throw new Error('Cannot delete the last slide')
-
-      config.slides.splice(slideIndex, 1)
-      await savePresentationYaml(config)
-
-      const reloaded = await readFile(configPath, 'utf-8')
-      const reloadedConfig = parsePresentationYaml(reloaded, rootPath)
-      const slides = await loadAllSlides(reloadedConfig, rootPath)
-      return { config: reloadedConfig, slides }
-    }
+        config.slides.splice(slideIndex, 1)
+      })
   )
 
   // Rename a slide
   ipcMain.handle(
     'fs:rename-slide',
-    async (_event, rootPath: string, slideIndex: number, newId: string): Promise<LoadedPresentation> => {
-      const configPath = join(rootPath, DECK_CONFIG_FILE)
-      const yamlContent = await readFile(configPath, 'utf-8')
-      const config = parsePresentationYaml(yamlContent, rootPath)
+    async (_event, rootPath: string, slideIndex: number, newId: string): Promise<LoadedPresentation> =>
+      updatePresentation(rootPath, (config) => {
+        const slide = config.slides[slideIndex]
+        if (!slide) throw new Error(`Slide at index ${slideIndex} not found`)
 
-      const slide = config.slides[slideIndex]
-      if (!slide) throw new Error(`Slide at index ${slideIndex} not found`)
-
-      slide.id = newId
-
-      await savePresentationYaml(config)
-
-      const reloaded = await readFile(configPath, 'utf-8')
-      const reloadedConfig = parsePresentationYaml(reloaded, rootPath)
-      const slides = await loadAllSlides(reloadedConfig, rootPath)
-      return { config: reloadedConfig, slides }
-    }
+        slide.id = newId
+      })
   )
 
   // Reorder slides
   ipcMain.handle(
     'fs:reorder-slide',
-    async (_event, rootPath: string, fromIndex: number, toIndex: number): Promise<LoadedPresentation> => {
-      const configPath = join(rootPath, DECK_CONFIG_FILE)
-      const yamlContent = await readFile(configPath, 'utf-8')
-      const config = parsePresentationYaml(yamlContent, rootPath)
-
-      const [moved] = config.slides.splice(fromIndex, 1)
-      config.slides.splice(toIndex, 0, moved)
-
-      await savePresentationYaml(config)
-
-      const reloaded = await readFile(configPath, 'utf-8')
-      const reloadedConfig = parsePresentationYaml(reloaded, rootPath)
-      const slides = await loadAllSlides(reloadedConfig, rootPath)
-      return { config: reloadedConfig, slides }
-    }
+    async (_event, rootPath: string, fromIndex: number, toIndex: number): Promise<LoadedPresentation> =>
+      updatePresentation(rootPath, (config) => {
+        if (fromIndex < 0 || fromIndex >= config.slides.length || toIndex < 0 || toIndex >= config.slides.length) {
+          throw new Error(`Invalid reorder indices: ${fromIndex} -> ${toIndex}`)
+        }
+        const [moved] = config.slides.splice(fromIndex, 1)
+        config.slides.splice(toIndex, 0, moved)
+      })
   )
 
   // Save notes content for a slide (creates file + updates YAML if needed)
   ipcMain.handle(
     'fs:save-notes',
     async (_event, rootPath: string, slideIndex: number, content: string): Promise<string> => {
-      const configPath = join(rootPath, DECK_CONFIG_FILE)
-      const yamlContent = await readFile(configPath, 'utf-8')
-      const config = parsePresentationYaml(yamlContent, rootPath)
+      const root = assertInsideOpenDeck(rootPath)
+      return withLock(root, async () => {
+        const config = await readPresentationConfig(root)
 
-      const slide = config.slides[slideIndex]
-      if (!slide) throw new Error(`Slide at index ${slideIndex} not found`)
+        const slide = config.slides[slideIndex]
+        if (!slide) throw new Error(`Slide at index ${slideIndex} not found`)
 
-      // Create notes file path if not already set
-      if (!slide.notes) {
-        const notesPath = `slides/${slide.id}.notes.md`
-        slide.notes = notesPath
-        await savePresentationYaml(config)
-      }
+        // Create notes file path if not already set
+        if (!slide.notes) {
+          slide.notes = `slides/${slide.id}.notes.md`
+          await writePresentationYaml(config)
+        }
 
-      // Write notes content to file
-      const notesFullPath = join(rootPath, slide.notes)
-      await mkdir(join(rootPath, 'slides'), { recursive: true })
-      await writeFile(notesFullPath, content, 'utf-8')
+        // Write notes content to file — the YAML-supplied path must stay inside the deck
+        const notesFullPath = resolveInsideDeck(root, slide.notes)
+        await mkdir(dirname(notesFullPath), { recursive: true })
+        await atomicWriteFile(notesFullPath, content)
 
-      // Auto-save to .lecta
-      await autoSave(rootPath)
+        // Auto-save to .lecta (once)
+        await autoSave(root)
 
-      return slide.notes
+        return slide.notes
+      })
     }
   )
 
@@ -814,14 +777,11 @@ export function registerFileSystemHandlers(): void {
   ipcMain.handle(
     'fs:save-drawings',
     async (_event, rootPath: string, slideIndex: number, drawingsJson: string): Promise<void> => {
-      const configPath = join(rootPath, DECK_CONFIG_FILE)
-      const yamlContent = await readFile(configPath, 'utf-8')
-      const config = parsePresentationYaml(yamlContent, rootPath)
-      const slide = config.slides[slideIndex]
-      if (!slide) return
-      slide.drawings = drawingsJson || undefined
-      await savePresentationYaml(config)
-      await autoSave(rootPath)
+      await mutatePresentationConfig(rootPath, (config) => {
+        const slide = config.slides[slideIndex]
+        if (!slide) throw new Error(`Slide at index ${slideIndex} not found`)
+        slide.drawings = drawingsJson || undefined
+      })
     }
   )
 
@@ -829,66 +789,44 @@ export function registerFileSystemHandlers(): void {
   ipcMain.handle(
     'fs:save-groups',
     async (_event, rootPath: string, groups: { id: string; name: string; slideIds: string[]; color?: string }[]): Promise<void> => {
-      const configPath = join(rootPath, DECK_CONFIG_FILE)
-      const yamlContent = await readFile(configPath, 'utf-8')
-      const config = parsePresentationYaml(yamlContent, rootPath)
-      config.groups = groups
-      await savePresentationYaml(config)
+      await mutatePresentationConfig(rootPath, (config) => {
+        config.groups = groups
+      })
     }
   )
 
   // Set slide transition direction
   ipcMain.handle(
     'fs:set-transition',
-    async (_event, rootPath: string, slideIndex: number, transition: string): Promise<LoadedPresentation> => {
-      const configPath = join(rootPath, DECK_CONFIG_FILE)
-      const yamlContent = await readFile(configPath, 'utf-8')
-      const config = parsePresentationYaml(yamlContent, rootPath)
+    async (_event, rootPath: string, slideIndex: number, transition: string): Promise<LoadedPresentation> =>
+      updatePresentation(rootPath, (config) => {
+        const slide = config.slides[slideIndex]
+        if (!slide) throw new Error(`Slide at index ${slideIndex} not found`)
 
-      const slide = config.slides[slideIndex]
-      if (!slide) throw new Error(`Slide at index ${slideIndex} not found`)
-
-      slide.transition = transition as any
-      await savePresentationYaml(config)
-
-      const reloaded = await readFile(configPath, 'utf-8')
-      const reloadedConfig = parsePresentationYaml(reloaded, rootPath)
-      const slides = await loadAllSlides(reloadedConfig, rootPath)
-      return { config: reloadedConfig, slides }
-    }
+        slide.transition = transition as any
+      })
   )
 
   // Set slide layout
   ipcMain.handle(
     'fs:set-layout',
-    async (_event, rootPath: string, slideIndex: number, layout: string): Promise<LoadedPresentation> => {
-      const configPath = join(rootPath, DECK_CONFIG_FILE)
-      const yamlContent = await readFile(configPath, 'utf-8')
-      const config = parsePresentationYaml(yamlContent, rootPath)
+    async (_event, rootPath: string, slideIndex: number, layout: string): Promise<LoadedPresentation> =>
+      updatePresentation(rootPath, (config) => {
+        const slide = config.slides[slideIndex]
+        if (!slide) throw new Error(`Slide at index ${slideIndex} not found`)
 
-      const slide = config.slides[slideIndex]
-      if (!slide) throw new Error(`Slide at index ${slideIndex} not found`)
-
-      slide.layout = layout as any
-      if (layout === 'default') delete (slide as any).layout
-      await savePresentationYaml(config)
-
-      const reloaded = await readFile(configPath, 'utf-8')
-      const reloadedConfig = parsePresentationYaml(reloaded, rootPath)
-      const slides = await loadAllSlides(reloadedConfig, rootPath)
-      return { config: reloadedConfig, slides }
-    }
+        slide.layout = layout as any
+        if (layout === 'default') delete (slide as any).layout
+      })
   )
 
   // Set presentation theme
   ipcMain.handle(
     'fs:set-theme',
     async (_event, rootPath: string, themeId: string): Promise<void> => {
-      const configPath = join(rootPath, DECK_CONFIG_FILE)
-      const yamlContent = await readFile(configPath, 'utf-8')
-      const config = parsePresentationYaml(yamlContent, rootPath)
-      config.theme = themeId
-      await savePresentationYaml(config)
+      await mutatePresentationConfig(rootPath, (config) => {
+        config.theme = themeId
+      })
     }
   )
 
@@ -896,31 +834,22 @@ export function registerFileSystemHandlers(): void {
   ipcMain.handle(
     'fs:update-presenter-notes',
     async (_event, rootPath: string, notes: string): Promise<void> => {
-      const configPath = join(rootPath, DECK_CONFIG_FILE)
-      const yamlContent = await readFile(configPath, 'utf-8')
-      const config = parsePresentationYaml(yamlContent, rootPath)
-      config.presenterNotes = notes || undefined
-      await savePresentationYaml(config)
+      await mutatePresentationConfig(rootPath, (config) => {
+        config.presenterNotes = notes || undefined
+      })
     }
   )
 
   // Toggle skip/hidden on a slide
   ipcMain.handle(
     'fs:toggle-skip',
-    async (_event, rootPath: string, slideIndex: number): Promise<LoadedPresentation> => {
-      const configPath = join(rootPath, DECK_CONFIG_FILE)
-      const yamlContent = await readFile(configPath, 'utf-8')
-      const config = parsePresentationYaml(yamlContent, rootPath)
-      const slide = config.slides[slideIndex]
-      if (!slide) throw new Error(`Slide at index ${slideIndex} not found`)
-      slide.skipped = !slide.skipped
-      if (!slide.skipped) delete (slide as any).skipped
-      await savePresentationYaml(config)
-      const reloaded = await readFile(configPath, 'utf-8')
-      const reloadedConfig = parsePresentationYaml(reloaded, rootPath)
-      const slides = await loadAllSlides(reloadedConfig, rootPath)
-      return { config: reloadedConfig, slides }
-    }
+    async (_event, rootPath: string, slideIndex: number): Promise<LoadedPresentation> =>
+      updatePresentation(rootPath, (config) => {
+        const slide = config.slides[slideIndex]
+        if (!slide) throw new Error(`Slide at index ${slideIndex} not found`)
+        slide.skipped = !slide.skipped
+        if (!slide.skipped) delete (slide as any).skipped
+      })
   )
 
   // Remove an attachment (code, video, webapp, or file artifact) from a slide
@@ -932,16 +861,9 @@ export function registerFileSystemHandlers(): void {
       slideIndex: number,
       type: 'code' | 'video' | 'webapp' | 'prompt' | 'artifact',
       artifactIndex?: number
-    ): Promise<LoadedPresentation> => {
-      const configPath = join(rootPath, DECK_CONFIG_FILE)
-      const yamlContent = await readFile(configPath, 'utf-8')
-
-      // Guard: don't process notebooks as presentations
-      if (yamlContent.includes('type: notebook') || yamlContent.includes("type: 'notebook'")) {
-        throw new Error('Cannot remove attachment from notebook via presentation handler')
-      }
-      const config = parsePresentationYaml(yamlContent, rootPath)
-
+    ): Promise<LoadedPresentation> =>
+      // (readPresentationConfig refuses to treat a notebook as a presentation)
+      updatePresentation(rootPath, (config) => {
       const slide = config.slides[slideIndex]
       if (!slide) throw new Error(`Slide at index ${slideIndex} not found`)
 
@@ -966,22 +888,19 @@ export function registerFileSystemHandlers(): void {
           }
           break
       }
-
-      await savePresentationYaml(config)
-
-      const reloaded = await readFile(configPath, 'utf-8')
-      const reloadedConfig = parsePresentationYaml(reloaded, rootPath)
-      const slides = await loadAllSlides(reloadedConfig, rootPath)
-      return { config: reloadedConfig, slides }
-    }
+      })
   )
 
   ipcMain.handle('fs:read-file', async (_event, filePath: string): Promise<string> => {
-    return readFile(filePath, 'utf-8')
+    return readFile(assertInsideOpenDeck(filePath), 'utf-8')
   })
 
   ipcMain.handle('fs:write-file', async (_event, filePath: string, content: string): Promise<void> => {
-    await writeFile(filePath, content, 'utf-8')
+    const target = assertInsideOpenDeck(filePath)
+    if (typeof content !== 'string') throw new Error('File content must be a string')
+    // Tell the watcher this change is ours so it is not echoed back over the editor
+    markOwnWrite(target, content)
+    await atomicWriteFile(target, content)
   })
 
   // Upload an image into the workspace and return the relative path
@@ -1000,17 +919,18 @@ export function registerFileSystemHandlers(): void {
         return null
       }
 
+      const root = assertInsideOpenDeck(rootPath)
       const srcPath = result.filePaths[0]
       const fileName = basename(srcPath)
-      const imagesDir = join(rootPath, 'images')
+      const imagesDir = join(root, 'images')
       await mkdir(imagesDir, { recursive: true })
 
       // Avoid name collisions
       const destName = `${Date.now()}-${fileName}`
-      await copyFile(srcPath, join(imagesDir, destName))
+      await copyFile(srcPath, resolveInsideDeck(root, `images/${destName}`))
 
       // Auto-save to .lecta if applicable
-      await autoSave(rootPath)
+      await autoSave(root)
 
       return `images/${destName}`
     }
@@ -1040,26 +960,34 @@ export function registerFileSystemHandlers(): void {
   })
 }
 
-/** Helper to load all slides for a parsed presentation config */
+/** Helper to load all slides for a parsed presentation config. Every YAML path is confined to the deck. */
 async function loadAllSlides(config: Presentation, rootPath: string): Promise<LoadedSlide[]> {
   return Promise.all(
     config.slides.map(async (slideConfig) => {
-      const markdownPath = resolveRelativePath(rootPath, slideConfig.content)
+      const markdownPath = resolveInsideDeck(rootPath, slideConfig.content)
       const markdownContent = await readFile(markdownPath, 'utf-8')
 
       let codeContent: string | null = null
       if (slideConfig.code) {
-        const codePath = resolveRelativePath(rootPath, slideConfig.code.file)
+        const codePath = resolveInsideDeck(rootPath, slideConfig.code.file)
         codeContent = await readFile(codePath, 'utf-8')
       }
 
       let notesContent: string | null = null
       if (slideConfig.notes) {
+        let notesPath: string | null = null
         try {
-          const notesPath = resolveRelativePath(rootPath, slideConfig.notes)
-          notesContent = await readFile(notesPath, 'utf-8')
+          notesPath = resolveInsideDeck(rootPath, slideConfig.notes)
         } catch {
-          // Notes file doesn't exist yet
+          // Do not swallow traversal: skip these notes and say so
+          console.warn(`[file-system] Slide "${slideConfig.id}" notes path is outside the deck; ignoring: ${slideConfig.notes}`)
+        }
+        if (notesPath) {
+          try {
+            notesContent = await readFile(notesPath, 'utf-8')
+          } catch {
+            // Notes file doesn't exist yet
+          }
         }
       }
 

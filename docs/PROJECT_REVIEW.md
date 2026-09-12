@@ -134,11 +134,11 @@ Commits `151b3c9..HEAD` on `claude/project-review-improvements-gijmwc`.
 | One-click present on a second display | done (`7b245cb`) | `ipc/presenter.ts`, `PresenterView.tsx` |
 | Notebook behind an experimental flag; Design System and Prompt panels retired | done (`7b245cb`) | settings `experimentalNotebook` |
 | Single-file `deck.md` authoring with import and export | done (`e4b8ee9`, `39c71b1`) | `packages/shared/src/utils/single-file.ts`, `ipc/file-system.ts` |
-| Unified AI surface with slash commands; agent can run code | in progress (wave 3) | `components/chat/` |
-| MCP server consuming the shared package (#44) | in progress (wave 3) | `packages/mcp-server/` |
+| Unified AI surface with slash commands; agent can run code (`/run`, `run_code` tool) | done (`1ab107b`) | `components/chat/slash-commands.ts`, `ChatComposer.tsx`, `code-run-bridge.ts` |
+| MCP server consuming the shared package (#44) | done (`6f45e59`, `1ab107b`) | `packages/mcp-server/tsconfig.shared.json`, `#shared/*` imports |
 | Docs: architecture, security model, releasing, changelog | done (`13beaef`, `26554e0`) | `docs/` |
 
-Still open after wave 3: YAML comments are lost on save (#43, needs `parseDocument`);
+Still open after wave 3: YAML comments are lost on save (#43, needs `parseDocument`); the `run_code` agent tool reports its result as a follow-up message rather than in the same turn (no renderer→main tool-result channel yet);
 MDX executes in the renderer behind the trust prompt rather than in a sandboxed iframe;
 the remote control still uses a plain-HTTP LAN token (documented in
 `docs/SECURITY-MODEL.md`); Windows is not built by `make release`.

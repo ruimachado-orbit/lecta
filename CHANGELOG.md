@@ -127,8 +127,16 @@ commit.
   view fullscreen there and restores both windows on End.
 - **Single-file decks.** Write one `deck.md` (frontmatter, `---` separators, code fences
   with `file=`, `<!-- notes -->`) and open it; export any deck back to one file.
+- **One AI surface.** The chat composer takes slash commands (`/improve`, `/prettify`,
+  `/notes`, `/code`, `/run`, `/explain`, `/chart`, `/image`, `/inline`, `/slide`, `/deck`)
+  with autocomplete and a current-slide chip; the scattered prompt bars became buttons that
+  open the chat prefilled; the agent gained `run_code` and `get_last_output`, so it can run
+  the slide's code and read the output.
 - **AI provider adapters** with one tool loop, request cancellation everywhere and a Stop
   button in chat; the model selector groups by provider and flags stale ids.
+- **MCP server shares the app's schema.** `packages/mcp-server` compiles and imports the
+  shared parser, serializer and option lists instead of carrying a fork; both suites assert a
+  byte-identical manifest fixture.
 - Dialog and Popover primitives with focus trap, Escape and focus restore.
 
 - **PPTX export** — `pptxgenjs` in the main process (no binary, no network): the 12 layouts,

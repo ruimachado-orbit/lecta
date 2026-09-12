@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import { Toolbar } from './Toolbar'
 import { StatusBar } from './StatusBar'
@@ -27,9 +28,20 @@ import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
 import { useFileWatcher } from '../../hooks/useFileWatcher'
 
 export function AppShell(): JSX.Element {
-  const { isPresenting, showNotes, showArticlePanel, showArtifactDrawer, showRightPane, showSlideMap } = useUIStore()
+  const { isPresenting, showNotes, showArticlePanel, showArtifactDrawer, showRightPane, showSlideMap } = useUIStore(
+    useShallow((s) => ({
+      isPresenting: s.isPresenting,
+      showNotes: s.showNotes,
+      showArticlePanel: s.showArticlePanel,
+      showArtifactDrawer: s.showArtifactDrawer,
+      showRightPane: s.showRightPane,
+      showSlideMap: s.showSlideMap
+    }))
+  )
   const isChatOpen = useChatStore((s) => s.isSidebarOpen)
-  const { tabs, activeTabId } = useTabsStore()
+  const { tabs, activeTabId } = useTabsStore(
+    useShallow((s) => ({ tabs: s.tabs, activeTabId: s.activeTabId }))
+  )
   const currentSlide = usePresentationStore((s) => s.slides[s.currentSlideIndex])
   const currentSlideIndex = usePresentationStore((s) => s.currentSlideIndex)
   const presentationTitle = usePresentationStore((s) => s.presentation?.title)
@@ -198,6 +210,7 @@ function SpeakerNotesToggle(): JSX.Element {
         showNotes ? 'text-yellow-400' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
       }`}
       title="Speaker & Action Notes"
+      aria-label="Speaker & Action Notes"
     >
       <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
@@ -232,6 +245,7 @@ function TransitionPicker(): JSX.Element {
               : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
           }`}
           title={d.label}
+          aria-label={d.label}
         >
           {d.arrow}
         </button>
@@ -298,6 +312,7 @@ function ArtifactIconStrip({
             showAddMenu ? 'text-white font-bold' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
           }`}
           title="Add artifact"
+          aria-label="Add artifact"
         >
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -333,7 +348,7 @@ function ArtifactIconStrip({
                           className="px-2 py-1 rounded text-[9px] font-bold bg-gray-800 hover:bg-gray-700 transition-colors"
                           style={{ color: l.color }}
                           title={l.lang}
-                        >{l.label}</button>
+                          aria-label={l.lang}>{l.label}</button>
                       ))}
                     </div>
                   </div>
@@ -451,6 +466,7 @@ function ArtifactIconStrip({
                 : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
             }`}
             title={artifactLabel(type)}
+            aria-label={artifactLabel(type)}
           >
             {isPrompt && (
               <span className="absolute -top-0.5 right-0 min-w-[9px] h-[9px] flex items-center justify-center text-[6px] font-bold text-gray-200 bg-gray-600 rounded-full leading-none">
@@ -470,6 +486,7 @@ function ArtifactIconStrip({
             onClick={onToggleAll}
             className="w-6 h-6 rounded flex items-center justify-center text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-colors"
             title={showRightPane ? 'Collapse panel' : 'Expand panel'}
+            aria-label={showRightPane ? 'Collapse panel' : 'Expand panel'}
           >
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
               {showRightPane ? (
@@ -492,6 +509,7 @@ function ArtifactIconStrip({
           useImageStore.getState().isPanelOpen ? 'text-purple-400' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
         }`}
         title="Image Library"
+        aria-label="Image Library"
       >
         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 3.75h16.5A2.25 2.25 0 0 1 22.5 6v12a2.25 2.25 0 0 1-2.25 2.25H3.75A2.25 2.25 0 0 1 1.5 18V6a2.25 2.25 0 0 1 2.25-2.25z" />
@@ -506,6 +524,7 @@ function ArtifactIconStrip({
             showDesignSystem ? 'text-violet-400' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
           }`}
           title="Design System"
+          aria-label="Design System"
         >
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M4.098 19.902a3.75 3.75 0 0 0 5.304 0l6.401-6.402M6.75 21A3.75 3.75 0 0 1 3 17.25V4.125C3 3.504 3.504 3 4.125 3h5.25c.621 0 1.125.504 1.125 1.125v4.072M6.75 21a3.75 3.75 0 0 0 3.75-3.75V8.197M6.75 21h13.125c.621 0 1.125-.504 1.125-1.125v-5.25c0-.621-.504-1.125-1.125-1.125h-4.072M10.5 8.197l2.88-2.88c.438-.439 1.15-.439 1.59 0l3.712 3.713c.44.44.44 1.152 0 1.59l-2.879 2.88M6.75 17.25h.008v.008H6.75v-.008Z" />
@@ -540,6 +559,7 @@ function ArtifactIconStrip({
             showSlideStore ? 'text-indigo-400' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
           }`}
           title="Slide Store"
+          aria-label="Slide Store"
         >
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" />

@@ -186,6 +186,7 @@ export function NoteNavigator(): JSX.Element {
                         : 'border-gray-600 bg-gray-900 text-gray-400 hover:border-gray-400 hover:text-gray-200'
                     }`}
                     title={page.config.id}
+                    aria-label={page.config.id}
                   >
                     {/* Delete button — top right on hover */}
                     {pages.length > 1 && (
@@ -232,6 +233,7 @@ export function NoteNavigator(): JSX.Element {
           onClick={handleAddNote}
           className="flex-shrink-0 w-10 h-10 rounded-md border-2 border-dashed border-gray-700 hover:border-white hover:text-white text-gray-600 flex items-center justify-center transition-colors"
           title="Add new note"
+          aria-label="Add new note"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -288,6 +290,7 @@ export function NoteNavigator(): JSX.Element {
                         : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-200'
                     }`}
                     title={l.label}
+                    aria-label={l.label}
                   >
                     <span>{l.icon}</span>
                     <span className="text-[8px]">{l.label}</span>

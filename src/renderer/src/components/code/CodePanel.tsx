@@ -32,7 +32,7 @@ export function CodePanel(): JSX.Element {
           </span>
           <button onClick={() => setExpanded('none')}
             className="p-0.5 hover:bg-gray-800 text-gray-500 hover:text-white rounded transition-colors"
-            title="Collapse">
+            title="Collapse" aria-label="Collapse">
             <CollapseIcon />
           </button>
         </div>
@@ -89,7 +89,7 @@ function MarkdownPreviewWithExpand({ content, rootPath, onExpand }: {
         </span>
         <button onClick={onExpand}
           className="p-0.5 hover:bg-gray-800 text-gray-500 hover:text-white rounded transition-colors"
-          title="Expand preview">
+          title="Expand preview" aria-label="Expand preview">
           <ExpandIcon />
         </button>
       </div>
@@ -113,7 +113,7 @@ function ExecutionOutputWithExpand({ onExpand }: { onExpand: () => void }): JSX.
         </span>
         <button onClick={onExpand}
           className="p-0.5 hover:bg-gray-800 text-gray-500 hover:text-white rounded transition-colors"
-          title="Expand output">
+          title="Expand output" aria-label="Expand output">
           <ExpandIcon />
         </button>
       </div>

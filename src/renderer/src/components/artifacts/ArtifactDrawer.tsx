@@ -42,6 +42,7 @@ export function ArtifactDrawer({ onClose }: { onClose?: () => void } = {}): JSX.
             onClick={() => setShowAddMenu(!showAddMenu)}
             className="px-2 py-0.5 text-[10px] bg-gray-800 hover:bg-gray-700 text-gray-400 rounded transition-colors"
             title="Add to slide"
+            aria-label="Add to slide"
           >
             + Add
           </button>
@@ -65,6 +66,7 @@ export function ArtifactDrawer({ onClose }: { onClose?: () => void } = {}): JSX.
           onClick={onClose ?? toggleArtifactDrawer}
           className="p-0.5 hover:bg-gray-800 text-gray-500 hover:text-gray-300 rounded transition-colors"
           title="Close artifacts"
+          aria-label="Close artifacts"
         >
           <CloseIcon />
         </button>
@@ -121,6 +123,7 @@ export function ArtifactDrawer({ onClose }: { onClose?: () => void } = {}): JSX.
                   className="px-1 py-1.5 rounded-r-md bg-gray-800 text-gray-600 hover:bg-red-600 hover:text-white
                              transition-colors hidden group-hover/art:block"
                   title="Remove artifact"
+                  aria-label="Remove artifact"
                 >
                   <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />

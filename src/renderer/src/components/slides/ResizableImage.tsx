@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react'
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react'
 import { usePresentationStore } from '../../stores/presentation-store'
+import { queuePinComment } from './slide-utils'
 
 const BORDER_COLORS = [
   { label: 'White', value: '#ffffff' },
@@ -89,8 +90,7 @@ export function ResizableImageView({ node, updateAttributes, deleteNode, selecte
     const comment = `\n<!-- image x=${centerX} y=${centerY} w=${imgWidth} src=${imgSrc}${borderAttr}${radiusAttr} -->\n`
 
     // Queue comment so onUpdate (fired synchronously by deleteNode) picks it up atomically
-    ;(window as any).__pendingPinComments = (window as any).__pendingPinComments || []
-    ;(window as any).__pendingPinComments.push(comment.trim())
+    queuePinComment(comment.trim())
     deleteNode()
   }
 
@@ -155,6 +155,7 @@ export function ResizableImageView({ node, updateAttributes, deleteNode, selecte
             onClick={(e) => { e.stopPropagation(); setShowBorderConfig(!showBorderConfig); setShowAIEdit(false) }}
             className="w-6 h-6 bg-black/70 hover:bg-blue-600 text-white rounded-full flex items-center justify-center"
             title="Border settings"
+            aria-label="Border settings"
           >
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 4h16v16H4z" />
@@ -166,6 +167,7 @@ export function ResizableImageView({ node, updateAttributes, deleteNode, selecte
             onClick={(e) => { e.stopPropagation(); handlePinToCanvas() }}
             className="w-6 h-6 bg-black/70 hover:bg-green-600 text-white rounded-full flex items-center justify-center"
             title="Pin to canvas — free position"
+            aria-label="Pin to canvas — free position"
           >
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
@@ -178,6 +180,7 @@ export function ResizableImageView({ node, updateAttributes, deleteNode, selecte
             onClick={(e) => { e.stopPropagation(); setShowAIEdit(!showAIEdit); setShowBorderConfig(false) }}
             className="w-6 h-6 bg-black/70 hover:bg-purple-600 text-white rounded-full flex items-center justify-center"
             title="Edit with AI"
+            aria-label="Edit with AI"
           >
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
@@ -189,6 +192,7 @@ export function ResizableImageView({ node, updateAttributes, deleteNode, selecte
             onClick={(e) => { e.stopPropagation(); deleteNode() }}
             className="w-6 h-6 bg-black/70 hover:bg-red-600 text-white rounded-full flex items-center justify-center"
             title="Remove image"
+            aria-label="Remove image"
           >
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -253,7 +257,8 @@ export function ResizableImageView({ node, updateAttributes, deleteNode, selecte
                   }`}
                   style={{ backgroundColor: c.value }}
                   title={c.label}
-                />
+                aria-label={c.label}
+              />
               ))}
             </div>
           </div>

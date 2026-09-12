@@ -92,7 +92,7 @@ turndown.addRule('underline', {
 })
 
 turndown.addRule('strikethrough', {
-  filter: ['s', 'del', 'strike'],
+  filter: ['s', 'del'],
   replacement: (content) => `~~${content}~~`
 })
 
@@ -217,13 +217,13 @@ interface NoteEditorProps {
 export function NoteEditor({ pageIndex }: NoteEditorProps): JSX.Element {
   const { pages, updateMarkdownContent, savePageContent, notebook } = useNotebookStore()
   const page = pages[pageIndex]
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const isInternalUpdate = useRef(false)
   const editorContainerRef = useRef<HTMLDivElement>(null)
 
   // Strikethrough hover state
   const [strikeButton, setStrikeButton] = useState<{ top: number; left: number } | null>(null)
-  const strikeTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const strikeTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const editorRef = useRef<ReturnType<typeof useEditor>>(null)
 
@@ -251,8 +251,7 @@ export function NoteEditor({ pageIndex }: NoteEditorProps): JSX.Element {
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        heading: { levels: [1, 2, 3] },
-        strike: true
+        heading: { levels: [1, 2, 3] }
       }),
       ResizableImage.configure({ inline: false }),
       TextStyle,
@@ -397,7 +396,7 @@ export function NoteEditor({ pageIndex }: NoteEditorProps): JSX.Element {
                   {TEXT_COLORS.map((c) => (
                     <button key={c.value} onClick={() => { editor.chain().focus().setColor(c.value).run(); setShowTextColor(false) }}
                       className="w-5 h-5 rounded-full border border-gray-600 hover:ring-2 hover:ring-white/50 transition-all flex-shrink-0"
-                      style={{ backgroundColor: c.value }} title={c.label} />
+                      style={{ backgroundColor: c.value }} title={c.label} aria-label={c.label} />
                   ))}
                 </div>
                 <button onClick={() => { editor.chain().focus().unsetColor().run(); setShowTextColor(false) }}
@@ -423,7 +422,7 @@ export function NoteEditor({ pageIndex }: NoteEditorProps): JSX.Element {
                       setShowHighlight(false)
                     }}
                       className="w-5 h-5 rounded border border-gray-600 hover:ring-2 hover:ring-white/50 transition-all flex-shrink-0 flex items-center justify-center"
-                      style={{ backgroundColor: c.value || 'transparent' }} title={c.label}>
+                      style={{ backgroundColor: c.value || 'transparent' }} title={c.label} aria-label={c.label}>
                       {!c.value && <span className="text-[8px] text-gray-500">{'\u2715'}</span>}
                     </button>
                   ))}
@@ -547,6 +546,7 @@ export function NoteEditor({ pageIndex }: NoteEditorProps): JSX.Element {
                 editor.isActive('strike') ? 'bg-white text-black' : 'text-gray-300 hover:bg-gray-700'
               }`}
               title="Strikethrough"
+              aria-label="Strikethrough"
             >
               <span className="line-through">S</span>
             </button>
@@ -556,6 +556,7 @@ export function NoteEditor({ pageIndex }: NoteEditorProps): JSX.Element {
                 editor.isActive('bold') ? 'bg-white text-black' : 'text-gray-300 hover:bg-gray-700'
               }`}
               title="Bold"
+              aria-label="Bold"
             >
               <b>B</b>
             </button>
@@ -565,6 +566,7 @@ export function NoteEditor({ pageIndex }: NoteEditorProps): JSX.Element {
                 editor.isActive('italic') ? 'bg-white text-black' : 'text-gray-300 hover:bg-gray-700'
               }`}
               title="Italic"
+              aria-label="Italic"
             >
               <i>I</i>
             </button>
@@ -594,6 +596,7 @@ function WBtn({ children, onClick, active, title }: { children: React.ReactNode;
       className={`px-2 py-1 rounded text-[11px] transition-colors ${
         active ? 'bg-white text-black' : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
       }`}
+      aria-label={title}
     >
       {children}
     </button>

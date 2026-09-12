@@ -23,6 +23,12 @@ export function ArtifactViewer({ artifact, fullPath, onClose }: ArtifactViewerPr
   const isNotebook = fullPath.match(/\.ipynb$/i)
 
   useEffect(() => {
+    // The URL created by this run of the effect — the cleanup closure captured `imageUrl` from
+    // the render it was created in, which is always the *previous* url (or null), so the real
+    // one leaked on every artifact change.
+    let objectUrl: string | null = null
+    let cancelled = false
+
     async function load() {
       try {
         if (isImage) {
@@ -33,19 +39,27 @@ export function ArtifactViewer({ artifact, fullPath, onClose }: ArtifactViewerPr
             gif: 'image/gif', svg: 'image/svg+xml', webp: 'image/webp'
           }
           const blob = new Blob([buffer], { type: mimeMap[ext || ''] || 'image/png' })
-          setImageUrl(URL.createObjectURL(blob))
+          objectUrl = URL.createObjectURL(blob)
+          if (cancelled) {
+            URL.revokeObjectURL(objectUrl)
+            objectUrl = null
+            return
+          }
+          setImageUrl(objectUrl)
         } else if (isNotebook || isText || isExcel) {
           const text = await window.electronAPI.readFile(fullPath)
-          setContent(text)
+          if (!cancelled) setContent(text)
         }
       } catch (err) {
-        setError((err as Error).message)
+        if (!cancelled) setError((err as Error).message)
       }
     }
     load()
 
     return () => {
-      if (imageUrl) URL.revokeObjectURL(imageUrl)
+      cancelled = true
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+      setImageUrl(null)
     }
   }, [fullPath])
 

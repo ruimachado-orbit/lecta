@@ -93,7 +93,7 @@ export function DrawingOverlay({ slideIndex, active, width, height }: DrawingOve
   const { slides, presentation } = usePresentationStore()
   const slide = slides[slideIndex]
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const [elements, setElements] = useState<DrawElement[]>([])
   const [drawing, setDrawing] = useState(false)
@@ -285,7 +285,7 @@ export function DrawingOverlay({ slideIndex, active, width, height }: DrawingOve
     // Drawing tools
     setSelectedIndex(null)
     if (tool === 'eraser') {
-      const el: DrawElement = { type: 'freedraw', points: [pos], color: 'rgba(0,0,0,0)', width: 20 }
+      const el: DrawElement = { type: 'freedraw', points: [pos], color: 'rgba(0,0,0,0)', fill: 'transparent', width: 20 }
       setCurrentElement(el)
       setDrawing(true)
       return
@@ -362,6 +362,7 @@ export function DrawingOverlay({ slideIndex, active, width, height }: DrawingOve
           type: 'text',
           points: [editingText.pos],
           color: getColor(),
+          fill: 'transparent',
           width: 0,
           text: trimmed,
           fontSize: 24,
@@ -604,6 +605,7 @@ export function DrawingToolbar(): JSX.Element {
             activeTool === t.id ? 'bg-white text-black' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
           }`}
           title={t.label}
+          aria-label={t.label}
         >
           {t.icon}
         </button>
@@ -617,6 +619,7 @@ export function DrawingToolbar(): JSX.Element {
             onClick={() => window.dispatchEvent(new CustomEvent('drawing-delete-selected'))}
             className="w-6 h-6 rounded flex items-center justify-center text-gray-500 hover:text-red-400 hover:bg-gray-800 transition-colors"
             title="Delete selected"
+            aria-label="Delete selected"
           >
             <TrashIcon />
           </button>
@@ -633,6 +636,7 @@ export function DrawingToolbar(): JSX.Element {
             strokeWidth === w ? 'bg-white/20' : 'hover:bg-gray-800'
           }`}
           title={`Width ${w}`}
+          aria-label={`Width ${w}`}
         >
           <div className="rounded-full bg-gray-300" style={{ width: w + 2, height: w + 2 }} />
         </button>
@@ -650,6 +654,7 @@ export function DrawingToolbar(): JSX.Element {
             strokeColor === c ? 'ring-1 ring-white ring-offset-1 ring-offset-gray-900' : 'hover:bg-gray-800'
           }`}
           title={c}
+          aria-label={c}
         >
           <div className="w-3 h-3 rounded-full" style={{ backgroundColor: c }} />
         </button>
@@ -665,6 +670,7 @@ export function DrawingToolbar(): JSX.Element {
           drawingToolState.fill === 'transparent' ? 'ring-1 ring-white ring-offset-1 ring-offset-gray-900' : 'hover:bg-gray-800'
         }`}
         title="No fill"
+        aria-label="No fill"
       >
         <div className="w-3 h-3 rounded-sm border border-gray-600" style={{ background: 'repeating-conic-gradient(#808080 0% 25%, transparent 0% 50%) 50% / 4px 4px' }} />
       </button>
@@ -676,6 +682,7 @@ export function DrawingToolbar(): JSX.Element {
             drawingToolState.fill === c ? 'ring-1 ring-white ring-offset-1 ring-offset-gray-900' : 'hover:bg-gray-800'
           }`}
           title={`Fill: ${c}`}
+          aria-label={`Fill: ${c}`}
         >
           <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: c }} />
         </button>
@@ -691,6 +698,7 @@ export function DrawingToolbar(): JSX.Element {
         }}
         className="w-6 h-6 rounded flex items-center justify-center text-gray-600 hover:text-red-400 hover:bg-gray-800 transition-colors"
         title="Clear all"
+        aria-label="Clear all"
       >
         <TrashIcon />
       </button>

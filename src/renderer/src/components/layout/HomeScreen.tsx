@@ -43,6 +43,17 @@ export function HomeScreen(): JSX.Element {
     }
   }, [pendingGeneratePrompt])
 
+  // "Open Settings" from a no-AI toast anywhere in the app lands here
+  const pendingOpenSettings = useUIStore((s) => s.pendingOpenSettings)
+  useEffect(() => {
+    if (!pendingOpenSettings) return
+    setShowAIGenerate(false)
+    setShowLibrary(false)
+    setShowHelp(false)
+    setShowSettings(true)
+    useUIStore.setState({ pendingOpenSettings: false })
+  }, [pendingOpenSettings])
+
   const refreshRecentDecks = useCallback(() => {
     window.electronAPI.getRecentDecks().then((decks: any[]) => {
       // Handle both old string[] and new object[] formats
@@ -307,93 +318,6 @@ export function HomeScreen(): JSX.Element {
             </>
           )
         })()}
-
-        {/* LEGACY — remove the old inline map below; replaced by RecentCard component */}
-        {false && recentDecks.length > 0 && (
-          <div className="mt-10">
-            <div className="grid grid-cols-2 gap-3">
-              {recentDecks.map((deck) => {
-                // Parse the first slide preview into mini-rendered lines
-                const previewLines = (deck.firstSlidePreview || '')
-                  .split('\n')
-                  .filter((l) => l.trim())
-                  .slice(0, 4)
-
-                return (
-                  <button
-                    key={deck.path}
-                    onClick={() => loadPresentation(deck.path)}
-                    className="group text-left rounded-xl border border-gray-800 bg-gray-900 hover:border-gray-600
-                               hover:bg-gray-800 transition-all overflow-hidden"
-                  >
-                    {/* First slide preview */}
-                    <div className="h-28 bg-black p-3 border-b border-gray-800 overflow-hidden">
-                      {previewLines.length > 0 ? (
-                        <div className="space-y-1">
-                          {previewLines.map((line, i) => {
-                            const isH1 = line.startsWith('# ')
-                            const isH2 = line.startsWith('## ')
-                            const isBullet = line.match(/^[-*+] /)
-                            const text = line.replace(/^#{1,3}\s/, '').replace(/^[-*+]\s/, '').replace(/\*\*/g, '').replace(/<[^>]+>/g, '')
-                            return (
-                              <div key={i} className={`truncate ${
-                                isH1 ? 'text-[11px] font-bold text-white' :
-                                isH2 ? 'text-[10px] font-semibold text-gray-300' :
-                                isBullet ? 'text-[8px] text-gray-500 pl-2' :
-                                'text-[8px] text-gray-500'
-                              }`}>
-                                {isBullet && <span className="mr-1">•</span>}
-                                {text}
-                              </div>
-                            )
-                          })}
-                        </div>
-                      ) : (
-                        <div className="h-full flex items-center justify-center">
-                          <span className="text-gray-300 text-2xl font-bold">{deck.title.charAt(0).toUpperCase()}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Info */}
-                    <div className="p-3">
-                      <div className="text-sm text-gray-200 font-medium truncate group-hover:text-white">
-                        {deck.title}
-                      </div>
-                      <div className="flex items-center gap-2 mt-1.5">
-                        {/* Artifact icons */}
-                        <div className="flex items-center gap-1">
-                          {deck.artifacts?.includes('code') && (
-                            <span className="text-[8px] text-gray-500" title="Has code">{'{ }'}</span>
-                          )}
-                          {deck.artifacts?.includes('video') && (
-                            <span className="text-[8px] text-gray-500" title="Has video">▶</span>
-                          )}
-                          {deck.artifacts?.includes('webapp') && (
-                            <span className="text-[8px] text-gray-500" title="Has web app">◎</span>
-                          )}
-                          {deck.artifacts?.includes('files') && (
-                            <span className="text-[8px] text-gray-500" title="Has files">📎</span>
-                          )}
-                        </div>
-                        {/* Slide count */}
-                        {deck.slideCount && (
-                          <span className="text-[10px] text-gray-600">{deck.slideCount} slides</span>
-                        )}
-                        {/* Date */}
-                        {deck.date && (
-                          <span className="text-[10px] text-gray-600">
-                            {new Date(deck.date).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* AI Chat Input — fixed at bottom */}
@@ -409,6 +333,7 @@ export function HomeScreen(): JSX.Element {
           onClick={() => setShowSettings(true)}
           className="p-2 rounded-lg text-gray-600 hover:text-gray-300 hover:bg-gray-800 transition-colors"
           title="Settings"
+          aria-label="Settings"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
@@ -419,6 +344,7 @@ export function HomeScreen(): JSX.Element {
           onClick={() => setShowHelp(true)}
           className="p-2 rounded-lg text-gray-600 hover:text-gray-300 hover:bg-gray-800 transition-colors"
           title="Help"
+          aria-label="Help"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" />
@@ -439,8 +365,8 @@ function HomeTabBar(): JSX.Element {
 
   return (
     <div
-      className="h-8 bg-gray-900 border-b border-gray-800 flex items-center px-20 flex-shrink-0"
-      style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+      className="h-8 bg-gray-900 border-b border-gray-800 flex items-center flex-shrink-0"
+      style={{ WebkitAppRegion: 'no-drag', paddingLeft: 'var(--titlebar-inset)', paddingRight: 'var(--titlebar-inset)' } as React.CSSProperties}
     >
       {/* All tabs */}
       {tabs.map((tab) => {
@@ -481,6 +407,7 @@ function HomeTabBar(): JSX.Element {
         onClick={newHomeTab}
         className="h-full px-2 text-gray-600 hover:text-gray-400 hover:bg-gray-800 transition-colors flex items-center"
         title="New tab"
+        aria-label="New tab"
       >
         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -492,6 +419,7 @@ function HomeTabBar(): JSX.Element {
         onClick={() => window.electronAPI.newWindow()}
         className="h-full px-2 text-gray-600 hover:text-gray-400 hover:bg-gray-800 transition-colors flex items-center"
         title="New window"
+        aria-label="New window"
       >
         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
@@ -865,7 +793,9 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
   const [saved, setSaved] = useState(false)
   const [editingProvider, setEditingProvider] = useState<string | null>(null)
   const [editingKey, setEditingKey] = useState('')
-  const [keys, setKeys] = useState<Record<string, string>>({})
+  // Secrets never reach the renderer: only "is a key configured" per provider (Ollama URL is not a secret)
+  const [configuredKeys, setConfiguredKeys] = useState<Record<string, boolean>>({})
+  const [ollamaBaseUrl, setOllamaBaseUrl] = useState('')
   const [openaiAuthMode, setOpenaiAuthMode] = useState<'apiKey' | 'codex'>('apiKey')
   const [codexBinPath, setCodexBinPath] = useState('')
   const [validating, setValidating] = useState(false)
@@ -893,13 +823,18 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
       }
       setOpenaiAuthMode(settings.openaiAuthMode === 'codex' ? 'codex' : 'apiKey')
       setCodexBinPath(typeof settings.codexBinPath === 'string' ? settings.codexBinPath : '')
-      // Load all keys
-      const loadedKeys: Record<string, string> = {}
+      // Load configured-key flags (settings:get redacts secrets and returns configuredKeys booleans)
+      const flags = (settings.configuredKeys as Record<string, boolean> | undefined) ?? {}
+      const loaded: Record<string, boolean> = {}
       for (const id of ALL_PROVIDER_IDS) {
         const field = PROVIDER_KEY_FIELDS[id]
-        if (field) loadedKeys[id] = (settings[field] as string) || ''
+        if (!field) continue
+        loaded[id] = id === 'ollama'
+          ? typeof settings[field] === 'string' && (settings[field] as string).length > 0
+          : !!flags[field]
       }
-      setKeys(loadedKeys)
+      setConfiguredKeys(loaded)
+      setOllamaBaseUrl(typeof settings.ollamaBaseUrl === 'string' ? settings.ollamaBaseUrl : '')
     })
     setValidating(true)
     const timer = setTimeout(() => setValidating(false), 10000) // safety fallback
@@ -932,8 +867,11 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
   const handleSaveKey = async (providerId: string, key: string) => {
     const field = PROVIDER_KEY_FIELDS[providerId]
     if (!field) return
-    await window.electronAPI.setAppSettings({ [field]: key })
-    setKeys((prev) => ({ ...prev, [providerId]: key }))
+    // Empty key = clear. Secret fields clear with `null` (an empty string means "unchanged" on the main side).
+    const value = key === '' ? (providerId === 'ollama' ? '' : null) : key
+    await window.electronAPI.setAppSettings({ [field]: value })
+    setConfiguredKeys((prev) => ({ ...prev, [providerId]: key !== '' }))
+    if (providerId === 'ollama') setOllamaBaseUrl(key)
     setEditingProvider(null)
     setEditingKey('')
     setValidating(true)
@@ -943,7 +881,8 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
 
   const openKeyModal = (providerId: string) => {
     setEditingProvider(providerId)
-    setEditingKey(keys[providerId] || '')
+    // Never pre-fill a secret; the Ollama base URL is not a secret
+    setEditingKey(providerId === 'ollama' ? ollamaBaseUrl : '')
   }
 
   const openaiStatus = providerStatuses.find((s: ProviderStatus) => s.id === 'openai')
@@ -1010,7 +949,8 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
                       }`}
                       style={{ backgroundColor: p.accent }}
                       title={p.name}
-                    />
+                    aria-label={p.name}
+                  />
                   ))}
                 </div>
               </div>
@@ -1177,6 +1117,7 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
                               : 'border-gray-700 opacity-40'
                         }`}
                         title={isConnected ? `Set ${meta.name} as active provider` : id === 'openai' && openaiAuthMode === 'codex' ? 'Run codex login first' : 'Configure API key first'}
+                        aria-label={isConnected ? `Set ${meta.name} as active provider` : id === 'openai' && openaiAuthMode === 'codex' ? 'Run codex login first' : 'Configure API key first'}
                       >
                         {isActive && (
                           <div className="w-2 h-2 rounded-full bg-white" />
@@ -1186,11 +1127,12 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
                         {meta.icon}
                       </div>
                       <span className="text-sm font-medium text-gray-200 flex-1">{meta.name}</span>
-                      {(hasKey || keys[id]) && !isFromEnv && keySource !== 'codex' && (
+                      {(hasKey || configuredKeys[id]) && !isFromEnv && keySource !== 'codex' && (
                         <button
                           onClick={() => handleSaveKey(id, '')}
                           className="w-5 h-5 rounded-md flex items-center justify-center text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"
                           title="Clear key"
+                          aria-label="Clear key"
                         >
                           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -1255,7 +1197,7 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
                   <label className="text-sm text-gray-300 block">MCP Server</label>
                   <p className="text-[10px] text-gray-600">
                     Let Claude Desktop create and edit presentations
-                    {mcpRunning && <span className="text-green-500 ml-1">Running</span>}
+                    {mcpRunning && <span className="text-green-500 ml-1">Enabled</span>}
                   </p>
                 </div>
                 <button
@@ -1348,7 +1290,9 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
               value={editingKey}
               onChange={(e) => setEditingKey(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') handleSaveKey(editingProvider, editingKey) }}
-              placeholder={PROVIDER_META[editingProvider]?.placeholder}
+              placeholder={editingProvider !== 'ollama' && configuredKeys[editingProvider]
+                ? 'Key saved — enter a new key to replace it'
+                : PROVIDER_META[editingProvider]?.placeholder}
               autoFocus
               className="w-full px-3 py-2.5 bg-gray-950 text-gray-300 text-sm rounded-lg border border-gray-700
                          focus:border-indigo-500 focus:outline-none placeholder-gray-600 mb-4"
@@ -1361,7 +1305,7 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
               >
                 {editingProvider === 'ollama' ? 'Save URL' : 'Save Key'}
               </button>
-              {keys[editingProvider] && (
+              {configuredKeys[editingProvider] && (
                 <button
                   onClick={() => handleSaveKey(editingProvider, '')}
                   className="px-4 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 font-medium rounded-lg transition-colors text-sm border border-red-600/30"
@@ -1423,7 +1367,7 @@ function MiniSlidePreview({ markdown, isMdx, theme, rootPath }: { markdown: stri
         <div className="absolute inset-0" style={{ background: 'var(--slide-bg)' }} />
         <div className={`absolute inset-0 ${isMdx ? '' : 'slide-pad'} overflow-hidden`}>
           <div style={{ width: isMdx ? SLIDE_W : SLIDE_W - 160, height: isMdx ? SLIDE_H : undefined }}>
-            <ContentRenderer markdown={markdown} rootPath={rootPath} isMdx={isMdx} />
+            <ContentRenderer markdown={markdown} rootPath={rootPath} isMdx={isMdx} preview={true} />
           </div>
         </div>
       </div>
@@ -1460,6 +1404,7 @@ function RecentCard({ deck, onClick, onRemove }: { deck: RecentDeck; onClick: ()
               onClick={(e) => { e.stopPropagation(); onRemove() }}
               className="absolute top-2 left-2 w-5 h-5 rounded-full bg-gray-800/80 hover:bg-red-600 text-gray-500 hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
               title="Remove from recent"
+              aria-label="Remove from recent"
             >
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -1517,6 +1462,7 @@ function RecentCard({ deck, onClick, onRemove }: { deck: RecentDeck; onClick: ()
             onClick={(e) => { e.stopPropagation(); onRemove() }}
             className="absolute top-2 left-2 z-10 w-5 h-5 rounded-full bg-gray-800/80 hover:bg-red-600 text-gray-500 hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
             title="Remove from recent"
+            aria-label="Remove from recent"
           >
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -1592,8 +1538,11 @@ function HelpPanel({ onBack }: { onBack: () => void }): JSX.Element {
               <ShortcutRow keys="⌘ + Enter" action="Run code" />
               <ShortcutRow keys="F5" action="Enter presenter mode" />
               <ShortcutRow keys="Esc" action="Exit presenter mode" />
-              <ShortcutRow keys="N" action="Toggle speaker notes" />
+              <ShortcutRow keys="Shift + S" action="Toggle speaker notes" />
               <ShortcutRow keys="Shift + N" action="Add new slide" />
+              <ShortcutRow keys="⌘ + S" action="Save the current slide" />
+              <ShortcutRow keys="⌘ + Z" action="Undo slide edit" />
+              <ShortcutRow keys="⌘ + ⇧ + Z" action="Redo slide edit" />
               <ShortcutRow keys="⌘ + /" action="Toggle chat agent" />
             </div>
           </section>

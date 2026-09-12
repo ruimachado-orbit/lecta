@@ -50,14 +50,15 @@ export function NotebookToolbar({ showAgenda, onToggleAgenda }: {
   }
 
   return (
-    <div className="h-12 bg-gray-900 border-b border-gray-800 flex items-center pl-20 pr-4 gap-4 select-none"
-         style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
+    <div className="h-12 bg-gray-900 border-b border-gray-800 flex items-center pr-4 gap-4 select-none"
+         style={{ WebkitAppRegion: 'drag', paddingLeft: 'var(--titlebar-inset)' } as React.CSSProperties}>
       {/* Close notebook */}
       <div className="flex items-center" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         <button
           onClick={handleClose}
           className="p-1.5 rounded hover:bg-gray-800 text-gray-500 hover:text-gray-300 transition-colors"
           title="Close notebook"
+          aria-label="Close notebook"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -72,6 +73,7 @@ export function NotebookToolbar({ showAgenda, onToggleAgenda }: {
           disabled={currentPageIndex === 0}
           className="p-1.5 rounded hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           title="Previous note"
+          aria-label="Previous note"
         >
           <ChevronLeftIcon />
         </button>
@@ -85,6 +87,7 @@ export function NotebookToolbar({ showAgenda, onToggleAgenda }: {
           disabled={currentPageIndex === pages.length - 1}
           className="p-1.5 rounded hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           title="Next note"
+          aria-label="Next note"
         >
           <ChevronRightIcon />
         </button>
@@ -109,6 +112,7 @@ export function NotebookToolbar({ showAgenda, onToggleAgenda }: {
             showAgenda ? 'bg-white text-black' : 'hover:bg-gray-800 text-gray-400'
           }`}
           title={showAgenda ? 'Close agenda' : 'Open agenda'}
+          aria-label={showAgenda ? 'Close agenda' : 'Open agenda'}
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
@@ -123,6 +127,7 @@ export function NotebookToolbar({ showAgenda, onToggleAgenda }: {
               showSearch ? 'bg-white text-black' : 'hover:bg-gray-800 text-gray-400'
             }`}
             title="Search notes"
+            aria-label="Search notes"
           >
             <SearchIcon />
           </button>
@@ -234,6 +239,7 @@ export function NotebookToolbar({ showAgenda, onToggleAgenda }: {
               showLayoutPicker ? 'bg-white text-black' : 'hover:bg-gray-800 text-gray-400'
             }`}
             title="Change layout"
+            aria-label="Change layout"
           >
             <LayoutIcon />
             <span className="text-[10px] capitalize">{currentLayout}</span>
@@ -263,6 +269,7 @@ export function NotebookToolbar({ showAgenda, onToggleAgenda }: {
                         : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
                     }`}
                     title={l.label}
+                    aria-label={l.label}
                   >
                     <span className="text-lg">{l.icon}</span>
                     <span className="text-[9px]">{l.label}</span>
@@ -281,6 +288,7 @@ export function NotebookToolbar({ showAgenda, onToggleAgenda }: {
           onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
           className="p-1.5 rounded hover:bg-gray-800 text-gray-400 hover:text-gray-200 transition-colors"
           title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
         >
           {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
         </button>

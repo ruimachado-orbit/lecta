@@ -88,6 +88,7 @@ export function CodeToolbar(): JSX.Element {
                 fontSize === s.value ? 'bg-white text-black' : 'text-gray-500 hover:text-gray-300'
               }`}
               title={`Font size: ${s.value}px`}
+              aria-label={`Font size: ${s.value}px`}
             >
               {s.label}
             </button>
@@ -97,7 +98,7 @@ export function CodeToolbar(): JSX.Element {
         {/* Reset */}
         <button onClick={handleReset}
           className="p-1 rounded hover:bg-gray-800 text-gray-400 hover:text-gray-200 transition-colors"
-          title="Reset to file content">
+          title="Reset to file content" aria-label="Reset to file content">
           <ResetIcon />
         </button>
 
@@ -110,7 +111,8 @@ export function CodeToolbar(): JSX.Element {
             : showAIPrompt ? 'text-white font-bold'
             : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
           }`}
-          title={aiEnabled ? 'Generate code with AI' : 'AI disabled — set ANTHROPIC_API_KEY'}
+          title={aiEnabled ? 'Generate code with AI' : 'Configure an AI provider in Settings'}
+          aria-label={aiEnabled ? 'Generate code with AI' : 'Configure an AI provider in Settings'}
         >
           <SparklesIcon />
         </button>
@@ -126,7 +128,7 @@ export function CodeToolbar(): JSX.Element {
             ) : (
               <button onClick={handleRun}
                 className="px-3 py-1 bg-green-600 hover:bg-green-500 text-white text-xs font-medium rounded transition-colors flex items-center gap-1.5"
-                title="Run code (Cmd+Enter)">
+                title="Run code (Cmd+Enter)" aria-label="Run code (Cmd+Enter)">
                 <RunIcon /> Run
               </button>
             )}
@@ -136,7 +138,7 @@ export function CodeToolbar(): JSX.Element {
         {/* Remove code */}
         <button onClick={() => removeAttachment('code')}
           className="p-1 hover:bg-red-600 text-gray-500 hover:text-white rounded transition-colors"
-          title="Remove code from slide">
+          title="Remove code from slide" aria-label="Remove code from slide">
           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
           </svg>

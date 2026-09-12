@@ -6,6 +6,12 @@ interface WebPanelProps {
   webapp: WebAppConfig
 }
 
+/** The handful of `<webview>` methods this panel uses (not in lib.dom's HTMLWebViewElement). */
+interface WebviewElement extends HTMLElement {
+  reload(): void
+  goBack(): void
+}
+
 export function WebPanel({ webapp }: WebPanelProps): JSX.Element {
   const { removeAttachment } = usePresentationStore()
   const [url, setUrl] = useState(webapp.url)
@@ -95,16 +101,18 @@ export function WebPanel({ webapp }: WebPanelProps): JSX.Element {
           Go
         </button>
         <button
-          onClick={() => webviewRef.current?.reload()}
+          onClick={() => (webviewRef.current as WebviewElement | null)?.reload()}
           className="p-1 hover:bg-gray-800 text-gray-400 hover:text-gray-200 rounded transition-colors"
           title="Reload"
+          aria-label="Reload"
         >
           <RefreshIcon />
         </button>
         <button
-          onClick={() => webviewRef.current?.goBack()}
+          onClick={() => (webviewRef.current as WebviewElement | null)?.goBack()}
           className="p-1 hover:bg-gray-800 text-gray-400 hover:text-gray-200 rounded transition-colors"
           title="Back"
+          aria-label="Back"
         >
           <BackIcon />
         </button>
@@ -124,6 +132,7 @@ export function WebPanel({ webapp }: WebPanelProps): JSX.Element {
           onClick={() => removeAttachment('webapp')}
           className="p-1 hover:bg-red-600 text-gray-500 hover:text-white rounded transition-colors"
           title="Remove web app from slide"
+          aria-label="Remove web app from slide"
         >
           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -138,8 +147,9 @@ export function WebPanel({ webapp }: WebPanelProps): JSX.Element {
           src={url}
           className="absolute inset-0"
           style={{ width: '100%', height: '100%' }}
-          // @ts-ignore - Electron webview attributes
-          allowpopups="true"
+          /* No allowpopups: deck-declared pages must not be able to spawn windows.
+             A named partition keeps their cookies/storage out of the app session. */
+          partition="persist:webapps"
         />
       </div>
     </div>

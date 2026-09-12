@@ -1,24 +1,47 @@
 import { useState, useRef } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useExecutionStore } from '../../stores/execution-store'
 import { useTabsStore } from '../../stores/tabs-store'
 import { useChatStore } from '../../stores/chat-store'
 import { ThemePicker } from '../slides/ThemePicker'
-import type { SupportedLanguage } from '../../../../../packages/shared/src/types/presentation'
+import { stripMdxToMarkdown } from '../slides/MdxRenderer'
 import { requireAI, showAIError } from '../ai/AIAlert'
 
 export function Toolbar(): JSX.Element {
-  const { presentation, currentSlideIndex, slides, nextSlide, prevSlide, addSlide, addCodeToSlide, addArtifact, addVideo, addWebApp, saveSlideContent, hasUnsavedChanges } =
-    usePresentationStore()
-  const { togglePresenting, toggleNotes, showNotes, theme, setTheme, showArticlePanel, toggleArticlePanel, showRightPane, toggleRightPane, toggleSlideMap, showAIGenerate, toggleAIGenerate } = useUIStore()
-  const { isExecuting } = useExecutionStore()
-  const { activeTabId, closeTab } = useTabsStore()
-  const { isSidebarOpen, toggleSidebar } = useChatStore()
+  const { presentation, currentSlideIndex, slides, nextSlide, prevSlide, saveSlideContent, hasUnsavedChanges, mdxTrusted } =
+    usePresentationStore(
+      useShallow((s) => ({
+        presentation: s.presentation,
+        currentSlideIndex: s.currentSlideIndex,
+        slides: s.slides,
+        nextSlide: s.nextSlide,
+        prevSlide: s.prevSlide,
+        saveSlideContent: s.saveSlideContent,
+        hasUnsavedChanges: s.hasUnsavedChanges,
+        mdxTrusted: s.mdxTrusted
+      }))
+    )
+  const { togglePresenting, showArticlePanel, toggleArticlePanel, toggleSlideMap } = useUIStore(
+    useShallow((s) => ({
+      togglePresenting: s.togglePresenting,
+      showArticlePanel: s.showArticlePanel,
+      toggleArticlePanel: s.toggleArticlePanel,
+      toggleSlideMap: s.toggleSlideMap
+    }))
+  )
+  const isExecuting = useExecutionStore((s) => s.isExecuting)
+  const { activeTabId, closeTab } = useTabsStore(
+    useShallow((s) => ({ activeTabId: s.activeTabId, closeTab: s.closeTab }))
+  )
+  const { isSidebarOpen, toggleSidebar } = useChatStore(
+    useShallow((s) => ({ isSidebarOpen: s.isSidebarOpen, toggleSidebar: s.toggleSidebar }))
+  )
 
-  const [showAddMenu, setShowAddMenu] = useState(false)
   const [showThemePicker, setShowThemePicker] = useState(false)
   const [showExportMenu, setShowExportMenu] = useState(false)
+  const [exportedPath, setExportedPath] = useState<string | null>(null)
   const [prettifying, setPrettifying] = useState(false)
   const [prettifyProgress, setPrettifyProgress] = useState({ current: 0, total: 0 })
   const [prettifyReview, setPrettifyReview] = useState<{
@@ -28,19 +51,6 @@ export function Toolbar(): JSX.Element {
   } | null>(null)
   const prettifyQueueRef = useRef<{ index: number; original: string; improved: string }[]>([])
   const [prettifyQueuePos, setPrettifyQueuePos] = useState(0)
-  const [videoUrl, setVideoUrl] = useState('')
-  const [webAppUrl, setWebAppUrl] = useState('')
-
-  const currentSlide = slides[currentSlideIndex]
-  const hasCode = !!currentSlide?.config.code
-  const hasVideo = !!currentSlide?.config.video
-  const hasWebApp = !!currentSlide?.config.webapp
-
-  const handleAddSlide = async () => {
-    const nextNum = slides.length + 1
-    await addSlide(`slide-${nextNum}`)
-  }
-
   const handleImportSlides = async () => {
     const imported = await window.electronAPI.importSlides()
     if (!imported || imported.length === 0 || !presentation) return
@@ -49,31 +59,16 @@ export function Toolbar(): JSX.Element {
     await usePresentationStore.getState().loadPresentation(presentation.rootPath)
   }
 
-  const handleAddCode = async (language: SupportedLanguage) => {
-    await addCodeToSlide(language)
-  }
-
-  const handleAddVideo = async () => {
-    const url = videoUrl.trim()
-    if (!url) return
-    await addVideo(url)
-    setVideoUrl('')
-  }
-
-  const handleAddWebApp = async () => {
-    let url = webAppUrl.trim()
-    if (!url) return
-    if (!url.match(/^https?:\/\//)) url = `https://${url}`
-    await addWebApp(url)
-    setWebAppUrl('')
-  }
-
-  const closeAllDropdowns = () => {
-    setShowAddMenu(false)
-  }
+  /**
+   * Slide markdown for export. Executable MDX is only compiled for decks the user trusted;
+   * otherwise the JSX is stripped and the remaining markdown is exported.
+   */
+  const slideExportMarkdown = (s: { isMdx?: boolean; markdownContent: string }): string =>
+    s.isMdx && !mdxTrusted ? stripMdxToMarkdown(s.markdownContent) : s.markdownContent
 
   return (
-    <div className="h-12 bg-gray-900 border-b border-gray-800 flex items-center pl-20 pr-4 gap-4 select-none" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
+    <div className="h-12 bg-gray-900 border-b border-gray-800 flex items-center pr-4 gap-4 select-none"
+      style={{ WebkitAppRegion: 'drag', paddingLeft: 'var(--titlebar-inset)' } as React.CSSProperties}>
       {/* Close presentation */}
       <div className="flex items-center" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         <button
@@ -87,6 +82,7 @@ export function Toolbar(): JSX.Element {
           }}
           className="p-1.5 rounded hover:bg-gray-800 text-gray-500 hover:text-gray-300 transition-colors"
           title="Close presentation"
+          aria-label="Close presentation"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -101,6 +97,7 @@ export function Toolbar(): JSX.Element {
           disabled={currentSlideIndex === 0}
           className="p-1.5 rounded hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           title="Previous slide (←)"
+          aria-label="Previous slide (←)"
         >
           <ChevronLeftIcon />
         </button>
@@ -114,6 +111,7 @@ export function Toolbar(): JSX.Element {
           disabled={currentSlideIndex === slides.length - 1}
           className="p-1.5 rounded hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           title="Next slide (→)"
+          aria-label="Next slide (→)"
         >
           <ChevronRightIcon />
         </button>
@@ -146,6 +144,7 @@ export function Toolbar(): JSX.Element {
             isSidebarOpen ? 'bg-white text-black' : 'hover:bg-gray-800 text-gray-400'
           }`}
           title="AI Chat"
+          aria-label="AI Chat"
         >
           <SparklesIcon />
         </button>
@@ -155,6 +154,7 @@ export function Toolbar(): JSX.Element {
           onClick={handleImportSlides}
           className="p-1.5 rounded hover:bg-gray-800 text-gray-400 hover:text-gray-200 transition-colors"
           title="Import slides from another presentation"
+          aria-label="Import slides from another presentation"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
@@ -169,6 +169,7 @@ export function Toolbar(): JSX.Element {
           onClick={toggleSlideMap}
           className="p-1.5 rounded hover:bg-gray-800 text-gray-400 hover:text-gray-200 transition-colors"
           title="Slide map overview"
+          aria-label="Slide map overview"
         >
           <MapIcon />
         </button>
@@ -179,6 +180,7 @@ export function Toolbar(): JSX.Element {
             onClick={() => setShowThemePicker(!showThemePicker)}
             className={`p-1.5 rounded transition-colors ${showThemePicker ? 'bg-gray-700 text-white' : 'hover:bg-gray-800 text-gray-400 hover:text-gray-200'}`}
             title="Slide theme"
+            aria-label="Slide theme"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M4.098 19.902a3.75 3.75 0 0 0 5.304 0l6.401-6.402M6.75 21A3.75 3.75 0 0 1 3 17.25V4.125C3 3.504 3.504 3 4.125 3h5.25c.621 0 1.125.504 1.125 1.125v4.072M6.75 21a3.75 3.75 0 0 0 3.75-3.75V8.197M6.75 21h13.125c.621 0 1.125-.504 1.125-1.125v-5.25c0-.621-.504-1.125-1.125-1.125h-4.072M10.5 8.197l2.88-2.88c.438-.439 1.15-.439 1.59 0l3.712 3.713c.44.44.44 1.152 0 1.59l-2.879 2.88M6.75 17.25h.008v.008H6.75v-.008Z" />
@@ -193,6 +195,7 @@ export function Toolbar(): JSX.Element {
             onClick={() => setShowExportMenu(!showExportMenu)}
             className={`p-1.5 rounded transition-colors flex items-center gap-0.5 ${showExportMenu ? 'bg-gray-700 text-white' : 'hover:bg-gray-800 text-gray-400 hover:text-gray-200'}`}
             title="Export"
+            aria-label="Export"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
@@ -210,10 +213,11 @@ export function Toolbar(): JSX.Element {
                     setShowExportMenu(false)
                     if (!presentation) return
                     const htmls = await Promise.all(slides.map(async (s) => {
-                      if (s.isMdx) return compileMdxToStaticHtml(s.markdownContent)
-                      return markdownToSlideHtml(s.markdownContent)
+                      if (s.isMdx && mdxTrusted) return compileMdxToStaticHtml(s.markdownContent)
+                      return markdownToSlideHtml(slideExportMarkdown(s))
                     }))
-                    await window.electronAPI.exportPdf(presentation.rootPath, htmls, presentation.title)
+                    const saved = await window.electronAPI.exportPdf(presentation.rootPath, htmls, presentation.title)
+                    if (saved) setExportedPath(saved)
                   }}
                   className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
                 >
@@ -226,13 +230,14 @@ export function Toolbar(): JSX.Element {
                     if (!presentation) return
                     // Pre-render MDX slides to HTML; pass markdown for .md slides
                     const contents = await Promise.all(slides.map(async (s) => {
-                      if (s.isMdx) {
+                      if (s.isMdx && mdxTrusted) {
                         const html = await compileMdxToStaticHtml(s.markdownContent)
                         return { content: html, isPreRendered: true }
                       }
-                      return { content: s.markdownContent, isPreRendered: false }
+                      return { content: slideExportMarkdown(s), isPreRendered: false }
                     }))
-                    await window.electronAPI.exportHtml(presentation.rootPath, contents, presentation.title, presentation.theme)
+                    const saved = await window.electronAPI.exportHtml(presentation.rootPath, contents, presentation.title, presentation.theme)
+                    if (saved) setExportedPath(saved)
                   }}
                   className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
                 >
@@ -275,6 +280,8 @@ export function Toolbar(): JSX.Element {
                   setPrettifyProgress({ current: i + 1, total })
                   const slide = slides[i]
                   if (!slide?.markdownContent?.trim()) continue
+                  // Executable MDX is never rewritten by the model
+                  if (slide.isMdx) continue
                   try {
                     const improved = await window.electronAPI.beautifySlide(slide.markdownContent, title)
                     if (improved?.trim() && improved.trim() !== slide.markdownContent.trim()) {
@@ -305,6 +312,7 @@ export function Toolbar(): JSX.Element {
             className="px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5 bg-gray-800 hover:bg-indigo-600 text-gray-300 hover:text-white"
             style={prettifying ? { background: '#4f46e5', color: '#ffffff', cursor: 'wait' } : undefined}
             title="Polish all slides with AI — review changes per slide"
+            aria-label="Polish all slides with AI — review changes per slide"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
@@ -321,11 +329,17 @@ export function Toolbar(): JSX.Element {
           className="px-3 py-1.5 bg-white hover:bg-gray-200 text-black text-sm font-medium
                      rounded-lg transition-colors flex items-center gap-1.5"
           title="Start presentation (F5)"
+          aria-label="Start presentation (F5)"
         >
           <PlayIcon />
           Present
         </button>
       </div>
+
+      {/* Export result — path + Reveal */}
+      {exportedPath && (
+        <ExportedToast path={exportedPath} onDismiss={() => setExportedPath(null)} />
+      )}
 
       {/* Prettify review modal */}
       {prettifyReview && (
@@ -337,8 +351,8 @@ export function Toolbar(): JSX.Element {
           queueTotal={prettifyQueueRef.current.length}
           onAccept={() => {
             const r = prettifyReview
-            usePresentationStore.getState().updateMarkdownContent(r.slideIndex, r.improved)
-            usePresentationStore.getState().saveSlideContent(r.slideIndex)
+            // Refuses (and toasts) for executable .mdx slides — AI output never lands in code
+            usePresentationStore.getState().applyAIContent(r.slideIndex, r.improved)
             // Next in queue
             const next = prettifyQueuePos + 1
             if (next < prettifyQueueRef.current.length) {
@@ -364,6 +378,39 @@ export function Toolbar(): JSX.Element {
           onSkipAll={() => setPrettifyReview(null)}
         />
       )}
+    </div>
+  )
+}
+
+/** Confirmation that an export was written, with a Reveal action when the shell bridge exposes one. */
+function ExportedToast({ path, onDismiss }: { path: string; onDismiss: () => void }): JSX.Element {
+  const api = window.electronAPI as unknown as { showItemInFolder?: (p: string) => void }
+  const canReveal = typeof api.showItemInFolder === 'function'
+  const fileName = path.split(/[\\/]/).pop() || path
+  return (
+    <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[9998]">
+      <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-gray-900 border border-gray-700 shadow-2xl shadow-black/40 max-w-lg">
+        <span className="text-sm text-gray-200">Exported <span className="font-medium text-white">{fileName}</span></span>
+        <span className="text-[11px] text-gray-500 truncate max-w-[16rem]" title={path}>{path}</span>
+        {canReveal && (
+          <button
+            onClick={() => { api.showItemInFolder!(path); onDismiss() }}
+            className="text-xs px-2.5 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-200 transition-colors"
+          >
+            Reveal
+          </button>
+        )}
+        <button
+          onClick={onDismiss}
+          aria-label="Dismiss"
+          title="Dismiss"
+          className="p-1 rounded hover:bg-gray-800 text-gray-500 hover:text-gray-300 transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
     </div>
   )
 }
@@ -445,46 +492,6 @@ function PlayIcon(): JSX.Element {
   )
 }
 
-function SpeakerIcon(): JSX.Element {
-  return (
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
-    </svg>
-  )
-}
-
-function PlusSlideIcon(): JSX.Element {
-  return (
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-    </svg>
-  )
-}
-
-function CodeIcon(): JSX.Element {
-  return (
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
-    </svg>
-  )
-}
-
-function EditIcon(): JSX.Element {
-  return (
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
-    </svg>
-  )
-}
-
-function PaperclipIcon(): JSX.Element {
-  return (
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
-    </svg>
-  )
-}
-
 /** Convert markdown to simple HTML for PDF export */
 function markdownToSlideHtml(md: string): string {
   return md
@@ -541,50 +548,10 @@ function SparklesIcon(): JSX.Element {
   )
 }
 
-function AttachmentsIcon(): JSX.Element {
-  return (
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 6.878V6a2.25 2.25 0 0 1 2.25-2.25h7.5A2.25 2.25 0 0 1 18 6v.878m-12 0c.235-.083.487-.128.75-.128h10.5c.263 0 .515.045.75.128m-12 0A2.25 2.25 0 0 0 4.5 9v.878m13.5-3A2.25 2.25 0 0 1 19.5 9v.878m-15 0A2.246 2.246 0 0 0 3 12v6a2.25 2.25 0 0 0 2.25 2.25h13.5A2.25 2.25 0 0 0 21 18v-6c0-.621-.252-1.184-.66-1.591m-15.66 0A2.246 2.246 0 0 1 6 9.878" />
-    </svg>
-  )
-}
-
-function GlobeIcon(): JSX.Element {
-  return (
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0 1 12 16.5a17.92 17.92 0 0 1-8.716-2.247m0 0A8.966 8.966 0 0 1 3 12c0-1.97.633-3.794 1.708-5.282" />
-    </svg>
-  )
-}
-
 function MapIcon(): JSX.Element {
   return (
     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" />
-    </svg>
-  )
-}
-
-function SunIcon(): JSX.Element {
-  return (
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
-    </svg>
-  )
-}
-
-function MoonIcon(): JSX.Element {
-  return (
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
-    </svg>
-  )
-}
-
-function YouTubeIcon(): JSX.Element {
-  return (
-    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-      <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0C.488 3.45.029 5.804 0 12c.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0C23.512 20.55 23.971 18.196 24 12c-.029-6.185-.484-8.549-4.385-8.816zM9 16V8l8 3.993L9 16z" />
     </svg>
   )
 }

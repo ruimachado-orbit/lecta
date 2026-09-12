@@ -5,8 +5,8 @@ export function useFileWatcher(): void {
   const handleFileChanged = usePresentationStore((s) => s.handleFileChanged)
 
   useEffect(() => {
-    window.electronAPI.onFileChanged((filePath, content) => {
-      handleFileChanged(filePath, content)
+    window.electronAPI.onFileChanged((filePath: string, content: string, relativePath?: string) => {
+      handleFileChanged(filePath, content, relativePath)
     })
 
     return () => {

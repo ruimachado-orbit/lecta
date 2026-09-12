@@ -67,9 +67,9 @@ export function ArticlePanel(): JSX.Element {
     const filePath = `${presentation.rootPath}/${fileName}`
     try {
       await window.electronAPI.writeFile(filePath, articleContent)
-      alert(`Saved as ${fileName}`)
+      useUIStore.getState().setAiAlert(`Saved as ${fileName}`)
     } catch (err) {
-      alert(`Failed to save: ${(err as Error).message}`)
+      useUIStore.getState().setAiAlert(`Failed to save: ${(err as Error).message}`)
     }
   }, [articleContent, presentation])
 
@@ -111,6 +111,7 @@ export function ArticlePanel(): JSX.Element {
             onClick={toggleArticlePanel}
             className="p-1 rounded hover:bg-gray-800 text-gray-500 hover:text-gray-300 transition-colors"
             title="Close article panel"
+            aria-label="Close article panel"
           >
             <CloseIcon />
           </button>

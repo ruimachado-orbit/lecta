@@ -17,3 +17,20 @@ export function resolveImageSrc(src: string | undefined, rootPath?: string): str
   }
   return src
 }
+
+/**
+ * Queue for positioned-image comments produced when an inline image is pinned to the canvas.
+ * ResizableImage pushes here immediately before `deleteNode()`, and the WYSIWYG editor's
+ * `onUpdate` — which that deletion fires synchronously — drains it. A module-level queue
+ * instead of a `window` global: same lifetime, but typed and not reachable from slide content.
+ */
+const pendingPinComments: string[] = []
+
+export function queuePinComment(comment: string): void {
+  pendingPinComments.push(comment)
+}
+
+/** Take (and clear) every queued pin comment. */
+export function drainPinComments(): string[] {
+  return pendingPinComments.splice(0, pendingPinComments.length)
+}

@@ -1,6 +1,8 @@
 import { useEffect, useCallback, useRef, useState } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
-import { usePresentationStore } from '../../stores/presentation-store'
+import { usePresentationStore, applyPresenterState, type PresenterSyncState } from '../../stores/presentation-store'
+import { useSubSlides } from '../../hooks/useSubSlides'
 import { ContentRenderer } from '../slides/ContentRenderer'
 import { VideoPanel } from '../video/VideoPanel'
 import Editor from '@monaco-editor/react'
@@ -24,9 +26,23 @@ function setSlideIndexSilently(index: number): void {
  * Audience-facing view: renders the same slide and artifact components as the presenter.
  * All state synced live via IPC from the presenter window.
  */
+/** Tell the main process this window is ready; it replays path + state and asks the presenter. */
+function announceReady(): void {
+  const api = window.electronAPI as unknown as { sendAudienceReady?: () => void }
+  if (typeof api.sendAudienceReady === 'function') api.sendAudienceReady()
+}
+
 export function AudienceView(): JSX.Element {
-  const { slides, currentSlideIndex, presentation, loadPresentation } =
-    usePresentationStore()
+  const { slides, currentSlideIndex, presentation, loadPresentation, clickStep } =
+    usePresentationStore(
+      useShallow((s) => ({
+        slides: s.slides,
+        currentSlideIndex: s.currentSlideIndex,
+        presentation: s.presentation,
+        loadPresentation: s.loadPresentation,
+        clickStep: s.clickStep
+      }))
+    )
   const currentSlide = slides[currentSlideIndex]
   const [activeArtifact, setActiveArtifact] = useState<string | null>(null)
   const [executionOutput, setExecutionOutput] = useState('')
@@ -35,13 +51,38 @@ export function AudienceView(): JSX.Element {
   const [mousePos, setMousePos] = useState<{ x: number; y: number; area: string } | null>(null)
   const mouseFadeRef = useRef<ReturnType<typeof setTimeout>>(null)
 
-  // Listen for presentation path
+  // Listen for presentation path. Once the deck is in memory we announce readiness, and the
+  // presenter replies with the full {slideIndex, subSlide, clickStep} state — no timers.
   useEffect(() => {
     window.electronAPI.onPresenterLoadPath(async (rootPath: string) => {
+      // The ready handshake replays the deck path, so this can fire for a deck we already have.
+      // Only announce again after an actual load, otherwise the replay would loop forever.
+      if (usePresentationStore.getState().presentation?.rootPath === rootPath) return
       await loadPresentation(rootPath)
+      announceReady()
     })
     return () => { window.electronAPI.removeAllListeners('presenter:load-path') }
   }, [loadPresentation])
+
+  // Full navigation state from the presenter
+  useEffect(() => {
+    const api = window.electronAPI as unknown as {
+      onPresenterState?: (cb: (state: PresenterSyncState) => void) => void
+    }
+    if (typeof api.onPresenterState !== 'function') return
+    api.onPresenterState((state) => {
+      const changedSlide = state.slideIndex !== usePresentationStore.getState().currentSlideIndex
+      applyPresenterState(state)
+      if (changedSlide) {
+        setLiveCode(null)
+        setExecutionOutput('')
+      }
+    })
+    return () => { window.electronAPI.removeAllListeners('presenter:sync-state') }
+  }, [])
+
+  // Kick off the handshake as soon as this window exists (the main process replays the deck path)
+  useEffect(() => { announceReady() }, [])
 
   // Listen for slide sync
   useEffect(() => {
@@ -118,6 +159,14 @@ export function AudienceView(): JSX.Element {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleKeyDown])
 
+  // Same splitting the presenter uses, so the audience shows the same sub-slide
+  const { subSlides, currentSubSlide } = useSubSlides(
+    currentSlide?.markdownContent ?? '',
+    currentSlideIndex,
+    currentSlide?.isMdx
+  )
+  const audienceMarkdown = subSlides[currentSubSlide]?.markdown ?? currentSlide?.markdownContent ?? ''
+
   if (!currentSlide) {
     return (
       <div className="h-screen w-screen bg-black flex items-center justify-center text-gray-600 text-lg">
@@ -138,12 +187,14 @@ export function AudienceView(): JSX.Element {
       {/* Slide area */}
       <div className={`relative flex items-center justify-center ${hasArtifactToShow ? 'w-1/2' : 'w-full'}`}>
         <AudienceSlide
-          markdown={currentSlide.markdownContent}
+          markdown={audienceMarkdown}
           rootPath={presentation?.rootPath}
           layout={currentSlide.config.layout}
           theme={presentation?.theme || 'dark'}
           mousePos={mousePos?.area === 'slide' ? mousePos : null}
           isMdx={currentSlide.isMdx}
+          slideId={currentSlide.config.id}
+          clickStep={clickStep}
         />
       </div>
 
@@ -223,9 +274,9 @@ export function AudienceView(): JSX.Element {
 }
 
 /** Audience slide canvas — matches editor rendering exactly */
-function AudienceSlide({ markdown, rootPath, layout, theme, mousePos, isMdx }: {
+function AudienceSlide({ markdown, rootPath, layout, theme, mousePos, isMdx, slideId, clickStep }: {
   markdown: string; rootPath?: string; layout?: string; theme?: string
-  mousePos: { x: number; y: number } | null; isMdx?: boolean
+  mousePos: { x: number; y: number } | null; isMdx?: boolean; slideId?: string; clickStep?: number
 }): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
   const [canvasScale, setCanvasScale] = useState(1)
@@ -269,7 +320,7 @@ function AudienceSlide({ markdown, rootPath, layout, theme, mousePos, isMdx }: {
             width: layout === 'blank' || isMdx ? SLIDE_W : SLIDE_W - PAD_H * 2,
             height: layout === 'blank' || isMdx ? SLIDE_H : undefined,
           }}>
-            <ContentRenderer markdown={markdown} rootPath={rootPath} isMdx={isMdx} />
+            <ContentRenderer markdown={markdown} rootPath={rootPath} isMdx={isMdx} slideId={slideId} clickStep={clickStep} />
           </div>
         </div>
         {mousePos && <RemoteCursor x={mousePos.x} y={mousePos.y} />}

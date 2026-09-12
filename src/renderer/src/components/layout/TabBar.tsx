@@ -9,8 +9,8 @@ export function TabBar(): JSX.Element {
   const hasContent = hasPresentation || hasNotebook
 
   return (
-    <div className="h-8 bg-gray-900 border-b border-gray-800 flex items-center px-20 overflow-x-auto"
-         style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
+    <div className="h-8 bg-gray-900 border-b border-gray-800 flex items-center overflow-x-auto"
+         style={{ WebkitAppRegion: 'drag', paddingLeft: 'var(--titlebar-inset)', paddingRight: 'var(--titlebar-inset)' } as React.CSSProperties}>
       {/* Home button — visible when content is open */}
       {hasContent && (
         <button
@@ -18,6 +18,7 @@ export function TabBar(): JSX.Element {
           className="h-full px-2.5 text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-colors flex items-center gap-1 border-r border-gray-800"
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
           title="Back to Home"
+          aria-label="Back to Home"
         >
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
@@ -66,6 +67,7 @@ export function TabBar(): JSX.Element {
         className="h-full px-2 text-gray-600 hover:text-gray-400 hover:bg-gray-800 transition-colors flex items-center"
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         title="New tab"
+        aria-label="New tab"
       >
         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -78,6 +80,7 @@ export function TabBar(): JSX.Element {
         className="h-full px-2 text-gray-600 hover:text-gray-400 hover:bg-gray-800 transition-colors flex items-center"
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         title="New window"
+        aria-label="New window"
       >
         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />

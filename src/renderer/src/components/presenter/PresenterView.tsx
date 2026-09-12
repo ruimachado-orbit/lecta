@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
-import { usePresentationStore } from '../../stores/presentation-store'
+import { usePresentationStore, syncPresenterState } from '../../stores/presentation-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useExecutionStore } from '../../stores/execution-store'
 import { useCodeExecution } from '../../hooks/useCodeExecution'
@@ -17,9 +18,20 @@ type ArtifactType = 'code' | 'video' | 'webapp' | 'prompt' | 'artifact'
 
 export function PresenterView(): JSX.Element {
   const { slides, currentSlideIndex, nextSlide, prevSlide, goToSlide, presentation } =
-    usePresentationStore()
-  const { setPresenting } = useUIStore()
-  const { isExecuting, output: executionOutput } = useExecutionStore()
+    usePresentationStore(
+      useShallow((s) => ({
+        slides: s.slides,
+        currentSlideIndex: s.currentSlideIndex,
+        nextSlide: s.nextSlide,
+        prevSlide: s.prevSlide,
+        goToSlide: s.goToSlide,
+        presentation: s.presentation
+      }))
+    )
+  const endPresentationAction = useUIStore((s) => s.endPresentation)
+  const { isExecuting, output: executionOutput } = useExecutionStore(
+    useShallow((s) => ({ isExecuting: s.isExecuting, output: s.output }))
+  )
   const { runCode, cancelCode } = useCodeExecution()
 
   // Force dark theme for presenter view
@@ -129,6 +141,18 @@ export function PresenterView(): JSX.Element {
     window.electronAPI.syncPresenterArtifact(activeArtifact)
   }, [activeArtifact])
 
+  // Handshake: a freshly opened audience window asks for the authoritative state; answer with
+  // the full navigation state plus the artifact currently on screen. No timers involved.
+  useEffect(() => {
+    const api = window.electronAPI as unknown as { onRequestPresenterState?: (cb: () => void) => void }
+    if (typeof api.onRequestPresenterState !== 'function') return
+    api.onRequestPresenterState(() => {
+      syncPresenterState()
+      window.electronAPI.syncPresenterArtifact(activeArtifact)
+    })
+    return () => { window.electronAPI.removeAllListeners('presenter:request-state') }
+  }, [activeArtifact])
+
   // Sync execution output to audience window
   useEffect(() => {
     if (typeof window.electronAPI.syncPresenterExecution === 'function') {
@@ -203,11 +227,10 @@ export function PresenterView(): JSX.Element {
       window.electronAPI.sendPresenterPath(presentation.rootPath)
     }
     await window.electronAPI.openAudienceWindow()
-    // Sync current state after the audience window loads
-    setTimeout(() => {
-      window.electronAPI.syncPresenterSlide(currentSlideIndex)
-      window.electronAPI.syncPresenterArtifact(activeArtifact)
-    }, 800)
+    // No timer: the audience window sends `presenter:audience-ready` once it has loaded the deck,
+    // and the handshake above replies with the full state.
+    syncPresenterState()
+    window.electronAPI.syncPresenterArtifact(activeArtifact)
     setAudienceOpen(true)
   }
 
@@ -216,18 +239,14 @@ export function PresenterView(): JSX.Element {
     setAudienceOpen(false)
   }
 
-  const endPresentation = () => {
-    setPresenting(false)
-    window.electronAPI.closeAudienceWindow()
-    const t = useUIStore.getState().theme
-    document.documentElement.setAttribute('data-theme', t)
-  }
+  // Same single exit path as the Escape shortcut: closes the audience window and restores the theme
+  const endPresentation = endPresentationAction
 
   return (
     <div className="h-screen w-screen flex flex-col" style={{ background: 'var(--slide-bg, #000)' }}>
       {/* Top bar */}
-      <div className="h-10 flex-shrink-0 bg-gray-900 border-b border-gray-800 flex items-center pl-20 pr-4 gap-3"
-           style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
+      <div className="h-10 flex-shrink-0 bg-gray-900 border-b border-gray-800 flex items-center pr-4 gap-3"
+           style={{ WebkitAppRegion: 'drag', paddingLeft: 'var(--titlebar-inset)' } as React.CSSProperties}>
         <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           <button onClick={prevSlide} disabled={currentSlideIndex === 0}
             className="p-1 rounded hover:bg-gray-800 disabled:opacity-30 transition-colors">
@@ -274,7 +293,7 @@ export function PresenterView(): JSX.Element {
             className={`px-2 py-1 text-[11px] rounded transition-colors flex items-center gap-1.5 ${
               audienceOpen ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
             }`}
-            title={audienceOpen ? 'Close audience window' : 'Open audience window on external display'}>
+            title={audienceOpen ? 'Close audience window' : 'Open audience window on external display'} aria-label={audienceOpen ? 'Close audience window' : 'Open audience window on external display'}>
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25v1.007a3 3 0 0 1-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0 1 15 18.257V17.25m6-12V15a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 15V5.25A2.25 2.25 0 0 1 5.25 3h13.5A2.25 2.25 0 0 1 21 5.25Z" />
             </svg>
@@ -312,7 +331,7 @@ export function PresenterView(): JSX.Element {
               <PanelGroup direction="horizontal" className="flex-1 min-w-0"
                 onLayout={(sizes) => { if (sizes[1] !== undefined) { setPanelSize(sizes[1]); if (activeArtifact) typeSizeMemory.current[activeArtifact] = sizes[1] } }}>
                 <Panel defaultSize={100 - panelSize} minSize={30}>
-                  <PresenterSlide markdown={slideMarkdown} rootPath={rootPath} layout={layout} theme={presentation?.theme || 'dark'} isMdx={currentSlide?.isMdx} />
+                  <PresenterSlide markdown={slideMarkdown} rootPath={rootPath} layout={layout} theme={presentation?.theme || 'dark'} isMdx={currentSlide?.isMdx} slideId={currentSlide?.config.id} />
                 </Panel>
                 <PanelResizeHandle className="w-1.5 bg-gray-800 hover:bg-indigo-500 transition-colors" />
                 <Panel defaultSize={panelSize} minSize={15} id="artifact-panel">
@@ -330,7 +349,7 @@ export function PresenterView(): JSX.Element {
                 </Panel>
               </PanelGroup>
             ) : (
-              <PresenterSlide markdown={slideMarkdown} rootPath={rootPath} layout={layout} theme={presentation?.theme || 'dark'} isMdx={currentSlide?.isMdx} />
+              <PresenterSlide markdown={slideMarkdown} rootPath={rootPath} layout={layout} theme={presentation?.theme || 'dark'} isMdx={currentSlide?.isMdx} slideId={currentSlide?.config.id} />
             )}
 
             {/* Artifact sidebar */}
@@ -478,6 +497,7 @@ export function PresenterView(): JSX.Element {
               onClick={() => setTimerRunning(!timerRunning)}
               className="text-white font-mono text-4xl font-bold tracking-wider hover:text-gray-300 transition-colors cursor-pointer"
               title={timerRunning ? 'Pause timer' : 'Resume timer'}
+              aria-label={timerRunning ? 'Pause timer' : 'Resume timer'}
             >
               {formatTime(timer)}
             </button>
@@ -513,9 +533,11 @@ export function PresenterView(): JSX.Element {
 }
 
 /** 16:9 slide canvas — centered in container, auto-scaled to match editor rendering */
-function PresenterSlide({ markdown, rootPath, layout, theme, isMdx }: {
-  markdown: string; rootPath?: string; layout?: string; theme?: string; isMdx?: boolean
+function PresenterSlide({ markdown, rootPath, layout, theme, isMdx, slideId }: {
+  markdown: string; rootPath?: string; layout?: string; theme?: string; isMdx?: boolean; slideId?: string
 }): JSX.Element {
+  // Subscribed, not read once: the reveal step has to re-render the slide
+  const clickStep = usePresentationStore((s) => s.clickStep)
   const containerRef = useRef<HTMLDivElement>(null)
   const [canvasScale, setCanvasScale] = useState(1)
 
@@ -563,9 +585,10 @@ function PresenterSlide({ markdown, rootPath, layout, theme, isMdx }: {
             <ContentRenderer
               markdown={markdown}
               rootPath={rootPath}
-              clickStep={usePresentationStore.getState().clickStep}
+              clickStep={clickStep}
               onClickSteps={(total) => usePresentationStore.setState({ totalClickSteps: total })}
               isMdx={isMdx}
+              slideId={slideId}
             />
           </div>
         </div>
@@ -612,7 +635,7 @@ function MiniSlide({ markdown, rootPath, layout, theme, isMdx }: {
         <div className="absolute inset-0" style={{ background: 'var(--slide-bg)' }} />
         <div className={`absolute inset-0 ${layout === 'blank' || isMdx ? '' : 'slide-pad'} overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
           <div style={{ width: layout === 'blank' || isMdx ? SLIDE_W : SLIDE_W - 160, height: layout === 'blank' || isMdx ? SLIDE_H : undefined }}>
-            <ContentRenderer markdown={markdown} rootPath={rootPath} isMdx={isMdx} />
+            <ContentRenderer markdown={markdown} rootPath={rootPath} isMdx={isMdx} preview={true} />
           </div>
         </div>
       </div>
@@ -699,7 +722,7 @@ function SidebarBtn({ active, onClick, title, children }: {
       className={`w-7 h-7 rounded flex items-center justify-center text-[9px] transition-colors ${
         active ? 'bg-white text-black' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
       }`}
-    >{children}</button>
+      aria-label={title}>{children}</button>
   )
 }
 
@@ -749,6 +772,7 @@ function RemoteControlButton(): JSX.Element {
           remoteUrl ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
         }`}
         title={remoteUrl ? `Remote: ${remoteUrl}` : 'Start remote control'}
+        aria-label={remoteUrl ? `Remote: ${remoteUrl}` : 'Start remote control'}
       >
         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 0 0 6 3.75v16.5a2.25 2.25 0 0 0 2.25 2.25h7.5A2.25 2.25 0 0 0 18 20.25V3.75a2.25 2.25 0 0 0-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3" />
@@ -890,13 +914,13 @@ function PresenterLiveNotes(): JSX.Element {
       <div className="flex items-center gap-1 px-2 py-1 flex-shrink-0">
         <button onClick={() => addLine('- [ ] ')}
           className="px-1.5 py-0.5 text-[9px] text-gray-600 hover:text-gray-300 hover:bg-gray-800 rounded transition-colors"
-          title="Add todo">☑ Todo</button>
+          title="Add todo" aria-label="Add todo">☑ Todo</button>
         <button onClick={() => addLine('- ')}
           className="px-1.5 py-0.5 text-[9px] text-gray-600 hover:text-gray-300 hover:bg-gray-800 rounded transition-colors"
-          title="Add bullet">• Bullet</button>
+          title="Add bullet" aria-label="Add bullet">• Bullet</button>
         <button onClick={() => addLine('')}
           className="px-1.5 py-0.5 text-[9px] text-gray-600 hover:text-gray-300 hover:bg-gray-800 rounded transition-colors"
-          title="Add text">+ Text</button>
+          title="Add text" aria-label="Add text">+ Text</button>
       </div>
       {/* Lines */}
       <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-2">

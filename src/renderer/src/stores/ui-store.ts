@@ -53,11 +53,17 @@ interface UIState {
   pendingGeneratePrompt: string | null
   aiAlert: string | null
   pendingArtifactOpen: string | null
+  /** Set when a component asks to open the Settings screen; HomeScreen consumes it. */
+  pendingOpenSettings: boolean
 
   // Actions
   setTheme: (theme: 'dark' | 'light') => void
   togglePresenting: () => void
   setPresenting: (presenting: boolean) => void
+  /** Single exit path from presenting: closes the audience window and restores the UI theme. */
+  endPresentation: () => void
+  /** Navigate to the Settings screen (goes Home first if a deck is open). */
+  openSettings: () => void
   toggleNotes: () => void
   toggleNavigator: () => void
   toggleArticlePanel: () => void
@@ -127,16 +133,42 @@ export const useUIStore = create<UIState>((set, get) => ({
   pendingGeneratePrompt: null,
   aiAlert: null,
   pendingArtifactOpen: null,
+  pendingOpenSettings: false,
 
   setTheme: (theme) => {
     document.documentElement.setAttribute('data-theme', theme)
     set({ theme })
   },
   togglePresenting: () => {
-    set((s) => ({ isPresenting: !s.isPresenting }))
+    if (get().isPresenting) {
+      get().endPresentation()
+    } else {
+      set({ isPresenting: true })
+    }
   },
   setPresenting: (presenting) => {
-    set({ isPresenting: presenting })
+    if (!presenting) {
+      get().endPresentation()
+    } else {
+      set({ isPresenting: true })
+    }
+  },
+  endPresentation: () => {
+    if (!get().isPresenting) return
+    set({ isPresenting: false })
+    try {
+      void window.electronAPI.closeAudienceWindow()
+    } catch {
+      // audience window API unavailable — nothing to close
+    }
+    document.documentElement.setAttribute('data-theme', get().theme)
+  },
+  openSettings: () => {
+    set({ pendingOpenSettings: true, aiAlert: null })
+    // Lazy import to avoid a circular dependency with tabs-store
+    import('./tabs-store').then(({ useTabsStore }) => {
+      useTabsStore.getState().goHome()
+    })
   },
   toggleNotes: () => set((s) => ({ showNotes: !s.showNotes })),
   toggleNavigator: () => set((s) => ({ showNavigator: !s.showNavigator })),

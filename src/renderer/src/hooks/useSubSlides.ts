@@ -1,5 +1,25 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { usePresentationStore } from '../stores/presentation-store'
+import DOMPurify from 'dompurify'
+import { usePresentationStore, syncPresenterState, isAudienceWindow } from '../stores/presentation-store'
+
+/**
+ * Strict sanitizer for the hidden measurement container. Slide markdown is untrusted deck
+ * content; the measurer only needs block structure and text to estimate height, so anything
+ * that can load a resource or run script is dropped (event handlers are stripped by default).
+ */
+const MEASURE_SANITIZE_CONFIG: Parameters<typeof DOMPurify.sanitize>[1] = {
+  USE_PROFILES: { html: true },
+  FORBID_TAGS: ['img', 'svg', 'iframe', 'object', 'embed', 'video', 'audio', 'script', 'style', 'link', 'math', 'form', 'input', 'button', 'base', 'meta'],
+  FORBID_ATTR: ['src', 'href', 'xlink:href', 'srcset', 'action', 'formaction', 'background', 'poster'],
+  ALLOW_DATA_ATTR: false,
+  ALLOW_UNKNOWN_PROTOCOLS: false,
+  RETURN_DOM: false,
+  RETURN_DOM_FRAGMENT: false
+}
+
+function sanitizeForMeasurement(html: string): string {
+  return DOMPurify.sanitize(html, MEASURE_SANITIZE_CONFIG) as string
+}
 
 /**
  * Split markdown into sub-slides that each fit within one 16:9 slide canvas.
@@ -118,12 +138,20 @@ export function useSubSlides(
   const currentSubSlide = storeCurrentSubSlide < 0 ? 0 : storeCurrentSubSlide
 
   const setCurrentSubSlide = useCallback((n: number) => {
-    usePresentationStore.setState({ currentSubSlide: n })
+    usePresentationStore.setState({ currentSubSlide: n, clickStep: 0 })
+    // Keep the audience on the same sub-slide
+    syncPresenterState()
   }, [])
 
-  // Reset on slide change — but preserve -1 (go-to-last flag from prevSlide)
+  // Reset on slide change — but preserve -1 (go-to-last flag from prevSlide).
+  // The audience window is a mirror: its sub-slide always comes from the presenter's broadcast,
+  // so resetting here would immediately undo a synced {slideIndex, subSlide} pair.
   const prevSlideIndex = useRef(slideIndex)
   useEffect(() => {
+    if (isAudienceWindow()) {
+      prevSlideIndex.current = slideIndex
+      return
+    }
     if (prevSlideIndex.current !== slideIndex) {
       const current = usePresentationStore.getState().currentSubSlide
       // Only reset to 0 if not set to -1 (which means "go to last")
@@ -179,8 +207,10 @@ export function useSubSlides(
       usePresentationStore.setState({ totalSubSlides: finalPages.length })
       if (storeState.currentSubSlide === -1) {
         usePresentationStore.setState({ currentSubSlide: finalPages.length - 1 })
+        syncPresenterState()
       } else if (storeState.currentSubSlide >= finalPages.length) {
         usePresentationStore.setState({ currentSubSlide: Math.max(0, finalPages.length - 1) })
+        syncPresenterState()
       }
       return
     }
@@ -219,7 +249,8 @@ export function useSubSlides(
 
     for (const block of blocks) {
       const testMd = [...currentBlocks, block].map((b) => b.text).join('\n\n')
-      container.innerHTML = toMeasurementHTML(testMd)
+      // Sanitized: raw deck markdown must never reach innerHTML with bridge privileges
+      container.innerHTML = sanitizeForMeasurement(toMeasurementHTML(testMd))
       const height = container.scrollHeight
 
       if (height > CONTENT_HEIGHT && currentBlocks.length > 0) {
@@ -265,8 +296,10 @@ export function useSubSlides(
     usePresentationStore.setState({ totalSubSlides: finalPages.length })
     if (storeState.currentSubSlide === -1) {
       usePresentationStore.setState({ currentSubSlide: finalPages.length - 1 })
+      syncPresenterState()
     } else if (storeState.currentSubSlide >= finalPages.length) {
       usePresentationStore.setState({ currentSubSlide: Math.max(0, finalPages.length - 1) })
+      syncPresenterState()
     }
   }, [markdown, isMdx])
 

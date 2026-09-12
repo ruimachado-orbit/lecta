@@ -1,12 +1,42 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore } from '../../stores/ui-store'
 
 export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCount?: number; currentSubSlide?: number }): JSX.Element {
   const { slides, currentSlideIndex, goToSlide, addSlide, deleteSlide, reorderSlide, renameSlide, setSlideTransition, setSlideLayout, toggleSkipSlide, updateMarkdownContent, saveSlideContent, presentation } =
-    usePresentationStore()
+    usePresentationStore(
+      useShallow((s) => ({
+        slides: s.slides,
+        currentSlideIndex: s.currentSlideIndex,
+        goToSlide: s.goToSlide,
+        addSlide: s.addSlide,
+        deleteSlide: s.deleteSlide,
+        reorderSlide: s.reorderSlide,
+        renameSlide: s.renameSlide,
+        setSlideTransition: s.setSlideTransition,
+        setSlideLayout: s.setSlideLayout,
+        toggleSkipSlide: s.toggleSkipSlide,
+        updateMarkdownContent: s.updateMarkdownContent,
+        saveSlideContent: s.saveSlideContent,
+        presentation: s.presentation
+      }))
+    )
   const { slideGroups, addSlideGroup, removeSlideGroup, toggleGroupCollapsed, addSlideToGroup, removeSlideFromGroup, setGroupColor } =
-    useUIStore()
+    useUIStore(
+      useShallow((s) => ({
+        slideGroups: s.slideGroups,
+        addSlideGroup: s.addSlideGroup,
+        removeSlideGroup: s.removeSlideGroup,
+        toggleGroupCollapsed: s.toggleGroupCollapsed,
+        addSlideToGroup: s.addSlideToGroup,
+        removeSlideFromGroup: s.removeSlideFromGroup,
+        setGroupColor: s.setGroupColor
+      }))
+    )
+
+  // Deleting a slide removes files from disk, so it always goes through a confirmation step
+  const [pendingDelete, setPendingDelete] = useState<number[] | null>(null)
 
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [groupContextMenu, setGroupContextMenu] = useState<{ x: number; y: number; groupId: string } | null>(null)
@@ -80,11 +110,21 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
 
   const selectedSlideIds = Array.from(selectedIndices).map((i) => slides[i]?.config.id).filter(Boolean)
 
-  const handleDeleteSelected = async () => {
+  const handleDeleteSelected = () => {
     if (selectedIndices.size === 0 || selectedIndices.size >= slides.length) return
-    const sorted = Array.from(selectedIndices).sort((a, b) => b - a)
-    for (const idx of sorted) { if (slides.length > 1) await deleteSlide(idx) }
-    setSelectedIndices(new Set()); setContextMenu(null)
+    setPendingDelete(Array.from(selectedIndices).sort((a, b) => b - a))
+    setContextMenu(null)
+  }
+
+  /** Run the confirmed deletion (indices are pre-sorted descending so earlier ones stay valid) */
+  const confirmDelete = async () => {
+    const indices = pendingDelete
+    setPendingDelete(null)
+    if (!indices) return
+    for (const idx of indices) {
+      if (usePresentationStore.getState().slides.length > 1) await deleteSlide(idx)
+    }
+    setSelectedIndices(new Set())
   }
 
   const handleGroupSelected = (groupId: string) => {
@@ -225,6 +265,7 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
                     color: group.color || '#9ca3af'
                   }}
                   title={`${group.name} — ${group.slideIds.length} slides (click to expand)`}
+                  aria-label={`${group.name} — ${group.slideIds.length} slides (click to expand)`}
                 >
                   {group.color && <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: group.color }} />}
                   <span>▸</span>
@@ -294,7 +335,9 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
                 {slide.config.artifacts.length > 0 && <ArtifactDot title={`${slide.config.artifacts.length} file(s)`} icon="file" />}
               </div>
               {slides.length > 1 && !isSelected && (
-                <button onClick={(e) => { e.stopPropagation(); deleteSlide(index) }}
+                <button onClick={(e) => { e.stopPropagation(); setPendingDelete([index]) }}
+                  title={`Delete slide ${index + 1}`}
+                  aria-label={`Delete slide ${index + 1}`}
                   className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 hover:bg-red-400 text-white rounded-full hidden group-hover:flex items-center justify-center z-10">
                   <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
                 </button>
@@ -439,6 +482,7 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
                           current === t.value ? 'bg-white text-black' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
                         }`}
                         title={t.value === 'none' ? 'No transition' : `From ${t.value}`}
+                        aria-label={t.value === 'none' ? 'No transition' : `From ${t.value}`}
                       >
                         {t.label}
                       </button>
@@ -482,7 +526,7 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
                           // Persist to disk in background
                           window.electronAPI.setSlideLayout(
                             state.presentation.rootPath, idx, l.value
-                          ).catch((err) => console.error('setSlideLayout save failed:', err))
+                          ).catch((err: unknown) => console.error('setSlideLayout save failed:', err))
                         }}
                         className={`group/layout rounded-md p-1.5 transition-colors ${
                           current === l.value
@@ -490,6 +534,7 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
                             : 'hover:bg-gray-800'
                         }`}
                         title={l.label}
+                        aria-label={l.label}
                       >
                         <LayoutThumbnail layout={l.value} active={current === l.value} />
                         <span className={`block text-[9px] mt-1 text-center truncate ${
@@ -595,6 +640,25 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
       )}
 
       {/* Group context menu — color picker */}
+      {/* Delete confirmation */}
+      {pendingDelete && pendingDelete.length > 0 && (
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-2 rounded-xl bg-gray-900 border border-red-500/40 shadow-2xl shadow-black/50">
+          <span className="text-xs text-gray-200">
+            {pendingDelete.length === 1
+              ? `Delete "${slides[pendingDelete[0]]?.config.id ?? `slide ${pendingDelete[0] + 1}`}"? The slide file is removed from disk.`
+              : `Delete ${pendingDelete.length} slides? Their files are removed from disk.`}
+          </span>
+          <button onClick={() => setPendingDelete(null)}
+            className="px-2.5 py-1 text-[11px] rounded bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors">
+            Cancel
+          </button>
+          <button onClick={confirmDelete}
+            className="px-2.5 py-1 text-[11px] rounded bg-red-500 hover:bg-red-400 text-white font-medium transition-colors">
+            Delete
+          </button>
+        </div>
+      )}
+
       {groupContextMenu && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setGroupContextMenu(null)} />
@@ -609,13 +673,13 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
                   <button key={c.value} onClick={() => { setGroupColor(groupContextMenu.groupId, c.value); setGroupContextMenu(null) }}
                     className={`w-6 h-6 rounded-full border-2 transition-all ${isActive ? 'ring-2 ring-white ring-offset-1 ring-offset-gray-900' : 'hover:scale-110'}`}
                     style={{ backgroundColor: c.value, borderColor: isActive ? c.value : 'transparent' }}
-                    title={c.label} />
+                    title={c.label} aria-label={c.label} />
                 )
               })}
               {/* Reset / no color */}
               <button onClick={() => { setGroupColor(groupContextMenu.groupId, ''); setGroupContextMenu(null) }}
                 className="w-6 h-6 rounded-full border-2 border-gray-600 hover:border-gray-400 transition-all flex items-center justify-center text-gray-500 text-[8px]"
-                title="No color">✕</button>
+                title="No color" aria-label="No color">✕</button>
             </div>
           </div>
         </>

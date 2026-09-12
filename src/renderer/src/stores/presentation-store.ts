@@ -20,6 +20,10 @@ interface PresentationState {
   clickStep: number
   totalClickSteps: number
 
+  // Per-deck trust flag for executable MDX slides (persisted per rootPath in localStorage)
+  mdxTrusted: boolean
+  setMdxTrusted: (trusted: boolean) => void
+
   // Derived getters
   currentSlide: () => LoadedSlide | null
   totalSlides: () => number
@@ -34,8 +38,10 @@ interface PresentationState {
   updateMarkdownContent: (slideIndex: number, content: string) => void
   saveSlideContent: (slideIndex: number) => Promise<void>
   updateNotesContent: (slideIndex: number, content: string) => void
-  handleFileChanged: (filePath: string, content: string) => void
+  handleFileChanged: (filePath: string, content: string, relativePath?: string) => void
   reset: () => void
+  /** Apply AI-generated markdown to a slide. Refuses (with a toast) for executable .mdx slides. */
+  applyAIContent: (slideIndex: number, content: string, save?: boolean) => boolean
 
   // Editing actions
   addSlide: (slideId: string, format?: string) => Promise<void>
@@ -48,7 +54,7 @@ interface PresentationState {
   toggleSkipSlide: (slideIndex: number) => void
   setSlideTransition: (transition: string) => Promise<void>
   setSlideLayout: (layout: string) => Promise<void>
-  removeAttachment: (type: 'code' | 'video' | 'webapp' | 'prompt' | 'artifact', artifactIndex?: number) => Promise<void>
+  removeAttachment: (type: AttachmentType, artifactIndex?: number) => Promise<void>
   renameSlide: (slideIndex: number, newId: string) => Promise<void>
   deleteSlide: (slideIndex: number) => Promise<void>
   reorderSlide: (fromIndex: number, toIndex: number) => Promise<void>
@@ -60,12 +66,115 @@ interface PresentationState {
   redo: () => void
 }
 
-// Undo/redo history — stored outside zustand to avoid triggering re-renders
+export type AttachmentType = 'code' | 'video' | 'webapp' | 'prompt' | 'artifact'
+
+// Undo/redo history — stored outside zustand to avoid triggering re-renders.
+// Entries are keyed by slide id (not index) so reorder/delete cannot redirect an undo to another slide.
 const MAX_HISTORY = 100
-const undoStack: { slideIndex: number; content: string }[] = []
-let redoStack: { slideIndex: number; content: string }[] = []
+interface HistoryEntry { slideId: string; content: string }
+let undoStack: HistoryEntry[] = []
+let redoStack: HistoryEntry[] = []
 let lastSnapshotTime = 0
 const SNAPSHOT_DEBOUNCE = 800 // ms — group rapid edits into one undo entry
+
+/** Drop all undo/redo history (called on deck load, tab restore and reset). */
+export function clearUndoHistory(): void {
+  undoStack = []
+  redoStack = []
+  lastSnapshotTime = 0
+}
+
+/** Pop entries until one whose slide still exists is found; returns it with its current index. */
+function popLiveEntry(stack: HistoryEntry[], slides: LoadedSlide[]): { entry: HistoryEntry; index: number } | null {
+  while (stack.length > 0) {
+    const entry = stack.pop()!
+    const index = slides.findIndex((s) => s.config.id === entry.slideId)
+    if (index >= 0) return { entry, index }
+  }
+  return null
+}
+
+// ---- MDX trust persistence (per deck rootPath) ----
+const MDX_TRUST_KEY = 'lecta:mdx-trusted-decks'
+
+function readTrustedDecks(): string[] {
+  try {
+    const raw = localStorage.getItem(MDX_TRUST_KEY)
+    const parsed = raw ? JSON.parse(raw) : []
+    return Array.isArray(parsed) ? parsed.filter((p) => typeof p === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+function isDeckTrusted(rootPath: string | undefined): boolean {
+  if (!rootPath) return false
+  return readTrustedDecks().includes(rootPath)
+}
+
+function persistDeckTrust(rootPath: string, trusted: boolean): void {
+  try {
+    const set = new Set(readTrustedDecks())
+    if (trusted) set.add(rootPath)
+    else set.delete(rootPath)
+    localStorage.setItem(MDX_TRUST_KEY, JSON.stringify([...set]))
+  } catch {
+    // localStorage unavailable — trust is session-only
+  }
+}
+
+// ---- Path helpers for file-watcher events ----
+function normalizePath(p: string): string {
+  return p.replace(/\\/g, '/').replace(/\/+/g, '/').replace(/\/$/, '')
+}
+
+// ---- Presenter sync ----
+export interface PresenterSyncState {
+  slideIndex: number
+  subSlide: number
+  clickStep: number
+  mdxTrusted: boolean
+}
+
+/** True in the audience window, which mirrors state and must never drive it. */
+export const isAudienceWindow = (): boolean =>
+  typeof window !== 'undefined' && window.location.hash === '#/audience'
+
+/** Send the full navigation state to the presenter/audience windows (never from the audience itself). */
+export function syncPresenterState(): void {
+  if (isAudienceWindow()) return
+  const { currentSlideIndex, currentSubSlide, clickStep, mdxTrusted } = usePresentationStore.getState()
+  const state: PresenterSyncState = {
+    slideIndex: currentSlideIndex,
+    subSlide: Math.max(0, currentSubSlide),
+    clickStep,
+    mdxTrusted
+  }
+  const api = window.electronAPI as unknown as { syncPresenterState?: (s: PresenterSyncState) => void }
+  if (typeof api.syncPresenterState === 'function') {
+    api.syncPresenterState(state)
+  } else {
+    // Preload without the full-state channel — fall back to slide-index sync
+    window.electronAPI.syncPresenterSlide(currentSlideIndex)
+  }
+}
+
+/**
+ * Apply a presenter state broadcast in the audience window. Never echoes back:
+ * `syncPresenterState` is a no-op there.
+ */
+export function applyPresenterState(state: Partial<PresenterSyncState>): void {
+  const { slides, presentation } = usePresentationStore.getState()
+  const patch: Record<string, unknown> = {}
+  if (typeof state.slideIndex === 'number' && state.slideIndex >= 0 && state.slideIndex < slides.length) {
+    patch.currentSlideIndex = state.slideIndex
+    if (presentation) patch.presentation = { ...presentation, lastViewedIndex: state.slideIndex }
+  }
+  if (typeof state.subSlide === 'number') patch.currentSubSlide = Math.max(0, state.subSlide)
+  if (typeof state.clickStep === 'number') patch.clickStep = state.clickStep
+  if (typeof state.mdxTrusted === 'boolean') patch.mdxTrusted = state.mdxTrusted
+  usePresentationStore.setState(patch)
+}
 
 function applyLoaded(loaded: LoadedPresentation, goToIndex?: number) {
   return {
@@ -90,6 +199,14 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
   totalSubSlides: 1,
   clickStep: 0,
   totalClickSteps: 0,
+  mdxTrusted: false,
+
+  setMdxTrusted: (trusted: boolean) => {
+    const rootPath = get().presentation?.rootPath
+    if (rootPath) persistDeckTrust(rootPath, trusted)
+    set({ mdxTrusted: trusted })
+    syncPresenterState()
+  },
 
   currentSlide: () => {
     const { slides, currentSlideIndex } = get()
@@ -127,18 +244,29 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
       const lastIdx = pres.config.lastViewedIndex
       const restoreIdx = (lastIdx != null && lastIdx > 0 && lastIdx < pres.slides.length) ? lastIdx : 0
 
-      // Pre-compile MDX for the current slide (and neighbors) before rendering to avoid blink
-      const { prefetchMdx } = await import('../components/slides/MdxRenderer')
-      const slidesToPrefetch = [restoreIdx - 1, restoreIdx, restoreIdx + 1]
-      for (const idx of slidesToPrefetch) {
-        const s = pres.slides[idx]
-        if (s?.isMdx) prefetchMdx(s.markdownContent)
+      // A freshly loaded deck has no edit history to undo into
+      clearUndoHistory()
+
+      const mdxTrusted = isDeckTrusted(pres.config.rootPath)
+
+      // Pre-compile MDX for the current slide (and neighbors) — only for decks the user has trusted
+      if (mdxTrusted) {
+        const { prefetchMdx } = await import('../components/slides/MdxRenderer')
+        const slidesToPrefetch = [restoreIdx - 1, restoreIdx, restoreIdx + 1]
+        for (const idx of slidesToPrefetch) {
+          const s = pres.slides[idx]
+          if (s?.isMdx) prefetchMdx(s.markdownContent)
+        }
       }
 
-      set(applyLoaded(pres, restoreIdx))
+      set({ ...applyLoaded(pres, restoreIdx), mdxTrusted, hasUnsavedChanges: false })
+
+      // Open the code panel by default when the restored slide carries code
+      if (pres.slides[restoreIdx]?.config.code) {
+        useUIStore.setState({ showRightPane: true })
+      }
 
       // Re-check AI key availability (deck might have its own .env)
-      const { useUIStore } = await import('./ui-store')
       useUIStore.getState().checkAiEnabled()
 
       // Load groups from presentation config into UI store
@@ -182,8 +310,8 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
   goToSlide: (index: number) => {
     const { slides, presentation } = get()
     if (index >= 0 && index < slides.length) {
-      set({ currentSlideIndex: index, currentSubSlide: 0, clickStep: 0 })
-      window.electronAPI.syncPresenterSlide(index)
+      set({ currentSlideIndex: index, currentSubSlide: 0, clickStep: 0, totalClickSteps: 0 })
+      syncPresenterState()
       // Update lastViewedIndex in config (persisted on next save)
       if (presentation) {
         set({ presentation: { ...presentation, lastViewedIndex: index } })
@@ -196,18 +324,20 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
     // 1. Advance click steps first (incremental reveal)
     if (totalClickSteps > 0 && clickStep < totalClickSteps) {
       set({ clickStep: clickStep + 1 })
+      syncPresenterState()
       return
     }
     // 2. Then advance sub-slides
     if (totalSubSlides > 1 && currentSubSlide < totalSubSlides - 1) {
-      set({ currentSubSlide: currentSubSlide + 1, clickStep: 0 })
+      set({ currentSubSlide: currentSubSlide + 1, clickStep: 0, totalClickSteps: 0 })
+      syncPresenterState()
       return
     }
     // 3. Then go to next slide
     if (currentSlideIndex < slides.length - 1) {
       const newIndex = currentSlideIndex + 1
-      set({ currentSlideIndex: newIndex, currentSubSlide: 0, clickStep: 0 })
-      window.electronAPI.syncPresenterSlide(newIndex)
+      set({ currentSlideIndex: newIndex, currentSubSlide: 0, clickStep: 0, totalClickSteps: 0 })
+      syncPresenterState()
       if (presentation) set({ presentation: { ...presentation, lastViewedIndex: newIndex } })
     }
   },
@@ -217,22 +347,23 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
     // 1. Go back click steps first
     if (clickStep > 0) {
       set({ clickStep: clickStep - 1 })
+      syncPresenterState()
       return
     }
     // 2. Then go back sub-slides
     if (currentSubSlide > 0) {
-      set({ currentSubSlide: currentSubSlide - 1 })
+      set({ currentSubSlide: currentSubSlide - 1, clickStep: 0, totalClickSteps: 0 })
+      syncPresenterState()
       return
     }
     // 3. Then go to previous slide
     if (currentSlideIndex > 0) {
       const newIndex = currentSlideIndex - 1
-      set({ currentSlideIndex: newIndex, currentSubSlide: 0, clickStep: 0 })
-      window.electronAPI.syncPresenterSlide(newIndex)
+      // -1 means "go to last sub-slide" — resolved by useSubSlides once the new slide is measured,
+      // which then re-syncs the resolved state to the audience.
+      set({ currentSlideIndex: newIndex, currentSubSlide: -1, clickStep: 0, totalClickSteps: 0 })
+      syncPresenterState()
       if (presentation) set({ presentation: { ...presentation, lastViewedIndex: newIndex } })
-      // After the slide loads and sub-slides are computed, jump to last sub-slide
-      // This is handled by setting a flag — the useSubSlides hook will pick it up
-      set({ currentSubSlide: -1 }) // -1 means "go to last"
     }
   },
 
@@ -247,13 +378,15 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
   },
 
   updateMarkdownContent: (slideIndex: number, content: string) => {
-    const prev = get().slides[slideIndex]?.markdownContent
-    if (prev !== undefined && prev !== content) {
+    const target = get().slides[slideIndex]
+    const prev = target?.markdownContent
+    if (target && prev !== undefined && prev !== content) {
+      const slideId = target.config.id
       const now = Date.now()
       const lastEntry = undoStack[undoStack.length - 1]
       // Only push a new snapshot if enough time passed or slide changed
-      if (now - lastSnapshotTime > SNAPSHOT_DEBOUNCE || !lastEntry || lastEntry.slideIndex !== slideIndex) {
-        undoStack.push({ slideIndex, content: prev })
+      if (now - lastSnapshotTime > SNAPSHOT_DEBOUNCE || !lastEntry || lastEntry.slideId !== slideId) {
+        undoStack.push({ slideId, content: prev })
         if (undoStack.length > MAX_HISTORY) undoStack.shift()
       }
       lastSnapshotTime = now
@@ -326,23 +459,51 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
     })
   },
 
-  handleFileChanged: (filePath: string, content: string) => {
-    set((state) => {
-      const presentation = state.presentation
-      if (!presentation) return state
+  handleFileChanged: (filePath: string, content: string, relativePath?: string) => {
+    const state = get()
+    const presentation = state.presentation
+    if (!presentation) return
 
-      const slides = state.slides.map((slide) => {
-        if (slide.config.code) {
-          const fullCodePath = `${presentation.rootPath}/${slide.config.code.file}`
-          if (fullCodePath === filePath) {
-            return { ...slide, codeContent: content }
-          }
-        }
-        return slide
-      })
+    // Never clobber edits the user has not saved yet — the watcher will fire again after our own save.
+    if (state.hasUnsavedChanges) return
 
-      return { slides }
+    const normFull = normalizePath(filePath)
+    const normRoot = normalizePath(presentation.rootPath)
+    const rel = relativePath
+      ? normalizePath(relativePath)
+      : normFull.startsWith(normRoot + '/') ? normFull.slice(normRoot.length + 1) : null
+    if (!rel) return
+
+    let changed = false
+    const slides = state.slides.map((slide) => {
+      if (slide.config.code && normalizePath(slide.config.code.file) === rel) {
+        if (slide.codeContent === content) return slide // echo of our own save
+        changed = true
+        return { ...slide, codeContent: content }
+      }
+      if (normalizePath(slide.config.content) === rel) {
+        if (slide.markdownContent === content) return slide
+        changed = true
+        return { ...slide, markdownContent: content }
+      }
+      return slide
     })
+
+    if (changed) set({ slides })
+  },
+
+  applyAIContent: (slideIndex: number, content: string, save = true) => {
+    const slide = get().slides[slideIndex]
+    if (!slide) return false
+    if (slide.isMdx) {
+      useUIStore.getState().setAiAlert(
+        'AI output cannot be written into an executable .mdx slide. Convert the slide to .md first or edit it manually.'
+      )
+      return false
+    }
+    get().updateMarkdownContent(slideIndex, content)
+    if (save) void get().saveSlideContent(slideIndex)
+    return true
   },
 
   addSlide: async (slideId: string, format?: string) => {
@@ -504,7 +665,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
     }
   },
 
-  removeAttachment: async (type: 'code' | 'video' | 'webapp' | 'artifact', artifactIndex?: number) => {
+  removeAttachment: async (type: AttachmentType, artifactIndex?: number) => {
     const { presentation, currentSlideIndex } = get()
     if (!presentation) return
     try {
@@ -591,46 +752,49 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
   },
 
   undo: () => {
-    const entry = undoStack.pop()
-    if (!entry) return
-    const current = get().slides[entry.slideIndex]?.markdownContent
+    const live = popLiveEntry(undoStack, get().slides)
+    if (!live) return
+    const { entry, index } = live
+    const current = get().slides[index]?.markdownContent
     if (current !== undefined) {
-      redoStack.push({ slideIndex: entry.slideIndex, content: current })
+      redoStack.push({ slideId: entry.slideId, content: current })
     }
     set((state) => {
       const slides = [...state.slides]
-      if (slides[entry.slideIndex]) {
-        slides[entry.slideIndex] = { ...slides[entry.slideIndex], markdownContent: entry.content }
+      if (slides[index]) {
+        slides[index] = { ...slides[index], markdownContent: entry.content }
       }
       return { slides, hasUnsavedChanges: true }
     })
   },
 
   redo: () => {
-    const entry = redoStack.pop()
-    if (!entry) return
-    const current = get().slides[entry.slideIndex]?.markdownContent
+    const live = popLiveEntry(redoStack, get().slides)
+    if (!live) return
+    const { entry, index } = live
+    const current = get().slides[index]?.markdownContent
     if (current !== undefined) {
-      undoStack.push({ slideIndex: entry.slideIndex, content: current })
+      undoStack.push({ slideId: entry.slideId, content: current })
     }
     set((state) => {
       const slides = [...state.slides]
-      if (slides[entry.slideIndex]) {
-        slides[entry.slideIndex] = { ...slides[entry.slideIndex], markdownContent: entry.content }
+      if (slides[index]) {
+        slides[index] = { ...slides[index], markdownContent: entry.content }
       }
       return { slides, hasUnsavedChanges: true }
     })
   },
 
   reset: () => {
-    undoStack.length = 0
-    redoStack = []
+    clearUndoHistory()
     set({
       presentation: null,
       slides: [],
       currentSlideIndex: 0,
       isLoading: false,
-      error: null
+      error: null,
+      hasUnsavedChanges: false,
+      mdxTrusted: false
     })
   }
 }))

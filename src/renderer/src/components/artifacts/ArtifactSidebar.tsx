@@ -45,6 +45,7 @@ export function ArtifactSidebarHeader({ onClose }: ArtifactSidebarHeaderProps): 
             onClick={() => setShowAddMenu(!showAddMenu)}
             className={`p-1 rounded transition-colors ${showAddMenu ? 'bg-white text-black' : 'hover:bg-gray-800 text-gray-400'}`}
             title="Add artifact"
+            aria-label="Add artifact"
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -108,7 +109,7 @@ export function ArtifactSidebarHeader({ onClose }: ArtifactSidebarHeaderProps): 
         {/* Close button */}
         <button onClick={onClose}
           className="p-1 hover:bg-gray-800 text-gray-500 hover:text-gray-300 rounded transition-colors"
-          title="Close artifacts panel">
+          title="Close artifacts panel" aria-label="Close artifacts panel">
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
           </svg>

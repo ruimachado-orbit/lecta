@@ -32,6 +32,7 @@ import { useUIStore } from '../../stores/ui-store'
 import { useImageStore } from '../../stores/image-store'
 import { AIImagePanel } from './AIImagePanel'
 import { ImageLibrary } from './ImageLibrary'
+import { drainPinComments } from './slide-utils'
 
 const SHAPES = [
   '■', '□', '▪', '▫', '●', '○', '◆', '◇',
@@ -462,8 +463,27 @@ function processInline(text: string): string {
     .replace(/`(.+?)`/g, '<code>$1</code>')
 }
 
-// Global ref for Toolbar to trigger save before unmounting editor
-;(window as any).__wysiwygFlush = null as (() => void) | null
+/**
+ * Cached markdown → HTML conversions, keyed by slide identity. The conversion is a long regex
+ * pipeline and it ran on every render of the editor; the cache keeps one entry per slide and
+ * only re-runs when that slide's markdown actually changed.
+ */
+const MAX_HTML_CACHE = 50
+const htmlCache = new Map<string, { markdown: string; html: string; tables: string[] }>()
+
+function markdownToHtmlCached(cacheKey: string, md: string, rootPath?: string): { html: string; tables: string[] } {
+  const hit = htmlCache.get(cacheKey)
+  if (hit && hit.markdown === md) return hit
+  const out = { tables: [] as string[] }
+  const html = markdownToHtml(md, rootPath, out)
+  const entry = { markdown: md, html, tables: out.tables }
+  htmlCache.set(cacheKey, entry)
+  if (htmlCache.size > MAX_HTML_CACHE) {
+    const oldest = htmlCache.keys().next().value
+    if (oldest !== undefined) htmlCache.delete(oldest)
+  }
+  return entry
+}
 
 interface WysiwygEditorProps {
   slideIndex: number
@@ -502,8 +522,9 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
   const { slides, updateMarkdownContent, saveSlideContent, presentation } = usePresentationStore()
   const slide = slides[slideIndex]
   const isSubSlideMode = subSlideMarkdown !== undefined
+  const htmlCacheKey = `${slide?.config.id ?? `#${slideIndex}`}${isSubSlideMode ? ':sub' : ''}`
   const effectiveMarkdown = isSubSlideMode ? subSlideMarkdown : (slide?.markdownContent ?? '')
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const isInternalUpdate = useRef(false)
   const editorContainerRef = useRef<HTMLDivElement>(null)
   const latestMdRef = useRef<string>(effectiveMarkdown)
@@ -516,7 +537,7 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
   const [aiPrompt, setAIPrompt] = useState('')
   const [aiLoading, setAILoading] = useState(false)
   const [aiButtonPos, setAIButtonPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
-  const idleTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const aiPromptInputRef = useRef<HTMLInputElement>(null)
 
   // Check for API key on mount and when deck changes
@@ -597,9 +618,8 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
       })
     ],
     content: (() => {
-      const out = { tables: [] as string[] }
-      const html = markdownToHtml(effectiveMarkdown, presentation?.rootPath, out)
-      extractedTablesRef.current = out.tables
+      const { html, tables } = markdownToHtmlCached(htmlCacheKey, effectiveMarkdown, presentation?.rootPath)
+      extractedTablesRef.current = tables
       return html
     })(),
     editorProps: {
@@ -642,10 +662,8 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
         currentMd.replace(/<!--\s*shape\s[^>]*-->/gi, (m) => { comments.push(m); return '' })
         currentMd.replace(/<!--\s*image\s[^>]*-->/gi, (m) => { comments.push(m); return '' })
         // Consume any pin comments queued by ResizableImage.handlePinToCanvas right before deleteNode()
-        const pending: string[] = (window as any).__pendingPinComments || []
-        if (pending.length > 0) {
-          ;(window as any).__pendingPinComments = []
-          pending.forEach(c => { if (!comments.includes(c)) comments.push(c) })
+        for (const c of drainPinComments()) {
+          if (!comments.includes(c)) comments.push(c)
         }
         const preserved = comments.length > 0 ? md + '\n' + comments.join('\n') : md
         latestMdRef.current = preserved
@@ -668,38 +686,6 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
     }
   })
 
-  // Register global flush function so Toolbar can trigger save before unmount
-  useEffect(() => {
-    (window as any).__wysiwygFlush = () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-      if (!editor) return
-      const html = editor.getHTML()
-      let md = turndown.turndown(html)
-        .replace(/^(\s*)\\-/gm, '$1-')
-        .replace(/\\_/g, '_')
-        .replace(/\\\*/g, '*')
-        .replace(/\\\[/g, '[')
-        .replace(/\\\]/g, ']')
-        .replace(/\\`/g, '`')
-        .replace(/\\\\/g, '\\')
-      if (isSubSlideMode) {
-        // In sub-slide mode, route through the callback
-        onSubSlideChange?.(md)
-      } else {
-        usePresentationStore.setState((state) => {
-          const slides = [...state.slides]
-          if (slides[slideIndex]) {
-            slides[slideIndex] = { ...slides[slideIndex], markdownContent: md }
-          }
-          return { slides, hasUnsavedChanges: true }
-        })
-      }
-    }
-    return () => {
-      (window as any).__wysiwygFlush = null
-    }
-  }, [editor, slideIndex, isSubSlideMode, onSubSlideChange])
-
   // Sync content when sub-slide markdown changes from outside (e.g. clicking a different sub-slide)
   // Skip if the change came from this editor's own typing (latestMdRef matches)
   const prevSubMdRef = useRef(subSlideMarkdown)
@@ -711,9 +697,8 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
       const ourLastOutput = latestMdRef.current.trim()
       const incoming = (subSlideMarkdown || '').trim()
       if (ourLastOutput === incoming) return
-      const out = { tables: [] as string[] }
-      const newHtml = markdownToHtml(subSlideMarkdown!, presentation?.rootPath, out)
-      extractedTablesRef.current = out.tables
+      const { html: newHtml, tables } = markdownToHtmlCached(htmlCacheKey, subSlideMarkdown!, presentation?.rootPath)
+      extractedTablesRef.current = tables
       isInternalUpdate.current = true
       editor.commands.setContent(newHtml)
       isInternalUpdate.current = false
@@ -726,9 +711,8 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
     if (!editor || !slide || isSubSlideMode) return
     if (prevSlideIdx.current !== slideIndex) {
       prevSlideIdx.current = slideIndex
-      const out = { tables: [] as string[] }
-      const newHtml = markdownToHtml(slide.markdownContent, presentation?.rootPath, out)
-      extractedTablesRef.current = out.tables
+      const { html: newHtml, tables } = markdownToHtmlCached(htmlCacheKey, slide.markdownContent, presentation?.rootPath)
+      extractedTablesRef.current = tables
       isInternalUpdate.current = true
       editor.commands.setContent(newHtml)
       isInternalUpdate.current = false
@@ -743,9 +727,8 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
     // Strip HTML comments to compare only text/inline content
     const strip = (s: string) => s.replace(/<!--[\s\S]*?-->/g, '').trim()
     if (strip(stored) !== strip(latestMdRef.current)) {
-      const out = { tables: [] as string[] }
-      const newHtml = markdownToHtml(strip(stored), presentation?.rootPath, out)
-      extractedTablesRef.current = out.tables
+      const { html: newHtml, tables } = markdownToHtmlCached(`${htmlCacheKey}:stripped`, strip(stored), presentation?.rootPath)
+      extractedTablesRef.current = tables
       isInternalUpdate.current = true
       editor.commands.setContent(newHtml)
       isInternalUpdate.current = false
@@ -783,7 +766,7 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
       const result = await window.electronAPI.generateInlineText(
         aiPrompt.trim(),
         slide.markdownContent,
-        presentation.config.title || 'Untitled'
+        presentation.title || 'Untitled'
       )
       if (result) {
         editorRef.current.chain().focus().insertContent(result).run()
@@ -925,7 +908,7 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
                   {TEXT_COLORS.map((c) => (
                     <button key={c.value} onClick={() => { editor.chain().focus().setColor(c.value).run(); setShowTextColor(false) }}
                       className="w-5 h-5 rounded-full border border-gray-600 hover:ring-2 hover:ring-white/50 transition-all flex-shrink-0"
-                      style={{ backgroundColor: c.value }} title={c.label} />
+                      style={{ backgroundColor: c.value }} title={c.label} aria-label={c.label} />
                   ))}
                 </div>
                 <button onClick={() => { editor.chain().focus().unsetColor().run(); setShowTextColor(false) }}
@@ -951,7 +934,7 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
                       setShowHighlight(false)
                     }}
                       className="w-5 h-5 rounded border border-gray-600 hover:ring-2 hover:ring-white/50 transition-all flex-shrink-0 flex items-center justify-center"
-                      style={{ backgroundColor: c.value || 'transparent' }} title={c.label}>
+                      style={{ backgroundColor: c.value || 'transparent' }} title={c.label} aria-label={c.label}>
                       {!c.value && <span className="text-[8px] text-gray-500">✕</span>}
                     </button>
                   ))}
@@ -1191,6 +1174,7 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
             className="absolute z-20 flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-medium shadow-lg transition-all animate-fade-in"
             style={{ top: aiButtonPos.top, left: aiButtonPos.left }}
             title="Generate with AI"
+            aria-label="Generate with AI"
           >
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
@@ -1267,6 +1251,7 @@ function WBtn({ children, onClick, active, title }: { children: React.ReactNode;
       className={`px-2 py-1 rounded text-[11px] transition-colors ${
         active ? 'bg-white text-black' : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
       }`}
+      aria-label={title}
     >
       {children}
     </button>

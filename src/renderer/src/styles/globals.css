@@ -13,6 +13,32 @@ html, body, * {
   font-family: -apple-system, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 
+:root {
+  /* Left gutter reserved for the OS window controls. Set from the real platform at startup
+     (macOS keeps its traffic lights inside the window); the value here is the non-mac default,
+     so Linux/Windows do not get an 80px dead strip. */
+  --titlebar-inset: 12px;
+}
+
+/* Keyboard focus must always be visible — the app has no other focus indicator. */
+:focus-visible {
+  outline: 2px solid var(--color-brand, #ffffff);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Respect the OS "reduce motion" setting: keep state changes, drop the movement. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 @keyframes aiAlertIn {
   from { opacity: 0; transform: translateY(-12px); }
   to { opacity: 1; transform: translateY(0); }

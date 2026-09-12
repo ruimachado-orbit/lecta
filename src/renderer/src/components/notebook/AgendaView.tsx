@@ -155,7 +155,7 @@ export function AgendaView(): JSX.Element {
   const [newTitle, setNewTitle] = useState('')
   const [newDetail, setNewDetail] = useState('')
   const [agendaMd, setAgendaMd] = useState('')
-  const saveTimer = useRef<ReturnType<typeof setTimeout>>()
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   // Load agenda.md from notebook root
   useEffect(() => {
@@ -647,6 +647,7 @@ function EntryRow({ entry, compact, onToggle, onDelete, onNavigateToNote }: {
               onClick={(e) => { e.stopPropagation(); onNavigateToNote(entry.noteId!) }}
               className="ml-1.5 inline-flex items-center text-white hover:text-gray-300 transition-colors"
               title={`Go to note: ${entry.noteId}`}
+              aria-label={`Go to note: ${entry.noteId}`}
             >
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />

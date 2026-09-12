@@ -2,12 +2,23 @@ import { useEffect } from 'react'
 import { usePresentationStore } from '../stores/presentation-store'
 import { useUIStore } from '../stores/ui-store'
 
+/** Selector for anything that owns its own text editing (and therefore its own undo stack). */
+const EDITABLE_SELECTOR = '.ProseMirror, [contenteditable="true"], .monaco-editor, input, textarea, select'
+
+/** True when the event originated inside an editor or form control. */
+function isEditingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  return target.isContentEditable || !!target.closest(EDITABLE_SELECTOR)
+}
+
 export function useKeyboardShortcuts(): void {
   const { nextSlide, prevSlide } = usePresentationStore()
-  const { togglePresenting, setPresenting, toggleNotes } = useUIStore()
+  const { togglePresenting, endPresentation, toggleNotes } = useUIStore()
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent): void {
+      const editing = isEditingTarget(e.target)
+
       // Cmd+/ or Ctrl+/ — toggle chat agent (works everywhere)
       if ((e.metaKey || e.ctrlKey) && e.key === '/') {
         e.preventDefault()
@@ -17,27 +28,18 @@ export function useKeyboardShortcuts(): void {
         return
       }
 
-      // Cmd+Z / Ctrl+Z — undo (not inside Monaco, which has its own undo)
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
-        const target = e.target as HTMLElement
-        if (!target.closest('.monaco-editor')) {
-          e.preventDefault()
-          usePresentationStore.getState().undo()
-          return
-        }
+      // Cmd+Z / Cmd+Shift+Z — store-level undo/redo.
+      // Never while an editor has focus: Monaco and Tiptap own their own history, and running
+      // both would replace the whole slide behind the user's cursor.
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'z' || e.key === 'Z')) {
+        if (editing) return
+        e.preventDefault()
+        if (e.shiftKey) usePresentationStore.getState().redo()
+        else usePresentationStore.getState().undo()
+        return
       }
 
-      // Cmd+Shift+Z / Ctrl+Shift+Z — redo (not inside Monaco)
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && e.shiftKey) {
-        const target = e.target as HTMLElement
-        if (!target.closest('.monaco-editor')) {
-          e.preventDefault()
-          usePresentationStore.getState().redo()
-          return
-        }
-      }
-
-      // Cmd+S / Ctrl+S — save current slide (works everywhere, including Monaco)
+      // Cmd+S / Ctrl+S — save current slide (works everywhere, including editors)
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault()
         const { currentSlideIndex, saveSlideContent, hasUnsavedChanges } = usePresentationStore.getState()
@@ -47,17 +49,10 @@ export function useKeyboardShortcuts(): void {
         return
       }
 
-      // Don't capture shortcuts when typing in an input or the Monaco editor
-      const target = e.target as HTMLElement
-      if (
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.closest('.monaco-editor')
-      ) {
-        // Allow Cmd+Enter even in Monaco (to run code)
-        if (!(e.metaKey && e.key === 'Enter') && !(e.ctrlKey && e.key === 'Enter')) {
-          return
-        }
+      // Everything below is a bare key — never steal it from a text editor,
+      // except Cmd/Ctrl+Enter, which runs the slide's code.
+      if (editing && !((e.metaKey || e.ctrlKey) && e.key === 'Enter')) {
+        return
       }
 
       switch (e.key) {
@@ -75,7 +70,8 @@ export function useKeyboardShortcuts(): void {
           break
         case 'Escape':
           e.preventDefault()
-          setPresenting(false)
+          // Single exit path: also closes the audience window and restores the theme
+          endPresentation()
           break
         case 'N':
           if (e.shiftKey && !e.metaKey && !e.ctrlKey) {
@@ -95,5 +91,5 @@ export function useKeyboardShortcuts(): void {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [nextSlide, prevSlide, togglePresenting, setPresenting, toggleNotes])
+  }, [nextSlide, prevSlide, togglePresenting, endPresentation, toggleNotes])
 }

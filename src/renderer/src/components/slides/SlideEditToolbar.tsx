@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore, COLOR_PALETTES } from '../../stores/ui-store'
+import { requireAI, showAIError } from '../ai/AIAlert'
 
 interface SlideEditToolbarProps {
   editorRef: React.RefObject<any>
@@ -52,6 +53,7 @@ export function SlideEditToolbar({ editorRef }: SlideEditToolbarProps): JSX.Elem
 
   const handleBeautify = async () => {
     if (!presentation || !currentSlide) return
+    if (!requireAI()) return
     setIsGenerating(true)
     setGenLabel('Beautifying...')
     try {
@@ -60,10 +62,9 @@ export function SlideEditToolbar({ editorRef }: SlideEditToolbarProps): JSX.Elem
         presentation.title,
         currentSlide.config.layout
       )
-      updateMarkdownContent(currentSlideIndex, result)
-      saveSlideContent(currentSlideIndex)
+      usePresentationStore.getState().applyAIContent(currentSlideIndex, result)
     } catch (err) {
-      console.error('Beautify failed:', err)
+      showAIError(err)
     } finally {
       setIsGenerating(false)
       setGenLabel('')
@@ -123,6 +124,7 @@ export function SlideEditToolbar({ editorRef }: SlideEditToolbarProps): JSX.Elem
             onClick={() => setShowPalette(!showPalette)}
             className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition-colors"
             title="Color palette"
+            aria-label="Color palette"
           >
             <span
               className="w-3 h-3 rounded-full border border-gray-600"
@@ -179,6 +181,7 @@ function AIPromptBar({
 
   const handleGenerate = async () => {
     if (!prompt.trim() || !presentation || !currentSlide) return
+    if (!requireAI()) return
     setIsGenerating(true)
     try {
       const result = await window.electronAPI.generateSlideContent(
@@ -186,11 +189,11 @@ function AIPromptBar({
         presentation.title,
         currentSlide.markdownContent
       )
-      // Replace entire slide content with AI result
-      updateMarkdownContent(currentSlideIndex, result)
-      setPrompt('')
+      // Replace entire slide content with AI result (refused for executable .mdx slides)
+      const applied = usePresentationStore.getState().applyAIContent(currentSlideIndex, result, false)
+      if (applied) setPrompt('')
     } catch (err) {
-      console.error('AI generation failed:', err)
+      showAIError(err)
     } finally {
       setIsGenerating(false)
     }
@@ -254,6 +257,7 @@ function Btn({
           ? 'bg-white/10 text-gray-300 hover:bg-white/20'
           : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
       }`}
+      aria-label={title}
     >
       {children}
     </button>

@@ -326,6 +326,7 @@ export function DraggableElements({ markdown, canvasScale, onUpdateMarkdown, edi
                     const mdWithout = removeFromMd(markdown, img.matchStart, img.matchEnd)
                     onUpdateMarkdown(mdWithout + `\n![image](${img.src})\n`)
                   }}
+                  aria-label="Unpin — return to document flow"
                 >
                   <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
@@ -498,7 +499,7 @@ function DeleteBtn({ onDelete }: { onDelete: (e: React.MouseEvent) => void }) {
 function MiniBtn({ active, onClick, title, children }: { active?: boolean; onClick: () => void; title: string; children: React.ReactNode }) {
   return (
     <button onClick={onClick} title={title}
-      className={`w-5 h-5 rounded flex items-center justify-center transition-colors ${active ? 'bg-indigo-500 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}>
+      className={`w-5 h-5 rounded flex items-center justify-center transition-colors ${active ? 'bg-indigo-500 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`} aria-label={title}>
       {children}
     </button>
   )

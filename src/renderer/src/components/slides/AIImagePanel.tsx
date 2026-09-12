@@ -37,8 +37,11 @@ export function AIImagePanel({ editor, rootPath, onClose }: AIImagePanelProps): 
       window.electronAPI.getImageProviders(),
       window.electronAPI.getImageProvider(),
     ]).then(([provs, current]) => {
-      setProviders(provs)
-      setSelectedProvider(current)
+      // "Nano Banana" is not a provider — it is Gemini's image model, and the old entry posted
+      // the user's key to a third-party host. Never offer it.
+      const usable = (provs as ProviderInfo[]).filter((p) => p.id !== 'nanobanana')
+      setProviders(usable)
+      setSelectedProvider(current === 'nanobanana' ? (usable[0]?.id ?? 'gemini') : current)
     })
   }, [])
 
@@ -129,9 +132,7 @@ export function AIImagePanel({ editor, rootPath, onClose }: AIImagePanelProps): 
     ? 'Run codex login with ChatGPT, then retry.'
     : selectedProvider === 'openai'
       ? 'Add OPENAI_API_KEY to your deck .env file.'
-      : selectedProvider === 'nanobanana'
-        ? 'Add NANOBANANA_API_KEY to your deck .env file.'
-        : 'Add GEMINI_API_KEY to your deck .env file.'
+      : 'Add GEMINI_API_KEY to your deck .env file.'
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60" onClick={onClose}>
@@ -284,6 +285,7 @@ export function AIImagePanel({ editor, rootPath, onClose }: AIImagePanelProps): 
                   onClick={handleInsertPositioned}
                   className="px-3 py-1.5 text-xs font-medium rounded-lg bg-green-700 hover:bg-green-600 text-white transition-colors"
                   title="Insert as freely-positioned image on the canvas"
+                  aria-label="Insert as freely-positioned image on the canvas"
                 >
                   Pin to Canvas
                 </button>

@@ -7,6 +7,15 @@ let sourceWindow: BrowserWindow | null = null
 let pendingPresenterPath: string | null = null
 let pendingSlideIndex: number = 0
 let pendingArtifact: string | null = null
+
+/** Full navigation state as last broadcast by the presenting window. */
+export interface PresenterState {
+  slideIndex: number
+  subSlide: number
+  clickStep: number
+  mdxTrusted?: boolean
+}
+let pendingState: PresenterState | null = null
 let artifactCaptureInterval: ReturnType<typeof setInterval> | null = null
 let captureInProgress = false
 
@@ -153,17 +162,11 @@ export function registerPresenterHandlers(): void {
       })
     }
 
+    // No timers: the audience window replies with `presenter:audience-ready` once it has loaded
+    // the deck, and that handshake pulls the authoritative state from the presenting window.
     audienceWindow.webContents.on('did-finish-load', () => {
       if (pendingPresenterPath && audienceWindow && !audienceWindow.isDestroyed()) {
         audienceWindow.webContents.send('presenter:load-path', pendingPresenterPath)
-        setTimeout(() => {
-          if (audienceWindow && !audienceWindow.isDestroyed()) {
-            audienceWindow.webContents.send('presenter:sync-slide', pendingSlideIndex)
-            if (pendingArtifact) {
-              audienceWindow.webContents.send('presenter:sync-artifact', pendingArtifact)
-            }
-          }
-        }, 300)
       }
     })
 
@@ -203,6 +206,37 @@ export function registerPresenterHandlers(): void {
     }
     if (audienceWindow && !audienceWindow.isDestroyed()) {
       audienceWindow.webContents.send('presenter:sync-slide', slideIndex)
+    }
+  })
+
+  // Full navigation state: slide + sub-slide + click step (+ deck MDX trust flag)
+  ipcMain.on('presenter:sync-state', (_event, state: PresenterState) => {
+    if (!state || typeof state.slideIndex !== 'number') return
+    pendingState = state
+    pendingSlideIndex = state.slideIndex
+    if (!sourceWindow || sourceWindow.isDestroyed()) {
+      sourceWindow = BrowserWindow.fromWebContents(_event.sender) || null
+    }
+    if (presenterWindow && !presenterWindow.isDestroyed()) {
+      presenterWindow.webContents.send('presenter:sync-state', state)
+    }
+    if (audienceWindow && !audienceWindow.isDestroyed()) {
+      audienceWindow.webContents.send('presenter:sync-state', state)
+    }
+  })
+
+  // Handshake: the audience window announces it is ready; we replay what we know and ask the
+  // presenting window for its authoritative state.
+  ipcMain.on('presenter:audience-ready', (_event) => {
+    const target = BrowserWindow.fromWebContents(_event.sender)
+    if (target && !target.isDestroyed()) {
+      if (pendingPresenterPath) target.webContents.send('presenter:load-path', pendingPresenterPath)
+      if (pendingState) target.webContents.send('presenter:sync-state', pendingState)
+      else target.webContents.send('presenter:sync-slide', pendingSlideIndex)
+      if (pendingArtifact) target.webContents.send('presenter:sync-artifact', pendingArtifact)
+    }
+    if (sourceWindow && !sourceWindow.isDestroyed()) {
+      sourceWindow.webContents.send('presenter:request-state')
     }
   })
 

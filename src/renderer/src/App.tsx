@@ -15,10 +15,19 @@ export default function App(): JSX.Element {
   const showFullChat = useChatStore((s) => s.showFullChat)
   const { setTheme, setPalette, setFontSize, checkAiEnabled } = useUIStore()
 
+  // Titlebar gutter: only macOS draws window controls over the page content.
+  // `platform` comes from the preload bridge when it exposes it; otherwise sniff the UA.
+  useEffect(() => {
+    const bridge = window.electronAPI as unknown as { platform?: string }
+    const platform = bridge?.platform ?? (navigator.platform || navigator.userAgent || '')
+    const isMac = /darwin|mac/i.test(platform)
+    document.documentElement.style.setProperty('--titlebar-inset', isMac ? '80px' : '12px')
+  }, [])
+
   // Load persisted settings on app start
   useEffect(() => {
     checkAiEnabled()
-    window.electronAPI.getAppSettings().then((settings) => {
+    window.electronAPI.getAppSettings().then((settings: Record<string, any>) => {
       if (settings.theme === 'light' || settings.theme === 'dark') {
         setTheme(settings.theme)
       }

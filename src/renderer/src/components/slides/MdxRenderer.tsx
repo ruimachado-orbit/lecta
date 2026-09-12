@@ -117,6 +117,35 @@ interface MdxRendererProps {
   rootPath?: string
   clickStep?: number
   onClickSteps?: (total: number) => void
+  /** Identity of the slide being rendered — a change means "slide switched" (compile immediately) */
+  slideId?: string
+}
+
+/**
+ * Reduce MDX source to plain markdown for untrusted rendering and thumbnails.
+ * Strips ESM import/export lines, JSX tags and `{expression}` blocks; keeps the text.
+ * Nothing here is evaluated — the result goes through the ordinary markdown renderer.
+ */
+export function stripMdxToMarkdown(source: string): string {
+  if (!source) return ''
+  const lines = source.split('\n')
+  const kept: string[] = []
+  let inFence = false
+  for (const line of lines) {
+    if (line.trim().startsWith('```')) { inFence = !inFence; kept.push(line); continue }
+    if (inFence) { kept.push(line); continue }
+    if (/^\s*(import|export)\s/.test(line)) continue
+    kept.push(line)
+  }
+  return kept.join('\n')
+    // JSX comments
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+    // Expression blocks (single-line, non-nested)
+    .replace(/\{[^{}\n]*\}/g, '')
+    // Opening/self-closing/closing JSX tags (Capitalised components and lowercase HTML alike)
+    .replace(/<\/?[A-Za-z][\w.:-]*(?:\s[^<>]*?)?\/?>/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
 }
 
 // Layer 1: Cached MDX pipeline — processor + runtime imports resolved once
@@ -154,21 +183,14 @@ async function getRunAndRuntime() {
   return { run, runtime }
 }
 
-// Layer 2: Output cache — same content -> cached compiled JS
+// Layer 2: Output cache — same content -> cached compiled JS.
+// Keyed on the full source string: a 32-bit hash collides, and a collision here would run
+// one slide's compiled code for another slide's source.
 const MAX_CACHE_SIZE = 50
 const compiledCache = new Map<string, string>()
 
-// Simple string hash for cache keys (djb2)
-function hashString(s: string): string {
-  let h = 5381
-  for (let i = 0; i < s.length; i++) {
-    h = ((h << 5) + h + s.charCodeAt(i)) | 0
-  }
-  return String(h >>> 0)
-}
-
 async function compileMdx(source: string): Promise<string> {
-  const key = hashString(source)
+  const key = source
   const cached = compiledCache.get(key)
   if (cached) return cached
 
@@ -234,7 +256,7 @@ if (import.meta.hot) {
 }
 
 async function compileToComponent(source: string): Promise<React.ComponentType<any>> {
-  const key = hashString(source)
+  const key = source
   const cached = componentCache.get(key)
   if (cached) return cached
 
@@ -257,19 +279,19 @@ async function compileToComponent(source: string): Promise<React.ComponentType<a
 /** Pre-compile MDX source in the background (for prefetching next/prev slides) */
 export function prefetchMdx(source: string): void {
   if (!source) return
-  const key = hashString(source)
-  if (componentCache.has(key) || compiledCache.has(key)) return
+  if (componentCache.has(source) || compiledCache.has(source)) return
   // Fire and forget — errors are silently ignored
   compileMdx(source).catch(() => {})
 }
 
-export function MdxRenderer({ markdown, rootPath, clickStep, onClickSteps }: MdxRendererProps): JSX.Element {
+export function MdxRenderer({ markdown, rootPath, onClickSteps, slideId }: MdxRendererProps): JSX.Element {
   const [MdxContent, setMdxContent] = useState<React.ComponentType<any> | null>(null)
   const [contentSource, setContentSource] = useState<string>('')  // tracks which source MdxContent was built from
   const [error, setError] = useState<string | null>(null)
   const [errorDetail, setErrorDetail] = useState<{ line?: number; column?: number } | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastSourceRef = useRef<string>('')
+  const lastSlideIdRef = useRef<string | undefined>(undefined)
   const compileIdRef = useRef(0)  // monotonic id to discard stale compiles
   const containerRef = useRef<HTMLDivElement>(null)
   const components = useMdxComponents(rootPath)
@@ -324,17 +346,16 @@ export function MdxRenderer({ markdown, rootPath, clickStep, onClickSteps }: Mdx
     lastSourceRef.current = markdown
     const id = ++compileIdRef.current
 
-    // Detect slide change vs live edit: large content change = slide switch -> compile immediately
-    // Small change or same-length tweak = likely editing -> debounce
-    const isSlideChange = !prevSource || Math.abs(markdown.length - prevSource.length) > 20 ||
-      hashString(markdown) !== hashString(prevSource)
+    // Slide switch (different slide id, or first render) -> compile immediately.
+    // Same slide, different source -> the user is editing -> debounce 300 ms.
+    const isSlideChange = !prevSource || slideId !== lastSlideIdRef.current
+    lastSlideIdRef.current = slideId
 
     if (debounceRef.current) clearTimeout(debounceRef.current)
 
     if (isSlideChange) {
       // Try sync cache hit first for instant transition
-      const key = hashString(markdown)
-      const cachedComponent = componentCache.get(key)
+      const cachedComponent = componentCache.get(markdown)
       if (cachedComponent) {
         setMdxContent(() => cachedComponent)
         setContentSource(markdown)
@@ -350,7 +371,7 @@ export function MdxRenderer({ markdown, rootPath, clickStep, onClickSteps }: Mdx
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [markdown, compile]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [markdown, slideId, compile]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Render: always show the last successfully compiled content (even if from previous slide)
   // This prevents the flash-to-plain-markdown during async compilation

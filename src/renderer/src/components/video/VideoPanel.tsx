@@ -80,6 +80,7 @@ export function VideoPanel({ video }: VideoPanelProps): JSX.Element {
           onClick={() => removeAttachment('video')}
           className="p-1 hover:bg-red-600 text-gray-500 hover:text-white rounded transition-colors"
           title="Remove video from slide"
+          aria-label="Remove video from slide"
         >
           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />

@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState, useEffect } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore } from '../../stores/ui-store'
 import { ContentRenderer } from './ContentRenderer'
@@ -14,9 +15,28 @@ import { DraggableElements } from './DraggableElements'
 import Editor, { type OnMount } from '@monaco-editor/react'
 
 export function SlidePanel(): JSX.Element {
-  const { slides, currentSlideIndex, updateMarkdownContent, saveSlideContent, presentation } = usePresentationStore()
-  const slideTheme = presentation?.theme || 'dark'
-  const { showNavigator, editingSlide, editorMode, setEditorMode, slideGroups } = useUIStore()
+  const { slides, currentSlideIndex, updateMarkdownContent, saveSlideContent, presentation, mdxTrusted, setMdxTrusted } =
+    usePresentationStore(
+      useShallow((s) => ({
+        slides: s.slides,
+        currentSlideIndex: s.currentSlideIndex,
+        updateMarkdownContent: s.updateMarkdownContent,
+        saveSlideContent: s.saveSlideContent,
+        presentation: s.presentation,
+        mdxTrusted: s.mdxTrusted,
+        setMdxTrusted: s.setMdxTrusted
+      }))
+    )
+  const { showNavigator, editingSlide, editorMode, setEditorMode, slideGroups } = useUIStore(
+    useShallow((s) => ({
+      showNavigator: s.showNavigator,
+      editingSlide: s.editingSlide,
+      editorMode: s.editorMode,
+      setEditorMode: s.setEditorMode,
+      slideGroups: s.slideGroups
+    }))
+  )
+  const [mdxBannerDismissed, setMdxBannerDismissed] = useState(false)
   const currentSlide = slides[currentSlideIndex]
   const [wysiwygHeaderSlot, setWysiwygHeaderSlot] = useState<HTMLDivElement | null>(null)
   const [showMarkdown, setShowMarkdown] = useState(false)
@@ -34,7 +54,7 @@ export function SlidePanel(): JSX.Element {
     return null
   })()
   const editorRef = useRef<any>(null)
-  const { showAIGenerate } = useUIStore()
+  const showAIGenerate = useUIStore((s) => s.showAIGenerate)
   const [drawingMode, setDrawingMode] = useState(false)
 
   const { subSlides, currentSubSlide, setCurrentSubSlide, breakOffsets, hasManualBreaks } = useSubSlides(
@@ -46,15 +66,17 @@ export function SlidePanel(): JSX.Element {
   const breakOffsetsRef = useRef(breakOffsets)
   breakOffsetsRef.current = breakOffsets
 
-  // Prefetch current + adjacent MDX slides for instant transitions
+  // Prefetch current + adjacent MDX slides for instant transitions.
+  // Compiling is executing, so only ever for decks the user has trusted.
   useEffect(() => {
+    if (!mdxTrusted) return
     const curr = slides[currentSlideIndex]
     const prev = slides[currentSlideIndex - 1]
     const next = slides[currentSlideIndex + 1]
     if (curr?.isMdx) prefetchMdx(curr.markdownContent)
     if (prev?.isMdx) prefetchMdx(prev.markdownContent)
     if (next?.isMdx) prefetchMdx(next.markdownContent)
-  }, [currentSlideIndex, slides])
+  }, [currentSlideIndex, slides, mdxTrusted])
 
   const handleEditorMount: OnMount = (editor, monaco) => {
     editorRef.current = editor
@@ -145,18 +167,18 @@ export function SlidePanel(): JSX.Element {
     )
   }
 
-  // Extract positioned image/textbox/shape comments from the full markdown
-  // so they appear on every sub-slide (they're global to the slide, not tied to a section)
+  // Positioned image/textbox/shape comments are global to the slide, not to a sub-slide section,
+  // so they are rendered on top of whichever sub-slide is showing. They are stripped from the
+  // sub-slide body first, otherwise a comment that lives in this section is drawn twice.
   const fullMd = currentSlide.markdownContent
-  const globalComments: string[] = []
-  fullMd.replace(/<!--\s*image\s[^>]*-->/gi, (m) => { globalComments.push(m); return '' })
-  fullMd.replace(/<!--\s*textbox[\s\S]*?\/textbox\s*-->/gi, (m) => { globalComments.push(m); return '' })
-  fullMd.replace(/<!--\s*shape\s[^>]*-->/gi, (m) => { globalComments.push(m); return '' })
+  const globalComments = extractGlobalComments(fullMd)
 
-  const subSlideMarkdown = subSlides[currentSubSlide]?.markdown ?? currentSlide.markdownContent
+  const subSlideMarkdown = subSlides[currentSubSlide]?.markdown ?? fullMd
   const activeMarkdown = globalComments.length > 0
-    ? subSlideMarkdown + '\n' + globalComments.join('\n')
+    ? `${stripGlobalComments(subSlideMarkdown).trimEnd()}\n${globalComments.join('\n')}`
     : subSlideMarkdown
+
+  const showMdxTrustBanner = currentSlide.isMdx && !mdxTrusted && !mdxBannerDismissed
 
   return (
     <div className="h-full flex flex-col bg-gray-950">
@@ -185,6 +207,30 @@ export function SlidePanel(): JSX.Element {
           )}
         </div>
       )}
+      {/* Executable-MDX trust gate */}
+      {showMdxTrustBanner && (
+        <div className="flex items-center gap-3 px-4 py-2 border-b border-amber-500/30 bg-amber-500/10 shrink-0">
+          <svg className="w-4 h-4 text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+          </svg>
+          <span className="text-[12px] text-amber-100 flex-1">
+            This deck contains executable MDX slides.
+          </span>
+          <button
+            onClick={() => setMdxTrusted(true)}
+            className="text-[11px] font-medium px-2.5 py-1 rounded bg-amber-500 text-black hover:bg-amber-400 transition-colors"
+          >
+            Trust and render
+          </button>
+          <button
+            onClick={() => setMdxBannerDismissed(true)}
+            className="text-[11px] px-2.5 py-1 rounded bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors"
+          >
+            Show as text
+          </button>
+        </div>
+      )}
+
       {/* Editor toolbar */}
       {editingSlide && (
         <>
@@ -269,6 +315,7 @@ export function SlidePanel(): JSX.Element {
                 rootPath={presentation?.rootPath}
                 layout={currentSlide.config.layout}
                 slideIndex={currentSlideIndex}
+                slideId={currentSlide.config.id}
                 drawingMode={true}
                 isMdx={currentSlide.isMdx}
               />
@@ -282,6 +329,7 @@ export function SlidePanel(): JSX.Element {
             transition={currentSlide.config.transition}
             layout={currentSlide.config.layout}
             slideIndex={currentSlideIndex}
+            slideId={currentSlide.config.id}
             showGlobalLayers={true}
             isMdx={currentSlide.isMdx}
           />
@@ -333,6 +381,7 @@ export function SlidePanel(): JSX.Element {
                     rootPath={presentation?.rootPath}
                     layout={currentSlide.config.layout}
                     slideIndex={currentSlideIndex}
+                    slideId={currentSlide.config.id}
                     showGlobalLayers={true}
                     isMdx={true}
                   />
@@ -401,15 +450,18 @@ export function SlidePanel(): JSX.Element {
           /* Preview/read mode: show active sub-slide only */
           <SlideCanvas
             markdown={activeMarkdown}
+            fullMarkdown={fullMd}
             rootPath={presentation?.rootPath}
             transition={currentSlide.config.transition}
             layout={currentSlide.config.layout}
             slideIndex={currentSlideIndex}
+            slideId={currentSlide.config.id}
             drawingMode={drawingMode}
             editable={true}
             showGlobalLayers={true}
             isMdx={currentSlide.isMdx}
             onUpdateMarkdown={(md) => {
+              // `md` is the FULL slide markdown — DraggableElements was given fullMarkdown
               updateMarkdownContent(currentSlideIndex, md)
               saveSlideContent(currentSlideIndex)
             }}
@@ -499,9 +551,15 @@ function PositionedImagesOverlay({ markdown, rootPath, pad }: { markdown: string
 }
 
 /** 16:9 slide canvas that auto-scales content to fit */
-function SlideCanvas({ markdown, rootPath, transition, layout, slideIndex, drawingMode, editable, onUpdateMarkdown, showGlobalLayers, isMdx }: {
+function SlideCanvas({ markdown, fullMarkdown, rootPath, transition, layout, slideIndex, slideId, drawingMode, editable, onUpdateMarkdown, showGlobalLayers, isMdx }: {
   markdown: string; rootPath?: string; transition?: string; layout?: string; slideIndex?: number; drawingMode?: boolean
   editable?: boolean; onUpdateMarkdown?: (md: string) => void; showGlobalLayers?: boolean; isMdx?: boolean
+  /**
+   * The slide's complete markdown. Draggable elements edit against this, never against the
+   * displayed sub-slide — saving a sub-slide as the whole slide deletes the other sub-slides.
+   */
+  fullMarkdown?: string
+  slideId?: string
 }): JSX.Element {
   const slideTheme = usePresentationStore((s) => s.presentation?.theme) || 'dark'
   const containerRef = useRef<HTMLDivElement>(null)
@@ -565,7 +623,7 @@ function SlideCanvas({ markdown, rootPath, transition, layout, slideIndex, drawi
               height: layout === 'blank' || isMdx ? SLIDE_H : undefined,
             }}
           >
-            <ContentRenderer markdown={markdown} rootPath={rootPath} isMdx={isMdx} />
+            <ContentRenderer markdown={markdown} rootPath={rootPath} isMdx={isMdx} slideId={slideId} />
           </div>
         </div>
         {/* Positioned images overlay — always visible, outside content scaling */}
@@ -574,7 +632,7 @@ function SlideCanvas({ markdown, rootPath, transition, layout, slideIndex, drawi
         {editable && onUpdateMarkdown && (
           <div className="absolute inset-0 slide-pad" style={{ zIndex: 10 }}>
             <DraggableElements
-              markdown={markdown}
+              markdown={fullMarkdown ?? markdown}
               canvasScale={canvasScale}
               onUpdateMarkdown={onUpdateMarkdown}
               editable={true}
@@ -632,87 +690,27 @@ function GlobalLayers({ width, height }: { width: number; height: number }): JSX
   )
 }
 
-/** Editable slide canvas — WYSIWYG editor rendered inside the scaled 16:9 frame */
-function EditableSlideCanvas({ slideIndex, breakOffsets, rootPath, layout, subSlideCount, wysiwygHeaderSlot }: {
-  slideIndex: number; breakOffsets?: number[]; rootPath?: string; layout?: string; subSlideCount?: number; wysiwygHeaderSlot?: HTMLDivElement | null
-}): JSX.Element {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const [canvasScale, setCanvasScale] = useState(1)
-  const { slides, updateMarkdownContent, saveSlideContent } = usePresentationStore()
-  const slideTheme = usePresentationStore((s) => s.presentation?.theme) || 'dark'
-  const markdown = slides[slideIndex]?.markdownContent ?? ''
+/**
+ * Comment forms that position an element on the whole slide rather than inside one sub-slide.
+ */
+const GLOBAL_COMMENT_PATTERNS = [
+  /<!--\s*image\s[^>]*-->/gi,
+  /<!--\s*textbox[\s\S]*?\/textbox\s*-->/gi,
+  /<!--\s*shape\s[^>]*-->/gi
+]
 
-  const SLIDE_W = 1280
-  const SLIDE_H = 720
-  const PAD_H = 80
-  const PAD_V = 60
+/** All positioned-element comments in a slide, de-duplicated and in source order. */
+function extractGlobalComments(md: string): string[] {
+  const found: string[] = []
+  for (const pattern of GLOBAL_COMMENT_PATTERNS) {
+    for (const match of md.matchAll(pattern)) found.push(match[0])
+  }
+  return [...new Set(found)]
+}
 
-  useEffect(() => {
-    const container = containerRef.current
-    if (!container) return
-    const updateScale = () => {
-      const cw = container.clientWidth
-      const ch = container.clientHeight
-      const margin = 16
-      const s = Math.min((cw - margin * 2) / SLIDE_W, (ch - margin * 2) / SLIDE_H)
-      setCanvasScale(Math.max(0.05, s))
-    }
-    updateScale()
-    const ro = new ResizeObserver(updateScale)
-    ro.observe(container)
-    return () => ro.disconnect()
-  }, [])
-
-  const numSubSlides = subSlideCount ?? 1
-
-  return (
-    <div ref={containerRef} className="h-full w-full overflow-y-auto overflow-x-hidden"
-      data-slide-theme={slideTheme} style={{ background: 'var(--slide-bg)' }}>
-      {/* Sub-slide count badge */}
-      {numSubSlides > 1 && (
-        <div className="sticky top-0 z-10 flex justify-center py-1">
-          <span className="text-[10px] font-mono text-gray-400 bg-gray-800/80 backdrop-blur px-2 py-0.5 rounded-full">
-            {numSubSlides} sub-slides — use --- to add page breaks
-          </span>
-        </div>
-      )}
-      <div
-        className="relative rounded mx-auto"
-        style={{
-          width: SLIDE_W,
-          height: SLIDE_H,
-          zoom: canvasScale,
-          marginTop: 16,
-          marginBottom: 16,
-          background: 'var(--slide-bg)',
-          boxShadow: '0 0 0 1px rgba(255,255,255,0.15), 0 4px 24px rgba(0,0,0,0.6), 0 0 80px rgba(0,0,0,0.4)',
-          overflow: 'hidden',
-        }}
-      >
-        <div className={`relative h-full ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
-          <WysiwygEditor slideIndex={slideIndex} breakOffsets={breakOffsets} headerSlot={wysiwygHeaderSlot} />
-        </div>
-        {/* Positioned images/textboxes overlay in editor mode */}
-        <div className="absolute inset-0 slide-pad" style={{ zIndex: 10, pointerEvents: 'none' }}>
-          <div style={{ pointerEvents: 'auto' }}>
-            <DraggableElements
-              markdown={markdown}
-              canvasScale={canvasScale}
-              onUpdateMarkdown={(newMd) => { updateMarkdownContent(slideIndex, newMd); saveSlideContent(slideIndex) }}
-              editable={true}
-              rootPath={rootPath}
-            />
-          </div>
-        </div>
-        {/* Layout guide overlay */}
-        {layout && layout !== 'default' && layout !== 'blank' && (
-          <LayoutGuide layout={layout} width={SLIDE_W} height={SLIDE_H} pad={PAD_H} />
-        )}
-        {/* Drawing overlay (read-only) */}
-        <DrawingOverlay slideIndex={slideIndex} active={false} width={SLIDE_W} height={SLIDE_H} />
-      </div>
-    </div>
-  )
+/** Remove positioned-element comments so they can be re-appended exactly once. */
+function stripGlobalComments(md: string): string {
+  return GLOBAL_COMMENT_PATTERNS.reduce((acc, pattern) => acc.replace(pattern, ''), md)
 }
 
 /** Split full markdown into sections by --- separators */
@@ -817,18 +815,19 @@ function SubSlideStackEditor({ subSlides, currentSubSlide, setCurrentSubSlide, s
             onClick={() => setZoomOffset(z => Math.max(-4, z - 1))}
             className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-white rounded-full hover:bg-gray-700/50 transition-colors text-xs"
             title="Zoom out"
-          >−</button>
+            aria-label="Zoom out">−</button>
           <span className="text-[9px] text-gray-500 font-mono w-8 text-center">{displayZoom}%</span>
           <button
             onClick={() => setZoomOffset(z => Math.min(4, z + 1))}
             className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-white rounded-full hover:bg-gray-700/50 transition-colors text-xs"
             title="Zoom in"
-          >+</button>
+            aria-label="Zoom in">+</button>
           {zoomOffset !== 0 && (
             <button
               onClick={() => setZoomOffset(0)}
               className="w-5 h-5 flex items-center justify-center text-gray-500 hover:text-white rounded-full hover:bg-gray-700/50 transition-colors"
               title="Reset zoom"
+              aria-label="Reset zoom"
             >
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
@@ -871,6 +870,7 @@ function SubSlideStackEditor({ subSlides, currentSubSlide, setCurrentSubSlide, s
                   onClick={(e) => { e.stopPropagation(); deleteSubSlide(i) }}
                   className="absolute top-1.5 right-1.5 z-30 w-6 h-6 rounded-full bg-red-500/80 hover:bg-red-500 text-white flex items-center justify-center opacity-0 group-hover/canvas:opacity-100 transition-opacity"
                   title={`Delete sub-slide ${i + 1}`}
+                  aria-label={`Delete sub-slide ${i + 1}`}
                 >
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
@@ -894,7 +894,7 @@ function SubSlideStackEditor({ subSlides, currentSubSlide, setCurrentSubSlide, s
                   /* MDX sub-slide: read-only rendered preview (WYSIWYG can't handle JSX) */
                   <div className={`absolute inset-0 overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
                     <div style={{ width: SLIDE_W, height: SLIDE_H }}>
-                      <ContentRenderer markdown={sub.markdown} rootPath={presentation?.rootPath} isMdx={true} />
+                      <ContentRenderer markdown={sub.markdown} rootPath={presentation?.rootPath} isMdx={true} slideId={currentSlide?.config.id} />
                     </div>
                   </div>
                 ) : i === currentSubSlide ? (
@@ -911,7 +911,7 @@ function SubSlideStackEditor({ subSlides, currentSubSlide, setCurrentSubSlide, s
                   /* Other sub-slides: read-only preview */
                   <div className={`absolute inset-0 ${layout === 'blank' || currentSlide?.isMdx ? '' : 'slide-pad'} overflow-hidden ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
                     <div className={currentSlide?.isMdx ? '' : 'slide-content max-w-none'} style={{ width: layout === 'blank' || currentSlide?.isMdx ? SLIDE_W : SLIDE_W - 160, height: layout === 'blank' || currentSlide?.isMdx ? SLIDE_H : undefined }}>
-                      <ContentRenderer markdown={sub.markdown} rootPath={presentation?.rootPath} isMdx={currentSlide?.isMdx} />
+                      <ContentRenderer markdown={sub.markdown} rootPath={presentation?.rootPath} isMdx={currentSlide?.isMdx} preview={true} />
                     </div>
                   </div>
                 )}

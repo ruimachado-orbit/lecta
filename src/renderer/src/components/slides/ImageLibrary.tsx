@@ -84,6 +84,7 @@ export function ImageLibrary({ editor, rootPath, onClose }: ImageLibraryProps): 
                   onClick={() => handleInsert(img)}
                   className="group relative rounded-lg overflow-hidden border border-gray-700 hover:border-purple-500 transition-colors bg-gray-800 aspect-video"
                   title={img.prompt || img.relativePath}
+                  aria-label={img.prompt || img.relativePath}
                 >
                   <img
                     src={img.fullSrc || `lecta-file://${rootPath}/${img.relativePath}`}

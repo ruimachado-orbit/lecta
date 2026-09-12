@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useExecutionStore } from '../../stores/execution-store'
 import { useState, useEffect } from 'react'
@@ -14,9 +15,20 @@ function formatTimeAgo(date: Date): string {
 }
 
 export function StatusBar(): JSX.Element {
-  const { slides, currentSlideIndex, isSaving, lastSavedAt, hasUnsavedChanges } =
-    usePresentationStore()
-  const { isExecuting, lastResult } = useExecutionStore()
+  const { slides, currentSlideIndex, isSaving, lastSavedAt, hasUnsavedChanges, error } =
+    usePresentationStore(
+      useShallow((s) => ({
+        slides: s.slides,
+        currentSlideIndex: s.currentSlideIndex,
+        isSaving: s.isSaving,
+        lastSavedAt: s.lastSavedAt,
+        hasUnsavedChanges: s.hasUnsavedChanges,
+        error: s.error
+      }))
+    )
+  const { isExecuting, lastResult } = useExecutionStore(
+    useShallow((s) => ({ isExecuting: s.isExecuting, lastResult: s.lastResult }))
+  )
   const currentSlide = slides[currentSlideIndex]
 
   const executionEngine = currentSlide?.config.code?.execution
@@ -51,6 +63,26 @@ export function StatusBar(): JSX.Element {
               : 'Ready'}
         </span>
       </div>
+
+      {/* Store error — the only place a failed load/save/delete becomes visible inside a deck */}
+      {error && (
+        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-red-500/15 border border-red-500/40 text-red-300 max-w-[40%]">
+          <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+          </svg>
+          <span className="truncate" title={error}>{error}</span>
+          <button
+            onClick={() => usePresentationStore.setState({ error: null })}
+            title="Dismiss error"
+            aria-label="Dismiss error"
+            className="flex-shrink-0 rounded hover:bg-red-500/20 text-red-300/80 hover:text-red-200 transition-colors"
+          >
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
 
       {/* Spacer */}
       <div className="flex-1" />

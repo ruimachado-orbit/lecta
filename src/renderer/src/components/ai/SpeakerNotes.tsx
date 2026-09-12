@@ -8,7 +8,7 @@ export function SpeakerNotes(): JSX.Element {
   const currentSlide = slides[currentSlideIndex]
   const [isGenerating, setIsGenerating] = useState(false)
   const [activeTab, setActiveTab] = useState<'speaker' | 'presenter'>('speaker')
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const notes = currentSlide?.notesContent ?? ''
 
@@ -131,7 +131,7 @@ export function SpeakerNotes(): JSX.Element {
 function PresenterNotesEditor(): JSX.Element {
   const { presentation, updatePresenterNotes } = usePresentationStore()
   const [lines, setLines] = useState<string[]>(() => parseLines(presentation?.presenterNotes ?? ''))
-  const saveRef = useRef<ReturnType<typeof setTimeout>>()
+  const saveRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const inputRefs = useRef<(HTMLInputElement | null)[]>([])
   const focusIdx = useRef<number | null>(null)
 
@@ -222,6 +222,7 @@ function PresenterNotesEditor(): JSX.Element {
           onClick={() => addLine('- [ ] ')}
           className="px-2 py-0.5 text-[10px] text-gray-500 hover:text-gray-300 hover:bg-gray-800 rounded transition-colors flex items-center gap-1"
           title="Add checkbox"
+          aria-label="Add checkbox"
         >
           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
@@ -232,6 +233,7 @@ function PresenterNotesEditor(): JSX.Element {
           onClick={() => addLine('- ')}
           className="px-2 py-0.5 text-[10px] text-gray-500 hover:text-gray-300 hover:bg-gray-800 rounded transition-colors flex items-center gap-1"
           title="Add bullet point"
+          aria-label="Add bullet point"
         >
           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
@@ -242,6 +244,7 @@ function PresenterNotesEditor(): JSX.Element {
           onClick={() => addLine('')}
           className="px-2 py-0.5 text-[10px] text-gray-500 hover:text-gray-300 hover:bg-gray-800 rounded transition-colors flex items-center gap-1"
           title="Add plain text"
+          aria-label="Add plain text"
         >
           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -303,6 +306,7 @@ function PresenterNotesEditor(): JSX.Element {
                   }}
                   className="opacity-0 group-hover:opacity-100 text-gray-700 hover:text-red-400 transition-all flex-shrink-0"
                   title="Remove"
+                  aria-label="Remove"
                 >
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />

@@ -149,8 +149,9 @@ export function SlideRenderer({ markdown, rootPath, clickStep = -1, onClickSteps
   // Extract positioned images before markdown processing
   const { cleaned: mdWithoutImages, images: positionedImages } = extractPositionedImages(clickProcessed, rootPath)
 
-  // Report total click steps to parent (only when count changes)
-  const prevClickCount = useRef(totalClicks)
+  // Report total click steps to parent on mount and whenever the count changes.
+  // Seeded with -1 so the first presented slide (or the slide after an MDX one) initialises reveal.
+  const prevClickCount = useRef(-1)
   useEffect(() => {
     if (prevClickCount.current !== totalClicks) {
       prevClickCount.current = totalClicks

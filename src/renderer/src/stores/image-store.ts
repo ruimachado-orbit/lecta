@@ -58,8 +58,8 @@ export const useImageStore = create<ImageState>((set, get) => ({
       const existingPaths = new Set(existing.map((i) => i.relativePath))
 
       const newEntries: ImageEntry[] = files
-        .filter((f) => !existingPaths.has(f.relativePath))
-        .map((f) => ({
+        .filter((f: { relativePath: string }) => !existingPaths.has(f.relativePath))
+        .map((f: { relativePath: string; timestamp: number; size: number }) => ({
           relativePath: f.relativePath,
           fullSrc: `lecta-file://${rootPath}/${f.relativePath}`,
           source: (f.relativePath.includes('-ai-generated') || f.relativePath.includes('-ai-edited')

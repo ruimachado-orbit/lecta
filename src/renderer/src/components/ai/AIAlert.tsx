@@ -2,7 +2,9 @@ import { useEffect } from 'react'
 import { useUIStore } from '../../stores/ui-store'
 
 export function AIAlert(): JSX.Element | null {
-  const { aiAlert, setAiAlert } = useUIStore()
+  const aiAlert = useUIStore((s) => s.aiAlert)
+  const setAiAlert = useUIStore((s) => s.setAiAlert)
+  const openSettings = useUIStore((s) => s.openSettings)
 
   // Auto-dismiss after 8 seconds
   useEffect(() => {
@@ -23,12 +25,18 @@ export function AIAlert(): JSX.Element | null {
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm text-gray-200 leading-snug">{aiAlert}</p>
-          <p className="text-xs text-gray-500 mt-0.5">
-            Configure AI credentials in <span className="text-amber-400 font-medium">Home &gt; Settings</span>
-          </p>
+          <p className="text-xs text-gray-500 mt-0.5">Configure AI credentials in Settings</p>
         </div>
         <button
+          onClick={openSettings}
+          className="flex-shrink-0 px-2.5 py-1 text-xs font-medium rounded-lg bg-amber-500 text-black hover:bg-amber-400 transition-colors"
+        >
+          Open Settings
+        </button>
+        <button
           onClick={() => setAiAlert(null)}
+          aria-label="Dismiss"
+          title="Dismiss"
           className="flex-shrink-0 p-1 rounded-lg hover:bg-gray-800 text-gray-500 hover:text-gray-300 transition-colors"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">

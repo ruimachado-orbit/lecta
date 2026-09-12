@@ -186,6 +186,7 @@ export function DesignSystemPanel({ onClose, onInsert }: {
             onClick={() => setEditingElement({ category: 'component', tags: [] })}
             className="w-5 h-5 rounded flex items-center justify-center text-gray-500 hover:text-white hover:bg-indigo-600 transition-colors"
             title="New element"
+            aria-label="New element"
           >
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />

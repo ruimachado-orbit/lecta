@@ -49,7 +49,7 @@ export function AIGeneratePanel(): JSX.Element {
       )
 
       if (generated.length > 0) {
-        const marked = generated.map((s) => ({
+        const marked = generated.map((s: { markdown: string }) => ({
           ...s,
           markdown: `<!-- ai-generated -->\n${s.markdown}`
         }))
@@ -94,7 +94,7 @@ export function AIGeneratePanel(): JSX.Element {
         <span className="text-xs font-medium text-gray-400 uppercase tracking-wider flex-1">AI Slide Generator</span>
         <button onClick={() => useUIStore.getState().toggleAIGenerate()}
           className="p-1 rounded hover:bg-gray-800 text-gray-500 hover:text-gray-300 transition-colors"
-          title="Close">
+          title="Close" aria-label="Close">
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
           </svg>
@@ -195,8 +195,7 @@ export function AIGeneratePanel(): JSX.Element {
 }
 
 export function AIImproveBar(): JSX.Element {
-  const { slides, currentSlideIndex, updateMarkdownContent, saveSlideContent, presentation } =
-    usePresentationStore()
+  const { slides, currentSlideIndex, presentation } = usePresentationStore()
   const [prompt, setPrompt] = useState('')
   const [isImproving, setIsImproving] = useState(false)
 
@@ -230,9 +229,12 @@ export function AIImproveBar(): JSX.Element {
         prompt,
         getArtifactContext()
       )
-      updateMarkdownContent(currentSlideIndex, `<!-- ai-generated -->\n${result}`)
-      saveSlideContent(currentSlideIndex)
-      setPrompt('')
+      // Refuses (with a toast) when the slide is executable MDX
+      const applied = usePresentationStore.getState().applyAIContent(
+        currentSlideIndex,
+        `<!-- ai-generated -->\n${result}`
+      )
+      if (applied) setPrompt('')
     } catch (err) {
       showAIError(err)
     } finally {
@@ -272,8 +274,7 @@ export function AIImproveBar(): JSX.Element {
  * Works on any slide. Shows inline prompt bar, generates changes, previews diff.
  */
 export function AIChangeBar(): JSX.Element {
-  const { slides, currentSlideIndex, updateMarkdownContent, saveSlideContent, presentation } =
-    usePresentationStore()
+  const { slides, currentSlideIndex, updateMarkdownContent, presentation } = usePresentationStore()
   const [showPrompt, setShowPrompt] = useState(false)
   const [prompt, setPrompt] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
@@ -298,6 +299,10 @@ export function AIChangeBar(): JSX.Element {
   const handleSubmit = async () => {
     if (!prompt.trim() || !presentation || !currentSlide) return
     if (!requireAI()) return
+    if (currentSlide.isMdx) {
+      useUIStore.getState().setAiAlert('AI edits are disabled for executable .mdx slides — edit the slide by hand.')
+      return
+    }
     setIsProcessing(true)
 
     try {
@@ -331,8 +336,7 @@ export function AIChangeBar(): JSX.Element {
 
   const handleAccept = () => {
     if (!review) return
-    updateMarkdownContent(currentSlideIndex, review.improved)
-    saveSlideContent(currentSlideIndex)
+    usePresentationStore.getState().applyAIContent(currentSlideIndex, review.improved)
     setReview(null)
     setPrompt('')
     setShowPrompt(false)
@@ -421,6 +425,7 @@ export function AIChangeBar(): JSX.Element {
       onClick={() => setShowPrompt(true)}
       className="flex items-center gap-1 px-2 py-0.5 text-gray-500 hover:text-gray-300 hover:bg-gray-800 text-[10px] rounded transition-colors"
       title="Improve this slide with AI"
+      aria-label="Improve this slide with AI"
     >
       <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 24 24">
         <path d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />

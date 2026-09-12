@@ -183,6 +183,7 @@ export function ModelSelector({ compact = false }: { compact?: boolean; directio
             : 'border-gray-700 hover:border-gray-500 bg-gray-900 hover:bg-gray-800'
         } ${compact ? 'px-2 py-1 text-[10px]' : 'px-2.5 py-1.5 text-xs'}`}
         title={noProviders ? 'No AI providers configured — add credentials in Settings' : 'Select AI model'}
+        aria-label={noProviders ? 'No AI providers configured — add credentials in Settings' : 'Select AI model'}
       >
         <span className="w-4 h-4 rounded bg-gray-800 flex items-center justify-center text-[9px] font-bold text-gray-400 flex-shrink-0">
           {providerIcon}

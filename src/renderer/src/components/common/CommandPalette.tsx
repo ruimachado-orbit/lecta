@@ -54,9 +54,13 @@ function fuzzyScore(haystack: string, needle: string): number {
 
 /** First non-empty line of a slide's markdown, cleaned up for a list row. */
 function slideTitle(markdown: string, fallback: string): string {
-  const line = markdown.split('\n').map((l) => l.trim()).find((l) => l && !l.startsWith('---'))
-  if (!line) return fallback
-  return line.replace(/^#{1,6}\s*/, '').replace(/[*_`>]/g, '').slice(0, 80) || fallback
+  const lines = markdown.split('\n').map((l) => l.trim())
+  // Prefer the first markdown heading; otherwise the first line that is
+  // prose (not JSX, CSS, an import/export or an HTML comment).
+  const heading = lines.find((l) => /^#{1,6}\s+\S/.test(l))
+  const prose = heading ?? lines.find((l) => l && !/^(---|<|\{|\}|import\s|export\s|```|\|)/.test(l))
+  if (!prose) return fallback
+  return prose.replace(/^#{1,6}\s*/, '').replace(/[*_`>]/g, '').slice(0, 80) || fallback
 }
 
 export function CommandPalette(): JSX.Element | null {
@@ -104,7 +108,7 @@ export function CommandPalette(): JSX.Element | null {
     slides.forEach((slide, index) => {
       list.push({
         id: `slide-${index}`,
-        title: `${index + 1}. ${slideTitle(slide.markdownContent ?? '', slide.config.id)}`,
+        title: `${index + 1}. ${slideTitle(slide.markdownContent ?? '', slide.config.title || slide.config.id)}`,
         group: 'Slides',
         keywords: slide.config.id,
         run: () => usePresentationStore.getState().goToSlide(index)

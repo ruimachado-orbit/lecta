@@ -144,6 +144,16 @@ export function stripMdxToMarkdown(source: string): string {
     .replace(/\{[^{}\n]*\}/g, '')
     // Opening/self-closing/closing JSX tags (Capitalised components and lowercase HTML alike)
     .replace(/<\/?[A-Za-z][\w.:-]*(?:\s[^<>]*?)?\/?>/g, '')
+    // `<style>` / `<script>` bodies are not content
+    .replace(/^\s*[{}]\s*$/gm, '')
+    // Drop leading indentation left behind by removed JSX so lines do not
+    // become indented code blocks in markdown, but keep fenced blocks intact.
+    .split('\n')
+    .reduce<{ out: string[]; fence: boolean }>((acc, line) => {
+      if (line.trim().startsWith('```')) { acc.fence = !acc.fence; acc.out.push(line.trim()); return acc }
+      acc.out.push(acc.fence ? line : line.replace(/^[ \t]+/, ''))
+      return acc
+    }, { out: [], fence: false }).out.join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
 }

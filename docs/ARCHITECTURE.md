@@ -203,9 +203,12 @@ writes for 2 s so a save cannot clobber what is being typed).
 
 `packages/shared/src` holds the deck schema (`utils/yaml-parser.ts`), the closed value
 lists (`slide-options.ts` — layouts, themes, transitions, engines, languages), the model
-catalog (`constants.ts`) and the notebook parser. The MCP server mirrors these lists in
-`packages/mcp-server/src/lib/presentation-io.ts` rather than importing them; keeping the
-two in step is a known duplication.
+catalog (`constants.ts`), the language→engine/extension/command helpers and the notebook
+parser. The MCP server consumes the same sources: `packages/mcp-server/tsconfig.shared.json`
+compiles them into `dist/shared/` and the server imports them through the `#shared/*`
+subpath import declared in its `package.json` (vitest aliases `#shared/*` to the TypeScript
+sources so tests never run against a stale build). Both test suites assert a byte-identical
+`lecta.yaml` serialization fixture, so the two packages cannot silently fork again.
 
 ## Where things live
 

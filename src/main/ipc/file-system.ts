@@ -5,7 +5,7 @@ import { homedir } from 'os'
 import { stringify as stringifyYaml } from 'yaml'
 import { parsePresentationYaml, serializePresentation } from '../../../packages/shared/src/utils/yaml-parser'
 import { DECK_CONFIG_FILE } from '../../../packages/shared/src/constants'
-import { defaultEngineForLanguage } from '../../../packages/shared/src/slide-options'
+import { defaultEngineForLanguage, extensionForLanguage, nativeCommandForLanguage } from '../../../packages/shared/src/slide-options'
 import {
   parseSingleFileDeck,
   materializeToFolder,
@@ -626,14 +626,8 @@ export function registerFileSystemHandlers(): void {
         if (!slide) throw new Error(`Slide at index ${slideIndex} not found`)
         if (slide.code) throw new Error('Slide already has code attached')
 
-        // Determine file extension
-        const extMap: Partial<Record<SupportedLanguage, string>> = {
-          javascript: '.js', typescript: '.ts', python: '.py', sql: '.sql',
-          html: '.html', css: '.css', json: '.json', bash: '.sh',
-          rust: '.rs', go: '.go', java: '.java', csharp: '.cs', ruby: '.rb', php: '.php',
-          markdown: '.md'
-        }
-        const ext = extMap[language] || '.txt'
+        // Determine file extension (shared helper; keeps app and MCP server identical)
+        const ext = extensionForLanguage(language)
         const codeFile = `code/${slide.id}${ext}`
 
         // Create the code file only if it does not exist yet (never truncate)
@@ -650,11 +644,7 @@ export function registerFileSystemHandlers(): void {
           execution: engine
         }
         if (engine === 'native') {
-          const cmdMap: Partial<Record<SupportedLanguage, string>> = {
-            javascript: 'node', bash: 'bash', python: 'python3',
-            rust: 'rustc', go: 'go', ruby: 'ruby', php: 'php'
-          }
-          slide.code.command = cmdMap[language] || language
+          slide.code.command = nativeCommandForLanguage(language) || language
           slide.code.args = [codeFile]
         }
       })

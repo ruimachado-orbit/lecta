@@ -71,14 +71,11 @@ The version is authored in **`package.json`** and must match in three other plac
 | `package.json` | source of truth (`npm version …` via the bump targets) |
 | `web/lib/config.ts` (`VERSION`) | `make sync-version` — drives the website's download URLs |
 | `web/package.json` | **manual** |
-| `packages/mcp-server/package.json` | **manual** |
+| `packages/mcp-server/package.json` | `make sync-version` |
 
-Two known drifts to check by hand before a release:
-
-- `packages/mcp-server/src/server.ts` advertises `version: '0.1.0'` to MCP clients while its
-  `package.json` says `0.1.2`.
-- `web/package.json` and `packages/mcp-server/package.json` are not touched by
-  `make sync-version`.
+`make sync-version` also rewrites `web/package.json` and `packages/mcp-server/package.json`;
+the MCP server reads its advertised version from its own `package.json` at start-up, so
+there is no second version string to keep in step.
 
 The download URLs the website builds (`web/lib/config.ts`) must match electron-builder's
 `artifactName` patterns in `electron-builder.yml`, or the download buttons 404:

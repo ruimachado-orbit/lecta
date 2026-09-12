@@ -3,7 +3,7 @@ import { readFile, writeFile, mkdir, access, copyFile } from 'fs/promises'
 import { join, basename, dirname, extname, resolve } from 'path'
 import { homedir } from 'os'
 import { stringify as stringifyYaml } from 'yaml'
-import { parsePresentationYaml } from '../../../packages/shared/src/utils/yaml-parser'
+import { parsePresentationYaml, serializePresentation } from '../../../packages/shared/src/utils/yaml-parser'
 import { DECK_CONFIG_FILE } from '../../../packages/shared/src/constants'
 import { startWatching, stopWatching, addFileToWatch, markOwnWrite } from '../services/file-watcher'
 import { setAIDeckPath } from './ai'
@@ -179,43 +179,11 @@ async function createSlideFile(root: string, baseName: string, ext: string, cont
 /** Write the current presentation config back to lecta.yaml (atomic; caller holds the deck lock and triggers autoSave) */
 async function writePresentationYaml(presentation: Presentation): Promise<void> {
   const configPath = join(presentation.rootPath, DECK_CONFIG_FILE)
-
-  // Build a clean object without rootPath for serialization
-  const toSerialize: Record<string, unknown> = {
-    title: presentation.title,
-    author: presentation.author,
-    theme: presentation.theme,
-    ...(presentation.lastViewedIndex != null && presentation.lastViewedIndex > 0 ? { lastViewedIndex: presentation.lastViewedIndex } : {}),
-    slides: presentation.slides.map((s) => {
-      const slide: Record<string, unknown> = {
-        id: s.id,
-        ...(s.title ? { title: s.title } : {}),
-        content: s.content,
-      }
-      if (s.code) slide.code = s.code
-      if (s.video) slide.video = s.video
-      if (s.webapp) slide.webapp = s.webapp
-      if (s.prompts && s.prompts.length > 0) slide.prompts = s.prompts
-      slide.artifacts = s.artifacts
-      if (s.notes) slide.notes = s.notes
-      if (s.transition && s.transition !== 'none') slide.transition = s.transition
-      if (s.layout && s.layout !== 'default') slide.layout = s.layout
-      if (s.drawings) slide.drawings = s.drawings
-      if (s.skipped) slide.skipped = true
-      return slide
-    })
-  }
-  if (presentation.ai) toSerialize.ai = presentation.ai
-  if (presentation.presenterNotes) toSerialize.presenterNotes = presentation.presenterNotes
-  if (presentation.groups && presentation.groups.length > 0) {
-    toSerialize.groups = presentation.groups.map((g) => {
-      const group: Record<string, unknown> = { id: g.id, name: g.name, slideIds: g.slideIds }
-      if (g.color) group.color = g.color
-      return group
-    })
-  }
-
-  await atomicWriteFile(configPath, stringifyYaml(toSerialize, { lineWidth: 120 }))
+  // Shared serializer: one place decides the on-disk shape, and unknown keys
+  // written by newer versions or the MCP server survive a round-trip.
+  const { rootPath: _rootPath, ...config } = presentation
+  void _rootPath
+  await atomicWriteFile(configPath, serializePresentation(config as Presentation))
 }
 
 const LANGUAGE_TO_ENGINE: Partial<Record<SupportedLanguage, ExecutionEngine>> = {

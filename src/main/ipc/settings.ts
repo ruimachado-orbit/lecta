@@ -1,5 +1,5 @@
 import { ipcMain, app, safeStorage } from 'electron'
-import { readFile } from 'fs/promises'
+import { rename, readFile } from 'fs/promises'
 import { join } from 'path'
 import type { z } from 'zod'
 import { parseSettings, SettingsSchema } from '../schemas/settings'
@@ -108,7 +108,21 @@ export async function loadSettings(): Promise<Record<string, unknown>> {
         await saveSettings(cachedSettings)
       }
     }
-  } catch {
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code
+    if (code !== 'ENOENT') {
+      // The file exists but cannot be read or parsed. Never overwrite it
+      // silently: move it aside so the user's keys can be recovered, then
+      // start from defaults.
+      const settingsPath = getSettingsPath()
+      const backup = `${settingsPath}.corrupt-${Date.now()}`
+      try {
+        await rename(settingsPath, backup)
+        console.error(`[settings] settings.json was unreadable (${String(err)}); moved to ${backup}`)
+      } catch (renameErr) {
+        console.error('[settings] settings.json unreadable and could not be moved aside:', renameErr)
+      }
+    }
     cachedSettings = { ...DEFAULTS }
   }
   return cachedSettings

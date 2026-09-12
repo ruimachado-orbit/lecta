@@ -15,7 +15,7 @@ import {
 } from '../services/deck-roots'
 import { atomicWriteFile, writeFileIfMissing, withLock } from '../services/safe-fs'
 import { setGeminiDeckPath } from './gemini-image'
-import { getCachedSettings } from './settings'
+import { updateSettings } from './settings'
 import {
   openLectaFile,
   saveLectaFile,
@@ -103,27 +103,9 @@ export async function addRecentItem(item: {
  */
 async function persistRecentDecks(): Promise<void> {
   try {
-    await withLock('settings', async () => {
-      const settingsPath = await getSettingsPath()
-      let settings: Record<string, unknown> = {}
-      try {
-        const content = await readFile(settingsPath, 'utf-8')
-        settings = JSON.parse(content)
-        if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
-          throw new Error('settings.json is not an object')
-        }
-      } catch (err) {
-        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-          console.warn('[file-system] settings.json unreadable; not persisting recent decks:', err)
-          return
-        }
-      }
-      settings.recentDecks = recentDecks
-      await atomicWriteFile(settingsPath, JSON.stringify(settings, null, 2), { mode: 0o600 })
-      // Keep the settings module's cache in step: its next save() writes the
-      // whole cached object back and would otherwise restore a stale list.
-      getCachedSettings().recentDecks = recentDecks
-    })
+    // Single settings writer: merges into the cached settings and writes
+    // atomically (0600) under the shared 'settings' lock.
+    await updateSettings({ recentDecks })
   } catch (err) {
     // Non-critical
     console.warn('[file-system] Failed to persist recent decks:', err)

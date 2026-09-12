@@ -119,6 +119,16 @@ export function getCachedSettings(): Record<string, unknown> {
   return cachedSettings
 }
 
+/**
+ * The single writer for settings.json from anywhere in the main process.
+ * Merges `patch` into the cached settings and persists atomically under the
+ * shared 'settings' lock. Other modules must call this instead of writing
+ * the file themselves.
+ */
+export async function updateSettings(patch: Record<string, unknown>): Promise<void> {
+  await saveSettings(patch)
+}
+
 async function saveSettings(settings: Record<string, unknown>): Promise<void> {
   await withLock('settings', async () => {
     cachedSettings = { ...cachedSettings, ...settings }

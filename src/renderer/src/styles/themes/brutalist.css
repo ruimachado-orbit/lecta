@@ -1,0 +1,122 @@
+/* Brutalist — Swiss neo-brutalist light. Paper white, ink black, hazard yellow.
+   Think Gumroad, teenage engineering, hackathon winner. Borders, hard shadows, uppercase. */
+[data-slide-theme="brutalist"] {
+  --slide-bg: #fffdf4;
+  --slide-font-heading: "Archivo Black", "Arial Black", sans-serif;
+  --slide-font-body: "Space Mono", "IBM Plex Mono", monospace;
+
+  --slide-color-h1: #000000;
+  --slide-color-h2: #111111;
+  --slide-color-h3: #333333;
+  --slide-h1-size: 2.5rem;
+  --slide-h1-weight: 400;
+  --slide-h1-tracking: -0.01em;
+  --slide-h2-size: 1.7rem;
+  --slide-h2-weight: 400;
+  --slide-h3-size: 1.25rem;
+
+  --slide-color-body: #1a1a1a;
+  --slide-color-muted: #525252;
+  --slide-color-dimmed: #8a8a8a;
+  --slide-body-size: 1.05rem;
+  --slide-list-size: 1rem;
+
+  --slide-accent: #ff3d00;
+  --slide-accent-light: #ff6e40;
+  --slide-accent-gradient: linear-gradient(135deg, #ffd02b, #ff3d00);
+
+  --slide-link-color: #0000ee;
+  --slide-link-hover: #ff3d00;
+
+  --slide-table-border: #000000;
+  --slide-table-header-bg: #000000;
+  --slide-table-header-color: #ffd02b;
+  --slide-table-header-border: #000000;
+  --slide-table-cell-color: #1a1a1a;
+  --slide-table-cell-border: #000000;
+  --slide-table-row-hover: rgba(255,208,43,0.25);
+  --slide-table-radius: 0;
+
+  --slide-quote-border: #000000;
+  --slide-quote-border-width: 4px;
+  --slide-quote-bg: #ffd02b;
+  --slide-quote-color: #000000;
+  --slide-quote-radius: 0;
+
+  --slide-code-bg: #000000;
+  --slide-code-color: #ffd02b;
+  --slide-pre-bg: #000000;
+
+  --slide-badge-green-bg: #00e676;
+  --slide-badge-green-color: #000000;
+  --slide-badge-green-border: #000000;
+  --slide-badge-yellow-bg: #ffd02b;
+  --slide-badge-yellow-color: #000000;
+  --slide-badge-yellow-border: #000000;
+  --slide-badge-red-bg: #ff3d00;
+  --slide-badge-red-color: #ffffff;
+  --slide-badge-red-border: #000000;
+
+  --slide-progress-bg: #e5e5e5;
+  --slide-progress-fill: linear-gradient(90deg, #ffd02b, #ff3d00);
+
+  --slide-metric-bg: #ffffff;
+  --slide-metric-border: #000000;
+  --slide-metric-value-color: #000000;
+  --slide-metric-context-color: #525252;
+
+  --slide-section-bar: linear-gradient(180deg, #ffd02b, #ff3d00);
+  --slide-big-number-gradient: linear-gradient(135deg, #000000 0%, #333333 60%, #ff3d00 100%);
+  --slide-quote-mark-color: #ff3d00;
+  --slide-title-subtitle-color: #525252;
+
+  --slide-element-radius: 0;
+  --slide-textbox-border: #000000;
+  --slide-textbox-color: #1a1a1a;
+
+  --slide-glass-bg: #ffffff;
+  --slide-glass-border: #000000;
+  --slide-surface: #ffffff;
+  --slide-shadow-color: rgba(0,0,0,0.9);
+}
+
+/* Brutalist — black highlight box behind H1 */
+[data-slide-theme="brutalist"] :is(.slide-content, .wysiwyg-content) h1 {
+  display: inline-block;
+  background: #000000;
+  color: #ffd02b;
+  padding: 0.15em 0.4em;
+  box-shadow: 5px 5px 0 #ff3d00;
+}
+[data-slide-theme="brutalist"] .slide-layout-title :is(.slide-content, .wysiwyg-content) h1,
+[data-slide-theme="brutalist"] .slide-layout-big-number :is(.slide-content, .wysiwyg-content) h1,
+[data-slide-theme="brutalist"] .slide-layout-center :is(.slide-content, .wysiwyg-content) h1 {
+  box-shadow: 7px 7px 0 #ff3d00;
+}
+
+[data-slide-theme="brutalist"] :is(.slide-content, .wysiwyg-content) ul li {
+  list-style-type: square;
+}
+[data-slide-theme="brutalist"] :is(.slide-content, .wysiwyg-content) ul li::marker {
+  color: #ff3d00;
+}
+[data-slide-theme="brutalist"] :is(.slide-content, .wysiwyg-content) table {
+  border: 2px solid #000000;
+  border-radius: 0;
+  box-shadow: 5px 5px 0 #000000;
+}
+[data-slide-theme="brutalist"] :is(.slide-content, .wysiwyg-content) pre {
+  border: 2px solid #000000;
+  border-radius: 0;
+  box-shadow: 5px 5px 0 #ffd02b;
+}
+[data-slide-theme="brutalist"] :is(.slide-content, .wysiwyg-content) blockquote {
+  border: 2px solid #000000;
+  box-shadow: 5px 5px 0 #000000;
+}
+[data-slide-theme="brutalist"] .slide-badge {
+  border-radius: 0;
+  border-width: 2px;
+  font-weight: 700;
+  text-transform: uppercase;
+}

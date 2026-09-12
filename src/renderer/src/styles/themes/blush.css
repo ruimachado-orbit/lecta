@@ -1,0 +1,111 @@
+/* Blush — Pastel creator light. Rose-mist canvas, plum ink, raspberry pop.
+   Think creator media kit, beauty brand, portfolio. Soft gradients, friendly, image-forward. */
+[data-slide-theme="blush"] {
+  --slide-bg: #fdf2f5;
+  --slide-font-heading: "DM Serif Display", Georgia, serif;
+  --slide-font-body: "Outfit", -apple-system, sans-serif;
+
+  --slide-color-h1: #3b2231;
+  --slide-color-h2: #5c2f45;
+  --slide-color-h3: #8a4a63;
+  --slide-h1-size: 2.6rem;
+  --slide-h1-weight: 400;
+  --slide-h1-tracking: -0.015em;
+  --slide-h2-size: 1.8rem;
+  --slide-h2-weight: 400;
+  --slide-h3-size: 1.35rem;
+
+  --slide-color-body: #5f4453;
+  --slide-color-muted: #96707f;
+  --slide-color-dimmed: #bd9aa8;
+  --slide-body-size: 1.12rem;
+  --slide-list-size: 1.03rem;
+
+  --slide-accent: #db2777;
+  --slide-accent-light: #f472b6;
+  --slide-accent-gradient: linear-gradient(135deg, #f472b6, #db2777, #8b5cf6);
+
+  --slide-link-color: #db2777;
+  --slide-link-hover: #be185d;
+
+  --slide-table-border: rgba(219,39,119,0.1);
+  --slide-table-header-bg: rgba(219,39,119,0.07);
+  --slide-table-header-color: #5c2f45;
+  --slide-table-header-border: rgba(219,39,119,0.2);
+  --slide-table-cell-color: #5f4453;
+  --slide-table-cell-border: rgba(219,39,119,0.06);
+  --slide-table-row-hover: rgba(219,39,119,0.03);
+  --slide-table-radius: 1rem;
+
+  --slide-quote-border: #f472b6;
+  --slide-quote-border-width: 3px;
+  --slide-quote-bg: rgba(244,114,182,0.08);
+  --slide-quote-color: #5f4453;
+  --slide-quote-radius: 0 1rem 1rem 0;
+
+  --slide-code-bg: #fbe4ec;
+  --slide-code-color: #9d174d;
+  --slide-pre-bg: #fbe4ec;
+
+  --slide-badge-green-bg: rgba(22,163,74,0.08);
+  --slide-badge-green-color: #15803d;
+  --slide-badge-green-border: rgba(22,163,74,0.16);
+  --slide-badge-yellow-bg: rgba(202,138,4,0.1);
+  --slide-badge-yellow-color: #a16207;
+  --slide-badge-yellow-border: rgba(202,138,4,0.18);
+  --slide-badge-red-bg: rgba(219,39,119,0.08);
+  --slide-badge-red-color: #be185d;
+  --slide-badge-red-border: rgba(219,39,119,0.18);
+
+  --slide-progress-bg: #f5d9e3;
+  --slide-progress-fill: linear-gradient(90deg, #f472b6, #db2777);
+
+  --slide-metric-bg: rgba(219,39,119,0.04);
+  --slide-metric-border: rgba(219,39,119,0.1);
+  --slide-metric-value-color: #3b2231;
+  --slide-metric-context-color: #96707f;
+
+  --slide-section-bar: linear-gradient(180deg, #f472b6, #8b5cf6);
+  --slide-big-number-gradient: linear-gradient(135deg, #f9a8d4 0%, #db2777 50%, #8b5cf6 100%);
+  --slide-quote-mark-color: #f472b6;
+  --slide-title-subtitle-color: #96707f;
+
+  --slide-element-radius: 1rem;
+  --slide-textbox-border: rgba(219,39,119,0.1);
+  --slide-textbox-color: #5f4453;
+
+  --slide-glass-bg: rgba(255,255,255,0.6);
+  --slide-glass-border: rgba(219,39,119,0.12);
+  --slide-surface: #ffffff;
+  --slide-shadow-color: rgba(92,47,69,0.14);
+}
+
+[data-slide-theme="blush"] :is(.slide-content, .wysiwyg-content) h1 {
+  padding-bottom: 0.5rem;
+  background-image: linear-gradient(90deg, #db2777, #8b5cf6, transparent);
+  background-repeat: no-repeat;
+  background-size: 120px 4px;
+  background-position: bottom left;
+  border-radius: 2px;
+}
+[data-slide-theme="blush"] .slide-layout-title :is(.slide-content, .wysiwyg-content) h1,
+[data-slide-theme="blush"] .slide-layout-big-number :is(.slide-content, .wysiwyg-content) h1,
+[data-slide-theme="blush"] .slide-layout-center :is(.slide-content, .wysiwyg-content) h1 {
+  background-image: none;
+  padding-bottom: 0;
+}
+
+[data-slide-theme="blush"] :is(.slide-content, .wysiwyg-content) ul li::marker {
+  color: #f472b6;
+}
+[data-slide-theme="blush"] :is(.slide-content, .wysiwyg-content) table {
+  border: 1px solid rgba(219,39,119,0.08);
+  border-radius: 1rem;
+  overflow: hidden;
+}
+[data-slide-theme="blush"] :is(.slide-content, .wysiwyg-content) pre {
+  border-radius: 1rem;
+}
+[data-slide-theme="blush"] .slide-badge {
+  border-radius: 999px;
+}

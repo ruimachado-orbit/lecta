@@ -1,0 +1,109 @@
+/* Ember — Sunset pitch dark. Charred espresso canvas, burnt-orange flame.
+   Think Airbnb pitch, creator keynote, lifestyle brand. Warm, bold, cinematic. */
+[data-slide-theme="ember"] {
+  --slide-bg: #181210;
+  --slide-font-heading: "Fraunces", Georgia, serif;
+  --slide-font-body: "DM Sans", -apple-system, sans-serif;
+
+  --slide-color-h1: #fff7ed;
+  --slide-color-h2: #fed7aa;
+  --slide-color-h3: #e9a26b;
+  --slide-h1-size: 2.75rem;
+  --slide-h1-weight: 700;
+  --slide-h1-tracking: -0.02em;
+  --slide-h2-size: 1.9rem;
+  --slide-h2-weight: 600;
+  --slide-h3-size: 1.4rem;
+  --slide-h3-weight: 500;
+
+  --slide-color-body: #d6bfae;
+  --slide-color-muted: #9c8474;
+  --slide-color-dimmed: #6b5a4e;
+  --slide-body-size: 1.15rem;
+  --slide-list-size: 1.05rem;
+
+  --slide-accent: #f97316;
+  --slide-accent-light: #fb923c;
+  --slide-accent-gradient: linear-gradient(135deg, #fb923c, #f97316, #e11d48);
+
+  --slide-link-color: #fb923c;
+  --slide-link-hover: #fdba74;
+
+  --slide-table-border: rgba(249,115,22,0.12);
+  --slide-table-header-bg: rgba(249,115,22,0.08);
+  --slide-table-header-color: #fed7aa;
+  --slide-table-header-border: rgba(249,115,22,0.25);
+  --slide-table-cell-color: #d6bfae;
+  --slide-table-cell-border: rgba(255,255,255,0.04);
+  --slide-table-row-hover: rgba(249,115,22,0.05);
+  --slide-table-radius: 0.75rem;
+
+  --slide-quote-border: #f97316;
+  --slide-quote-border-width: 4px;
+  --slide-quote-bg: rgba(249,115,22,0.05);
+  --slide-quote-color: #d6bfae;
+  --slide-quote-radius: 0 0.75rem 0.75rem 0;
+
+  --slide-code-bg: rgba(249,115,22,0.08);
+  --slide-code-color: #fdba74;
+  --slide-pre-bg: #0e0a08;
+
+  --slide-badge-green-bg: rgba(52,211,153,0.1);
+  --slide-badge-green-color: #34d399;
+  --slide-badge-green-border: rgba(52,211,153,0.22);
+  --slide-badge-yellow-bg: rgba(249,115,22,0.12);
+  --slide-badge-yellow-color: #fb923c;
+  --slide-badge-yellow-border: rgba(249,115,22,0.25);
+  --slide-badge-red-bg: rgba(244,63,94,0.1);
+  --slide-badge-red-color: #fb7185;
+  --slide-badge-red-border: rgba(244,63,94,0.22);
+
+  --slide-progress-bg: rgba(255,255,255,0.06);
+  --slide-progress-fill: linear-gradient(90deg, #f97316, #e11d48);
+
+  --slide-metric-bg: rgba(249,115,22,0.04);
+  --slide-metric-border: rgba(249,115,22,0.12);
+  --slide-metric-value-color: #fff7ed;
+  --slide-metric-context-color: #9c8474;
+
+  --slide-section-bar: linear-gradient(180deg, #fb923c, #e11d48);
+  --slide-big-number-gradient: linear-gradient(135deg, #fdba74 0%, #f97316 50%, #e11d48 100%);
+  --slide-quote-mark-color: #f97316;
+  --slide-title-subtitle-color: #9c8474;
+
+  --slide-element-radius: 0.75rem;
+  --slide-textbox-border: rgba(249,115,22,0.14);
+  --slide-textbox-color: #d6bfae;
+
+  --slide-glass-bg: rgba(255,255,255,0.08);
+  --slide-glass-border: rgba(255,255,255,0.18);
+  --slide-surface: #241a16;
+  --slide-shadow-color: rgba(0,0,0,0.6);
+}
+
+/* Ember — warm glow on H1 + flame underline */
+[data-slide-theme="ember"] :is(.slide-content, .wysiwyg-content) h1 {
+  padding-bottom: 0.5rem;
+  background-image: linear-gradient(90deg, #f97316, #e11d48, transparent);
+  background-repeat: no-repeat;
+  background-size: 45% 3px;
+  background-position: bottom left;
+  text-shadow: 0 0 60px rgba(249,115,22,0.15);
+}
+[data-slide-theme="ember"] .slide-layout-title :is(.slide-content, .wysiwyg-content) h1,
+[data-slide-theme="ember"] .slide-layout-big-number :is(.slide-content, .wysiwyg-content) h1,
+[data-slide-theme="ember"] .slide-layout-center :is(.slide-content, .wysiwyg-content) h1 {
+  background-image: none;
+  padding-bottom: 0;
+}
+
+[data-slide-theme="ember"] :is(.slide-content, .wysiwyg-content) ul li::marker {
+  color: #fb923c;
+}
+[data-slide-theme="ember"] :is(.slide-content, .wysiwyg-content) table {
+  border: 1px solid rgba(249,115,22,0.1);
+  border-radius: 0.75rem;
+}
+[data-slide-theme="ember"] :is(.slide-content, .wysiwyg-content) pre {
+  border-radius: 0.75rem;
+}

@@ -721,8 +721,8 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
         }
       }
 
-      // Apply the wizard's template pick
-      if (theme && theme !== 'dark') {
+      // Apply the wizard's template pick (creation defaults to modern)
+      if (theme) {
         try {
           await window.electronAPI.setTheme(workspaceDir, theme)
         } catch { /* theme stays default */ }

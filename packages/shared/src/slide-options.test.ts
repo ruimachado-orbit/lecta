@@ -31,6 +31,16 @@ describe('slide option lists', () => {
       'creative',
       'keynote-dark',
       'paper',
+      'aurora',
+      'ember',
+      'abyss',
+      'galaxy',
+      'forest',
+      'editorial',
+      'brutalist',
+      'blush',
+      'terminal',
+      'frost',
     ])
     expect(DEFAULT_THEME).toBe('dark')
   })

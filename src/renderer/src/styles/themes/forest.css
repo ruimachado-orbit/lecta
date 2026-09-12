@@ -1,0 +1,103 @@
+/* Forest — Botanical light. Sage-mist canvas, deep pine ink, moss accent.
+   Think climate deck, NGO report, farm-to-table brand. Grounded, fresh, trustworthy. */
+[data-slide-theme="forest"] {
+  --slide-bg: #f6f8f1;
+  --slide-font-heading: "Lora", Georgia, serif;
+  --slide-font-body: "DM Sans", -apple-system, sans-serif;
+
+  --slide-color-h1: #1a2e1f;
+  --slide-color-h2: #24402a;
+  --slide-color-h3: #3a5f43;
+  --slide-h1-size: 2.5rem;
+  --slide-h1-weight: 600;
+  --slide-h1-tracking: -0.015em;
+  --slide-h2-size: 1.8rem;
+  --slide-h2-weight: 600;
+  --slide-h3-size: 1.375rem;
+
+  --slide-color-body: #3f4f44;
+  --slide-color-muted: #6b7f70;
+  --slide-color-dimmed: #9aa89d;
+  --slide-body-size: 1.15rem;
+  --slide-body-line-height: 1.7;
+  --slide-list-size: 1.05rem;
+
+  --slide-accent: #2d6a4f;
+  --slide-accent-light: #40916c;
+  --slide-accent-gradient: linear-gradient(135deg, #40916c, #2d6a4f);
+
+  --slide-link-color: #2d6a4f;
+  --slide-link-hover: #40916c;
+
+  --slide-table-border: rgba(45,106,79,0.12);
+  --slide-table-header-bg: #1a2e1f;
+  --slide-table-header-color: #f6f8f1;
+  --slide-table-header-border: #1a2e1f;
+  --slide-table-cell-color: #3f4f44;
+  --slide-table-cell-border: rgba(45,106,79,0.07);
+  --slide-table-row-hover: rgba(45,106,79,0.03);
+  --slide-table-radius: 0.625rem;
+
+  --slide-quote-border: #2d6a4f;
+  --slide-quote-border-width: 4px;
+  --slide-quote-bg: rgba(45,106,79,0.05);
+  --slide-quote-color: #3f4f44;
+  --slide-quote-radius: 0 0.625rem 0.625rem 0;
+
+  --slide-code-bg: #e9efe3;
+  --slide-code-color: #1b4332;
+  --slide-pre-bg: #e9efe3;
+
+  --slide-badge-green-bg: rgba(45,106,79,0.1);
+  --slide-badge-green-color: #2d6a4f;
+  --slide-badge-green-border: rgba(45,106,79,0.2);
+  --slide-badge-yellow-bg: rgba(202,138,4,0.1);
+  --slide-badge-yellow-color: #a16207;
+  --slide-badge-yellow-border: rgba(202,138,4,0.2);
+  --slide-badge-red-bg: rgba(220,38,38,0.08);
+  --slide-badge-red-color: #b91c1c;
+  --slide-badge-red-border: rgba(220,38,38,0.16);
+
+  --slide-progress-bg: #dde5d5;
+  --slide-progress-fill: linear-gradient(90deg, #40916c, #2d6a4f);
+
+  --slide-metric-bg: rgba(45,106,79,0.04);
+  --slide-metric-border: rgba(45,106,79,0.1);
+  --slide-metric-value-color: #1a2e1f;
+  --slide-metric-context-color: #6b7f70;
+
+  --slide-section-bar: linear-gradient(180deg, #40916c, #1b4332);
+  --slide-big-number-gradient: linear-gradient(135deg, #74c69d 0%, #40916c 50%, #1b4332 100%);
+  --slide-quote-mark-color: #2d6a4f;
+  --slide-title-subtitle-color: #6b7f70;
+
+  --slide-element-radius: 0.625rem;
+  --slide-textbox-border: rgba(45,106,79,0.12);
+  --slide-textbox-color: #3f4f44;
+
+  --slide-glass-bg: rgba(255,255,255,0.55);
+  --slide-glass-border: rgba(45,106,79,0.12);
+  --slide-surface: #ffffff;
+  --slide-shadow-color: rgba(26,46,31,0.14);
+}
+
+[data-slide-theme="forest"] :is(.slide-content, .wysiwyg-content) h1 {
+  padding-bottom: 0.6rem;
+  border-bottom: 2px solid rgba(45,106,79,0.2);
+}
+[data-slide-theme="forest"] .slide-layout-title :is(.slide-content, .wysiwyg-content) h1,
+[data-slide-theme="forest"] .slide-layout-big-number :is(.slide-content, .wysiwyg-content) h1,
+[data-slide-theme="forest"] .slide-layout-center :is(.slide-content, .wysiwyg-content) h1 {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+[data-slide-theme="forest"] :is(.slide-content, .wysiwyg-content) ul li {
+  list-style-type: disc;
+}
+[data-slide-theme="forest"] :is(.slide-content, .wysiwyg-content) ul li::marker {
+  color: #40916c;
+}
+[data-slide-theme="forest"] :is(.slide-content, .wysiwyg-content) tr:nth-child(even) td {
+  background: #eef3e7;
+}

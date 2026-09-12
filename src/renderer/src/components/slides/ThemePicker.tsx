@@ -44,9 +44,9 @@ export const DEFAULT_THEME_STORAGE_KEY = 'lecta.default-theme'
 
 export function loadDefaultThemeId(): string {
   try {
-    return localStorage.getItem(DEFAULT_THEME_STORAGE_KEY) || 'dark'
+    return localStorage.getItem(DEFAULT_THEME_STORAGE_KEY) || 'modern'
   } catch {
-    return 'dark'
+    return 'modern'
   }
 }
 
@@ -101,11 +101,11 @@ export function ThemePicker({ onClose }: { onClose: () => void }) {
                   </div>
                   <div className="text-[9px] text-gray-500 leading-tight">{theme.description}</div>
                   <div className="flex items-center gap-1 mt-0.5" onClick={(e) => e.stopPropagation()}>
-                    {theme.id !== 'dark' && (
+                    {theme.id !== 'modern' && (
                       <button
-                        onClick={() => { setTheme('dark'); onClose() }}
+                        onClick={() => { setTheme('modern'); onClose() }}
                         className="text-[9px] text-gray-500 hover:text-gray-300 transition-colors"
-                        title="Reset to Default Dark"
+                        title="Reset to Modern"
                       >
                         Reset
                       </button>

@@ -675,7 +675,7 @@ export function registerFileSystemHandlers(): void {
     const yaml = stringifyYaml({
       title: name,
       author: '',
-      theme: 'dark',
+      theme: 'modern',
       slides: [{ id: 'welcome', content: 'slides/01-welcome.md', artifacts: [] }]
     })
 

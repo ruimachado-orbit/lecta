@@ -70,7 +70,17 @@ const PALETTES: Record<string, Palette> = {
   corporate: { bg: 'ffffff', h1: '0c1a3a', h2: '1e293b', body: '334155', muted: '64748b', accent: '1d4ed8', preBg: 'f8fafc', code: '1e3a8a', headingFont: 'Calibri', bodyFont: 'Calibri', monoFont: MONO, dark: false },
   creative: { bg: '0a0a14', h1: 'ffffff', h2: 'e4e4f4', body: 'b8b8d4', muted: '808098', accent: '8b5cf6', preBg: '060610', code: 'c4b5fd', headingFont: 'Calibri', bodyFont: 'Calibri', monoFont: MONO, dark: true },
   'keynote-dark': { bg: '000000', h1: 'ffffff', h2: 'e5e5e5', body: '909090', muted: '606060', accent: '00d4ff', preBg: '050505', code: '40e8ff', headingFont: 'Calibri', bodyFont: 'Calibri', monoFont: MONO, dark: true },
-  paper: { bg: 'faf7f0', h1: '1c110a', h2: '2e1f14', body: '3d2c1e', muted: '6a5545', accent: '8a3a10', preBg: 'f0ebe2', code: '4a3525', headingFont: 'Georgia', bodyFont: 'Georgia', monoFont: 'Courier New', dark: false }
+  paper: { bg: 'faf7f0', h1: '1c110a', h2: '2e1f14', body: '3d2c1e', muted: '6a5545', accent: '8a3a10', preBg: 'f0ebe2', code: '4a3525', headingFont: 'Georgia', bodyFont: 'Georgia', monoFont: 'Courier New', dark: false },
+  aurora: { bg: 'f5f7ff', h1: '0f1b3d', h2: '1b2a5b', body: '3d4a6e', muted: '6b7a9e', accent: '5b5bd6', preBg: 'eef1fd', code: '3730a3', headingFont: 'Calibri', bodyFont: 'Calibri', monoFont: MONO, dark: false },
+  ember: { bg: '181210', h1: 'fff7ed', h2: 'fed7aa', body: 'd6bfae', muted: '9c8474', accent: 'f97316', preBg: '0e0a08', code: 'fdba74', headingFont: 'Georgia', bodyFont: 'Calibri', monoFont: MONO, dark: true },
+  abyss: { bg: '0a1628', h1: 'f1faee', h2: 'c8e6e2', body: 'a9c3c7', muted: '6f8f98', accent: '2dd4bf', preBg: '060e1a', code: '99f6e4', headingFont: 'Calibri', bodyFont: 'Calibri', monoFont: MONO, dark: true },
+  galaxy: { bg: '130e26', h1: 'f5f0ff', h2: 'd9c8ff', body: 'bcb0d8', muted: '857a9e', accent: 'a78bfa', preBg: '0b0718', code: 'ddd6fe', headingFont: 'Calibri', bodyFont: 'Calibri', monoFont: MONO, dark: true },
+  forest: { bg: 'f6f8f1', h1: '1a2e1f', h2: '24402a', body: '3f4f44', muted: '6b7f70', accent: '2d6a4f', preBg: 'e9efe3', code: '1b4332', headingFont: 'Georgia', bodyFont: 'Calibri', monoFont: MONO, dark: false },
+  editorial: { bg: 'faf9f6', h1: '111111', h2: '1c1c1c', body: '3d3d3d', muted: '737373', accent: 'b91c1c', preBg: 'f0ede8', code: '7f1d1d', headingFont: 'Georgia', bodyFont: 'Calibri', monoFont: MONO, dark: false },
+  brutalist: { bg: 'fffdf4', h1: '000000', h2: '111111', body: '1a1a1a', muted: '525252', accent: 'ff3d00', preBg: '000000', code: 'ffd02b', headingFont: 'Arial Black', bodyFont: 'Courier New', monoFont: 'Courier New', dark: false },
+  blush: { bg: 'fdf2f5', h1: '3b2231', h2: '5c2f45', body: '5f4453', muted: '96707f', accent: 'db2777', preBg: 'fbe4ec', code: '9d174d', headingFont: 'Georgia', bodyFont: 'Calibri', monoFont: MONO, dark: false },
+  terminal: { bg: '070b07', h1: 'e8ffe8', h2: 'b6f5b6', body: '9dc89d', muted: '5f8a5f', accent: '4ade80', preBg: '040704', code: 'bbf7d0', headingFont: 'Consolas', bodyFont: 'Consolas', monoFont: MONO, dark: true },
+  frost: { bg: 'f2f6fd', h1: '0b1e3b', h2: '14305c', body: '3c5478', muted: '647f9e', accent: '2563eb', preBg: 'e4edfb', code: '1e40af', headingFont: 'Calibri', bodyFont: 'Calibri', monoFont: MONO, dark: false },
 }
 
 export function paletteFor(theme: string | undefined): Palette {

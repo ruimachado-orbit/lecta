@@ -1,0 +1,203 @@
+/**
+ * Block model for the canvas editor.
+ *
+ * A slide's markdown is split into blocks (heading, paragraph, list, quote,
+ * code fence, image, table, html, break) so the canvas can render and edit
+ * each block independently — PowerPoint-style — while markdown stays the
+ * single source of truth. Pure module: no React, no stores.
+ */
+
+export type BlockKind =
+  | 'heading'
+  | 'paragraph'
+  | 'list'
+  | 'quote'
+  | 'code'
+  | 'image'
+  | 'table'
+  | 'html'
+  | 'break'
+
+export interface SlideBlock {
+  /** Stable within one parse; regenerated on every split. */
+  key: string
+  kind: BlockKind
+  /** The exact source lines for this block. */
+  markdown: string
+}
+
+/** Blocks the canvas edits in place; everything else renders locked. */
+export function isEditableBlock(kind: BlockKind): boolean {
+  return kind === 'heading' || kind === 'paragraph' || kind === 'list' || kind === 'quote'
+}
+
+const FENCE_RE = /^(`{3,}|~{3,})/
+const BREAK_RE = /^(?:-{3,}|\*{3,}|_{3,})$/
+const HEADING_RE = /^#{1,6}\s/
+const TABLE_ROW_RE = /^\|.*\|\s*$/
+const IMAGE_ONLY_RE = /^!\[[^\]]*\]\([^)]+\)(?:\s+"[^"]*")?$/
+const HTML_OPEN_RE = /^<[a-zA-Z][^>]*$/
+const LIST_RE = /^(?:[-*+]|\d+[.)])\s+/
+const QUOTE_RE = /^>\s?/
+
+const BALANCED_TAGS = new Set(['div', 'section', 'figure', 'table', 'span'])
+
+function tagBalanceDelta(line: string): number {
+  let delta = 0
+  const re = /<\/?([a-zA-Z][a-zA-Z0-9]*)[^>]*>/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(line)) !== null) {
+    const tag = m[1].toLowerCase()
+    if (!BALANCED_TAGS.has(tag)) continue
+    const full = m[0]
+    if (full.endsWith('/>')) continue
+    delta += full.startsWith('</') ? -1 : 1
+  }
+  return delta
+}
+
+function classifyParagraph(lines: string[]): BlockKind {
+  // Skip leading directive comments (autofit, columns, …) for classification.
+  const first = lines.find((l) => !/^<!--[^<>]*-->\s*$/.test(l.trim())) ?? lines[0]
+  const text = first.trim()
+  if (lines.length === 1 && BREAK_RE.test(first.trim())) return 'break'
+  if (HEADING_RE.test(text)) return 'heading'
+  if (QUOTE_RE.test(text)) return 'quote'
+  if (LIST_RE.test(text)) return 'list'
+  if (TABLE_ROW_RE.test(text)) return 'table'
+  if (lines.length === 1 && IMAGE_ONLY_RE.test(text)) return 'image'
+  if (text.startsWith('<')) return 'html'
+  return 'paragraph'
+}
+
+/**
+ * Split slide markdown into blocks. Blank lines separate blocks, except
+ * inside fenced code and inside unbalanced HTML containers (columns, etc.).
+ * Lone HTML comments attach to the block that follows them.
+ */
+export function splitBlocks(markdown: string): SlideBlock[] {
+  const lines = markdown.replace(/\n+$/, '').split('\n')
+  const groups: string[][] = []
+  let current: string[] = []
+  let inFence: string | null = null
+  let htmlDepth = 0
+  let pendingComments: string[] = []
+
+  const flush = () => {
+    if (current.length > 0) {
+      groups.push(current)
+      current = []
+    }
+  }
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+
+    if (inFence) {
+      current.push(line)
+      if (trimmed.startsWith(inFence)) inFence = null
+      continue
+    }
+
+    const fence = FENCE_RE.exec(trimmed)
+    if (fence && current.length === 0) {
+      // A fence starts a locked code block of its own.
+      flush()
+      current.push(line)
+      inFence = fence[1]
+      continue
+    }
+
+    if (trimmed === '') {
+      if (htmlDepth > 0) {
+        // Blank line inside an open HTML container belongs to it.
+        current.push(line)
+      } else {
+        flush()
+      }
+      continue
+    }
+
+    // Pure directive comments (autofit, columns, …) attach to the next block.
+    // Complete element comments (a pinned textbox on one line) stand alone.
+    if (/^<!--[^<>]*-->\s*$/.test(trimmed) && current.length === 0 && htmlDepth === 0) {
+      pendingComments.push(line)
+      htmlDepth += tagBalanceDelta(line)
+      continue
+    }
+
+    if (pendingComments.length > 0) {
+      current.push(...pendingComments)
+      pendingComments = []
+    }
+    current.push(line)
+    htmlDepth += tagBalanceDelta(line)
+    if (htmlDepth < 0) htmlDepth = 0
+  }
+  if (pendingComments.length > 0) {
+    current.push(...pendingComments)
+  }
+  flush()
+
+  return groups
+    .map((g) => g.join('\n').trim())
+    .filter((md) => md.length > 0)
+    .map((md, i) => ({ key: `b${i}`, kind: classifyForGroup(md), markdown: md }))
+}
+
+function classifyForGroup(md: string): BlockKind {
+  const lines = md.split('\n')
+  if (lines.length >= 2 && FENCE_RE.test(lines[0].trim())) return 'code'
+  return classifyParagraph(lines)
+}
+
+/** Replace one block's markdown and rejoin the slide. */
+export function patchBlock(markdown: string, key: string, next: string): string {
+  const blocks = splitBlocks(markdown)
+  const idx = blocks.findIndex((b) => b.key === key)
+  if (idx < 0) return markdown
+  if (next.trim() === '') {
+    blocks.splice(idx, 1)
+  } else {
+    blocks[idx] = { ...blocks[idx], markdown: next.trim() }
+  }
+  return joinBlocks(blocks.map((b) => b.markdown))
+}
+
+/** Move a block one step; returns the new markdown (or the input when stuck). */
+export function moveBlock(markdown: string, key: string, dir: -1 | 1): string {
+  const blocks = splitBlocks(markdown)
+  const idx = blocks.findIndex((b) => b.key === key)
+  const to = idx + dir
+  if (idx < 0 || to < 0 || to >= blocks.length) return markdown
+  const [item] = blocks.splice(idx, 1)
+  blocks.splice(to, 0, item)
+  return joinBlocks(blocks.map((b) => b.markdown))
+}
+
+/** Insert a new paragraph block after `key` (or at the end when key is null). */
+export function insertBlock(markdown: string, key: string | null, text = ''): { markdown: string; key: string } {
+  const blocks = splitBlocks(markdown)
+  const entry = { key: '', kind: 'paragraph' as BlockKind, markdown: text || 'New text' }
+  if (key === null) {
+    blocks.push(entry)
+  } else {
+    const idx = blocks.findIndex((b) => b.key === key)
+    blocks.splice(idx < 0 ? blocks.length : idx + 1, 0, entry)
+  }
+  const md = joinBlocks(blocks.map((b) => b.markdown))
+  // Re-split so keys are canonical, then find the inserted block by identity.
+  const again = splitBlocks(md)
+  const found = again.find((b) => b.markdown === entry.markdown) ?? again[again.length - 1]
+  return { markdown: md, key: found.key }
+}
+
+/** Delete a block (keeps at least one empty paragraph so the slide never vanishes). */
+export function deleteBlock(markdown: string, key: string): string {
+  const next = patchBlock(markdown, key, '')
+  return next === '' ? 'New text' : next
+}
+
+export function joinBlocks(parts: string[]): string {
+  return parts.join('\n\n')
+}

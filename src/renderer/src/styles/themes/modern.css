@@ -1,0 +1,89 @@
+/* Modern — Bright, contemporary deck theme: soft white canvas, ink text,
+   tight contemporary type, vibrant indigo-to-violet accents. The default
+   theme for new decks. */
+[data-slide-theme="modern"] {
+  --slide-bg: #fafaf9;
+
+  --slide-color-h1: #0c0a09;
+  --slide-color-h2: #1c1917;
+  --slide-color-h3: #44403c;
+
+  --slide-color-body: #57534e;
+  --slide-color-muted: #78716c;
+  --slide-color-dimmed: #a8a29e;
+
+  --slide-accent: #6d28d9;
+  --slide-accent-light: #8b5cf6;
+  --slide-accent-gradient: linear-gradient(135deg, #8b5cf6, #6d28d9);
+
+  --slide-link-color: #6d28d9;
+  --slide-link-hover: #8b5cf6;
+
+  --slide-table-border: #e7e5e4;
+  --slide-table-header-bg: #f5f3ff;
+  --slide-table-header-color: #0c0a09;
+  --slide-table-header-border: #ddd6fe;
+  --slide-table-cell-color: #57534e;
+  --slide-table-cell-border: #f5f5f4;
+  --slide-table-row-hover: rgba(109,40,217,0.04);
+
+  --slide-quote-border: #8b5cf6;
+  --slide-quote-bg: rgba(139,92,246,0.06);
+  --slide-quote-color: #44403c;
+
+  --slide-code-bg: #1c1917;
+  --slide-code-color: #ede9fe;
+  --slide-pre-bg: #1c1917;
+
+  --slide-badge-green-bg: rgba(22,163,74,0.1);
+  --slide-badge-green-color: #15803d;
+  --slide-badge-green-border: rgba(22,163,74,0.2);
+  --slide-badge-yellow-bg: rgba(202,138,4,0.12);
+  --slide-badge-yellow-color: #a16207;
+  --slide-badge-yellow-border: rgba(202,138,4,0.22);
+  --slide-badge-red-bg: rgba(220,38,38,0.1);
+  --slide-badge-red-color: #b91c1c;
+  --slide-badge-red-border: rgba(220,38,38,0.2);
+
+  --slide-progress-bg: #e7e5e4;
+  --slide-progress-fill: linear-gradient(90deg, #8b5cf6, #6d28d9);
+
+  --slide-metric-bg: #ffffff;
+  --slide-metric-border: #e7e5e4;
+  --slide-metric-value-color: #0c0a09;
+  --slide-metric-context-color: #78716c;
+
+  --slide-section-bar: linear-gradient(180deg, #8b5cf6 0%, #6d28d9 100%);
+  --slide-big-number-gradient: linear-gradient(135deg, #a78bfa 0%, #7c3aed 55%, #5b21b6 100%);
+  --slide-quote-mark-color: #c4b5fd;
+  --slide-title-subtitle-color: #78716c;
+
+  --slide-textbox-border: #e7e5e4;
+  --slide-textbox-color: #44403c;
+
+  /* Surfaces — glass / card / frame presets */
+  --slide-glass-bg: rgba(255,255,255,0.7);
+  --slide-glass-border: rgba(0,0,0,0.07);
+  --slide-surface: #ffffff;
+  --slide-shadow-color: rgba(28,25,23,0.12);
+}
+
+[data-slide-theme="modern"] :is(.slide-content, .wysiwyg-content) ul li::marker {
+  color: #7c3aed;
+}
+
+/* Contemporary type: tight, confident headings */
+[data-slide-theme="modern"] :is(.slide-content, .wysiwyg-content) :is(h1, h2, h3) {
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+[data-slide-theme="modern"] :is(.slide-content, .wysiwyg-content) h1 {
+  font-weight: 800;
+}
+
+/* Soft card treatment for metric callouts */
+[data-slide-theme="modern"] .slide-metric {
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(28,25,23,0.06), 0 8px 24px -12px rgba(28,25,23,0.18);
+}

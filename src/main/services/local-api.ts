@@ -20,7 +20,7 @@ import { addRecentItem } from '../ipc/file-system'
 export const LOCAL_API_PORT = 4317
 const MAX_BODY_BYTES = 1_000_000
 
-const THEMES = ['dark', 'light', 'executive', 'minimal', 'corporate', 'creative', 'keynote-dark', 'paper']
+const THEMES = ['modern', 'dark', 'light', 'executive', 'minimal', 'corporate', 'creative', 'keynote-dark', 'paper', 'aurora', 'ember', 'abyss', 'galaxy', 'forest', 'editorial', 'brutalist', 'blush', 'terminal', 'frost']
 
 const TONES = ['default', 'casual', 'professional', 'funny', 'educational', 'sales_pitch']
 const VERBOSITIES = ['concise', 'standard', 'text-heavy']
@@ -136,7 +136,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     const slideCount = Math.max(1, Math.min(50, typeof body.slideCount === 'number' ? Math.floor(body.slideCount) : 10))
     const tone = typeof body.tone === 'string' && TONES.includes(body.tone) ? body.tone : 'default'
     const verbosity = typeof body.verbosity === 'string' && VERBOSITIES.includes(body.verbosity) ? body.verbosity : 'standard'
-    const theme = typeof body.theme === 'string' && THEMES.includes(body.theme) ? body.theme : 'dark'
+    const theme = typeof body.theme === 'string' && THEMES.includes(body.theme) ? body.theme : 'modern'
     const language = typeof body.language === 'string' && body.language.trim().length > 0 && body.language.length <= 24
       ? body.language.trim()
       : undefined

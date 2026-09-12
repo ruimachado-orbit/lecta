@@ -81,11 +81,19 @@ Always use format "mdx" for visually rich slides. MDX slides are pure JSX/React:
 
 ## Theme Selection
 - **dark** / **keynote-dark** — tech talks, developer conferences
+- **terminal** — live-coding talks, infra postmortems, hacker aesthetic
+- **abyss** — fintech keynotes, trust decks, deep-navy authority
 - **executive** — board meetings, leadership reviews
 - **corporate** — client presentations, enterprise
+- **aurora** / **frost** — modern SaaS, product launches, investor updates
 - **minimal** — academic, clean, content-focused
-- **creative** — startups, creative pitches
+- **creative** / **galaxy** — startups, creative pitches, after-dark launches
+- **ember** — sunset pitches, lifestyle brands, cinematic stories
 - **paper** — editorial, warm, storytelling
+- **forest** — climate, NGO, sustainability reports
+- **editorial** — fashion, luxury, magazine-style lookbooks
+- **brutalist** — hackathons, bold statements, memphis energy
+- **blush** — creator media kits, beauty brands, portfolios
 - **light** — general purpose, safe default
 
 ## Design System

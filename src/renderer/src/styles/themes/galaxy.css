@@ -1,0 +1,110 @@
+/* Galaxy — Midnight cosmic dark. Nebula purple canvas, lavender starlight.
+   Think gaming reveal, music drop, AI launch after dark. Dramatic, electric, otherworldly. */
+[data-slide-theme="galaxy"] {
+  --slide-bg: #130e26;
+  --slide-font-heading: "Syne", -apple-system, sans-serif;
+  --slide-font-body: "Space Grotesk", -apple-system, sans-serif;
+
+  --slide-color-h1: #f5f0ff;
+  --slide-color-h2: #d9c8ff;
+  --slide-color-h3: #a490c2;
+  --slide-h1-size: 2.75rem;
+  --slide-h1-weight: 800;
+  --slide-h1-tracking: -0.02em;
+  --slide-h2-size: 1.9rem;
+  --slide-h2-weight: 700;
+  --slide-h3-size: 1.4rem;
+
+  --slide-color-body: #bcb0d8;
+  --slide-color-muted: #857a9e;
+  --slide-color-dimmed: #574e70;
+  --slide-body-size: 1.15rem;
+  --slide-list-size: 1.05rem;
+
+  --slide-accent: #a78bfa;
+  --slide-accent-light: #c4b5fd;
+  --slide-accent-gradient: linear-gradient(135deg, #a78bfa, #f0abfc, #67e8f9);
+
+  --slide-link-color: #c4b5fd;
+  --slide-link-hover: #ddd6fe;
+
+  --slide-table-border: rgba(167,139,250,0.12);
+  --slide-table-header-bg: rgba(167,139,250,0.08);
+  --slide-table-header-color: #e9e2ff;
+  --slide-table-header-border: rgba(167,139,250,0.25);
+  --slide-table-cell-color: #bcb0d8;
+  --slide-table-cell-border: rgba(255,255,255,0.04);
+  --slide-table-row-hover: rgba(167,139,250,0.05);
+  --slide-table-radius: 0.875rem;
+
+  --slide-quote-border: #a78bfa;
+  --slide-quote-border-width: 3px;
+  --slide-quote-bg: rgba(167,139,250,0.06);
+  --slide-quote-color: #bcb0d8;
+  --slide-quote-radius: 0 0.875rem 0.875rem 0;
+
+  --slide-code-bg: rgba(167,139,250,0.08);
+  --slide-code-color: #ddd6fe;
+  --slide-pre-bg: #0b0718;
+
+  --slide-badge-green-bg: rgba(52,211,153,0.1);
+  --slide-badge-green-color: #34d399;
+  --slide-badge-green-border: rgba(52,211,153,0.22);
+  --slide-badge-yellow-bg: rgba(251,191,36,0.1);
+  --slide-badge-yellow-color: #fbbf24;
+  --slide-badge-yellow-border: rgba(251,191,36,0.22);
+  --slide-badge-red-bg: rgba(251,113,133,0.1);
+  --slide-badge-red-color: #fb7185;
+  --slide-badge-red-border: rgba(251,113,133,0.22);
+
+  --slide-progress-bg: rgba(255,255,255,0.06);
+  --slide-progress-fill: linear-gradient(90deg, #a78bfa, #f0abfc);
+
+  --slide-metric-bg: rgba(167,139,250,0.05);
+  --slide-metric-border: rgba(167,139,250,0.14);
+  --slide-metric-value-color: #f5f0ff;
+  --slide-metric-context-color: #857a9e;
+
+  --slide-section-bar: linear-gradient(180deg, #a78bfa, #f0abfc);
+  --slide-big-number-gradient: linear-gradient(135deg, #c4b5fd 0%, #a78bfa 40%, #f0abfc 75%, #67e8f9 100%);
+  --slide-quote-mark-color: #a78bfa;
+  --slide-title-subtitle-color: #857a9e;
+
+  --slide-element-radius: 0.875rem;
+  --slide-textbox-border: rgba(167,139,250,0.14);
+  --slide-textbox-color: #bcb0d8;
+
+  --slide-glass-bg: rgba(255,255,255,0.09);
+  --slide-glass-border: rgba(255,255,255,0.2);
+  --slide-surface: #1e1540;
+  --slide-shadow-color: rgba(0,0,0,0.65);
+}
+
+[data-slide-theme="galaxy"] :is(.slide-content, .wysiwyg-content) h1 {
+  padding-bottom: 0.5rem;
+  background-image: linear-gradient(90deg, #a78bfa, #f0abfc, transparent);
+  background-repeat: no-repeat;
+  background-size: 50% 2px;
+  background-position: bottom left;
+  text-shadow: 0 0 70px rgba(167,139,250,0.25);
+}
+[data-slide-theme="galaxy"] .slide-layout-title :is(.slide-content, .wysiwyg-content) h1,
+[data-slide-theme="galaxy"] .slide-layout-big-number :is(.slide-content, .wysiwyg-content) h1,
+[data-slide-theme="galaxy"] .slide-layout-center :is(.slide-content, .wysiwyg-content) h1 {
+  background-image: none;
+  padding-bottom: 0;
+}
+
+[data-slide-theme="galaxy"] :is(.slide-content, .wysiwyg-content) ul li::marker {
+  color: #c4b5fd;
+}
+[data-slide-theme="galaxy"] :is(.slide-content, .wysiwyg-content) table {
+  border: 1px solid rgba(167,139,250,0.1);
+  border-radius: 0.875rem;
+}
+[data-slide-theme="galaxy"] :is(.slide-content, .wysiwyg-content) pre {
+  border-radius: 0.875rem;
+}
+[data-slide-theme="galaxy"] .slide-badge {
+  border-radius: 0.625rem;
+}

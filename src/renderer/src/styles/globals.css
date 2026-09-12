@@ -8,6 +8,17 @@
 @import "./themes/creative.css";
 @import "./themes/keynote-dark.css";
 @import "./themes/paper.css";
+@import "./themes/modern.css";
+@import "./themes/aurora.css";
+@import "./themes/ember.css";
+@import "./themes/abyss.css";
+@import "./themes/galaxy.css";
+@import "./themes/forest.css";
+@import "./themes/editorial.css";
+@import "./themes/brutalist.css";
+@import "./themes/blush.css";
+@import "./themes/terminal.css";
+@import "./themes/frost.css";
 
 html, body, * {
   font-family: -apple-system, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
@@ -437,26 +448,50 @@ html[data-theme="light"] .presenter-slide-frame {
 [data-slide-theme="light"] .flow-node,
 [data-slide-theme="minimal"] .flow-node,
 [data-slide-theme="corporate"] .flow-node,
-[data-slide-theme="paper"] .flow-node {
+[data-slide-theme="paper"] .flow-node,
+[data-slide-theme="aurora"] .flow-node,
+[data-slide-theme="forest"] .flow-node,
+[data-slide-theme="editorial"] .flow-node,
+[data-slide-theme="brutalist"] .flow-node,
+[data-slide-theme="blush"] .flow-node,
+[data-slide-theme="frost"] .flow-node {
   fill: rgba(0,0,0,0.03);
   stroke: rgba(0,0,0,0.12);
 }
 [data-slide-theme="light"] .flow-node-text,
 [data-slide-theme="minimal"] .flow-node-text,
 [data-slide-theme="corporate"] .flow-node-text,
-[data-slide-theme="paper"] .flow-node-text {
+[data-slide-theme="paper"] .flow-node-text,
+[data-slide-theme="aurora"] .flow-node-text,
+[data-slide-theme="forest"] .flow-node-text,
+[data-slide-theme="editorial"] .flow-node-text,
+[data-slide-theme="brutalist"] .flow-node-text,
+[data-slide-theme="blush"] .flow-node-text,
+[data-slide-theme="frost"] .flow-node-text {
   fill: rgba(0,0,0,0.8);
 }
 [data-slide-theme="light"] .flow-edge,
 [data-slide-theme="minimal"] .flow-edge,
 [data-slide-theme="corporate"] .flow-edge,
-[data-slide-theme="paper"] .flow-edge {
+[data-slide-theme="paper"] .flow-edge,
+[data-slide-theme="aurora"] .flow-edge,
+[data-slide-theme="forest"] .flow-edge,
+[data-slide-theme="editorial"] .flow-edge,
+[data-slide-theme="brutalist"] .flow-edge,
+[data-slide-theme="blush"] .flow-edge,
+[data-slide-theme="frost"] .flow-edge {
   stroke: rgba(0,0,0,0.15);
 }
 [data-slide-theme="light"] .flow-arrow-head,
 [data-slide-theme="minimal"] .flow-arrow-head,
 [data-slide-theme="corporate"] .flow-arrow-head,
-[data-slide-theme="paper"] .flow-arrow-head {
+[data-slide-theme="paper"] .flow-arrow-head,
+[data-slide-theme="aurora"] .flow-arrow-head,
+[data-slide-theme="forest"] .flow-arrow-head,
+[data-slide-theme="editorial"] .flow-arrow-head,
+[data-slide-theme="brutalist"] .flow-arrow-head,
+[data-slide-theme="blush"] .flow-arrow-head,
+[data-slide-theme="frost"] .flow-arrow-head {
   fill: rgba(0,0,0,0.25);
 }
 
@@ -471,6 +506,26 @@ html[data-theme="light"] .presenter-slide-frame {
 [data-slide-theme="corporate"] .flow-arrow-head { fill: rgba(29,78,216,0.25); }
 [data-slide-theme="paper"] .flow-node { stroke: rgba(138,58,16,0.1); }
 [data-slide-theme="paper"] .flow-arrow-head { fill: rgba(138,58,16,0.2); }
+[data-slide-theme="aurora"] .flow-node { stroke: rgba(91,91,214,0.14); }
+[data-slide-theme="aurora"] .flow-arrow-head { fill: rgba(91,91,214,0.3); }
+[data-slide-theme="ember"] .flow-node { stroke: rgba(249,115,22,0.2); }
+[data-slide-theme="ember"] .flow-arrow-head { fill: rgba(249,115,22,0.4); }
+[data-slide-theme="abyss"] .flow-node { stroke: rgba(45,212,191,0.2); }
+[data-slide-theme="abyss"] .flow-arrow-head { fill: rgba(45,212,191,0.4); }
+[data-slide-theme="galaxy"] .flow-node { stroke: rgba(167,139,250,0.22); }
+[data-slide-theme="galaxy"] .flow-arrow-head { fill: rgba(167,139,250,0.45); }
+[data-slide-theme="forest"] .flow-node { stroke: rgba(45,106,79,0.14); }
+[data-slide-theme="forest"] .flow-arrow-head { fill: rgba(45,106,79,0.3); }
+[data-slide-theme="editorial"] .flow-node { stroke: rgba(185,28,28,0.14); }
+[data-slide-theme="editorial"] .flow-arrow-head { fill: rgba(185,28,28,0.3); }
+[data-slide-theme="brutalist"] .flow-node { stroke: rgba(0,0,0,0.9); }
+[data-slide-theme="brutalist"] .flow-arrow-head { fill: #ff3d00; }
+[data-slide-theme="blush"] .flow-node { stroke: rgba(219,39,119,0.16); }
+[data-slide-theme="blush"] .flow-arrow-head { fill: rgba(219,39,119,0.35); }
+[data-slide-theme="terminal"] .flow-node { stroke: rgba(74,222,128,0.22); }
+[data-slide-theme="terminal"] .flow-arrow-head { fill: rgba(74,222,128,0.45); }
+[data-slide-theme="frost"] .flow-node { stroke: rgba(37,99,235,0.14); }
+[data-slide-theme="frost"] .flow-arrow-head { fill: rgba(37,99,235,0.3); }
 
 /* Mermaid fallback (for complex diagrams) */
 .mermaid-diagram {
@@ -573,7 +628,19 @@ html[data-theme="light"] .presenter-slide-frame {
 [data-slide-theme="corporate"] .mermaid-diagram .node rect,
 [data-slide-theme="corporate"] .mermaid-diagram .node .basic,
 [data-slide-theme="paper"] .mermaid-diagram .node rect,
-[data-slide-theme="paper"] .mermaid-diagram .node .basic {
+[data-slide-theme="paper"] .mermaid-diagram .node .basic,
+[data-slide-theme="aurora"] .mermaid-diagram .node rect,
+[data-slide-theme="aurora"] .mermaid-diagram .node .basic,
+[data-slide-theme="forest"] .mermaid-diagram .node rect,
+[data-slide-theme="forest"] .mermaid-diagram .node .basic,
+[data-slide-theme="editorial"] .mermaid-diagram .node rect,
+[data-slide-theme="editorial"] .mermaid-diagram .node .basic,
+[data-slide-theme="brutalist"] .mermaid-diagram .node rect,
+[data-slide-theme="brutalist"] .mermaid-diagram .node .basic,
+[data-slide-theme="blush"] .mermaid-diagram .node rect,
+[data-slide-theme="blush"] .mermaid-diagram .node .basic,
+[data-slide-theme="frost"] .mermaid-diagram .node rect,
+[data-slide-theme="frost"] .mermaid-diagram .node .basic {
   fill: rgba(0,0,0,0.03) !important;
   stroke: rgba(0,0,0,0.15) !important;
 }
@@ -584,20 +651,44 @@ html[data-theme="light"] .presenter-slide-frame {
 [data-slide-theme="corporate"] .mermaid-diagram .nodeLabel,
 [data-slide-theme="corporate"] .mermaid-diagram .node text,
 [data-slide-theme="paper"] .mermaid-diagram .nodeLabel,
-[data-slide-theme="paper"] .mermaid-diagram .node text {
+[data-slide-theme="paper"] .mermaid-diagram .node text,
+[data-slide-theme="aurora"] .mermaid-diagram .nodeLabel,
+[data-slide-theme="aurora"] .mermaid-diagram .node text,
+[data-slide-theme="forest"] .mermaid-diagram .nodeLabel,
+[data-slide-theme="forest"] .mermaid-diagram .node text,
+[data-slide-theme="editorial"] .mermaid-diagram .nodeLabel,
+[data-slide-theme="editorial"] .mermaid-diagram .node text,
+[data-slide-theme="brutalist"] .mermaid-diagram .nodeLabel,
+[data-slide-theme="brutalist"] .mermaid-diagram .node text,
+[data-slide-theme="blush"] .mermaid-diagram .nodeLabel,
+[data-slide-theme="blush"] .mermaid-diagram .node text,
+[data-slide-theme="frost"] .mermaid-diagram .nodeLabel,
+[data-slide-theme="frost"] .mermaid-diagram .node text {
   fill: #1e293b !important;
   color: #1e293b !important;
 }
 [data-slide-theme="light"] .mermaid-diagram .flowchart-link,
 [data-slide-theme="minimal"] .mermaid-diagram .flowchart-link,
 [data-slide-theme="corporate"] .mermaid-diagram .flowchart-link,
-[data-slide-theme="paper"] .mermaid-diagram .flowchart-link {
+[data-slide-theme="paper"] .mermaid-diagram .flowchart-link,
+[data-slide-theme="aurora"] .mermaid-diagram .flowchart-link,
+[data-slide-theme="forest"] .mermaid-diagram .flowchart-link,
+[data-slide-theme="editorial"] .mermaid-diagram .flowchart-link,
+[data-slide-theme="brutalist"] .mermaid-diagram .flowchart-link,
+[data-slide-theme="blush"] .mermaid-diagram .flowchart-link,
+[data-slide-theme="frost"] .mermaid-diagram .flowchart-link {
   stroke: rgba(0,0,0,0.15) !important;
 }
 [data-slide-theme="light"] .mermaid-diagram marker path,
 [data-slide-theme="minimal"] .mermaid-diagram marker path,
 [data-slide-theme="corporate"] .mermaid-diagram marker path,
-[data-slide-theme="paper"] .mermaid-diagram marker path {
+[data-slide-theme="paper"] .mermaid-diagram marker path,
+[data-slide-theme="aurora"] .mermaid-diagram marker path,
+[data-slide-theme="forest"] .mermaid-diagram marker path,
+[data-slide-theme="editorial"] .mermaid-diagram marker path,
+[data-slide-theme="brutalist"] .mermaid-diagram marker path,
+[data-slide-theme="blush"] .mermaid-diagram marker path,
+[data-slide-theme="frost"] .mermaid-diagram marker path {
   fill: rgba(0,0,0,0.3) !important;
 }
 

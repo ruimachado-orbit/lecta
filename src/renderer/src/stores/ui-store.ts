@@ -160,7 +160,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   autoAudience: readAutoAudience(),
   experimentalNotebook: false,
   editingSlide: true,
-  editorMode: 'markdown' as const,
+  editorMode: 'wysiwyg' as const,
   splitRatio: 40,
   fontSize: 12,
   palette: COLOR_PALETTES[0],

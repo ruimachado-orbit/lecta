@@ -37,6 +37,16 @@ export const SLIDE_THEMES = [
   'creative',
   'keynote-dark',
   'paper',
+  'aurora',
+  'ember',
+  'abyss',
+  'galaxy',
+  'forest',
+  'editorial',
+  'brutalist',
+  'blush',
+  'terminal',
+  'frost',
 ] as const
 
 /** The default theme applied when a deck omits `theme` or names an unknown one. */

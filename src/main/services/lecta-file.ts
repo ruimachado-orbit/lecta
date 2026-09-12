@@ -221,7 +221,7 @@ export async function createLectaFile(lectaFilePath: string, title: string, docT
     const yaml = stringifyYaml({
       title,
       author: '',
-      theme: 'dark',
+      theme: 'modern',
       slides: [
         {
           id: 'title',

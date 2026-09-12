@@ -1,0 +1,103 @@
+/* Abyss — Ocean depths dark. Deep navy canvas, teal bioluminescence.
+   Think fintech keynote, consulting trust deck, infra launch. Calm, credible, deep. */
+[data-slide-theme="abyss"] {
+  --slide-bg: #0a1628;
+  --slide-font-heading: "Space Grotesk", -apple-system, sans-serif;
+  --slide-font-body: "Inter", -apple-system, sans-serif;
+
+  --slide-color-h1: #f1faee;
+  --slide-color-h2: #c8e6e2;
+  --slide-color-h3: #8fb8b5;
+  --slide-h1-size: 2.5rem;
+  --slide-h1-weight: 700;
+  --slide-h1-tracking: -0.02em;
+  --slide-h2-size: 1.8rem;
+  --slide-h2-weight: 600;
+  --slide-h3-size: 1.375rem;
+
+  --slide-color-body: #a9c3c7;
+  --slide-color-muted: #6f8f98;
+  --slide-color-dimmed: #47616a;
+  --slide-body-size: 1.15rem;
+  --slide-list-size: 1.05rem;
+
+  --slide-accent: #2dd4bf;
+  --slide-accent-light: #5eead4;
+  --slide-accent-gradient: linear-gradient(135deg, #5eead4, #2d8b8b);
+
+  --slide-link-color: #5eead4;
+  --slide-link-hover: #99f6e4;
+
+  --slide-table-border: rgba(45,212,191,0.1);
+  --slide-table-header-bg: rgba(45,212,191,0.07);
+  --slide-table-header-color: #c8e6e2;
+  --slide-table-header-border: rgba(45,212,191,0.22);
+  --slide-table-cell-color: #a9c3c7;
+  --slide-table-cell-border: rgba(255,255,255,0.04);
+  --slide-table-row-hover: rgba(45,212,191,0.04);
+  --slide-table-radius: 0.625rem;
+
+  --slide-quote-border: #2dd4bf;
+  --slide-quote-border-width: 3px;
+  --slide-quote-bg: rgba(45,212,191,0.05);
+  --slide-quote-color: #a9c3c7;
+  --slide-quote-radius: 0 0.625rem 0.625rem 0;
+
+  --slide-code-bg: rgba(45,212,191,0.07);
+  --slide-code-color: #99f6e4;
+  --slide-pre-bg: #060e1a;
+
+  --slide-badge-green-bg: rgba(45,212,191,0.1);
+  --slide-badge-green-color: #5eead4;
+  --slide-badge-green-border: rgba(45,212,191,0.22);
+  --slide-badge-yellow-bg: rgba(251,191,36,0.1);
+  --slide-badge-yellow-color: #fbbf24;
+  --slide-badge-yellow-border: rgba(251,191,36,0.22);
+  --slide-badge-red-bg: rgba(251,113,133,0.1);
+  --slide-badge-red-color: #fb7185;
+  --slide-badge-red-border: rgba(251,113,133,0.22);
+
+  --slide-progress-bg: rgba(255,255,255,0.06);
+  --slide-progress-fill: linear-gradient(90deg, #2d8b8b, #2dd4bf);
+
+  --slide-metric-bg: rgba(45,212,191,0.04);
+  --slide-metric-border: rgba(45,212,191,0.12);
+  --slide-metric-value-color: #f1faee;
+  --slide-metric-context-color: #6f8f98;
+
+  --slide-section-bar: linear-gradient(180deg, #2dd4bf, #1d5f5f);
+  --slide-big-number-gradient: linear-gradient(135deg, #99f6e4 0%, #2dd4bf 50%, #2d8b8b 100%);
+  --slide-quote-mark-color: #2dd4bf;
+  --slide-title-subtitle-color: #6f8f98;
+
+  --slide-element-radius: 0.625rem;
+  --slide-textbox-border: rgba(45,212,191,0.12);
+  --slide-textbox-color: #a9c3c7;
+
+  --slide-glass-bg: rgba(255,255,255,0.08);
+  --slide-glass-border: rgba(255,255,255,0.18);
+  --slide-surface: #10233c;
+  --slide-shadow-color: rgba(0,0,0,0.6);
+}
+
+[data-slide-theme="abyss"] :is(.slide-content, .wysiwyg-content) h1 {
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid rgba(45,212,191,0.25);
+}
+[data-slide-theme="abyss"] .slide-layout-title :is(.slide-content, .wysiwyg-content) h1,
+[data-slide-theme="abyss"] .slide-layout-big-number :is(.slide-content, .wysiwyg-content) h1,
+[data-slide-theme="abyss"] .slide-layout-center :is(.slide-content, .wysiwyg-content) h1 {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+[data-slide-theme="abyss"] :is(.slide-content, .wysiwyg-content) ul li::marker {
+  color: #5eead4;
+}
+[data-slide-theme="abyss"] :is(.slide-content, .wysiwyg-content) table {
+  border: 1px solid rgba(45,212,191,0.1);
+  border-radius: 0.625rem;
+}
+[data-slide-theme="abyss"] :is(.slide-content, .wysiwyg-content) pre {
+  border-radius: 0.625rem;
+}

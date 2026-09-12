@@ -1,0 +1,117 @@
+/* Editorial — Fashion-magazine light. Bone canvas, ink black, crimson masthead.
+   Think Vogue spread, luxury lookbook, keynote invite. Didone serif, oversized type, hairlines. */
+[data-slide-theme="editorial"] {
+  --slide-bg: #faf9f6;
+  --slide-font-heading: "Bodoni Moda", "Didot", Georgia, serif;
+  --slide-font-body: "Manrope", -apple-system, sans-serif;
+
+  --slide-color-h1: #111111;
+  --slide-color-h2: #1c1c1c;
+  --slide-color-h3: #4b4b4b;
+  --slide-h1-size: 3rem;
+  --slide-h1-weight: 700;
+  --slide-h1-tracking: -0.03em;
+  --slide-h2-size: 1.9rem;
+  --slide-h2-weight: 600;
+  --slide-h3-size: 1.3rem;
+  --slide-h3-weight: 500;
+
+  --slide-color-body: #3d3d3d;
+  --slide-color-muted: #737373;
+  --slide-color-dimmed: #a3a3a3;
+  --slide-body-size: 1.1rem;
+  --slide-body-line-height: 1.75;
+  --slide-list-size: 1.02rem;
+
+  --slide-accent: #b91c1c;
+  --slide-accent-light: #dc2626;
+  --slide-accent-gradient: linear-gradient(135deg, #dc2626, #7f1d1d);
+
+  --slide-link-color: #b91c1c;
+  --slide-link-hover: #dc2626;
+
+  --slide-table-border: rgba(0,0,0,0.1);
+  --slide-table-header-bg: transparent;
+  --slide-table-header-color: #111111;
+  --slide-table-header-border: #111111;
+  --slide-table-cell-color: #3d3d3d;
+  --slide-table-cell-border: rgba(0,0,0,0.06);
+  --slide-table-row-hover: rgba(185,28,28,0.02);
+  --slide-table-radius: 0;
+
+  --slide-quote-border: #111111;
+  --slide-quote-border-width: 2px;
+  --slide-quote-bg: transparent;
+  --slide-quote-color: #1c1c1c;
+  --slide-quote-radius: 0;
+
+  --slide-code-bg: #f0ede8;
+  --slide-code-color: #7f1d1d;
+  --slide-pre-bg: #f0ede8;
+
+  --slide-badge-green-bg: rgba(22,163,74,0.07);
+  --slide-badge-green-color: #15803d;
+  --slide-badge-green-border: rgba(22,163,74,0.15);
+  --slide-badge-yellow-bg: rgba(202,138,4,0.08);
+  --slide-badge-yellow-color: #a16207;
+  --slide-badge-yellow-border: rgba(202,138,4,0.16);
+  --slide-badge-red-bg: rgba(185,28,28,0.07);
+  --slide-badge-red-color: #b91c1c;
+  --slide-badge-red-border: rgba(185,28,28,0.16);
+
+  --slide-progress-bg: #e7e5e0;
+  --slide-progress-fill: linear-gradient(90deg, #111111, #b91c1c);
+
+  --slide-metric-bg: transparent;
+  --slide-metric-border: rgba(0,0,0,0.12);
+  --slide-metric-value-color: #111111;
+  --slide-metric-context-color: #737373;
+
+  --slide-section-bar: linear-gradient(180deg, #111111, #b91c1c);
+  --slide-big-number-gradient: linear-gradient(135deg, #111111 0%, #525252 55%, #b91c1c 100%);
+  --slide-big-number-size: 8rem;
+  --slide-quote-mark-color: #b91c1c;
+  --slide-title-subtitle-color: #737373;
+
+  --slide-heading-mb: 1.75rem;
+  --slide-paragraph-mb: 1.25rem;
+  --slide-element-radius: 0;
+
+  --slide-textbox-border: rgba(0,0,0,0.1);
+  --slide-textbox-color: #3d3d3d;
+
+  --slide-glass-bg: rgba(255,255,255,0.6);
+  --slide-glass-border: rgba(0,0,0,0.08);
+  --slide-surface: #ffffff;
+  --slide-shadow-color: rgba(0,0,0,0.12);
+}
+
+/* Editorial — oversized italic H1 with hairline rule */
+[data-slide-theme="editorial"] :is(.slide-content, .wysiwyg-content) h1 {
+  font-style: normal;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(0,0,0,0.15);
+}
+[data-slide-theme="editorial"] .slide-layout-title :is(.slide-content, .wysiwyg-content) h1,
+[data-slide-theme="editorial"] .slide-layout-big-number :is(.slide-content, .wysiwyg-content) h1,
+[data-slide-theme="editorial"] .slide-layout-center :is(.slide-content, .wysiwyg-content) h1 {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+[data-slide-theme="editorial"] :is(.slide-content, .wysiwyg-content) ul li {
+  list-style-type: "— ";
+}
+[data-slide-theme="editorial"] :is(.slide-content, .wysiwyg-content) ul li::marker {
+  color: #b91c1c;
+}
+[data-slide-theme="editorial"] :is(.slide-content, .wysiwyg-content) th {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.8em;
+  border-bottom: 2px solid #111111;
+}
+[data-slide-theme="editorial"] :is(.slide-content, .wysiwyg-content) table,
+[data-slide-theme="editorial"] :is(.slide-content, .wysiwyg-content) pre {
+  border-radius: 0;
+}

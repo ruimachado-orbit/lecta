@@ -30,7 +30,7 @@ export default function UnderHood() {
             <div className="techGroupTitle">AI Integrations</div>
             {[
               { name: 'Claude (Anthropic)', desc: 'Opus 4, Sonnet 4 and all released models.' },
-              { name: 'OpenAI',             desc: 'GPT-4o, o3, o4-mini, and all chat-completion endpoints.' },
+              { name: 'OpenAI',             desc: 'GPT-5 family via API key, or ChatGPT sign-in through the Codex CLI.' },
               { name: 'Google Gemini',      desc: 'Gemini 2.5 Pro and Flash via Google AI SDK.' },
               { name: 'Mistral & Llama',    desc: "Open-weight models via Mistral API and Meta's API." },
               { name: 'Perplexity',         desc: 'Sonar Pro and Sonar Reasoning for research-backed generation.' },

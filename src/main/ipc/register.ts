@@ -5,6 +5,7 @@ import { registerArtifactHandlers } from './artifacts'
 import { registerPresenterHandlers } from './presenter'
 import { registerSettingsHandlers } from './settings'
 import { registerExportHandlers } from './export-pdf'
+import { registerPptxExportHandlers } from './export-pptx'
 import { registerNotebookHandlers } from './notebook-fs'
 import { registerSlideLibraryHandlers } from './slide-library'
 import { registerRemoteControlHandlers } from './remote-control'
@@ -23,6 +24,7 @@ export function registerAllIpcHandlers(): void {
   registerPresenterHandlers()
   registerSettingsHandlers()
   registerExportHandlers()
+  registerPptxExportHandlers()
   registerNotebookHandlers()
   registerSlideLibraryHandlers()
   registerRemoteControlHandlers()

@@ -81,6 +81,8 @@ function createWindow(): BrowserWindow {
   // Only apply to the app's own pages, not external content (iframes, webviews)
   const isDev = !!process.env['ELECTRON_RENDERER_URL']
   const devConnect = isDev ? ' ws://localhost:* http://localhost:*' : ''
+  // @vitejs/plugin-react injects an inline preamble script in dev; allow it there only.
+  const devScript = isDev ? " 'unsafe-inline'" : ''
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     const url = details.url
     const isAppPage =
@@ -100,7 +102,7 @@ function createWindow(): BrowserWindow {
         'Content-Security-Policy': [
           `default-src 'self';` +
             // unsafe-eval required by Monaco Editor and Sandpack code execution
-            ` script-src 'self' 'unsafe-eval' blob: https://cdn.jsdelivr.net https://unpkg.com https://esm.sh https://www.youtube.com https://s.ytimg.com;` +
+            ` script-src 'self' 'unsafe-eval'${devScript} blob: https://cdn.jsdelivr.net https://unpkg.com https://esm.sh https://www.youtube.com https://s.ytimg.com;` +
             ` style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net;` +
             ` connect-src 'self' https://cdn.jsdelivr.net https://unpkg.com https://esm.sh https://api.anthropic.com https://generativelanguage.googleapis.com${devConnect};` +
             ` worker-src 'self' blob:;` +

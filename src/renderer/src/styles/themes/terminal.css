@@ -97,12 +97,68 @@
   color: #4ade80;
 }
 [data-slide-theme="terminal"] :is(.slide-content, .wysiwyg-content) table {
-  border: 1px solid rgba(74,222,128,0.14);
-  border-radius: 0.375rem;
-  font-size: 0.95em;
-}
-[data-slide-theme="terminal"] :is(.slide-content, .wysiwyg-content) pre {
   border: 1px solid rgba(74,222,128,0.2);
   border-radius: 0.375rem;
-  box-shadow: 0 0 40px rgba(74,222,128,0.06);
+  font-size: 0.95em;
+  overflow: hidden;
+  box-shadow: 0 0 40px rgba(74,222,128,0.08);
+}
+[data-slide-theme="terminal"] :is(.slide-content, .wysiwyg-content) pre {
+  border: 1px solid rgba(74,222,128,0.25);
+  border-radius: 0.375rem;
+  box-shadow: 0 0 40px rgba(74,222,128,0.08);
+}
+
+/* Terminal — structured novel components: phosphor grid, scanline cards */
+[data-slide-theme="terminal"] :is(.slide-content, .wysiwyg-content) h2::before {
+  content: "## ";
+  color: #22c55e;
+}
+[data-slide-theme="terminal"] :is(.slide-content, .wysiwyg-content) h3::before {
+  content: "### ";
+  color: #22c55e;
+}
+[data-slide-theme="terminal"] :is(.slide-content, .wysiwyg-content) th {
+  background: #0a120a;
+  color: #4ade80;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.72rem;
+  border-bottom: 1px solid rgba(74,222,128,0.35);
+}
+[data-slide-theme="terminal"] :is(.slide-content, .wysiwyg-content) tr:nth-child(even) td {
+  background: rgba(74,222,128,0.04);
+}
+[data-slide-theme="terminal"] :is(.slide-content, .wysiwyg-content) ol li::marker {
+  color: #4ade80;
+  font-weight: 700;
+}
+[data-slide-theme="terminal"] :is(.slide-content, .wysiwyg-content) pre {
+  position: relative;
+  background-image: repeating-linear-gradient(transparent, transparent 22px, rgba(74,222,128,0.04) 22px, rgba(74,222,128,0.04) 23px);
+}
+[data-slide-theme="terminal"] :is(.slide-content, .wysiwyg-content) blockquote {
+  border-left: 3px solid #4ade80;
+  border-radius: 0 0.375rem 0.375rem 0;
+  font-style: normal;
+}
+[data-slide-theme="terminal"] :is(.slide-content, .wysiwyg-content) blockquote p::before {
+  content: "> ";
+  color: #4ade80;
+}
+[data-slide-theme="terminal"] .slide-badge {
+  border-radius: 0.25rem;
+  font-family: "JetBrains Mono", monospace;
+  text-transform: lowercase;
+  letter-spacing: 0;
+  box-shadow: 0 0 24px -8px rgba(74,222,128,0.5);
+}
+[data-slide-theme="terminal"] .slide-metric {
+  border-radius: 0.375rem;
+  border-left: 3px solid #4ade80;
+  box-shadow: 0 0 40px -12px rgba(74,222,128,0.4);
+}
+[data-slide-theme="terminal"] .slide-progress {
+  border-radius: 0.25rem;
+  border: 1px solid rgba(74,222,128,0.3);
 }

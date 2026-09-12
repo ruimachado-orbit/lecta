@@ -115,3 +115,64 @@
 [data-slide-theme="editorial"] :is(.slide-content, .wysiwyg-content) pre {
   border-radius: 0;
 }
+
+/* Editorial — structured novel components: masthead grid, hairline cards */
+[data-slide-theme="editorial"] :is(.slide-content, .wysiwyg-content) h1 {
+  text-transform: none;
+  line-height: 1.02;
+}
+[data-slide-theme="editorial"] :is(.slide-content, .wysiwyg-content) h1::after {
+  content: "";
+  display: block;
+  width: 56px;
+  height: 4px;
+  background: #b91c1c;
+  margin-top: 0.6rem;
+}
+[data-slide-theme="editorial"] .slide-layout-title :is(.slide-content, .wysiwyg-content) h1::after,
+[data-slide-theme="editorial"] .slide-layout-big-number :is(.slide-content, .wysiwyg-content) h1::after,
+[data-slide-theme="editorial"] .slide-layout-center :is(.slide-content, .wysiwyg-content) h1::after {
+  display: none;
+}
+[data-slide-theme="editorial"] :is(.slide-content, .wysiwyg-content) h2 {
+  font-style: italic;
+  font-weight: 500;
+}
+[data-slide-theme="editorial"] :is(.slide-content, .wysiwyg-content) table {
+  border: none;
+  border-top: 3px double #111;
+  border-bottom: 1px solid #111;
+}
+[data-slide-theme="editorial"] :is(.slide-content, .wysiwyg-content) tr:nth-child(even) td {
+  background: rgba(0,0,0,0.018);
+}
+[data-slide-theme="editorial"] :is(.slide-content, .wysiwyg-content) ol li::marker {
+  color: #b91c1c;
+  font-style: italic;
+}
+[data-slide-theme="editorial"] :is(.slide-content, .wysiwyg-content) pre {
+  border: 1px solid rgba(0,0,0,0.14);
+  border-left: 3px solid #b91c1c;
+}
+[data-slide-theme="editorial"] :is(.slide-content, .wysiwyg-content) blockquote {
+  font-family: "Bodoni Moda", Didot, Georgia, serif;
+  font-style: italic;
+  font-size: 1.25em;
+  line-height: 1.5;
+  border-left: 2px solid #b91c1c;
+  background: transparent;
+}
+[data-slide-theme="editorial"] .slide-badge {
+  border-radius: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+[data-slide-theme="editorial"] .slide-metric {
+  border: none;
+  border-top: 1px solid #111;
+  border-bottom: 1px solid #111;
+  border-radius: 0;
+  background: transparent;
+}

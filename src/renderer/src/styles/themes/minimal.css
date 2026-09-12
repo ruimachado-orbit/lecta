@@ -103,8 +103,57 @@
 /* Minimal — hairline header border only */
 [data-slide-theme="minimal"] :is(.slide-content, .wysiwyg-content) table {
   border: none;
+  border-top: 2px solid #000;
+  border-bottom: 1px solid #e5e5e5;
 }
 [data-slide-theme="minimal"] :is(.slide-content, .wysiwyg-content) td {
   border-left: none;
   border-right: none;
+}
+
+/* Minimal — structured novel components: restraint as structure */
+[data-slide-theme="minimal"] :is(.slide-content, .wysiwyg-content) h1 {
+  letter-spacing: -0.035em;
+  font-weight: 700;
+  text-wrap: balance;
+}
+[data-slide-theme="minimal"] :is(.slide-content, .wysiwyg-content) h2 {
+  letter-spacing: -0.02em;
+  font-weight: 600;
+  padding-top: 0.5rem;
+  border-top: 1px solid #e5e5e5;
+}
+[data-slide-theme="minimal"] :is(.slide-content, .wysiwyg-content) th {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.68rem;
+  font-weight: 600;
+  border-bottom: 1px solid #000;
+}
+[data-slide-theme="minimal"] :is(.slide-content, .wysiwyg-content) ol li::marker {
+  color: #000;
+  font-weight: 600;
+}
+[data-slide-theme="minimal"] :is(.slide-content, .wysiwyg-content) pre {
+  border: 1px solid #e5e5e5;
+  border-radius: 0;
+  background: #fafafa;
+}
+[data-slide-theme="minimal"] :is(.slide-content, .wysiwyg-content) blockquote {
+  border-left: 1px solid #000;
+  padding-left: 1.5rem;
+  font-style: normal;
+  background: transparent;
+}
+[data-slide-theme="minimal"] .slide-badge {
+  border-radius: 999px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+[data-slide-theme="minimal"] .slide-metric {
+  border: none;
+  border-left: 2px solid #000;
+  border-radius: 0;
+  padding-left: 1.25rem;
+  background: transparent;
 }

@@ -99,12 +99,55 @@
   color: #c4b5fd;
 }
 [data-slide-theme="galaxy"] :is(.slide-content, .wysiwyg-content) table {
-  border: 1px solid rgba(167,139,250,0.1);
+  border: 1px solid rgba(167,139,250,0.18);
   border-radius: 0.875rem;
+  overflow: hidden;
+  box-shadow: 0 0 70px -28px rgba(167,139,250,0.6);
 }
 [data-slide-theme="galaxy"] :is(.slide-content, .wysiwyg-content) pre {
   border-radius: 0.875rem;
 }
 [data-slide-theme="galaxy"] .slide-badge {
   border-radius: 0.625rem;
+}
+
+/* Galaxy — structured novel components: nebula grid, starlight cards */
+[data-slide-theme="galaxy"] :is(.slide-content, .wysiwyg-content) h2 {
+  letter-spacing: 0.02em;
+  color: #d9c8ff;
+}
+[data-slide-theme="galaxy"] :is(.slide-content, .wysiwyg-content) th {
+  background: linear-gradient(90deg, rgba(167,139,250,0.25), rgba(240,171,252,0.18));
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  font-size: 0.7rem;
+  border-bottom: none;
+}
+[data-slide-theme="galaxy"] :is(.slide-content, .wysiwyg-content) tr:nth-child(even) td {
+  background: rgba(167,139,250,0.06);
+}
+[data-slide-theme="galaxy"] :is(.slide-content, .wysiwyg-content) ol li::marker {
+  color: #f0abfc;
+  font-weight: 800;
+}
+[data-slide-theme="galaxy"] :is(.slide-content, .wysiwyg-content) pre {
+  border: 1px solid rgba(167,139,250,0.3);
+  box-shadow: 0 0 70px -20px rgba(240,171,252,0.45), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+[data-slide-theme="galaxy"] :is(.slide-content, .wysiwyg-content) blockquote {
+  border: 1px solid rgba(167,139,250,0.28);
+  border-left: 3px solid #f0abfc;
+  border-radius: 0 0.875rem 0.875rem 0;
+  box-shadow: 0 0 70px -30px rgba(167,139,250,0.7);
+}
+[data-slide-theme="galaxy"] .slide-badge {
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  box-shadow: 0 6px 22px -10px rgba(167,139,250,0.7);
+}
+[data-slide-theme="galaxy"] .slide-metric {
+  border-radius: 1rem;
+  background: linear-gradient(180deg, rgba(167,139,250,0.12), rgba(240,171,252,0.05));
+  box-shadow: 0 0 70px -28px rgba(167,139,250,0.7);
 }

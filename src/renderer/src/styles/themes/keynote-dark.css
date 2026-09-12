@@ -92,8 +92,61 @@
 
 /* Keynote Dark — accent-lined tables */
 [data-slide-theme="keynote-dark"] :is(.slide-content, .wysiwyg-content) table {
-  border: 1px solid rgba(0,212,255,0.08);
+  border: 1px solid rgba(0,212,255,0.14);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 0 60px -20px rgba(0,212,255,0.35);
 }
 [data-slide-theme="keynote-dark"] :is(.slide-content, .wysiwyg-content) th {
-  border-bottom: 1px solid rgba(0,212,255,0.2);
+  border-bottom: 1px solid rgba(0,212,255,0.25);
+  background: rgba(0,212,255,0.08);
+  color: #bff1ff;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  font-size: 0.7rem;
+}
+
+/* Keynote Dark — structured novel components: stage light, neon grid */
+[data-slide-theme="keynote-dark"] :is(.slide-content, .wysiwyg-content) h1 {
+  letter-spacing: -0.025em;
+  padding-bottom: 0.6rem;
+  background-image: linear-gradient(90deg, #00d4ff, transparent);
+  background-repeat: no-repeat;
+  background-size: 120px 3px;
+  background-position: bottom left;
+}
+[data-slide-theme="keynote-dark"] .slide-layout-title :is(.slide-content, .wysiwyg-content) h1,
+[data-slide-theme="keynote-dark"] .slide-layout-big-number :is(.slide-content, .wysiwyg-content) h1,
+[data-slide-theme="keynote-dark"] .slide-layout-center :is(.slide-content, .wysiwyg-content) h1 {
+  background-image: none;
+  padding-bottom: 0;
+}
+[data-slide-theme="keynote-dark"] :is(.slide-content, .wysiwyg-content) ol li::marker {
+  color: #00d4ff;
+  font-weight: 700;
+}
+[data-slide-theme="keynote-dark"] :is(.slide-content, .wysiwyg-content) tr:nth-child(even) td {
+  background: rgba(0,212,255,0.03);
+}
+[data-slide-theme="keynote-dark"] :is(.slide-content, .wysiwyg-content) pre {
+  border: 1px solid rgba(0,212,255,0.22);
+  border-radius: 12px;
+  box-shadow: 0 0 60px -18px rgba(0,212,255,0.4);
+}
+[data-slide-theme="keynote-dark"] :is(.slide-content, .wysiwyg-content) blockquote {
+  border: 1px solid rgba(0,212,255,0.2);
+  border-left: 3px solid #00d4ff;
+  border-radius: 0 12px 12px 0;
+  box-shadow: 0 0 60px -24px rgba(0,212,255,0.5);
+}
+[data-slide-theme="keynote-dark"] .slide-badge {
+  border-radius: 999px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  box-shadow: 0 0 24px -8px rgba(0,212,255,0.5);
+}
+[data-slide-theme="keynote-dark"] .slide-metric {
+  border-radius: 14px;
+  box-shadow: 0 0 60px -24px rgba(0,212,255,0.5);
 }

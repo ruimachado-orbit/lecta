@@ -98,3 +98,55 @@
 [data-slide-theme="executive"] :is(.slide-content, .wysiwyg-content) th {
   border-bottom: 1px solid rgba(196,160,53,0.15);
 }
+
+/* Executive — structured novel components: boardroom grid, champagne rules */
+[data-slide-theme="executive"] :is(.slide-content, .wysiwyg-content) h1 {
+  letter-spacing: -0.02em;
+}
+[data-slide-theme="executive"] :is(.slide-content, .wysiwyg-content) h2 {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 1.05rem;
+  color: #dab84a;
+}
+[data-slide-theme="executive"] :is(.slide-content, .wysiwyg-content) ol li::marker {
+  color: #dab84a;
+  font-weight: 700;
+}
+[data-slide-theme="executive"] :is(.slide-content, .wysiwyg-content) table {
+  border: 1px solid rgba(196,160,53,0.16);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 18px 50px -30px rgba(0,0,0,0.9);
+}
+[data-slide-theme="executive"] :is(.slide-content, .wysiwyg-content) th {
+  background: rgba(196,160,53,0.1);
+  color: #eece60;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.7rem;
+}
+[data-slide-theme="executive"] :is(.slide-content, .wysiwyg-content) tr:nth-child(even) td {
+  background: rgba(255,255,255,0.015);
+}
+[data-slide-theme="executive"] :is(.slide-content, .wysiwyg-content) pre {
+  border: 1px solid rgba(196,160,53,0.2);
+  border-radius: 10px;
+  box-shadow: 0 18px 50px -30px rgba(0,0,0,0.9);
+}
+[data-slide-theme="executive"] :is(.slide-content, .wysiwyg-content) blockquote {
+  border-left-width: 2px;
+  border-radius: 0 10px 10px 0;
+  font-style: italic;
+}
+[data-slide-theme="executive"] .slide-badge {
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.72rem;
+}
+[data-slide-theme="executive"] .slide-metric {
+  border-radius: 12px;
+  border-top: 2px solid rgba(196,160,53,0.5);
+  box-shadow: 0 18px 50px -30px rgba(0,0,0,0.9);
+}

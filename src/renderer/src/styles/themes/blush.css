@@ -105,7 +105,47 @@
 }
 [data-slide-theme="blush"] :is(.slide-content, .wysiwyg-content) pre {
   border-radius: 1rem;
+  border: 1px solid rgba(219,39,119,0.16);
+  box-shadow: 0 16px 36px -24px rgba(219,39,119,0.45);
 }
 [data-slide-theme="blush"] .slide-badge {
   border-radius: 999px;
+}
+
+/* Blush — structured novel components: soft grid, candy cards */
+[data-slide-theme="blush"] :is(.slide-content, .wysiwyg-content) h2 {
+  color: #5c2f45;
+  letter-spacing: -0.01em;
+}
+[data-slide-theme="blush"] :is(.slide-content, .wysiwyg-content) th {
+  background: #3b2231;
+  color: #ffe4ee;
+  letter-spacing: 0.06em;
+  font-size: 0.72rem;
+  border-bottom: none;
+}
+[data-slide-theme="blush"] :is(.slide-content, .wysiwyg-content) table {
+  box-shadow: 0 1px 2px rgba(92,47,69,0.08), 0 18px 40px -26px rgba(219,39,119,0.5);
+}
+[data-slide-theme="blush"] :is(.slide-content, .wysiwyg-content) tr:nth-child(even) td {
+  background: #fef3f7;
+}
+[data-slide-theme="blush"] :is(.slide-content, .wysiwyg-content) ol li::marker {
+  color: #db2777;
+  font-weight: 700;
+}
+[data-slide-theme="blush"] :is(.slide-content, .wysiwyg-content) blockquote {
+  border: 1px solid rgba(219,39,119,0.18);
+  border-left: 4px solid #f472b6;
+  box-shadow: 0 12px 30px -22px rgba(219,39,119,0.5);
+}
+[data-slide-theme="blush"] .slide-badge {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  box-shadow: 0 2px 12px -6px rgba(219,39,119,0.5);
+}
+[data-slide-theme="blush"] .slide-metric {
+  border-radius: 1.25rem;
+  background: linear-gradient(180deg, #ffffff, #fff0f5);
+  box-shadow: 0 1px 2px rgba(92,47,69,0.08), 0 18px 40px -26px rgba(219,39,119,0.5);
 }

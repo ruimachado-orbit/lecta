@@ -1031,6 +1031,27 @@ export function registerFileSystemHandlers(): void {
       await mutatePresentationConfig(rootPath, (config) => {
         config.theme = themeId
       })
+      // Keep Home/Library thumbnails in sync: they render from the cached
+      // `theme` snapshot (not lecta.yaml), so update it in place.
+      try {
+        let changed = false
+        for (const d of recentDecks) {
+          if (d.path === rootPath) {
+            d.theme = themeId
+            changed = true
+          }
+        }
+        if (changed) await persistRecentDecks()
+      } catch { /* thumbnails stay stale — non-critical */ }
+      try {
+        const { updateLibraryEntryTheme } = await import('./library')
+        const { getLectaFilePath } = await import('../services/lecta-file')
+        await updateLibraryEntryTheme(rootPath, themeId)
+        const lectaFile = getLectaFilePath(rootPath)
+        if (lectaFile && lectaFile !== rootPath) {
+          await updateLibraryEntryTheme(lectaFile, themeId)
+        }
+      } catch { /* library thumbnail stays stale — non-critical */ }
     }
   )
 

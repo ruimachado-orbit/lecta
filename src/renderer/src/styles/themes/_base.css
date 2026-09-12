@@ -118,3 +118,60 @@
   --slide-textbox-border: rgba(99,102,241,0.12);
   --slide-textbox-color: #b0b0d0;
 }
+
+/* Default Dark — structured novel components (applies when data-slide-theme="dark") */
+[data-slide-theme="dark"] :is(.slide-content, .wysiwyg-content) h1 {
+  letter-spacing: -0.02em;
+  padding-bottom: 0.6rem;
+  background-image: linear-gradient(90deg, #818cf8, #6366f1, transparent);
+  background-repeat: no-repeat;
+  background-size: 72px 4px;
+  background-position: bottom left;
+}
+[data-slide-theme="dark"] .slide-layout-title :is(.slide-content, .wysiwyg-content) h1,
+[data-slide-theme="dark"] .slide-layout-big-number :is(.slide-content, .wysiwyg-content) h1,
+[data-slide-theme="dark"] .slide-layout-center :is(.slide-content, .wysiwyg-content) h1 {
+  background-image: none;
+  padding-bottom: 0;
+}
+[data-slide-theme="dark"] :is(.slide-content, .wysiwyg-content) ul li::marker {
+  color: #818cf8;
+  font-weight: 700;
+}
+[data-slide-theme="dark"] :is(.slide-content, .wysiwyg-content) ol li::marker {
+  color: #818cf8;
+  font-weight: 700;
+}
+[data-slide-theme="dark"] :is(.slide-content, .wysiwyg-content) table {
+  border: 1px solid rgba(99,102,241,0.16);
+  border-radius: 0.625rem;
+  overflow: hidden;
+  box-shadow: 0 20px 55px -30px rgba(0,0,0,0.9);
+}
+[data-slide-theme="dark"] :is(.slide-content, .wysiwyg-content) th {
+  background: rgba(99,102,241,0.12);
+  color: #e0e7ff;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.7rem;
+}
+[data-slide-theme="dark"] :is(.slide-content, .wysiwyg-content) tr:nth-child(even) td {
+  background: rgba(255,255,255,0.015);
+}
+[data-slide-theme="dark"] :is(.slide-content, .wysiwyg-content) pre {
+  border: 1px solid rgba(99,102,241,0.25);
+  border-radius: 0.625rem;
+  box-shadow: 0 20px 55px -30px rgba(0,0,0,0.9);
+}
+[data-slide-theme="dark"] :is(.slide-content, .wysiwyg-content) blockquote {
+  border-left-width: 3px;
+  border-radius: 0 0.625rem 0.625rem 0;
+}
+[data-slide-theme="dark"] .slide-badge {
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+[data-slide-theme="dark"] .slide-metric {
+  border-radius: 0.875rem;
+  box-shadow: 0 20px 55px -30px rgba(0,0,0,0.9);
+}

@@ -6,6 +6,7 @@ import type { SlideBackground } from '@shared/types/presentation'
 import { FlowDiagram } from '../common/FlowDiagram'
 import { resolveImageSrc, preprocessImageGrids } from './slide-utils'
 import { expandIcons } from './icons'
+import { applyAlignDirectives } from './block-model'
 import { parseElements, stripElements, zOf } from './element-model'
 import { PinnedLayer } from './PinnedElements'
 
@@ -148,7 +149,8 @@ export function SlideBackgroundLayer({ background, rootPath }: { background: Sli
 }
 
 export function SlideRenderer({ markdown, rootPath, clickStep = -1, onClickSteps, background, hidePinned, clickToEdit, onPickBlock }: SlideRendererProps): JSX.Element {
-  const { processed: clickProcessed, totalClicks } = processClickAnimations(markdown)
+  // Align directives expand first (line-safe); click-step markers wrap after.
+  const { processed: clickProcessed, totalClicks } = processClickAnimations(applyAlignDirectives(markdown))
 
   // Pinned elements come out of the markdown entirely and are drawn in their own layer.
   const pinned = hidePinned
@@ -172,7 +174,7 @@ export function SlideRenderer({ markdown, rootPath, clickStep = -1, onClickSteps
   // rendered text. The caller maps it back to the markdown source.
   const pickable = (Tag: 'h1' | 'h2' | 'h3' | 'p' | 'li' | 'blockquote') => {
     const C = Tag as 'div'
-    function PickableBlock({ children, ...props }: { children?: ReactNode; className?: string }): JSX.Element {
+    function PickableBlock({ children, node: _node, ...props }: { children?: ReactNode; className?: string; node?: unknown }): JSX.Element {
       return (
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         <C

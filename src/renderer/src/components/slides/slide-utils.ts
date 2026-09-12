@@ -18,6 +18,31 @@ export function resolveImageSrc(src: string | undefined, rootPath?: string): str
   return src
 }
 
+/** Image files from a drop or paste event. */
+export function imageFilesFrom(source: DataTransfer | null): File[] {
+  if (!source) return []
+  const files = Array.from(source.files).filter((f) => f.type.startsWith('image/'))
+  if (files.length > 0) return files
+  return Array.from(source.items)
+    .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+    .map((item) => item.getAsFile())
+    .filter((f): f is File => f !== null)
+}
+
+export function readAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = () => reject(reader.error ?? new Error(`Could not read ${file.name}`))
+    reader.readAsDataURL(file)
+  })
+}
+
+/** Keep a pinned element's box on the slide. */
+export function clampToCanvas(value: number, size: number, limit: number): number {
+  return Math.round(Math.max(0, Math.min(value, limit - size)))
+}
+
 /**
  * Queue for positioned-image comments produced when an inline image is pinned to the canvas.
  * ResizableImage pushes here immediately before `deleteNode()`, and the WYSIWYG editor's

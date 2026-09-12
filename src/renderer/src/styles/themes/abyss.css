@@ -95,9 +95,59 @@
   color: #5eead4;
 }
 [data-slide-theme="abyss"] :is(.slide-content, .wysiwyg-content) table {
-  border: 1px solid rgba(45,212,191,0.1);
+  border: 1px solid rgba(45,212,191,0.16);
   border-radius: 0.625rem;
+  overflow: hidden;
+  box-shadow: 0 20px 55px -30px rgba(45,212,191,0.4);
 }
 [data-slide-theme="abyss"] :is(.slide-content, .wysiwyg-content) pre {
   border-radius: 0.625rem;
+}
+
+/* Abyss — structured novel components: sonar grid, bioluminescent cards */
+[data-slide-theme="abyss"] :is(.slide-content, .wysiwyg-content) h1 {
+  letter-spacing: -0.02em;
+  text-shadow: 0 0 60px rgba(45,212,191,0.2);
+}
+[data-slide-theme="abyss"] :is(.slide-content, .wysiwyg-content) h2 {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 1.05rem;
+  color: #5eead4;
+}
+[data-slide-theme="abyss"] :is(.slide-content, .wysiwyg-content) th {
+  background: rgba(45,212,191,0.12);
+  color: #d7fff8;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.7rem;
+  border-bottom: 1px solid rgba(45,212,191,0.3);
+}
+[data-slide-theme="abyss"] :is(.slide-content, .wysiwyg-content) tr:nth-child(even) td {
+  background: rgba(45,212,191,0.04);
+}
+[data-slide-theme="abyss"] :is(.slide-content, .wysiwyg-content) ol li::marker {
+  color: #2dd4bf;
+  font-weight: 700;
+}
+[data-slide-theme="abyss"] :is(.slide-content, .wysiwyg-content) pre {
+  border: 1px solid rgba(45,212,191,0.25);
+  box-shadow: 0 0 50px -18px rgba(45,212,191,0.45), inset 0 1px 0 rgba(255,255,255,0.05);
+}
+[data-slide-theme="abyss"] :is(.slide-content, .wysiwyg-content) blockquote {
+  border: 1px solid rgba(45,212,191,0.22);
+  border-left: 3px solid #2dd4bf;
+  border-radius: 0 0.625rem 0.625rem 0;
+  box-shadow: 0 16px 45px -28px rgba(45,212,191,0.5);
+}
+[data-slide-theme="abyss"] .slide-badge {
+  border-radius: 999px;
+  letter-spacing: 0.05em;
+  font-size: 0.74rem;
+  box-shadow: 0 4px 18px -10px rgba(45,212,191,0.55);
+}
+[data-slide-theme="abyss"] .slide-metric {
+  border-radius: 0.875rem;
+  border-top: 2px solid rgba(45,212,191,0.6);
+  box-shadow: 0 20px 55px -30px rgba(45,212,191,0.45);
 }

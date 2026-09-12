@@ -201,3 +201,170 @@ export function deleteBlock(markdown: string, key: string): string {
 export function joinBlocks(parts: string[]): string {
   return parts.join('\n\n')
 }
+
+/* ── Sections ────────────────────────────────────────────────────────
+ * A section is a heading plus the blocks that follow it, up to the next
+ * heading or sub-slide break. Lets the canvas select, move and delete whole
+ * content sections at once instead of block by block. */
+
+export interface BlockSection {
+  /** Index of the heading block that opens the section. */
+  start: number
+  /** Index one past the last block in the section. */
+  end: number
+  /** Plain-text heading for labels. */
+  title: string
+}
+
+function headingTitle(md: string): string {
+  const first = md.split('\n').find((l) => l.trim() !== '' && !/^<!--[^<>]*-->\s*$/.test(l.trim())) ?? ''
+  return first.replace(/^#{1,6}\s+/, '').replace(/[*_`]/g, '').trim()
+}
+
+/**
+ * The section containing block `index`. Heading-less slides are a single
+ * section; breaks always bound sections. Landing on a break selects just it.
+ */
+export function sectionAt(blocks: SlideBlock[], index: number): BlockSection {
+  if (index < 0 || index >= blocks.length) return { start: 0, end: 0, title: '' }
+  if (blocks[index].kind === 'break') {
+    return { start: index, end: index + 1, title: 'Break' }
+  }
+  let start = 0
+  for (let i = index; i >= 0; i--) {
+    if (blocks[i].kind === 'break') {
+      start = i + 1
+      break
+    }
+    if (blocks[i].kind === 'heading') {
+      start = i
+      break
+    }
+  }
+  let end = blocks.length
+  for (let i = index + 1; i < blocks.length; i++) {
+    if (blocks[i].kind === 'heading' || blocks[i].kind === 'break') {
+      end = i
+      break
+    }
+  }
+  const opener = blocks[start]?.kind === 'heading' ? blocks[start] : undefined
+  const title = opener ? headingTitle(opener.markdown) : `Blocks ${start + 1}–${end}`
+  return { start, end, title: title || `Blocks ${start + 1}–${end}` }
+}
+
+/** Delete every block in [start, end). */
+export function deleteRange(markdown: string, start: number, end: number): string {
+  const parts = splitBlocks(markdown).map((b) => b.markdown)
+  parts.splice(start, end - start)
+  return parts.length === 0 ? 'New text' : joinBlocks(parts)
+}
+
+/**
+ * Insert a new section (heading + starter paragraph) before or after the
+ * section containing `key`. Returns the updated markdown and the new
+ * heading's key so the caller can focus it.
+ */
+export function insertSection(
+  markdown: string,
+  key: string,
+  position: 'before' | 'after',
+  title = 'New section'
+): { markdown: string; key: string } {
+  const parts = splitBlocks(markdown)
+  const idx = parts.findIndex((b) => b.key === key)
+  const at = idx < 0 ? (position === 'before' ? 0 : parts.length) : (() => {
+    const { start, end } = sectionAt(parts, idx)
+    return position === 'before' ? start : end
+  })()
+  const md = parts.map((b) => b.markdown)
+  md.splice(at, 0, `# ${title}`, 'New text')
+  const next = joinBlocks(md)
+  // Re-split so keys are canonical, then locate the inserted heading.
+  const again = splitBlocks(next)
+  const found = again.find((b) => b.markdown === `# ${title}`) ?? again[Math.min(at, again.length - 1)]
+  return { markdown: next, key: found.key }
+}
+
+/* ── Alignment directives ────────────────────────────────────────────
+ * A leading `<!-- align:center -->` (or left/right) aligns a block.
+ * The comment rides along inside block markdown, so blocks stay editable;
+ * renderers expand it with applyAlignDirectives. */
+
+export type BlockAlign = 'left' | 'center' | 'right'
+
+const ALIGN_RE = /^<!--\s*align:(left|center|right)\s*-->\s*\n?/
+
+/** Alignment declared by a block's leading directive, if any. */
+export function getBlockAlign(blockMd: string): BlockAlign | null {
+  const m = ALIGN_RE.exec(blockMd)
+  return m ? (m[1] as BlockAlign) : null
+}
+
+/** Set (or clear, with null) a block's alignment directive. */
+export function setBlockAlign(blockMd: string, align: BlockAlign | null): string {
+  const stripped = blockMd.replace(ALIGN_RE, '')
+  return align ? `<!-- align:${align} -->\n${stripped}` : stripped
+}
+
+/** Leading directive comments (align, autofit, …) preserved across edits. */
+export function leadingDirectives(blockMd: string): string[] {
+  const out: string[] = []
+  for (const line of blockMd.split('\n')) {
+    if (/^<!--[^<>]*-->\s*$/.test(line.trim())) out.push(line)
+    else break
+  }
+  return out
+}
+
+/**
+ * Expand align directives for rendering: wrap each aligned block in a
+ * text-align div. Operates per block so pins, breaks and fences pass through.
+ */
+export function applyAlignDirectives(markdown: string): string {
+  return joinBlocks(
+    splitBlocks(markdown).map((b) => {
+      const align = getBlockAlign(b.markdown)
+      if (!align || b.kind === 'break') return b.markdown
+      return `<div style="text-align:${align}">\n\n${b.markdown}\n\n</div>`
+    })
+  )
+}
+
+/* ── HTML → markdown converter ───────────────────────────────────────
+ * Shared by the canvas editor: converts edited block HTML back to markdown,
+ * preserving the styling the editor produces (execCommand colors, spans)
+ * that stock turndown would silently drop. */
+
+import TurndownService from 'turndown'
+
+export function createMarkdownConverter(): TurndownService {
+  const td = new TurndownService({
+    headingStyle: 'atx',
+    bulletListMarker: '-',
+    emDelimiter: '*',
+    codeBlockStyle: 'fenced',
+  })
+  // execCommand('foreColor') emits <font color="…"> — keep it as a span.
+  td.addRule('fontColor', {
+    filter: (node) => node.nodeName === 'FONT' && !!(node as unknown as HTMLElement).getAttribute?.('color'),
+    replacement: (content, node) => {
+      const color = (node as unknown as HTMLElement).getAttribute('color')
+      return content.trim() === '' ? '' : `<span style="color:${color}">${content}</span>`
+    },
+  })
+  // Preserve explicitly styled spans (text color, highlight) verbatim.
+  td.addRule('styledSpan', {
+    filter: (node) => {
+      if (node.nodeName !== 'SPAN') return false
+      const style = (node as unknown as HTMLElement).getAttribute?.('style') ?? ''
+      return /color|background/.test(style)
+    },
+    replacement: (content, node) => {
+      if (content.trim() === '') return ''
+      const style = (node as unknown as HTMLElement).getAttribute('style')
+      return `<span style="${style}">${content}</span>`
+    },
+  })
+  return td
+}

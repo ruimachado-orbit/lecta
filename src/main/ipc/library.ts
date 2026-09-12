@@ -221,6 +221,20 @@ async function readDeckMetadata(deckPath: string): Promise<{
 
 // ── Public: upsert from recent decks / on open ──
 
+/** Update just the stored theme for entries matching a deck path (workspace dir or .lecta file). */
+export async function updateLibraryEntryTheme(deckPath: string, theme: string): Promise<void> {
+  await ensureLoaded()
+  let touched = false
+  for (const e of library.entries) {
+    if (e.path === deckPath) {
+      e.theme = theme
+      e.updatedAt = new Date().toISOString()
+      touched = true
+    }
+  }
+  if (touched) await saveLibrary()
+}
+
 export async function upsertLibraryEntry(item: {
   path: string
   title: string

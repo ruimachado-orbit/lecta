@@ -111,7 +111,56 @@
 /* Paper — no rounding anywhere */
 [data-slide-theme="paper"] :is(.slide-content, .wysiwyg-content) table {
   border-radius: 0;
+  border: 1px solid rgba(138,58,16,0.18);
+  box-shadow: 3px 3px 0 rgba(138,58,16,0.12);
 }
 [data-slide-theme="paper"] :is(.slide-content, .wysiwyg-content) pre {
   border-radius: 0;
+  border: 1px solid rgba(138,58,16,0.2);
+  box-shadow: 3px 3px 0 rgba(138,58,16,0.12);
+}
+
+/* Paper — structured novel components: footnote grid, archival cards */
+[data-slide-theme="paper"] :is(.slide-content, .wysiwyg-content) h1 {
+  font-variant-numeric: lining-nums;
+}
+[data-slide-theme="paper"] :is(.slide-content, .wysiwyg-content) h2 {
+  font-style: italic;
+  border-bottom: 1px dotted rgba(138,58,16,0.3);
+  padding-bottom: 0.4rem;
+}
+[data-slide-theme="paper"] :is(.slide-content, .wysiwyg-content) th {
+  background: #2e1c12;
+  color: #f5ead9;
+  font-family: "Source Serif 4", Georgia, serif;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  font-size: 0.7rem;
+  border-bottom: none;
+}
+[data-slide-theme="paper"] :is(.slide-content, .wysiwyg-content) tr:nth-child(even) td {
+  background: rgba(138,58,16,0.035);
+}
+[data-slide-theme="paper"] :is(.slide-content, .wysiwyg-content) ol li::marker {
+  color: #8a3a10;
+  font-style: italic;
+}
+[data-slide-theme="paper"] :is(.slide-content, .wysiwyg-content) blockquote {
+  font-style: italic;
+  font-size: 1.1em;
+  border-left-width: 3px;
+  box-shadow: 3px 3px 0 rgba(138,58,16,0.1);
+}
+[data-slide-theme="paper"] .slide-badge {
+  border-radius: 0;
+  font-family: "Source Serif 4", Georgia, serif;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.72rem;
+}
+[data-slide-theme="paper"] .slide-metric {
+  border-radius: 0;
+  border: 1px solid rgba(138,58,16,0.2);
+  border-top: 3px double #8a3a10;
+  box-shadow: 3px 3px 0 rgba(138,58,16,0.12);
 }

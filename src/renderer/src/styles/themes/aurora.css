@@ -107,3 +107,46 @@
 [data-slide-theme="aurora"] :is(.slide-content, .wysiwyg-content) tr:nth-child(even) td {
   background: #f8faff;
 }
+
+/* Aurora — structured novel components: SaaS grid, duotone cards */
+[data-slide-theme="aurora"] :is(.slide-content, .wysiwyg-content) h2 {
+  letter-spacing: -0.015em;
+  color: #1b2a5b;
+}
+[data-slide-theme="aurora"] :is(.slide-content, .wysiwyg-content) ol li::marker {
+  color: #14b8a6;
+  font-weight: 800;
+}
+[data-slide-theme="aurora"] :is(.slide-content, .wysiwyg-content) table {
+  box-shadow: 0 1px 2px rgba(15,27,61,0.06), 0 16px 36px -22px rgba(91,91,214,0.4);
+}
+[data-slide-theme="aurora"] :is(.slide-content, .wysiwyg-content) th {
+  letter-spacing: 0.07em;
+  font-size: 0.72rem;
+}
+[data-slide-theme="aurora"] :is(.slide-content, .wysiwyg-content) pre {
+  border: 1px solid #e3e8f8;
+  border-radius: 0.75rem;
+  box-shadow: 0 16px 36px -22px rgba(91,91,214,0.4);
+}
+[data-slide-theme="aurora"] :is(.slide-content, .wysiwyg-content) blockquote {
+  border: 1px solid rgba(20,184,166,0.25);
+  border-left: 4px solid #14b8a6;
+  border-radius: 0 0.75rem 0.75rem 0;
+  box-shadow: 0 8px 24px -18px rgba(20,184,166,0.5);
+}
+[data-slide-theme="aurora"] .slide-badge {
+  border-radius: 999px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  box-shadow: 0 2px 10px -6px rgba(91,91,214,0.5);
+}
+[data-slide-theme="aurora"] .slide-metric {
+  border-radius: 1rem;
+  background: linear-gradient(180deg, #ffffff, #f4f6ff);
+  box-shadow: 0 1px 2px rgba(15,27,61,0.06), 0 16px 36px -22px rgba(91,91,214,0.4);
+}
+[data-slide-theme="aurora"] .slide-progress {
+  border-radius: 999px;
+  box-shadow: inset 0 1px 2px rgba(15,27,61,0.08);
+}

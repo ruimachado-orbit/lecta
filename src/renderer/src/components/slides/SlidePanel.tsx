@@ -14,6 +14,7 @@ import { useSubSlides } from '../../hooks/useSubSlides'
 import { DrawingOverlay, DrawingToolbar } from './DrawingOverlay'
 import { DraggableElements } from './DraggableElements'
 import { appendElement, extractElementComments, stripElements, CANVAS_H, CANVAS_W } from './element-model'
+import { imageFilesFrom, readAsDataUrl, clampToCanvas } from './slide-utils'
 import { SUGGESTED_GLASS_GRADIENT } from './style-presets'
 import { applySlideBackground, hasBackground } from './slide-background'
 import Editor, { type OnMount } from '@monaco-editor/react'
@@ -324,6 +325,7 @@ export function SlidePanel(): JSX.Element {
               layout={currentSlide.config.layout}
               slideId={currentSlide.config.id}
               theme={presentation?.theme}
+              slideIndex={currentSlideIndex}
               onCommit={(md) => {
                 updateMarkdownContent(currentSlideIndex, md)
                 saveSlideContent(currentSlideIndex)
@@ -692,31 +694,6 @@ function SlideCanvas({ markdown, fullMarkdown, rootPath, transition, layout, sli
 }
 
 /** Image files from a drop or a paste, including screenshots pasted as raw bitmaps. */
-function imageFilesFrom(source: DataTransfer | null): File[] {
-  if (!source) return []
-  const files = Array.from(source.files).filter((f) => f.type.startsWith('image/'))
-  if (files.length > 0) return files
-  return Array.from(source.items)
-    .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
-    .map((item) => item.getAsFile())
-    .filter((f): f is File => f !== null)
-}
-
-function readAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result))
-    reader.onerror = () => reject(reader.error ?? new Error(`Could not read ${file.name}`))
-    reader.readAsDataURL(file)
-  })
-}
-
-/** Keep a pinned element's box on the slide. */
-function clampToCanvas(value: number, size: number, limit: number): number {
-  return Math.round(Math.max(0, Math.min(value, limit - size)))
-}
-
-/** Global layers: persistent header/footer rendered on every slide */
 function GlobalLayers({ width, height }: { width: number; height: number }): JSX.Element | null {
   const presentation = usePresentationStore((s) => s.presentation)
   const currentSlideIndex = usePresentationStore((s) => s.currentSlideIndex)

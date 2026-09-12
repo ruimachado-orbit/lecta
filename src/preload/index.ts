@@ -493,18 +493,6 @@ const api = {
   deleteFolderWithEntries: (folderId: string, deleteEntries: boolean): Promise<void> =>
     ipcRenderer.invoke('library:delete-folder-with-entries', folderId, deleteEntries),
 
-  // Design System
-  listDesignElements: (opts?: { category?: string; tags?: string[]; search?: string }): Promise<any[]> =>
-    ipcRenderer.invoke('design-system:list', opts),
-  getDesignElement: (id: string): Promise<any> =>
-    ipcRenderer.invoke('design-system:get', id),
-  saveDesignElement: (element: {
-    id?: string; name: string; category: string; description: string; content: string; tags: string[]
-  }): Promise<any> =>
-    ipcRenderer.invoke('design-system:save', element),
-  deleteDesignElement: (id: string): Promise<boolean> =>
-    ipcRenderer.invoke('design-system:delete', id),
-
   // Remote control
   startRemote: (): Promise<string> =>
     ipcRenderer.invoke('remote:start'),

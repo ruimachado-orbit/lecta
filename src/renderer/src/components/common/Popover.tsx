@@ -55,7 +55,7 @@ export function Popover({
   }
 
   const position = [
-    side === 'bottom' ? 'top-full mt-1' : side === 'top' ? 'bottom-full mb-1' : 'bottom-0 mr-2',
+    side === 'bottom' ? 'top-full mt-1' : side === 'top' ? 'bottom-full mb-1' : 'top-0 mr-2',
     side === 'left-of' ? 'right-full' : align === 'right' ? 'right-0' : 'left-0'
   ].join(' ')
 

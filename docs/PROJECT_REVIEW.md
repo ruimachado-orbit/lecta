@@ -13,6 +13,119 @@ Date: 2026-09-12  ·  Version reviewed: 0.1.2 (`main` @ e277830)  ·  Scope: Ele
 
 Lecta has a genuinely differentiated idea — slides and real, runnable code files side by side with a solid presenter/audience story — and the codebase is organised sensibly (per-domain IPC modules, a shared schema package, an MCP server). But the current build is not release-quality: the core JavaScript engine is broken by the app's own CSP, the code editor and Python/SQL engines need internet at runtime, native execution ignores its own safety toggle, any shared `.lecta` file can execute arbitrary code with full file-system and process access, and several persistence paths can silently destroy user data. Typecheck fails, lint cannot run, one test suite is red, and there is no CI to catch any of it. The product surface has grown far past the core (Notebook mode, five asset libraries, five AI prompt bars) while first-run, error visibility, export fidelity and accessibility lag. The fix path is clear and mostly mechanical; it is sequenced in the plan at the end.
 
+## Status after wave 1
+
+Everything from "Build health" downwards is the **original review, unchanged**, so the
+findings keep their numbers. This section records what the first wave of fixes
+(`3795bae..6905909`, 14 commits) actually landed. Verified against the code, not against
+the commit messages.
+
+Wave-1 commits referenced below:
+
+| Commit | Subject |
+|---|---|
+| `3795bae` | deck path guard, atomic-write and lock helpers, bundle runtime deps |
+| `c2314d9` | enforce the trust boundary in IPC; harden native execution, settings, remote control |
+| `b543ae4` | PPTX export via pptxgenjs; packaged-app smoke test; fix stale website claims |
+| `7fed7f5` | remove unreferenced fonts, scratch decks and duplicate lockfiles |
+| `678c58d` | safe deck persistence — atomic writes, locks, confined paths, no truncation |
+| `8cd78fa` | route recent-decks persistence through the single settings writer |
+| `be3ea1f` | correct model catalog and provider params; route streams; harden Codex and the chat agent |
+| `b39155c` | preload: `closePresentation`, `exportPptx`, reveal-in-folder, `platform` |
+| `7973264` | ESLint 9 flat config, portable vitest alias, vitest globals, CI workflow |
+| `d724e34` | single-source slide options, hardened schema, safe MCP writes, faithful PPTX/ipynb import |
+| `78e42a3` | shared YAML serializer; move an unreadable `settings.json` aside instead of overwriting |
+| `9d5c29d` | JS slides in an isolated Worker; bundle Monaco/Pyodide/sql.js; fix the vite config name |
+| `66e123f` | MDX trust gate, sanitized measurer, safe drag-save, presenter sync protocol, UX fixes |
+| `6905909` | presenter handshake channels, typed renderer bridge, MCP cleanup, smoke-test navigation |
+
+### Fixed
+
+| # | Fixed by | Note |
+|---|---|---|
+| 1 | `9d5c29d` | JS runs in a `blob:` Worker (`useCodeExecution.ts:344`), not a `srcdoc` iframe |
+| 2 | `9d5c29d` | Monaco bundled via `loader.config({ monaco })`; Pyodide/sql.js copied to `out/renderer/runtimes` |
+| 3 | `be3ea1f` | `max_completion_tokens`; separate API-mode and Codex catalogs |
+| 4 | `be3ea1f` | `claude-haiku-4-5-20251001` |
+| 5 | `be3ea1f` | `gemini-2.5-flash-image` |
+| 6 | `be3ea1f` | unknown ids throw; `ollama:` prefix routes explicitly |
+| 7 | `be3ea1f` | provider errors rethrown |
+| 8 | `be3ea1f`, `c2314d9` | `event.sender` in the AI, chat-agent and execution handlers |
+| 9 | `be3ea1f` | `parameters` omitted when a tool has no properties |
+| 10 | `be3ea1f` | pdfjs in-process, 30 s timeout, real errors |
+| 11 | `66e123f` | `presentation.title` |
+| 12 | `be3ea1f` | turn timeout + `turn/interrupt` + cancel |
+| 13 | `d724e34` | code files named from the derived id |
+| 14 | `d724e34` | resolved as "report unsupported" rather than implemented (`presentation-io.ts:976`) |
+| 15 | `be3ea1f`, `6905909` | Nano Banana removed from the app and from the MCP server |
+| 16 | `c2314d9` | `nativeExecutionEnabled` checked in main; cwd confined; bare-name command; one run per sender |
+| 17 | `66e123f` | per-deck MDX trust gate in `ContentRenderer`; never compiled for previews; AI writes only `.md` |
+| 18 | `66e123f` | measurer output sanitized with DOMPurify |
+| 19 | `c2314d9`, `678c58d` | `assertInsideOpenDeck`/`resolveInsideDeck` on every path argument; `settings:get` returns `configuredKeys` booleans |
+| 20 | `c2314d9`, `66e123f` | global `will-navigate` / window-open / `will-attach-webview` guards; WebPanel partition, no `allowpopups` |
+| 21 | `c2314d9`, `678c58d` | root registered only after `lecta.yaml` parses, unregistered on close; protocol authorises via `deck-roots` |
+| 22 | `c2314d9` | real exit tracking, process-group SIGTERM→SIGKILL, 2 MB output cap, configured timeout |
+| 23 | `be3ea1f` | destructive tools always confirm; deck content delimited as data; confirmations bound to the sender with expiry |
+| 24 | `be3ea1f` | scratch cwd, `networkAccess: false` |
+| 25 | `678c58d` | every YAML-derived write goes through `resolveInsideDeck` |
+| 26 | `d724e34` | MCP `loadPresentation` confined to the deck |
+| 27 | `be3ea1f` | `stdin.on('error')`, write after `spawn`, no probe unless selected |
+| 28 | `c2314d9` | bind errors reject, port range `[3333, 3343]`; the plain-HTTP LAN token model is now documented in `docs/SECURITY-MODEL.md` rather than fixed |
+| 29 | `678c58d` | SHA-1 of the full path; workspace cleared before extraction |
+| 30 | `3795bae`, `678c58d` | `atomicWriteFile` + `withLock` + debounced autosave everywhere |
+| 31 | `66e123f` | drag edits the full slide markdown; comments deduped |
+| 32 | `678c58d` | `writeFileIfMissing` (`flag: 'wx'`) at all three sites |
+| 33 | `c2314d9`, `8cd78fa`, `78e42a3`, `d724e34` | per-field validation, one writer under a lock, `0600`, unreadable file moved aside, MCP never rewrites after a parse failure |
+| 34 | `d724e34` | deduped ids and filenames, Unicode-aware slug, refuses writing into the parent dir |
+| 35 | `66e123f` | undo keyed by slide id and cleared on load |
+| 36 | `678c58d` | own-write suppression by content, `relativePath` in events, watchers closed |
+| 37 | `c2314d9` | ENOENT vs parse error; atomic write with backup |
+| 38 | `678c58d` | rejects on `did-fail-load` and a 60 s timeout; always destroys the window and temp file |
+| 39 | `678c58d`, `78e42a3` | `stringifyYaml` in `lecta-file` and `file-system` |
+| 40 | `678c58d` | the `.lecta` path is recorded |
+| 41 | `d724e34` | ordered parsing, `parseTagValue`/`trimValues` off, notes via `.rels`, fixture test |
+| 42 | `d724e34` | zod-validated cells, more MIME types, ANSI-stripped tracebacks |
+| 45 | `be3ea1f`, `66e123f` | collision-free channels removed on the terminal event, `on*` return unsubscribers, blob URLs revoked |
+| 46 | `66e123f` | selector subscriptions in the hot components; MDX cache keyed on the full source |
+| 47 | `c2314d9` | the app no longer spawns the MCP server |
+| 48 | `66e123f`, `6905909` | `{slideIndex, subSlide, clickStep}` with a ready→state handshake, no timers |
+| 49 | `66e123f` | click steps initialise on mount |
+| 50 | `66e123f` | Escape and End share one `endPresentation()` |
+
+Build health rows: ESLint 9 flat config, the portable vitest alias, `vitest/globals` typing
+and the CI workflow are `7973264`; the red MCP test, `packages/mcp-server` version and the
+schema work are `d724e34`; fonts, scratch `.lecta` files and the duplicate lockfiles are
+`7fed7f5`; `NotePanel 2.tsx`, `FloatingChatButton.tsx`, `Spotlight.tsx` and the renderer
+type errors are `66e123f` / `6905909`.
+
+### Partially fixed
+
+- **#43 — schema.** Ids, indices and relative paths are validated, layouts/themes/
+  transitions/engines/languages come from one `as const` source (`slide-options.ts`), unknown
+  themes normalise and unknown keys are preserved (`d724e34`). **Still open:** YAML comments
+  are lost on save — nothing uses `parseDocument`.
+- **#44 — duplication.** `presentation-io.ts` picked up the missing traversal check and now
+  mirrors the shared lists, but it is still a second copy of the schema, serializer and
+  loader. `@lecta/shared` is not yet a real dependency of the MCP server.
+
+### Also landed, beyond the defect list
+
+- **PPTX export** (`b543ae4`) — section D's recommendation: `pptxgenjs` in the main process,
+  no binary, no network (`services/pptx-exporter.ts`, `ipc/export-pptx.ts`).
+- **Packaged-app smoke test** (`b543ae4`) — `tests/e2e/smoke.mjs`, 8 checks.
+- Website and landing-page claims corrected (`b543ae4`).
+- Quick wins from section E: status-bar error chip, delete confirmation, export result with
+  Reveal, "Open Settings" in the no-AI toast, the Help sheet corrected to `Shift+S`,
+  `aria-label`s, `:focus-visible`, `prefers-reduced-motion`, platform-derived titlebar
+  inset, code panel open by default for code slides (`66e123f`).
+
+### Not started
+
+Everything in **B** (first run, toolbar consolidation, information architecture, the
+accessibility work beyond the floor above), **C phase 1's** `DeckStore`/provider-adapter
+refactors, **C phase 2's** "cut or flag" decisions (Notebook mode, Design System, Slide
+Store), and **C phase 3** (theme-faithful export, one-click present, single-file authoring).
+
 ## Build health (measured)
 
 | Check | Result |

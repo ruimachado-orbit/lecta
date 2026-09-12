@@ -11,23 +11,75 @@ By participating in this project, you agree to maintain a respectful and inclusi
 1. **Fork** the repository
 2. **Clone** your fork locally
 3. **Create a branch** from `main` for your changes
-4. **Install dependencies** with `pnpm install`
+4. **Install dependencies** with `make install`
 5. **Make your changes** and test them locally
 6. **Push** your branch and open a Pull Request
 
 ## Development Setup
+
+Prerequisites: [Bun](https://bun.sh/) 1.3.11 (the app's package manager, pinned in
+`packageManager`) and [Node.js](https://nodejs.org/) 22+ (the MCP server and Electron
+tooling). `bun.lock` is the only lockfile at the root — do not commit `package-lock.json`
+or `pnpm-lock.yaml` there.
 
 ```bash
 # Clone your fork
 git clone https://github.com/<your-username>/lecta.git
 cd lecta
 
-# Install dependencies
-pnpm install
+# Install dependencies (bun install + build packages/mcp-server)
+make install
 
-# Start the development server
-pnpm dev
+# Start the app in dev mode (also creates .env from the template)
+make dev
 ```
+
+> `bun test` runs Bun's own test runner, not this project's. Use the `make` targets below.
+
+## Before you open a pull request
+
+Run everything CI runs:
+
+```bash
+make typecheck     # tsc --noEmit           — must be 0 errors
+make lint          # eslint .               — must be 0 errors
+make test          # vitest (app + shared)
+make test-mcp      # vitest (packages/mcp-server)
+make build         # electron-vite build
+```
+
+If you touched the main process, execution, export or the bundled runtimes, also run the
+packaged-app smoke test:
+
+```bash
+make build && bun run test:e2e     # Linux without a display: xvfb-run -a node tests/e2e/smoke.mjs
+```
+
+Add a test next to the module you changed. Pure modules under `packages/shared/src`,
+`src/main/services` and `src/main/ipc` are covered by `vitest.config.ts`; Electron-facing
+modules are testable with `vi.mock('electron', …)` — see `src/main/ipc/settings.test.ts`.
+
+Update [`CHANGELOG.md`](../CHANGELOG.md) under `## [Unreleased]` for anything a user would
+notice, in the Keep-a-Changelog group that fits (Security / Fixed / Added / Changed /
+Removed).
+
+## Things reviewers will look for
+
+These are the invariants the codebase depends on — see
+[`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) and
+[`docs/SECURITY-MODEL.md`](../docs/SECURITY-MODEL.md):
+
+- **The renderer is untrusted.** Any filesystem path arriving over IPC goes through
+  `assertInsideOpenDeck()`; any path read out of `lecta.yaml` goes through
+  `resolveInsideDeck()` (`src/main/services/deck-roots.ts`).
+- **Answer the sender.** Use `event.sender`, never `BrowserWindow.getFocusedWindow()`.
+- **Write safely.** Use `atomicWriteFile`, `writeFileIfMissing` and `withLock` from
+  `src/main/services/safe-fs.ts`. Never `writeFile(path, '')` a file that may exist, and
+  never rewrite a store you failed to parse.
+- **No secrets to the renderer.** Anything key-shaped is exposed as a boolean.
+- **No new executable surface.** MDX compiles only through `ContentRenderer`, behind the
+  per-deck trust flag.
+- **Keep the closed value lists in one place** — `packages/shared/src/slide-options.ts`.
 
 ## Pull Request Process
 
@@ -38,7 +90,8 @@ pnpm dev
    - [@DiogoAntunesOliveira](https://github.com/DiogoAntunesOliveira) (Diogo Antunes Oliveira)
    - [@PedroFerreira](https://github.com/PedroFerreira) (Pedro Ferreira)
 4. **No direct pushes to `main`**: All changes must go through a PR.
-5. **Passing checks**: All CI checks must pass before merging.
+5. **Passing checks**: All CI checks must pass before merging (`.github/workflows/ci.yml`:
+   typecheck, lint, both test suites, build).
 6. **Fill out the PR template**: Provide a clear description, motivation, and test plan.
 
 ## Commit Messages

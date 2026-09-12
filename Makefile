@@ -94,22 +94,25 @@ _commit-version:
 # Build, tag, and publish a GitHub release with macOS DMGs and Linux packages
 release: build
 	@echo "🚀 Releasing v$(VERSION)..."
+	@git diff --quiet || (echo "❌ Working tree is dirty — commit first" && exit 1)
+	cd "$(CURDIR)" && bun run test && bun run typecheck && bun run lint
 	cd "$(CURDIR)" && npx electron-builder --mac --publish never
 	cd "$(CURDIR)" && npx electron-builder --linux --publish never
-	@git tag -a "v$(VERSION)" -m "Release v$(VERSION)" 2>/dev/null || true
-	@git push origin "v$(VERSION)" 2>/dev/null || true
+	@git tag -a "v$(VERSION)" -m "Release v$(VERSION)"
+	@git push origin "v$(VERSION)"
 	@gh release create "v$(VERSION)" \
 		--repo $(REPO) \
 		--title "v$(VERSION)" \
-		--generate-notes 2>/dev/null || true
-	@for f in \
+		--generate-notes
+	@missing=0; for f in \
 		release/Lecta-$(VERSION)-arm64.dmg \
 		release/Lecta-$(VERSION)-x64.dmg \
 		release/Lecta-$(VERSION)-x86_64.AppImage \
 		release/Lecta-$(VERSION)-amd64.deb; do \
-		[ -f "$$f" ] && gh release upload "v$(VERSION)" --repo $(REPO) --clobber "$$f" \
-			|| echo "⏭  Skipping $$f (not found)"; \
-	done
+		if [ -f "$$f" ]; then gh release upload "v$(VERSION)" --repo $(REPO) --clobber "$$f"; \
+		else echo "⚠️  Missing artifact: $$f"; missing=1; fi; \
+	done; \
+	if [ "$$missing" = "1" ]; then echo "❌ Some artifacts were not built — release is incomplete"; exit 1; fi
 	@echo "✅ Released v$(VERSION) → https://github.com/$(REPO)/releases/tag/v$(VERSION)"
 
 # ── Testing ──────────────────────────────────────────────

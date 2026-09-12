@@ -298,13 +298,33 @@ function SubSlideFilmstrip({
                 </span>
               </button>
 
-              {/* Hover actions */}
+              {/* Always-visible duplicate + delete */}
+              <div className="absolute right-0.5 top-0.5 z-30 flex gap-0.5">
+                <button
+                  onClick={() => onDuplicate(i)}
+                  title="Duplicate sub-slide"
+                  aria-label={`Duplicate sub-slide ${i + 1}`}
+                  className="flex h-[18px] w-[18px] items-center justify-center rounded-md border border-gray-600/70 bg-ink-900/80 text-[10px] leading-none text-gray-300 backdrop-blur transition-colors hover:border-signal-500 hover:text-signal-400"
+                >
+                  ⧉
+                </button>
+                {subSlides.length > 1 && (
+                  <button
+                    onClick={() => onDelete(i)}
+                    title="Delete sub-slide"
+                    aria-label={`Delete sub-slide ${i + 1}`}
+                    className="flex h-[18px] w-[18px] items-center justify-center rounded-md border border-gray-600/70 bg-ink-900/80 text-[10px] leading-none text-gray-300 backdrop-blur transition-colors hover:border-red-500 hover:bg-red-500/30 hover:text-red-300"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Hover: reorder */}
               {subSlides.length > 1 && (
-                <div className="absolute -top-6 left-1/2 z-30 flex -translate-x-1/2 items-center gap-0.5 rounded-md border border-gray-700 bg-gray-900 px-0.5 py-0.5 opacity-0 shadow-2xl transition-opacity group-hover:opacity-100">
+                <div className="absolute -bottom-6 left-1/2 z-30 flex -translate-x-1/2 items-center gap-0.5 rounded-md border border-gray-700 bg-gray-900 px-0.5 py-0.5 opacity-0 shadow-2xl transition-opacity group-hover:opacity-100">
                   <FilmAction label="Move left" disabled={i === 0} onClick={() => onMove(i, -1)}>←</FilmAction>
                   <FilmAction label="Move right" disabled={i === subSlides.length - 1} onClick={() => onMove(i, 1)}>→</FilmAction>
-                  <FilmAction label="Duplicate" onClick={() => onDuplicate(i)}>⧉</FilmAction>
-                  <FilmAction label="Delete" tone="danger" onClick={() => onDelete(i)}>✕</FilmAction>
                 </div>
               )}
             </div>
@@ -328,14 +348,12 @@ function FilmAction({
   children,
   onClick,
   label,
-  disabled = false,
-  tone = 'default'
+  disabled = false
 }: {
   children: React.ReactNode
   onClick: () => void
   label: string
   disabled?: boolean
-  tone?: 'default' | 'danger'
 }): JSX.Element {
   return (
     <button
@@ -343,9 +361,7 @@ function FilmAction({
       disabled={disabled}
       title={label}
       aria-label={label}
-      className={`flex h-5 w-5 items-center justify-center rounded text-[10px] transition-colors disabled:opacity-30 ${
-        tone === 'danger' ? 'text-red-400 hover:bg-red-500/20' : 'text-gray-400 hover:bg-gray-700 hover:text-white'
-      }`}
+      className="flex h-5 w-5 items-center justify-center rounded text-[10px] text-gray-400 transition-colors hover:bg-gray-700 hover:text-white disabled:opacity-30"
     >
       {children}
     </button>

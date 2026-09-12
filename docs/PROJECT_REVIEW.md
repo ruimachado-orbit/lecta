@@ -119,12 +119,29 @@ type errors are `66e123f` / `6905909`.
   `aria-label`s, `:focus-visible`, `prefers-reduced-motion`, platform-derived titlebar
   inset, code panel open by default for code slides (`66e123f`).
 
-### Not started
+### Status after waves 2 and 3
 
-Everything in **B** (first run, toolbar consolidation, information architecture, the
-accessibility work beyond the floor above), **C phase 1's** `DeckStore`/provider-adapter
-refactors, **C phase 2's** "cut or flag" decisions (Notebook mode, Design System, Slide
-Store), and **C phase 3** (theme-faithful export, one-click present, single-file authoring).
+Commits `151b3c9..HEAD` on `claude/project-review-improvements-gijmwc`.
+
+| Plan item | Status | Where |
+|---|---|---|
+| Provider adapter interface, one tool loop, cancellation, Stop button | done (`151b3c9`) | `src/main/services/ai/`, `ipc/ai.ts`, `components/chat/` |
+| Theme-faithful PDF/HTML through the real renderer, completion feedback | done (`f6c5c87`) | `src/renderer/src/export/`, `ipc/export-pdf.ts` |
+| PPTX in the Deck menu and palette | done (`f6c5c87`, `7b245cb`) | `export/exporter.ts`, `deck-commands.ts` |
+| Element model: glass/card/frame presets, inspector, per-slide backgrounds, drop/paste, snapping | done (`453bdfe`, `01344f9`) | `components/slides/element-model.ts`, `Inspector.tsx`, `PinnedElements.tsx`, `slide-background.ts` |
+| Dialog/Popover primitive, one toolbar (Deck / Insert), command palette, `?` overlay from one binding table | done (`7b245cb`) | `components/common/`, `layout/Toolbar.tsx`, `useKeyboardShortcuts.ts` |
+| First run: demo deck, three-slide template, Open Settings everywhere | done (`7b245cb`) | `ipc/demo.ts`, `lecta-file.ts`, `HomeScreen.tsx` |
+| One-click present on a second display | done (`7b245cb`) | `ipc/presenter.ts`, `PresenterView.tsx` |
+| Notebook behind an experimental flag; Design System and Prompt panels retired | done (`7b245cb`) | settings `experimentalNotebook` |
+| Single-file `deck.md` authoring with import and export | done (`e4b8ee9`, `39c71b1`) | `packages/shared/src/utils/single-file.ts`, `ipc/file-system.ts` |
+| Unified AI surface with slash commands; agent can run code | in progress (wave 3) | `components/chat/` |
+| MCP server consuming the shared package (#44) | in progress (wave 3) | `packages/mcp-server/` |
+| Docs: architecture, security model, releasing, changelog | done (`13beaef`, `26554e0`) | `docs/` |
+
+Still open after wave 3: YAML comments are lost on save (#43, needs `parseDocument`);
+MDX executes in the renderer behind the trust prompt rather than in a sandboxed iframe;
+the remote control still uses a plain-HTTP LAN token (documented in
+`docs/SECURITY-MODEL.md`); Windows is not built by `make release`.
 
 ## Build health (measured)
 

@@ -107,6 +107,30 @@ commit.
 
 ### Added
 
+- **Visual editing.** Pinned images, shapes and text boxes carry fit, size, radius, opacity,
+  rotation, shadow, z-order and a style preset (**Glass**, Card, Frame — glass is a
+  theme-aware translucent surface with backdrop blur); an Inspector panel edits them, images
+  can be dropped or pasted onto the canvas, elements snap to slide edges and centre lines,
+  and slides can have a colour, gradient or image background. Everything round-trips
+  through the existing comment encoding; old decks render identically.
+- **Theme-faithful PDF and HTML export.** Export renders every slide and sub-slide step
+  through the real slide renderer in a hidden window; HTML export is a single self-contained
+  file with keyboard navigation and speaker notes. Export PDF / HTML / PowerPoint / single
+  Markdown file live in the **Deck** menu and the command palette and report the saved path
+  with a Reveal action.
+- **Command palette (`Cmd/Ctrl+K`)** for slides, actions and themes, and a **`?` shortcut
+  overlay**; both, the key handler and the Help page render from one binding table.
+- **First run.** "Open the demo deck" ships the hello-world deck; new decks start with a
+  title slide, a two-column slide with runnable JavaScript and a closing slide; every
+  no-AI state offers **Open Settings**.
+- **One-click present.** With a second display connected, presenting opens the audience
+  view fullscreen there and restores both windows on End.
+- **Single-file decks.** Write one `deck.md` (frontmatter, `---` separators, code fences
+  with `file=`, `<!-- notes -->`) and open it; export any deck back to one file.
+- **AI provider adapters** with one tool loop, request cancellation everywhere and a Stop
+  button in chat; the model selector groups by provider and flags stale ids.
+- Dialog and Popover primitives with focus trap, Escape and focus restore.
+
 - **PPTX export** — `pptxgenjs` in the main process (no binary, no network): the 12 layouts,
   8 theme palettes, sub-slides as steps, code blocks as monospace boxes, deck-confined
   images, speaker notes and pinned elements. `export:pptx` writes atomically through a save
@@ -153,6 +177,9 @@ commit.
   is, and macOS-only claims replaced.
 
 ### Removed
+
+- Design System panel and the per-slide Prompt panel (their jobs are covered by themes and
+  the chat agent); Notebook mode is behind the `experimentalNotebook` setting.
 
 - The **"Nano Banana" image provider**, which posted the user's key to a third-party
   endpoint; Gemini image generation uses `gemini-2.5-flash-image`. [#15]

@@ -742,7 +742,7 @@ const GROUP_COLORS = [
   { label: 'Pink', value: '#ec4899' },
 ]
 
-const SLIDE_LAYOUTS = [
+export const SLIDE_LAYOUTS = [
   { value: 'default', label: 'Default' },
   { value: 'center', label: 'Center' },
   { value: 'title', label: 'Title' },
@@ -758,7 +758,7 @@ const SLIDE_LAYOUTS = [
 ]
 
 /** SVG thumbnail that visually represents each layout — always on dark bg for visibility */
-function LayoutThumbnail({ layout, active }: { layout: string; active: boolean }): JSX.Element {
+export function LayoutThumbnail({ layout, active }: { layout: string; active: boolean }): JSX.Element {
   const fill = active ? '#e2e8f0' : '#94a3b8'
   const accent = active ? '#818cf8' : '#64748b'
   const bg = active ? '#1e1b4b' : '#111827'

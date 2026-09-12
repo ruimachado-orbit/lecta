@@ -14,6 +14,7 @@ import { registerChatAgentHandlers } from './chat-agent'
 import { registerLibraryHandlers } from './library'
 import { registerMcpHandlers } from './mcp'
 import { registerDemoHandlers } from './demo'
+import { registerLocalApiHandlers } from './local-api'
 
 export function registerAllIpcHandlers(): void {
   registerFileSystemHandlers()
@@ -32,4 +33,5 @@ export function registerAllIpcHandlers(): void {
   registerLibraryHandlers()
   registerMcpHandlers()
   registerDemoHandlers()
+  registerLocalApiHandlers()
 }

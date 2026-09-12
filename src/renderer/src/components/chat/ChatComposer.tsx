@@ -11,6 +11,23 @@ import {
   slashAutocompleteQuery,
   type SlashCommand
 } from './slash-commands'
+import {
+  mentionAutocompleteQuery,
+  matchMentionSlides,
+  completeMention,
+  expandMentions,
+  type MentionableSlide
+} from './slide-mentions'
+
+function slideHeading(slide: { markdownContent?: string; config: { id: string } }): string {
+  const heading = slide.markdownContent
+    ?.split('\n')
+    .find((line) => line.trim().startsWith('#'))
+    ?.replace(/^#{1,6}\s*/, '')
+    .replace(/[*_`>]/g, '')
+    .trim()
+  return (heading || slide.config.id).slice(0, 40)
+}
 
 /** "Slide 3 · Python demo" — what the agent will act on if you say "this slide". */
 function useSlideChip(): string | null {
@@ -94,6 +111,15 @@ export function ChatComposer({ compact = false }: { compact?: boolean }): JSX.El
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const [highlight, setHighlight] = useState(0)
   const [dismissed, setDismissed] = useState(false)
+  // @-mention popover state (mirrors the slash-command popover)
+  const [mentionHighlight, setMentionHighlight] = useState(0)
+  const [mentionDismissed, setMentionDismissed] = useState(false)
+  const [caret, setCaret] = useState(0)
+  const allSlides = usePresentationStore((s) => s.slides)
+  const mentionSlides: MentionableSlide[] = useMemo(
+    () => allSlides.map((s, i) => ({ number: i + 1, title: slideHeading(s) })),
+    [allSlides]
+  )
 
   // Voice dictation: transcribe speech into the composer, prefixed with whatever
   // was already typed when the mic was pressed.
@@ -123,10 +149,22 @@ export function ChatComposer({ compact = false }: { compact?: boolean }): JSX.El
   const exact = query === null ? undefined : getSlashCommand(query)
   const isOpen = !dismissed && query !== null && matches.length > 0 && !(exact && !exact.argsHint)
 
+  // @-mentions: offered only when the slash popover is closed, from the caret.
+  const mentionQuery = isOpen ? null : mentionAutocompleteQuery(draft.slice(0, caret))
+  const mentionMatches = useMemo(
+    () => (mentionQuery === null ? [] : matchMentionSlides(mentionSlides, mentionQuery)),
+    [mentionQuery, mentionSlides]
+  )
+  const isMentionOpen = !mentionDismissed && mentionQuery !== null && mentionMatches.length > 0
+
   // Keep the highlight in range as the list narrows.
   useEffect(() => {
     setHighlight(0)
   }, [query])
+
+  useEffect(() => {
+    setMentionHighlight(0)
+  }, [mentionQuery])
 
   // A prefill from a toolbar button arrives through the store — take the caret.
   useEffect(() => {
@@ -148,11 +186,25 @@ export function ChatComposer({ compact = false }: { compact?: boolean }): JSX.El
     })
   }
 
+  const applyMention = (number: number): void => {
+    const el = inputRef.current
+    const pos = el?.selectionStart ?? draft.length
+    const { text, caret: next } = completeMention(draft.slice(0, pos), pos, draft, number)
+    setDraft(text)
+    setMentionDismissed(true)
+    requestAnimationFrame(() => {
+      el?.focus()
+      el?.setSelectionRange(next, next)
+      setCaret(next)
+    })
+  }
+
   const handleSend = (): void => {
-    const text = draft.trim()
+    const text = expandMentions(draft, mentionSlides).trim()
     if (!text || isDisabled) return
     setDraft('')
     setDismissed(false)
+    setMentionDismissed(false)
     void sendMessage(text)
   }
 
@@ -179,13 +231,40 @@ export function ChatComposer({ compact = false }: { compact?: boolean }): JSX.El
         return
       }
     }
+    if (isMentionOpen) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setMentionHighlight((h) => (h + 1) % mentionMatches.length)
+        return
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setMentionHighlight((h) => (h - 1 + mentionMatches.length) % mentionMatches.length)
+        return
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault()
+        applyMention(mentionMatches[Math.min(mentionHighlight, mentionMatches.length - 1)].number)
+        return
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setMentionDismissed(true)
+        return
+      }
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSend()
     }
   }
 
+  const trackCaret = (): void => {
+    setCaret(inputRef.current?.selectionStart ?? 0)
+  }
+
   const listboxId = 'chat-slash-commands'
+  const mentionListboxId = 'chat-slide-mentions'
   const textSize = compact ? 'text-xs' : 'text-sm'
 
   return (
@@ -226,7 +305,7 @@ export function ChatComposer({ compact = false }: { compact?: boolean }): JSX.El
         <div className={`flex items-center ${compact ? 'gap-1.5' : 'gap-2'}`}>
           <ActionModeToggle />
           <ModelSelector compact />
-          <span className="text-[10px] text-gray-600 ml-auto hidden sm:inline">/ for commands</span>
+          <span className="text-[10px] text-gray-600 ml-auto hidden sm:inline">/ commands · @ slides</span>
         </div>
 
         <div className="relative">
@@ -262,6 +341,35 @@ export function ChatComposer({ compact = false }: { compact?: boolean }): JSX.El
             </ul>
           )}
 
+          {isMentionOpen && (
+            <ul
+              id={mentionListboxId}
+              role="listbox"
+              aria-label="Mention a slide"
+              className="absolute bottom-full mb-1.5 left-0 right-0 z-[9980] max-h-56 overflow-y-auto rounded-xl border border-gray-700 bg-gray-900 shadow-2xl py-1"
+            >
+              {mentionMatches.map((slide, i) => (
+                <li key={slide.number} id={`${mentionListboxId}-${slide.number}`} role="option" aria-selected={i === mentionHighlight}>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      // Keep focus in the textarea so the caret does not jump.
+                      e.preventDefault()
+                      applyMention(slide.number)
+                    }}
+                    onMouseEnter={() => setMentionHighlight(i)}
+                    className={`w-full text-left px-3 py-1.5 transition-colors ${
+                      i === mentionHighlight ? 'bg-gray-800' : 'hover:bg-gray-800/60'
+                    }`}
+                  >
+                    <span className="text-xs font-mono text-indigo-300">@{slide.number}</span>
+                    <span className="block text-[10px] text-gray-500 truncate">{slide.title}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
           <div className={`flex items-end ${compact ? 'gap-1.5' : 'gap-2'}`}>
             <textarea
               ref={inputRef}
@@ -269,16 +377,23 @@ export function ChatComposer({ compact = false }: { compact?: boolean }): JSX.El
               onChange={(e) => {
                 setDraft(e.target.value)
                 setDismissed(false)
+                setMentionDismissed(false)
+                trackCaret()
               }}
               onKeyDown={handleKeyDown}
-              placeholder={noProviders ? 'Configure an AI provider in Settings' : 'Ask Lecta AI, or / for a command'}
+              onKeyUp={trackCaret}
+              onClick={trackCaret}
+              onSelect={trackCaret}
+              placeholder={noProviders ? 'Configure an AI provider in Settings' : 'Ask Lecta AI, / for a command, @ for a slide'}
               rows={1}
               role="combobox"
-              aria-expanded={isOpen}
-              aria-controls={listboxId}
+              aria-expanded={isOpen || isMentionOpen}
+              aria-controls={isOpen ? listboxId : isMentionOpen ? mentionListboxId : undefined}
               aria-autocomplete="list"
               aria-activedescendant={
-                isOpen ? `${listboxId}-${matches[Math.min(highlight, matches.length - 1)].name}` : undefined
+                isOpen ? `${listboxId}-${matches[Math.min(highlight, matches.length - 1)].name}`
+                : isMentionOpen ? `${mentionListboxId}-${mentionMatches[Math.min(mentionHighlight, mentionMatches.length - 1)].number}`
+                : undefined
               }
               className={`flex-1 resize-none bg-gray-900 border border-gray-800 ${
                 compact ? 'rounded-lg px-3 py-2 max-h-24' : 'rounded-2xl px-4 py-2.5 max-h-32'

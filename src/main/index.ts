@@ -226,6 +226,9 @@ app.whenReady().then(() => {
     if (settings.mcpServerEnabled) {
       startMcpServer()
     }
+    if (settings.localApiEnabled) {
+      void import('./services/local-api').then((m) => m.syncLocalApi())
+    }
   })
 
   app.on('activate', () => {

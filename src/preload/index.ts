@@ -232,7 +232,7 @@ const api = {
     slideCount: number,
     onProgress: (data: { status: string; slideIndex: number; total: number }) => void,
     options?: {
-      tone?: string
+      tone?: string; webSearch?: boolean
       verbosity?: string
       outline?: { id: string; title: string; layout: string; keyPoints: string[] }[] | null
     }
@@ -250,7 +250,7 @@ const api = {
     title: string,
     sourceContent: string | null,
     slideCount: number,
-    options?: { tone?: string; verbosity?: string }
+    options?: { tone?: string; verbosity?: string; webSearch?: boolean }
   ): Promise<{ id: string; title: string; layout: string; keyPoints: string[] }[]> =>
     ipcRenderer.invoke('ai:generate-outline', prompt, title, sourceContent, slideCount, options ?? {}),
   readSourceFile: (filePath: string): Promise<string> =>
@@ -442,6 +442,12 @@ const api = {
     ipcRenderer.invoke('mcp:remove-external-server', name),
   mcpTestExternalServer: (server: { name: string; command: string; args?: string[] }): Promise<{ success: boolean; message: string; tools?: string[] }> =>
     ipcRenderer.invoke('mcp:test-external-server', server),
+
+  // Local REST API (opt-in localhost generation API)
+  localApiToggle: (enabled: boolean): Promise<{ running: boolean }> =>
+    ipcRenderer.invoke('local-api:toggle', enabled),
+  localApiStatus: (): Promise<{ enabled: boolean; running: boolean; port: number; token: string }> =>
+    ipcRenderer.invoke('local-api:status'),
 
   // Notebook
   loadNotebook: (folderPath: string): Promise<any> =>

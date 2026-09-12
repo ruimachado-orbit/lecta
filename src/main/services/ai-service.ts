@@ -865,6 +865,26 @@ RULES:
   }
 
   /**
+   * Web-search grounding (Presenton `web_search`): run the whole generation
+   * pass on Perplexity Sonar so claims are checked against live web results.
+   * The user's model is restored afterwards, even on failure.
+   */
+  private async withWebSearch<T>(enabled: boolean | undefined, work: () => Promise<T>): Promise<T> {
+    if (!enabled) return work()
+    const key = await loadProviderKey('perplexity')
+    if (!key) {
+      throw new Error('Web search grounding needs a Perplexity API key. Add PERPLEXITY_API_KEY in Settings or your .env file.')
+    }
+    const prev = this.model
+    this.setModel('sonar-pro')
+    try {
+      return await work()
+    } finally {
+      this.setModel(prev)
+    }
+  }
+
+  /**
    * Public outline pass for the generation wizard: returns an editable outline
    * without writing any slides, so the UI can let the user reorder / edit first.
    */
@@ -874,13 +894,15 @@ RULES:
     sourceContent: string | null,
     slideCount: number,
     signal?: AbortSignal,
-    options?: { tone?: string; verbosity?: string }
+    options?: { tone?: string; verbosity?: string; webSearch?: boolean }
   ): Promise<{ id: string; title: string; layout: string; keyPoints: string[] }[]> {
-    const outline = await this.generateOutline(prompt, title, sourceContent, slideCount, signal, options)
-    if (!outline || outline.length === 0) {
-      throw new Error('The model returned no outline. Try rephrasing the prompt.')
-    }
-    return outline
+    return this.withWebSearch(options?.webSearch, async () => {
+      const outline = await this.generateOutline(prompt, title, sourceContent, slideCount, signal, options)
+      if (!outline || outline.length === 0) {
+        throw new Error('The model returned no outline. Try rephrasing the prompt.')
+      }
+      return outline
+    })
   }
 
   /** The write-phase system prompt (moved out of the orchestrator). */
@@ -1090,46 +1112,48 @@ KEEP the same number of slides and their ids. Output the FULL corrected deck (ev
     slideCount: number,
     onProgress: (status: string, slideIndex: number, total: number) => void,
     signal?: AbortSignal,
-    options?: { tone?: string; verbosity?: string; outline?: { id: string; title: string; layout: string; keyPoints: string[] }[] | null }
+    options?: { tone?: string; verbosity?: string; webSearch?: boolean; outline?: { id: string; title: string; layout: string; keyPoints: string[] }[] | null }
   ): Promise<{ slides: { id: string; markdown: string; layout: string }[]; title: string }> {
-    // Phase 1 — outline. The wizard may supply a user-edited outline; otherwise
-    // generate one (optional — the write phase works without it).
-    let outline: { id: string; title: string; layout: string; keyPoints: string[] }[] | null = options?.outline ?? null
-    if (!outline) {
-      try {
-        onProgress('Outlining the presentation…', 0, slideCount)
-        outline = await this.generateOutline(prompt, title, sourceContent, slideCount, signal, options)
-      } catch (err) {
-        console.warn('[generateFullPresentation] outline step failed; writing slides without it:', (err as Error).message)
+    return this.withWebSearch(options?.webSearch, async () => {
+      // Phase 1 — outline. The wizard may supply a user-edited outline; otherwise
+      // generate one (optional — the write phase works without it).
+      let outline: { id: string; title: string; layout: string; keyPoints: string[] }[] | null = options?.outline ?? null
+      if (!outline) {
+        try {
+          onProgress('Outlining the presentation…', 0, slideCount)
+          outline = await this.generateOutline(prompt, title, sourceContent, slideCount, signal, options)
+        } catch (err) {
+          console.warn('[generateFullPresentation] outline step failed; writing slides without it:', (err as Error).message)
+        }
       }
-    }
 
-    // Phase 2 — write the slides from the outline. This is the required step;
-    // provider errors still propagate so a failed request never becomes an
-    // empty deck.
-    const written = await this.generateSlidesFromOutline(
-      prompt,
-      title,
-      sourceContent,
-      outline,
-      slideCount,
-      onProgress,
-      signal,
-      options
-    )
+      // Phase 2 — write the slides from the outline. This is the required step;
+      // provider errors still propagate so a failed request never becomes an
+      // empty deck.
+      const written = await this.generateSlidesFromOutline(
+        prompt,
+        title,
+        sourceContent,
+        outline,
+        slideCount,
+        onProgress,
+        signal,
+        options
+      )
 
-    // Phase 3 — critique + one corrective pass (optional). Fall back to the
-    // already-generated slides if this fails.
-    let refined = written
-    try {
-      onProgress('Reviewing and refining…', slideCount, slideCount)
-      refined = await this.refineSlides(prompt, title, sourceContent, written.slides, slideCount, signal)
-    } catch (err) {
-      console.warn('[generateFullPresentation] refine step failed; keeping the generated slides:', (err as Error).message)
-    }
+      // Phase 3 — critique + one corrective pass (optional). Fall back to the
+      // already-generated slides if this fails.
+      let refined = written
+      try {
+        onProgress('Reviewing and refining…', slideCount, slideCount)
+        refined = await this.refineSlides(prompt, title, sourceContent, written.slides, slideCount, signal)
+      } catch (err) {
+        console.warn('[generateFullPresentation] refine step failed; keeping the generated slides:', (err as Error).message)
+      }
 
-    onProgress('Generation complete', slideCount, slideCount)
-    return { slides: refined.slides, title: refined.title || written.title || title }
+      onProgress('Generation complete', slideCount, slideCount)
+      return { slides: refined.slides, title: refined.title || written.title || title }
+    })
   }
 
   /**

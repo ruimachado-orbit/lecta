@@ -40,11 +40,29 @@ function ThemePreview({ theme }: { theme: PresentationTheme }) {
   )
 }
 
+export const DEFAULT_THEME_STORAGE_KEY = 'lecta.default-theme'
+
+export function loadDefaultThemeId(): string {
+  try {
+    return localStorage.getItem(DEFAULT_THEME_STORAGE_KEY) || 'dark'
+  } catch {
+    return 'dark'
+  }
+}
+
 export function ThemePicker({ onClose }: { onClose: () => void }) {
   const { presentation, setTheme } = usePresentationStore()
   const themes = getAllThemes()
   const currentThemeId = presentation?.theme || 'dark'
   const [hoveredTheme, setHoveredTheme] = useState<string | null>(null)
+  const [defaultThemeId, setDefaultThemeId] = useState(loadDefaultThemeId())
+
+  const rememberDefault = (themeId: string) => {
+    try {
+      localStorage.setItem(DEFAULT_THEME_STORAGE_KEY, themeId)
+    } catch { /* private mode — session-only */ }
+    setDefaultThemeId(themeId)
+  }
 
   return (
     <>
@@ -82,6 +100,28 @@ export function ThemePicker({ onClose }: { onClose: () => void }) {
                     )}
                   </div>
                   <div className="text-[9px] text-gray-500 leading-tight">{theme.description}</div>
+                  <div className="flex items-center gap-1 mt-0.5" onClick={(e) => e.stopPropagation()}>
+                    {theme.id !== 'dark' && (
+                      <button
+                        onClick={() => { setTheme('dark'); onClose() }}
+                        className="text-[9px] text-gray-500 hover:text-gray-300 transition-colors"
+                        title="Reset to Default Dark"
+                      >
+                        Reset
+                      </button>
+                    )}
+                    {defaultThemeId !== theme.id ? (
+                      <button
+                        onClick={() => rememberDefault(theme.id)}
+                        className="text-[9px] text-gray-500 hover:text-indigo-300 transition-colors"
+                        title="Use for new decks"
+                      >
+                        Set default
+                      </button>
+                    ) : (
+                      <span className="text-[9px] text-indigo-400/80">Default</span>
+                    )}
+                  </div>
                 </div>
               </button>
             )

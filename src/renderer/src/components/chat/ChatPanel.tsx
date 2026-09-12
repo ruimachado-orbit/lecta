@@ -25,7 +25,7 @@ export function ChatWelcome({ onQuickAction }: { onQuickAction: (msg: string) =>
         Ask me to view, edit, run or improve your slides
       </p>
       <p className="text-[10px] text-gray-600 mb-4">
-        Type <span className="font-mono text-gray-500">/</span> for commands
+        Type <span className="font-mono text-gray-500">/</span> for commands, <span className="font-mono text-gray-500">@</span> for a slide
       </p>
       <div className="flex flex-wrap gap-1.5 justify-center">
         {QUICK_ACTIONS.map((action) => (

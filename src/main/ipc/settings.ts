@@ -26,9 +26,11 @@ const DEFAULTS: Record<string, unknown> = {
   llamaApiKey: '',
   xaiApiKey: '',
   perplexityApiKey: '',
+  pexelsApiKey: '',
   ollamaBaseUrl: '',
   imageProvider: 'openai',
   mcpServerEnabled: false,
+  localApiEnabled: false,
   experimentalNotebook: false,
   recentDecks: []
 }
@@ -42,6 +44,7 @@ const SENSITIVE_FIELDS = [
   'llamaApiKey',
   'xaiApiKey',
   'perplexityApiKey',
+  'pexelsApiKey',
   'nanobananaApiKey',
 ]
 
@@ -212,5 +215,11 @@ export function registerSettingsHandlers(): void {
     const patch = sanitizePatch(settings)
     if (Object.keys(patch).length === 0) return
     await saveSettings(patch)
+    // Dynamic import: local-api reads these settings, so a static import would cycle.
+    if ('localApiEnabled' in patch) {
+      void import('../services/local-api').then((m) => m.syncLocalApi()).catch((err) => {
+        console.error('[settings] local API sync failed:', err)
+      })
+    }
   })
 }

@@ -1,11 +1,11 @@
 import { GoogleGenAI } from '@google/genai'
 import OpenAI from 'openai'
-import { loadGeminiKey, loadOpenAIKey, loadImageProvider, loadOpenAIAuthMode } from './env-loader'
+import { loadGeminiKey, loadOpenAIKey, loadImageProvider, loadOpenAIAuthMode, loadGenericProviderKey } from './env-loader'
 import { getCodexAppServerClient } from './codex-app-server-client'
 
-export type ImageProvider = 'gemini' | 'openai' | 'codex'
+export type ImageProvider = 'gemini' | 'openai' | 'codex' | 'pexels'
 
-export const IMAGE_PROVIDERS: readonly ImageProvider[] = ['openai', 'codex', 'gemini']
+export const IMAGE_PROVIDERS: readonly ImageProvider[] = ['openai', 'codex', 'gemini', 'pexels']
 
 export function isImageProvider(value: unknown): value is ImageProvider {
   return typeof value === 'string' && (IMAGE_PROVIDERS as readonly string[]).includes(value)
@@ -178,6 +178,38 @@ export class ImageGenerationService {
     return (await loadOpenAIAuthMode()) === 'codex'
   }
 
+  // --- Pexels stock photos (free API key, no generation cost) ---
+
+  private async getPexelsKey(): Promise<string> {
+    const key = await loadGenericProviderKey('PEXELS_API_KEY', 'pexelsApiKey', currentDeckPath ?? undefined)
+    if (!key) {
+      throw new Error('No Pexels API key found. Add PEXELS_API_KEY to your .env file or Settings (free at pexels.com/api).')
+    }
+    return key
+  }
+
+  private async fetchWithPexels(prompt: string): Promise<{ base64: string; mimeType: string }> {
+    const apiKey = await this.getPexelsKey()
+    // The prompt is a generation prompt ("cover image of ..."); reduce it to
+    // search terms so stock search returns something relevant.
+    const query = prompt.replace(/^(cover image|illustration|photo|image)\s+of\s+/i, '').slice(0, 100) || prompt.slice(0, 100)
+    const res = await fetch(
+      `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=3&orientation=landscape`,
+      { headers: { Authorization: apiKey } }
+    )
+    if (res.status === 401) throw new Error('Pexels rejected the API key. Check PEXELS_API_KEY in Settings.')
+    if (!res.ok) throw new Error(`Pexels search failed (${res.status}).`)
+    const data = (await res.json()) as { photos?: { src?: Record<string, string>; alt?: string }[] }
+    const photo = data.photos?.find((p) => p.src?.large2x || p.src?.large)
+    if (!photo) throw new Error(`No stock photo found for "${query}". Try a different prompt.`)
+    const url = photo.src!.large2x || photo.src!.large
+    const img = await fetch(url)
+    if (!img.ok) throw new Error('Could not download the stock photo.')
+    const buf = Buffer.from(await img.arrayBuffer())
+    const mime = img.headers.get('content-type')?.split(';')[0] || 'image/jpeg'
+    return { base64: buf.toString('base64'), mimeType: mime }
+  }
+
   // --- Public API ---
 
   async generateImage(params: {
@@ -193,6 +225,9 @@ export class ImageGenerationService {
     }
     if (prov === 'codex') {
       return this.generateWithCodex(params.prompt, params.aspectRatio)
+    }
+    if (prov === 'pexels') {
+      return this.fetchWithPexels(params.prompt)
     }
     return this.generateWithOpenAI(params.prompt, params.aspectRatio)
   }
@@ -212,6 +247,10 @@ export class ImageGenerationService {
     if (prov === 'codex') {
       return this.editWithCodex(params.prompt, params.imageBase64, params.imageMimeType, params.aspectRatio)
     }
+    if (prov === 'pexels') {
+      // Stock photos cannot be edited — fetch a fresh match for the new prompt.
+      return this.fetchWithPexels(params.prompt)
+    }
     return this.editWithOpenAI(params.prompt, params.imageBase64, params.imageMimeType)
   }
 
@@ -229,6 +268,9 @@ export class ImageGenerationService {
       if (prov === 'openai') {
         return !!(await loadOpenAIKey(currentDeckPath ?? undefined))
       }
+      if (prov === 'pexels') {
+        return !!(await loadGenericProviderKey('PEXELS_API_KEY', 'pexelsApiKey', currentDeckPath ?? undefined))
+      }
       return false
     } catch {
       return false
@@ -236,15 +278,17 @@ export class ImageGenerationService {
   }
 
   async getAvailableProviders(): Promise<{ id: ImageProvider; name: string; hasKey: boolean }[]> {
-    const [hasGemini, hasOpenAI, hasCodex] = await Promise.all([
+    const [hasGemini, hasOpenAI, hasCodex, hasPexels] = await Promise.all([
       this.hasApiKey('gemini'),
       this.hasApiKey('openai'),
       this.hasApiKey('codex'),
+      this.hasApiKey('pexels'),
     ])
     return [
       { id: 'openai', name: 'OpenAI DALL-E', hasKey: hasOpenAI },
       { id: 'codex', name: 'Codex / ChatGPT Images', hasKey: hasCodex },
       { id: 'gemini', name: 'Google Gemini (Nano Banana)', hasKey: hasGemini },
+      { id: 'pexels', name: 'Pexels Stock Photos', hasKey: hasPexels },
     ]
   }
 }

@@ -9,8 +9,11 @@ import { ModelSelector } from '../ai/ModelSelector'
 import { TonePills, VerbosityPills } from '../ai/GenerationPicks'
 import { SupportingDocs, type SupportingDoc } from '../ai/SupportingDocs'
 import { OutlineEditor, TemplateGallery, type OutlineItem } from '../ai/WizardSteps'
+import { loadDefaultThemeId } from '../slides/ThemePicker'
+import { GENERATION_MODES, type GenerationModeId } from '../../../../../packages/shared/src/constants'
 import { MyPresentations } from '../library/MyPresentations'
 import { Dialog } from '../common/Dialog'
+import { OnboardingDialog, isOnboarded } from './OnboardingDialog'
 import { ShortcutTable, ShortcutsOverlay } from '../common/ShortcutsOverlay'
 import { CommandPalette } from '../common/CommandPalette'
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
@@ -77,6 +80,7 @@ export function HomeScreen(): JSX.Element {
   const [showAIGenerate, setShowAIGenerate] = useState(false)
   const [showLibrary, setShowLibrary] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
+  const [showOnboarding, setShowOnboarding] = useState(() => !isOnboarded())
   const [newName, setNewName] = useState('')
   const [createError, setCreateError] = useState<string | null>(null)
   const [demoBusy, setDemoBusy] = useState(false)
@@ -435,6 +439,7 @@ export function HomeScreen(): JSX.Element {
       {/* App-wide overlays — the palette and the shortcut sheet work from Home too */}
       <CommandPalette />
       <ShortcutsOverlay />
+      {showOnboarding && <OnboardingDialog onClose={() => setShowOnboarding(false)} />}
     </div>
   )
 }
@@ -574,13 +579,17 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
   const providerStatuses = useUIStore((s) => s.providerStatuses)
   const noProviders = !providerStatuses.some((p) => p.hasKey)
   // Wizard: 1) prompt + sources + style, 2) editable outline, 3) generate.
+  // Fast mode skips the outline (Presenton Smart) and writes directly.
   const [step, setStep] = useState<'prompt' | 'outline' | 'generate'>('prompt')
+  const [mode, setMode] = useState<GenerationModeId>('structured')
   const [prompt, setPrompt] = useState('')
   const [title, setTitle] = useState('')
   const [slideCount, setSlideCount] = useState(10)
   const [tone, setTone] = useState('default')
   const [verbosity, setVerbosity] = useState('standard')
-  const [theme, setThemeId] = useState('dark')
+  const [webSearch, setWebSearch] = useState(false)
+  const perplexityReady = providerStatuses.some((p) => p.id === 'perplexity' && p.hasKey)
+  const [theme, setThemeId] = useState(loadDefaultThemeId)
   const [docs, setDocs] = useState<SupportingDoc[]>([])
   const [sourceFolder, setSourceFolder] = useState<string | null>(null)
   const [sourceFolderName, setSourceFolderName] = useState<string | null>(null)
@@ -635,7 +644,7 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
     try {
       const sourceContent = await readGrounding()
       const items = await window.electronAPI.generateOutline(
-        prompt, finalTitle, sourceContent, slideCount, { tone, verbosity }
+        prompt, finalTitle, sourceContent, slideCount, { tone, verbosity, webSearch }
       )
       setOutline(items)
       setStep('outline')
@@ -644,7 +653,7 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
     } finally {
       setIsOutlining(false)
     }
-  }, [hasGrounding, isOutlining, readGrounding, prompt, finalTitle, slideCount, tone, verbosity])
+  }, [hasGrounding, isOutlining, readGrounding, prompt, finalTitle, slideCount, tone, verbosity, webSearch])
 
   /** Step 2 → 3: write the deck from the (possibly edited) outline. */
   const handleGenerate = useCallback(async () => {
@@ -665,7 +674,7 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
         sourceContent,
         slideCount,
         (data: { status: string; slideIndex: number; total: number }) => setProgress(data),
-        { tone, verbosity, outline }
+        { tone, verbosity, webSearch, outline }
       )
 
       if (!result.slides || result.slides.length === 0) {
@@ -707,7 +716,7 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
       setIsGenerating(false)
       setStep(outline ? 'outline' : 'prompt')
     }
-  }, [prompt, docs, sourceFolder, isGenerating, readGrounding, finalTitle, slideCount, tone, verbosity, outline, theme, onGenerated])
+  }, [prompt, docs, sourceFolder, isGenerating, readGrounding, finalTitle, slideCount, tone, verbosity, webSearch, outline, theme, onGenerated])
 
   return (
     <div className="h-screen flex flex-col bg-gray-950 text-white" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
@@ -757,8 +766,8 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
 
           {/* Stepper */}
           <nav aria-label="Generation steps" className="flex items-center gap-1 text-[11px]">
-            {(['prompt', 'outline', 'generate'] as const).map((s, i) => {
-              const labels = ['Prompt', 'Outline', 'Generate'] as const
+            {(mode === 'fast' ? (['prompt', 'generate'] as const) : (['prompt', 'outline', 'generate'] as const)).map((s, i) => {
+              const labels = mode === 'fast' ? (['Prompt', 'Generate'] as const) : (['Prompt', 'Outline', 'Generate'] as const)
               const active = step === s
               const done = (s === 'prompt' && (step === 'outline' || step === 'generate')) || (s === 'outline' && step === 'generate')
               const reachable = s === 'prompt' || (s === 'outline' && outline) || (s === 'generate' && false)
@@ -814,6 +823,53 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
 
           <TonePills value={tone} onChange={setTone} disabled={isOutlining} />
           <VerbosityPills value={verbosity} onChange={setVerbosity} disabled={isOutlining} />
+
+          {/* Web-search grounding (Presenton web_search): draft via Sonar */}
+          <label className="flex items-start gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={webSearch}
+              onChange={(e) => setWebSearch(e.target.checked)}
+              disabled={isOutlining || isGenerating}
+              className="mt-0.5 accent-indigo-500 disabled:opacity-30"
+            />
+            <span>
+              <span className="block text-sm text-gray-300">Ground with web search</span>
+              <span className="block text-[11px] text-gray-500">
+                {perplexityReady
+                  ? 'Runs generation on Perplexity Sonar with live web results.'
+                  : 'Needs a Perplexity API key in Settings.'}
+              </span>
+            </span>
+          </label>
+
+          {/* Generation mode: Structured (outline first) vs Fast (write directly) */}
+          <div>
+            <label className="text-sm text-gray-300 block mb-1.5">Mode</label>
+            <div className="flex gap-1.5" role="radiogroup" aria-label="Generation mode">
+              {GENERATION_MODES.map((m) => {
+                const active = mode === m.id
+                return (
+                  <button
+                    key={m.id}
+                    role="radio"
+                    aria-checked={active}
+                    disabled={isOutlining || isGenerating}
+                    onClick={() => { setMode(m.id); setOutline(null); setStep('prompt') }}
+                    title={m.id === 'structured' ? 'Draft an editable outline first' : 'Skip the outline and write the deck directly'}
+                    className={`flex-1 px-2.5 py-1.5 text-[11px] rounded-lg border transition-colors disabled:opacity-30 ${
+                      active
+                        ? 'bg-white text-black border-white font-medium'
+                        : 'bg-gray-800 text-gray-400 border-gray-700 hover:border-gray-500 hover:text-gray-200'
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
           <TemplateGallery value={theme} onChange={setThemeId} disabled={isOutlining} />
 
           <SupportingDocs docs={docs} onChange={setDocs} disabled={isOutlining} />
@@ -926,8 +982,8 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
 
           {/* Continue button */}
           <button
-            onClick={handleOutline}
-            disabled={isOutlining || noProviders || !hasGrounding}
+            onClick={mode === 'fast' ? handleGenerate : handleOutline}
+            disabled={isOutlining || isGenerating || noProviders || !hasGrounding}
             className="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500
                        disabled:from-gray-700 disabled:to-gray-700 disabled:text-gray-500
                        text-white font-medium rounded-lg transition-all text-sm flex items-center justify-center gap-2"
@@ -940,6 +996,10 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
                 </svg>
                 Drafting outline...
               </>
+            ) : isGenerating ? (
+              <>Generating...</>
+            ) : mode === 'fast' ? (
+              <>Generate presentation</>
             ) : (
               <>Continue to outline →</>
             )}
@@ -1045,6 +1105,7 @@ const PROVIDER_META: Record<string, { name: string; placeholder: string; icon: s
   xai:         { name: 'xAI',          placeholder: 'xai-...',    icon: 'X', description: 'Grok 3, Grok 3 Mini' },
   perplexity:  { name: 'Perplexity',   placeholder: 'pplx-...',   icon: 'P', description: 'Sonar Pro, Sonar Reasoning' },
   ollama:      { name: 'Ollama',       placeholder: 'http://localhost:11434', icon: '🦙', description: 'Local models via Ollama' },
+  pexels:      { name: 'Pexels',       placeholder: '...',              icon: '◍', description: 'Free stock photos for the image panel (pexels.com/api)' },
 }
 
 const PROVIDER_KEY_FIELDS: Record<string, string> = {
@@ -1056,6 +1117,7 @@ const PROVIDER_KEY_FIELDS: Record<string, string> = {
   xai:         'xaiApiKey',
   perplexity:  'perplexityApiKey',
   ollama:      'ollamaBaseUrl',
+  pexels:      'pexelsApiKey',
 }
 
 const ALL_PROVIDER_IDS = ['anthropic', 'openai', 'google', 'mistral', 'meta', 'xai', 'perplexity', 'ollama']
@@ -1110,6 +1172,11 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
   const [mcpRunning, setMcpRunning] = useState(false)
   const [mcpInClaude, setMcpInClaude] = useState(false)
   const [mcpMessage, setMcpMessage] = useState<string | null>(null)
+  const [apiEnabled, setApiEnabled] = useState(false)
+  const [apiRunning, setApiRunning] = useState(false)
+  const [apiPort, setApiPort] = useState(4317)
+  const [apiToken, setApiToken] = useState('')
+  const [apiCopied, setApiCopied] = useState(false)
   const [brandName, setBrandName] = useState('')
   const [brandVoice, setBrandVoice] = useState('')
   const [externalServers, setExternalServers] = useState<{ name: string; command: string; args?: string[] }[]>([])
@@ -1125,6 +1192,12 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
       setMcpInClaude(status.inClaudeDesktop)
     })
     window.electronAPI.mcpListExternalServers().then((servers) => setExternalServers(servers))
+    window.electronAPI.localApiStatus().then((s) => {
+      setApiEnabled(s.enabled)
+      setApiRunning(s.running)
+      setApiPort(s.port)
+      setApiToken(s.token)
+    })
   }, [])
 
   const handleAddDataSource = async () => {
@@ -1167,7 +1240,7 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
       // Load configured-key flags (settings:get redacts secrets and returns configuredKeys booleans)
       const flags = (settings.configuredKeys as Record<string, boolean> | undefined) ?? {}
       const loaded: Record<string, boolean> = {}
-      for (const id of ALL_PROVIDER_IDS) {
+      for (const id of [...ALL_PROVIDER_IDS, 'pexels']) {
         const field = PROVIDER_KEY_FIELDS[id]
         if (!field) continue
         loaded[id] = id === 'ollama'
@@ -1511,6 +1584,28 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
             </div>
           </section>
 
+          {/* Images */}
+          <section>
+            <h3 className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-4">Images</h3>
+            <button
+              onClick={() => openKeyModal('pexels')}
+              className="w-full text-left p-3 rounded-xl border border-gray-800 bg-gray-900 hover:border-gray-600 hover:bg-gray-800 transition-all"
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-7 h-7 rounded-lg bg-gray-800 flex items-center justify-center text-xs font-bold text-gray-300">
+                  ◍
+                </div>
+                <span className="text-sm font-medium text-gray-200 flex-1">Pexels stock photos</span>
+                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${configuredKeys['pexels'] ? 'bg-green-500' : 'bg-gray-700'}`} />
+              </div>
+              <p className="text-[11px] text-gray-500 leading-tight">
+                {configuredKeys['pexels']
+                  ? 'Configured — the image panel offers free stock photos.'
+                  : 'Add a free key (pexels.com/api) for stock photos in the image panel.'}
+              </p>
+            </button>
+          </section>
+
           {/* Execution */}
           <section>
             <h3 className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-4">Code Execution</h3>
@@ -1638,6 +1733,71 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
                   <p className="text-[11px] text-gray-400 mt-1">Writes the Lecta MCP config to Claude Desktop so you can create slides from Claude.</p>
                 )}
               </div>
+            </div>
+          </section>
+
+          {/* Local API (localhost generation API) */}
+          <section>
+            <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-4">Local API</h3>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="text-sm text-gray-300 block">Local REST API</label>
+                  <p className="text-[11px] text-gray-400">
+                    Generate decks over HTTP on this machine only (127.0.0.1)
+                    {apiRunning && <span className="text-green-500 ml-1">Running</span>}
+                  </p>
+                </div>
+                <button
+                  onClick={async () => {
+                    const next = !apiEnabled
+                    setApiEnabled(next)
+                    await window.electronAPI.setAppSettings({ localApiEnabled: next })
+                    const result = await window.electronAPI.localApiToggle(next)
+                    setApiRunning(result.running)
+                    const s = await window.electronAPI.localApiStatus()
+                    setApiPort(s.port)
+                    setApiToken(s.token)
+                  }}
+                  className={`w-10 h-6 rounded-full transition-colors relative ${
+                    apiEnabled ? 'bg-white' : 'bg-gray-700'
+                  }`}
+                  role="switch"
+                  aria-checked={apiEnabled}
+                  aria-label="Local REST API"
+                >
+                  <div className={`w-4 h-4 rounded-full transition-transform absolute top-1 ${
+                    apiEnabled ? 'translate-x-5 bg-black' : 'translate-x-1 bg-gray-400'
+                  }`} />
+                </button>
+              </div>
+              {apiRunning && (
+                <div className="rounded-xl border border-gray-800 bg-gray-900 p-3 space-y-2">
+                  <p className="text-[11px] text-gray-400">
+                    POST <span className="font-mono text-gray-200">http://127.0.0.1:{apiPort}/v1/presentations/generate</span>
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 truncate text-[11px] font-mono text-gray-300 bg-gray-950 rounded px-2 py-1 border border-gray-800">
+                      {apiToken}
+                    </code>
+                    <button
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(apiToken)
+                          setApiCopied(true)
+                          setTimeout(() => setApiCopied(false), 1500)
+                        } catch { /* clipboard unavailable */ }
+                      }}
+                      className="px-2.5 py-1 text-[11px] rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors"
+                    >
+                      {apiCopied ? 'Copied' : 'Copy token'}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-gray-500">
+                    Bearer token, random per launch, never stored. Example body: {`{"prompt": "...", "slideCount": 10, "tone": "professional"}`}
+                  </p>
+                </div>
+              )}
             </div>
           </section>
 

@@ -251,3 +251,15 @@ export const SUPPORTING_DOC_EXTENSIONS = [
 ] as const
 
 export const MAX_SUPPORTING_DOCS = 8
+
+/**
+ * Generation mode (Presenton Standard vs Smart).
+ * - `structured`: outline step first, then write from the edited outline.
+ * - `fast`: skip the outline and write the deck directly.
+ */
+export const GENERATION_MODES = [
+  { id: 'structured', label: 'Structured' },
+  { id: 'fast', label: 'Fast' },
+] as const
+
+export type GenerationModeId = (typeof GENERATION_MODES)[number]['id']

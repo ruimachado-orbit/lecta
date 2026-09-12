@@ -27,7 +27,7 @@ interface SubSlideEditorProps {
     isMdx?: boolean
     config: { layout?: string; id: string }
   }
-  presentation: { rootPath?: string; theme?: string }
+  presentation: { rootPath?: string; theme?: string } | null
   updateMarkdownContent: (idx: number, md: string) => void
   saveSlideContent: (idx: number) => void
   wysiwygHeaderSlot?: HTMLDivElement | null
@@ -194,6 +194,7 @@ export function SubSlideEditor({
             >
               <div className={`relative h-full ${layout && layout !== 'default' ? `slide-layout-${layout}` : ''}`}>
                 <WysiwygEditor
+                  key={currentSubSlide}
                   slideIndex={slideIndex}
                   subSlideMarkdown={subSlides[currentSubSlide]?.markdown ?? ''}
                   onSubSlideChange={(md) => replaceSubSlide(currentSubSlide, md)}

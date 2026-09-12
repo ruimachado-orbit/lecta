@@ -785,6 +785,39 @@ export function registerFileSystemHandlers(): void {
       })
   )
 
+  // Set or clear a slide's backdrop (colour / gradient / image / overlay)
+  ipcMain.handle(
+    'fs:set-slide-background',
+    async (
+      _event,
+      rootPath: string,
+      slideIndex: number,
+      background: { color?: string; gradient?: string; image?: string; overlay?: number } | null
+    ): Promise<LoadedPresentation> =>
+      updatePresentation(rootPath, (config) => {
+        const slide = config.slides[slideIndex]
+        if (!slide) throw new Error(`Slide at index ${slideIndex} not found`)
+        if (!background) {
+          delete (slide as any).background
+          return
+        }
+        const next: { color?: string; gradient?: string; image?: string; overlay?: number } = {}
+        const isCssColorish = (v: unknown): v is string => typeof v === 'string' && v.length <= 200 && !/[<>{};]|url\(|expression\(/i.test(v)
+        if (isCssColorish(background.color)) next.color = background.color
+        if (isCssColorish(background.gradient)) next.gradient = background.gradient
+        if (typeof background.image === 'string' && background.image) {
+          // Deck-relative only; throws on absolute paths or traversal
+          resolveInsideDeck(rootPath, background.image)
+          next.image = background.image
+        }
+        if (typeof background.overlay === 'number' && Number.isFinite(background.overlay)) {
+          next.overlay = Math.min(1, Math.max(0, background.overlay))
+        }
+        if (next.color || next.gradient || next.image) (slide as any).background = next
+        else delete (slide as any).background
+      })
+  )
+
   // Set presentation theme
   ipcMain.handle(
     'fs:set-theme',

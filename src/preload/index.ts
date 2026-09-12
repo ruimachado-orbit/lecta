@@ -118,6 +118,12 @@ const api = {
     ipcRenderer.invoke('fs:set-transition', rootPath, slideIndex, transition),
   setSlideLayout: (rootPath: string, slideIndex: number, layout: string): Promise<LoadedPresentation> =>
     ipcRenderer.invoke('fs:set-layout', rootPath, slideIndex, layout),
+  setSlideBackground: (
+    rootPath: string,
+    slideIndex: number,
+    background: { color?: string; gradient?: string; image?: string; overlay?: number } | null
+  ): Promise<LoadedPresentation> =>
+    ipcRenderer.invoke('fs:set-slide-background', rootPath, slideIndex, background),
   setTheme: (rootPath: string, themeId: string): Promise<void> =>
     ipcRenderer.invoke('fs:set-theme', rootPath, themeId),
   updatePresenterNotes: (rootPath: string, notes: string): Promise<void> =>

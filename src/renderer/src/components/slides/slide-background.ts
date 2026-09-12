@@ -3,12 +3,10 @@
  *
  * The backdrop lives in the deck manifest (`lecta.yaml`), not in the slide markdown, so it
  * survives markdown rewrites and is available to every renderer through the presentation
- * store. Writing goes through the ordinary deck-confined `writeFile` IPC, with the store
- * updated first so the canvas repaints immediately.
+ * store. Writing goes through the `fs:set-slide-background` IPC (locked, atomic), with the
+ * store updated optimistically so the canvas repaints immediately.
  */
 import type { SlideBackground } from '@shared/types/presentation'
-import { DECK_CONFIG_FILE } from '@shared/constants'
-import { serializePresentation } from '@shared/utils/yaml-parser'
 import { usePresentationStore } from '../../stores/presentation-store'
 
 /** True when the backdrop actually paints something. */
@@ -59,10 +57,9 @@ export async function applySlideBackground(
   })
 
   try {
-    await window.electronAPI.writeFile(
-      `${presentation.rootPath}/${DECK_CONFIG_FILE}`,
-      serializePresentation(nextPresentation)
-    )
+    // Locked, atomic manifest write in the main process (same path as set-layout).
+    const loaded = await window.electronAPI.setSlideBackground(presentation.rootPath, slideIndex, next ?? null)
+    usePresentationStore.setState({ presentation: loaded.config, slides: loaded.slides })
     return true
   } catch (error) {
     usePresentationStore.setState({ error: (error as Error).message })

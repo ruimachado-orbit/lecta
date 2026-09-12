@@ -8,6 +8,7 @@ import { HomeScreen } from './components/layout/HomeScreen'
 import { AudienceView } from './components/presenter/AudienceView'
 import { NotebookShell } from './components/notebook/NotebookShell'
 import { ChatView } from './components/chat/ChatView'
+import { ExportRoute } from './export/ExportRoute'
 
 export default function App(): JSX.Element {
   const presentation = usePresentationStore((s) => s.presentation)
@@ -43,6 +44,11 @@ export default function App(): JSX.Element {
       }
     })
   }, [])
+
+  // Export window — hidden 1280x720 renderer that paints every slide for PDF/HTML export
+  if (window.location.hash.startsWith('#/export')) {
+    return <ExportRoute />
+  }
 
   // Audience window — separate fullscreen slide display, always dark (no chat)
   if (window.location.hash === '#/audience') {

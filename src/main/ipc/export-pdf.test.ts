@@ -1,8 +1,22 @@
-import { writeFile, mkdtemp, rm, readdir } from 'fs/promises'
+import { writeFile, mkdtemp, rm, mkdir } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import { EventEmitter } from 'events'
-import { buildPdfHtml, buildSpaHtml, embedImages, renderPdf, type PdfRenderWindow } from './export-pdf'
+import {
+  buildCaptureScript,
+  buildExportHash,
+  buildStandaloneHtml,
+  collectCss,
+  embedImages,
+  loadExportPage,
+  normalizeExportOptions,
+  readLocalStylesheets,
+  renderPdf,
+  resolveAssetPath,
+  signalRenderReady,
+  PDF_PRINT_OPTIONS,
+  type ExportRenderWindow
+} from './export-pdf'
 
 let tempDir: string
 
@@ -14,121 +28,180 @@ afterEach(async () => {
   await rm(tempDir, { recursive: true, force: true })
 })
 
-describe('buildPdfHtml', () => {
-  it('wraps slides in a valid HTML document', () => {
-    const html = buildPdfHtml(['<div>Slide 1</div>'], 'Test Deck')
-    expect(html).toContain('<!DOCTYPE html>')
-    expect(html).toContain('<title>Test Deck</title>')
-    expect(html).toContain('<div>Slide 1</div>')
+describe('buildExportHash', () => {
+  it('carries the deck path, theme, slide count and trust flag', () => {
+    const hash = buildExportHash({ rootPath: '/decks/my deck', theme: 'executive', slides: 12, mdxTrusted: true })
+    expect(hash.startsWith('/export?')).toBe(true)
+    const params = new URLSearchParams(hash.slice(hash.indexOf('?') + 1))
+    expect(params.get('deck')).toBe('/decks/my deck')
+    expect(params.get('theme')).toBe('executive')
+    expect(params.get('slides')).toBe('12')
+    expect(params.get('mdx')).toBe('1')
   })
 
-  it('sets page size to 1280x720', () => {
-    const html = buildPdfHtml([], 'Test')
-    expect(html).toContain('size: 1280px 720px')
+  it('omits the trust flag for untrusted decks', () => {
+    const hash = buildExportHash({ rootPath: '/decks/a', theme: 'dark' })
+    expect(hash).not.toContain('mdx=')
+    expect(hash).not.toContain('slides=')
   })
 
-  it('enables print-color-adjust', () => {
-    const html = buildPdfHtml([], 'Test')
-    expect(html).toContain('print-color-adjust: exact')
-    expect(html).toContain('-webkit-print-color-adjust: exact')
-  })
-
-  it('does not hardcode background or text colors', () => {
-    const html = buildPdfHtml(['<div>Content</div>'], 'Test')
-    // body and .slide should not force colors
-    expect(html).not.toMatch(/body\s*\{[^}]*background:\s*#000/)
-    expect(html).not.toMatch(/body\s*\{[^}]*color:\s*#fff/)
-    expect(html).not.toMatch(/\.slide\s*\{[^}]*background:\s*#000/)
-  })
-
-  it('does not add padding to .slide (inline styles handle it)', () => {
-    const html = buildPdfHtml(['<div>Content</div>'], 'Test')
-    expect(html).not.toMatch(/\.slide\s*\{[^}]*padding/)
-  })
-
-  it('preserves inline styles from slide content', () => {
-    const slideHtml = '<div style="background:#EEEEEE;color:#434343;">Styled content</div>'
-    const html = buildPdfHtml([slideHtml], 'Test')
-    expect(html).toContain('background:#EEEEEE')
-    expect(html).toContain('color:#434343')
-  })
-
-  it('adds page-break-before on second slide onwards', () => {
-    const html = buildPdfHtml(['<div>S1</div>', '<div>S2</div>', '<div>S3</div>'], 'Test')
-    const slides = html.match(/<div class="slide"/g)
-    expect(slides).toHaveLength(3)
-    // First slide: no page-break
-    expect(html).toMatch(/<div class="slide" >/)
-    // Subsequent slides: page-break
-    expect(html).toContain('page-break-before: always;')
+  it('percent-encodes the deck path so the hash stays parseable', () => {
+    const hash = buildExportHash({ rootPath: '/decks/a&b=c' })
+    expect(hash).not.toContain('a&b=c')
+    const params = new URLSearchParams(hash.slice(hash.indexOf('?') + 1))
+    expect(params.get('deck')).toBe('/decks/a&b=c')
   })
 })
 
-describe('buildSpaHtml', () => {
-  it('produces a valid HTML SPA with title', () => {
-    const html = buildSpaHtml([{ content: '# Hello', isPreRendered: false }], 'My Deck', 'dark')
-    expect(html).toContain('<!DOCTYPE html>')
-    expect(html).toContain('<title>My Deck</title>')
+describe('normalizeExportOptions', () => {
+  it('ignores the legacy slideHtmls array', () => {
+    expect(normalizeExportOptions(['<div>slide</div>'])).toEqual({})
+    expect(normalizeExportOptions(['<div>slide</div>'], 'paper')).toEqual({ theme: 'paper' })
   })
 
-  it('embeds slide data as JSON in a script tag', () => {
-    const slides = [{ content: '<div>Pre-rendered</div>', isPreRendered: true }]
-    const html = buildSpaHtml(slides, 'Test', 'dark')
-    expect(html).toContain(JSON.stringify(slides))
+  it('ignores the legacy pre-rendered content array', () => {
+    expect(normalizeExportOptions([{ content: '# hi', isPreRendered: false }], 'dark')).toEqual({ theme: 'dark' })
   })
 
-  it('applies light theme styles', () => {
-    const html = buildSpaHtml([], 'Test', 'light')
-    expect(html).toContain('background: #f8fafc')
-    expect(html).toContain('background: #ffffff')
+  it('reads the new options object', () => {
+    expect(normalizeExportOptions({ theme: 'creative', slides: 4, mdxTrusted: true })).toEqual({
+      theme: 'creative',
+      slides: 4,
+      mdxTrusted: true
+    })
   })
 
-  it('applies dark theme styles', () => {
-    const html = buildSpaHtml([], 'Test', 'dark')
-    expect(html).toContain('background: #0a0a0a')
-    expect(html).toContain('background: #0f172a')
+  it('falls back to the theme argument when the options carry none', () => {
+    expect(normalizeExportOptions({ slides: 2 }, 'minimal')).toEqual({
+      theme: 'minimal',
+      slides: 2,
+      mdxTrusted: false
+    })
+  })
+})
+
+describe('collectCss', () => {
+  const sheet = (cssTexts: string[], href?: string): { href?: string; cssRules: { cssText: string }[] } => ({
+    href,
+    cssRules: cssTexts.map((cssText) => ({ cssText }))
   })
 
-  it('includes navigation controls', () => {
-    const html = buildSpaHtml([], 'Test', 'dark')
-    expect(html).toContain('onclick="prev()"')
-    expect(html).toContain('onclick="next()"')
+  it('concatenates readable rules', () => {
+    const { css } = collectCss([sheet(['.a { color: red; }']), sheet(['.b { color: blue; }'])])
+    expect(css).toContain('.a { color: red; }')
+    expect(css).toContain('.b { color: blue; }')
   })
 
-  it('includes keyboard navigation', () => {
-    const html = buildSpaHtml([], 'Test', 'dark')
-    expect(html).toContain('ArrowRight')
-    expect(html).toContain('ArrowLeft')
+  it('reports stylesheets whose rules cannot be read', () => {
+    const blocked = {
+      href: 'file:///app/out/renderer/assets/index.css',
+      get cssRules(): never {
+        throw new Error('SecurityError')
+      }
+    }
+    const { css, unreadable } = collectCss([blocked, sheet(['.a { color: red; }'])])
+    expect(unreadable).toEqual(['file:///app/out/renderer/assets/index.css'])
+    expect(css).toContain('.a { color: red; }')
+  })
+
+  it('drops rules that would make the exported file reach the network', () => {
+    const { css } = collectCss([
+      sheet([
+        '@import url("https://fonts.googleapis.com/css2?family=Inter");',
+        '@font-face { src: url(https://fonts.gstatic.com/inter.woff2); }',
+        '.keep { color: red; }'
+      ])
+    ])
+    expect(css).not.toContain('googleapis')
+    expect(css).not.toContain('gstatic')
+    expect(css).toContain('.keep { color: red; }')
+  })
+
+  it('keeps local @import rules', () => {
+    const { css } = collectCss([sheet(['@import url("theme.css");'])])
+    expect(css).toContain('@import url("theme.css");')
+  })
+})
+
+describe('buildCaptureScript', () => {
+  it('inlines the collector and counts export slides', () => {
+    const script = buildCaptureScript()
+    expect(script).toContain('document.styleSheets')
+    expect(script).toContain(".export-slide")
+    expect(script).toContain('document.documentElement.cloneNode(true)')
+    // scripts and links are stripped so the captured page cannot reach the network
+    expect(script).toContain("'script, style, link, noscript, template'")
+  })
+})
+
+describe('resolveAssetPath', () => {
+  it('resolves a lecta-file URL inside the deck', () => {
+    const abs = join(tempDir, 'images', 'a.png')
+    expect(resolveAssetPath(`lecta-file://${abs}`, tempDir)).toBe(abs)
+  })
+
+  it('resolves a percent-encoded lecta-file URL', () => {
+    const abs = join(tempDir, 'my image.png')
+    expect(resolveAssetPath(`lecta-file://${tempDir}/my%20image.png`, tempDir)).toBe(abs)
+  })
+
+  it('resolves a relative path against the deck root', () => {
+    expect(resolveAssetPath('images/a.png', tempDir)).toBe(join(tempDir, 'images', 'a.png'))
+  })
+
+  it('refuses paths outside the deck', () => {
+    expect(resolveAssetPath('../../etc/passwd', tempDir)).toBeNull()
+    expect(resolveAssetPath('lecta-file:///etc/passwd', tempDir)).toBeNull()
+  })
+
+  it('ignores remote and inline URLs', () => {
+    expect(resolveAssetPath('https://example.com/a.png', tempDir)).toBeNull()
+    expect(resolveAssetPath('data:image/png;base64,abc', tempDir)).toBeNull()
+    expect(resolveAssetPath('blob:http://localhost/abc', tempDir)).toBeNull()
   })
 })
 
 describe('embedImages', () => {
   it('returns html unchanged when there are no images', async () => {
     const html = '<div>No images here</div>'
-    const result = await embedImages(html, tempDir)
-    expect(result).toBe(html)
+    expect(await embedImages(html, tempDir)).toBe(html)
   })
 
   it('embeds a local PNG as a base64 data URI', async () => {
     const imgData = Buffer.from('fake-png-data')
     await writeFile(join(tempDir, 'photo.png'), imgData)
 
-    const html = '<img src="photo.png" />'
-    const result = await embedImages(html, tempDir)
+    const result = await embedImages('<img src="photo.png" />', tempDir)
 
-    const expected = `data:image/png;base64,${imgData.toString('base64')}`
-    expect(result).toContain(expected)
+    expect(result).toContain(`data:image/png;base64,${imgData.toString('base64')}`)
     expect(result).not.toContain('src="photo.png"')
   })
 
-  it('embeds images in nested paths', async () => {
-    const { mkdir } = await import('fs/promises')
-    await mkdir(join(tempDir, 'images'), { recursive: true })
-    const imgData = Buffer.from('fake-jpg-data')
-    await writeFile(join(tempDir, 'images', 'hero.jpg'), imgData)
+  it('embeds lecta-file:// URLs produced by the slide renderer', async () => {
+    await writeFile(join(tempDir, 'hero.png'), Buffer.from('hero'))
 
-    const html = '<img src="images/hero.jpg" alt="hero" />'
-    const result = await embedImages(html, tempDir)
+    const result = await embedImages(`<img src="lecta-file://${tempDir}/hero.png" />`, tempDir)
+
+    expect(result).toContain(`data:image/png;base64,${Buffer.from('hero').toString('base64')}`)
+    expect(result).not.toContain('lecta-file://')
+  })
+
+  it('embeds CSS url() references', async () => {
+    await writeFile(join(tempDir, 'bg.jpg'), Buffer.from('bg'))
+
+    const result = await embedImages(
+      `<div style="background-image:url('lecta-file://${tempDir}/bg.jpg')"></div>`,
+      tempDir
+    )
+
+    expect(result).toContain('url("data:image/jpeg;base64,')
+  })
+
+  it('embeds images in nested paths', async () => {
+    await mkdir(join(tempDir, 'images'), { recursive: true })
+    await writeFile(join(tempDir, 'images', 'hero.jpg'), Buffer.from('fake-jpg-data'))
+
+    const result = await embedImages('<img src="images/hero.jpg" alt="hero" />', tempDir)
 
     expect(result).toContain('data:image/jpeg;base64,')
     expect(result).not.toContain('src="images/hero.jpg"')
@@ -138,52 +211,55 @@ describe('embedImages', () => {
     await writeFile(join(tempDir, 'a.png'), Buffer.from('aaa'))
     await writeFile(join(tempDir, 'b.png'), Buffer.from('bbb'))
 
-    const html = '<img src="a.png" /><img src="b.png" />'
-    const result = await embedImages(html, tempDir)
+    const result = await embedImages('<img src="a.png" /><img src="b.png" />', tempDir)
 
     expect(result).toContain(`data:image/png;base64,${Buffer.from('aaa').toString('base64')}`)
     expect(result).toContain(`data:image/png;base64,${Buffer.from('bbb').toString('base64')}`)
   })
 
+  it('rewrites references only, never matching prose', async () => {
+    await writeFile(join(tempDir, 'a.png'), Buffer.from('aaa'))
+
+    const result = await embedImages('<p>see a.png</p><img src="a.png" />', tempDir)
+
+    expect(result).toContain('<p>see a.png</p>')
+    expect(result).toContain('data:image/png;base64,')
+  })
+
   it('skips http/https URLs', async () => {
     const html = '<img src="https://example.com/photo.png" />'
-    const result = await embedImages(html, tempDir)
-    expect(result).toBe(html)
+    expect(await embedImages(html, tempDir)).toBe(html)
   })
 
   it('skips data URIs', async () => {
     const html = '<img src="data:image/png;base64,abc123" />'
-    const result = await embedImages(html, tempDir)
-    expect(result).toBe(html)
+    expect(await embedImages(html, tempDir)).toBe(html)
   })
 
   it('skips blob URLs', async () => {
     const html = '<img src="blob:http://localhost/abc" />'
-    const result = await embedImages(html, tempDir)
-    expect(result).toBe(html)
+    expect(await embedImages(html, tempDir)).toBe(html)
+  })
+
+  it('leaves references that escape the deck root untouched', async () => {
+    const html = '<img src="../secret.png" />'
+    expect(await embedImages(html, tempDir)).toBe(html)
   })
 
   it('leaves original src when file is not found', async () => {
-    const html = '<img src="missing.png" />'
-    const result = await embedImages(html, tempDir)
+    const result = await embedImages('<img src="missing.png" />', tempDir)
     expect(result).toContain('src="missing.png"')
   })
 
   it('skips files with unsupported extensions', async () => {
     await writeFile(join(tempDir, 'doc.pdf'), Buffer.from('pdf'))
-
-    const html = '<img src="doc.pdf" />'
-    const result = await embedImages(html, tempDir)
+    const result = await embedImages('<img src="doc.pdf" />', tempDir)
     expect(result).toContain('src="doc.pdf"')
   })
 
   it('handles single-quoted src attributes', async () => {
-    const imgData = Buffer.from('single-quote-test')
-    await writeFile(join(tempDir, 'test.webp'), imgData)
-
-    const html = "<img src='test.webp' />"
-    const result = await embedImages(html, tempDir)
-
+    await writeFile(join(tempDir, 'test.webp'), Buffer.from('single-quote-test'))
+    const result = await embedImages("<img src='test.webp' />", tempDir)
     expect(result).toContain('data:image/webp;base64,')
   })
 
@@ -201,67 +277,218 @@ describe('embedImages', () => {
 
     for (const { ext, mime } of types) {
       await writeFile(join(tempDir, `test.${ext}`), Buffer.from(`${ext}-data`))
-      const html = `<img src="test.${ext}" />`
-      const result = await embedImages(html, tempDir)
+      const result = await embedImages(`<img src="test.${ext}" />`, tempDir)
       expect(result).toContain(`data:${mime};base64,`)
     }
   })
 })
 
+describe('readLocalStylesheets', () => {
+  it('reads app stylesheets the page could not', async () => {
+    await mkdir(join(tempDir, 'assets'), { recursive: true })
+    await writeFile(join(tempDir, 'assets', 'index.css'), '.from-disk { color: red; }')
+
+    const css = await readLocalStylesheets([`file://${tempDir}/assets/index.css`], tempDir)
+    expect(css).toContain('.from-disk')
+  })
+
+  it('refuses stylesheets outside the renderer directory', async () => {
+    const outside = join(tempDir, 'outside.css')
+    await writeFile(outside, '.nope {}')
+    const rendererRoot = join(tempDir, 'renderer')
+    await mkdir(rendererRoot, { recursive: true })
+
+    expect(await readLocalStylesheets([`file://${outside}`], rendererRoot)).toBe('')
+  })
+
+  it('ignores non-file URLs and missing files', async () => {
+    const css = await readLocalStylesheets(
+      ['https://cdn.example.com/a.css', `file://${join(tempDir, 'gone.css')}`],
+      tempDir
+    )
+    expect(css).toBe('')
+  })
+})
+
+describe('buildStandaloneHtml', () => {
+  const page = {
+    title: 'My <Deck>',
+    css: '.slide-content { color: red; }',
+    body: '<div id="lecta-export-root"><div class="export-slide">Slide 1</div></div>',
+    slideCount: 1
+  }
+
+  it('produces a complete document with the captured DOM and CSS', () => {
+    const html = buildStandaloneHtml(page)
+    expect(html).toContain('<!DOCTYPE html>')
+    expect(html).toContain('<title>My &lt;Deck&gt;</title>')
+    expect(html).toContain('.slide-content { color: red; }')
+    expect(html).toContain('class="export-slide"')
+  })
+
+  it('adds keyboard navigation, fullscreen, notes and a counter', () => {
+    const html = buildStandaloneHtml(page)
+    expect(html).toContain('ArrowRight')
+    expect(html).toContain('ArrowLeft')
+    expect(html).toContain('requestFullscreen')
+    expect(html).toContain('export-show-notes')
+    expect(html).toContain('data-export-counter')
+  })
+
+  it('keeps the print geometry usable and makes no external requests', () => {
+    const html = buildStandaloneHtml(page)
+    expect(html).toContain('@media print')
+    expect(html).not.toMatch(/<script[^>]+src=/)
+    expect(html).not.toMatch(/<link[^>]+href=/)
+    expect(html).not.toContain('http://')
+    expect(html).not.toContain('https://')
+  })
+})
+
+describe('PDF_PRINT_OPTIONS', () => {
+  it('prints 13.333in x 7.5in landscape pages with backgrounds and no margins', () => {
+    expect(PDF_PRINT_OPTIONS).toMatchObject({
+      landscape: true,
+      printBackground: true,
+      preferCSSPageSize: true,
+      pageSize: { width: 13.333, height: 7.5 },
+      margins: { marginType: 'none' }
+    })
+  })
+})
+
 /** Fake BrowserWindow: `mode` decides how the load resolves. */
-function fakeWindow(mode: 'finish' | 'fail' | 'hang'): PdfRenderWindow & { destroyed: boolean; printed: boolean } {
+let nextWebContentsId = 1
+function fakeWindow(
+  mode: 'ready' | 'finish' | 'fail' | 'hang',
+  status: unknown = { ready: true, slideCount: 1 }
+): ExportRenderWindow & { destroyed: boolean; printed: boolean; loaded: string | null; id: number } {
   const emitter = new EventEmitter()
+  const id = nextWebContentsId++
   const win = {
     destroyed: false,
     printed: false,
+    loaded: null as string | null,
+    id,
     webContents: {
+      id,
       once: (event: string, listener: (...args: any[]) => void) => emitter.once(event, listener),
       removeListener: (event: string, listener: (...args: any[]) => void) => emitter.removeListener(event, listener),
       printToPDF: async () => {
         win.printed = true
         return Buffer.from('%PDF-fake')
-      }
+      },
+      executeJavaScript: async () => status
     },
-    loadFile: async (_path: string) => {
-      if (mode === 'finish') setTimeout(() => emitter.emit('did-finish-load'), 5)
-      if (mode === 'fail') {
-        setTimeout(() => emitter.emit('did-fail-load', {}, -6, 'ERR_FILE_NOT_FOUND'), 5)
-        throw new Error('ERR_FILE_NOT_FOUND')
-      }
-      // 'hang': never emits anything
+    loadFile: async (path: string, options?: { hash?: string }) => {
+      win.loaded = `${path}${options?.hash ? `#${options.hash}` : ''}`
+      finishLoad()
+    },
+    loadURL: async (url: string) => {
+      win.loaded = url
+      finishLoad()
     },
     destroy: () => { win.destroyed = true }
+  }
+  function finishLoad(): void {
+    if (mode === 'fail') {
+      setTimeout(() => emitter.emit('did-fail-load', {}, -6, 'ERR_FILE_NOT_FOUND'), 2)
+      return
+    }
+    if (mode === 'hang') return
+    setTimeout(() => emitter.emit('did-finish-load'), 2)
+    // The export route signals once it has painted every slide.
+    if (mode === 'ready') setTimeout(() => signalRenderReady(id), 6)
   }
   return win
 }
 
-describe('renderPdf', () => {
-  it('resolves with the printed buffer and cleans up on success', async () => {
-    const win = fakeWindow('finish')
-    const pdf = await renderPdf(win, tempDir, ['<div>S1</div>'], 'Deck', { tmpDir: tempDir, settleMs: 1 })
-    expect(pdf.toString()).toBe('%PDF-fake')
-    expect(win.printed).toBe(true)
-    expect(win.destroyed).toBe(true)
-    expect(await readdir(tempDir)).toEqual([])
+const loadOptions = { rootPath: '/decks/demo', theme: 'dark', indexFile: '/app/out/renderer/index.html' }
+
+describe('loadExportPage', () => {
+  it('resolves as soon as the route signals export:render-ready', async () => {
+    const win = fakeWindow('ready')
+    await loadExportPage(win, { ...loadOptions, settleMs: 1, readyGraceMs: 5_000 })
+    expect(win.loaded).toContain('/app/out/renderer/index.html')
+    expect(win.loaded).toContain('#/export?deck=')
   })
 
-  it('rejects on did-fail-load, destroys the window and unlinks the temp file', async () => {
+  it('loads the dev server URL when one is configured', async () => {
+    const win = fakeWindow('ready')
+    await loadExportPage(win, { ...loadOptions, devUrl: 'http://localhost:5173', settleMs: 1, readyGraceMs: 5_000 })
+    expect(win.loaded).toBe(`http://localhost:5173/#${buildExportHash(loadOptions)}`)
+  })
+
+  it('falls back to did-finish-load when the page never signals', async () => {
+    const win = fakeWindow('finish')
+    await loadExportPage(win, { ...loadOptions, settleMs: 1, readyGraceMs: 10 })
+    expect(win.loaded).not.toBeNull()
+  })
+
+  it('rejects on did-fail-load', async () => {
     const win = fakeWindow('fail')
     await expect(
-      renderPdf(win, tempDir, ['<div>S1</div>'], 'Deck', { tmpDir: tempDir, settleMs: 1 })
+      loadExportPage(win, { ...loadOptions, settleMs: 1, readyGraceMs: 10 })
     ).rejects.toThrow(/failed to load slides \(-6: ERR_FILE_NOT_FOUND\)/)
-    expect(win.printed).toBe(false)
-    expect(win.destroyed).toBe(true)
-    expect(await readdir(tempDir)).toEqual([])
   })
 
   it('rejects when the load never finishes within the timeout', async () => {
     const win = fakeWindow('hang')
     await expect(
-      renderPdf(win, tempDir, ['<div>S1</div>'], 'Deck', { tmpDir: tempDir, loadTimeoutMs: 20, settleMs: 1 })
+      loadExportPage(win, { ...loadOptions, loadTimeoutMs: 20, settleMs: 1, readyGraceMs: 10 })
+    ).rejects.toThrow(/timed out after 20 ms/)
+  })
+
+  it('ignores a render-ready signal for another window', async () => {
+    const other = fakeWindow('hang')
+    const win = fakeWindow('hang')
+    signalRenderReady(other.webContents.id)
+    await expect(
+      loadExportPage(win, { ...loadOptions, loadTimeoutMs: 20, settleMs: 1, readyGraceMs: 10 })
+    ).rejects.toThrow(/timed out/)
+  })
+})
+
+describe('renderPdf', () => {
+  it('prints after render-ready and destroys the window', async () => {
+    const win = fakeWindow('ready')
+    const pdf = await renderPdf(win, { ...loadOptions, settleMs: 1, readyGraceMs: 5_000 })
+    expect(pdf.toString()).toBe('%PDF-fake')
+    expect(win.printed).toBe(true)
+    expect(win.destroyed).toBe(true)
+  })
+
+  it('rejects on did-fail-load and still destroys the window', async () => {
+    const win = fakeWindow('fail')
+    await expect(
+      renderPdf(win, { ...loadOptions, settleMs: 1, readyGraceMs: 10 })
+    ).rejects.toThrow(/failed to load slides \(-6: ERR_FILE_NOT_FOUND\)/)
+    expect(win.printed).toBe(false)
+    expect(win.destroyed).toBe(true)
+  })
+
+  it('rejects on timeout and still destroys the window', async () => {
+    const win = fakeWindow('hang')
+    await expect(
+      renderPdf(win, { ...loadOptions, loadTimeoutMs: 20, settleMs: 1, readyGraceMs: 10 })
     ).rejects.toThrow(/timed out after 20 ms/)
     expect(win.printed).toBe(false)
     expect(win.destroyed).toBe(true)
-    expect(await readdir(tempDir)).toEqual([])
+  })
+
+  it('surfaces a render failure reported by the export route', async () => {
+    const win = fakeWindow('ready', { ready: true, slideCount: 0, error: 'No lecta.yaml found' })
+    await expect(
+      renderPdf(win, { ...loadOptions, settleMs: 1, readyGraceMs: 5_000 })
+    ).rejects.toThrow(/No lecta.yaml found/)
+    expect(win.printed).toBe(false)
+    expect(win.destroyed).toBe(true)
+  })
+
+  it('refuses to print an empty deck', async () => {
+    const win = fakeWindow('ready', { ready: true, slideCount: 0 })
+    await expect(
+      renderPdf(win, { ...loadOptions, settleMs: 1, readyGraceMs: 5_000 })
+    ).rejects.toThrow(/no slides/i)
   })
 })

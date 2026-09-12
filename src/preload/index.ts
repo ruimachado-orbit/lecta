@@ -62,6 +62,13 @@ function streamText(
   )
 }
 
+/** Render options for the hidden export window (see src/renderer/src/export/ExportRoute.tsx). */
+export interface ExportRenderOptions {
+  theme?: string
+  slides?: number
+  mdxTrusted?: boolean
+}
+
 const api = {
   // File system
   openFolder: (): Promise<string | null> =>
@@ -74,6 +81,9 @@ const api = {
     ipcRenderer.invoke('fs:close-presentation', rootPath),
   readFile: (filePath: string): Promise<string> =>
     ipcRenderer.invoke('fs:read-file', filePath),
+  /** Copy the bundled example deck into the user's Documents folder (once) and return its path. */
+  openDemoDeck: (): Promise<string | null> =>
+    ipcRenderer.invoke('fs:open-demo-deck'),
   getRecentDecks: (): Promise<string[]> =>
     ipcRenderer.invoke('fs:get-recent-decks'),
   removeRecentDeck: (path: string): Promise<void> =>
@@ -124,6 +134,9 @@ const api = {
     ipcRenderer.invoke('fs:save-notes', rootPath, slideIndex, content),
   uploadImage: (rootPath: string): Promise<string | null> =>
     ipcRenderer.invoke('fs:upload-image', rootPath),
+  /** Copy an image dropped on / pasted into the slide canvas into `<deck>/images/`. */
+  importDroppedImage: (rootPath: string, fileName: string, dataUrl: string): Promise<string | null> =>
+    ipcRenderer.invoke('fs:import-dropped-image', rootPath, fileName, dataUrl),
   addVideo: (rootPath: string, slideIndex: number, url: string, label?: string): Promise<LoadedPresentation> =>
     ipcRenderer.invoke('fs:add-video', rootPath, slideIndex, url, label),
   addWebApp: (rootPath: string, slideIndex: number, url: string, label?: string): Promise<LoadedPresentation> =>
@@ -257,11 +270,24 @@ const api = {
     ipcRenderer.invoke('gemini:list-images', rootPath),
 
   // Export
-  exportPdf: (rootPath: string, slideHtmls: string[], title: string): Promise<string | null> =>
-    ipcRenderer.invoke('export:pdf', rootPath, slideHtmls, title),
+  /**
+   * PDF/HTML export render options. `options` used to carry pre-rendered slide HTML; main now
+   * renders the deck through the app's own `#/export` route and ignores any legacy payload.
+   */
+  exportPdf: (rootPath: string, options: ExportRenderOptions | string[], title: string): Promise<string | null> =>
+    ipcRenderer.invoke('export:pdf', rootPath, options, title),
 
-  exportHtml: (rootPath: string, slideContents: { content: string; isPreRendered: boolean }[] | string[], title: string, theme: string): Promise<string | null> =>
-    ipcRenderer.invoke('export:html', rootPath, slideContents, title, theme),
+  exportHtml: (
+    rootPath: string,
+    options: ExportRenderOptions | { content: string; isPreRendered: boolean }[] | string[],
+    title: string,
+    theme: string
+  ): Promise<string | null> =>
+    ipcRenderer.invoke('export:html', rootPath, options, title, theme),
+  /** Export route → main: every slide has been painted and the page can be printed/captured. */
+  exportRenderReady: (): void => {
+    ipcRenderer.send('export:render-ready')
+  },
   exportPptx: (deck: {
     title: string
     author?: string

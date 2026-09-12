@@ -1,295 +1,475 @@
 import { ipcMain, BrowserWindow, dialog } from 'electron'
-import { writeFile, readFile, unlink } from 'fs/promises'
-import { join, resolve, extname } from 'path'
-import { tmpdir } from 'os'
-import { assertInsideOpenDeck } from '../services/deck-roots'
-
-/** How long we wait for the hidden window to load the slides before giving up. */
-export const PDF_LOAD_TIMEOUT_MS = 60_000
-/** Settle time after `did-finish-load` so fonts/images finish painting. */
-const PDF_SETTLE_MS = 800
+import { writeFile, readFile } from 'fs/promises'
+import { join, resolve, extname, isAbsolute } from 'path'
+import { assertInsideOpenDeck, isInsideRoot } from '../services/deck-roots'
 
 /**
- * The slice of BrowserWindow that PDF rendering needs. Kept structural so the
+ * PDF / HTML export.
+ *
+ * Both formats are rendered by the app's OWN renderer: a hidden 1280x720 window loads
+ * `#/export?deck=…`, which mounts `ExportRoute` and paints every slide (and sub-slide) with the
+ * real `ContentRenderer` in the deck's theme. The window signals `export:render-ready` once
+ * fonts, images and diagrams have settled; only then do we print (PDF) or capture the DOM (HTML).
+ *
+ * Nothing here re-implements markdown, themes or layouts — that was the old `slideHtmls`
+ * pipeline, and it lost every theme, layout, badge, diagram and image the renderer knows about.
+ */
+
+/** How long we wait for the hidden window to render the deck before giving up. */
+export const PDF_LOAD_TIMEOUT_MS = 60_000
+/** How long after `did-finish-load` we still wait for `export:render-ready` before printing anyway. */
+export const RENDER_READY_GRACE_MS = 15_000
+/** Settle time after the ready signal so the last paint lands. */
+const PDF_SETTLE_MS = 250
+
+/**
+ * 1280x720 px at 96 dpi. Electron >= 21 takes custom `pageSize` in INCHES (older versions took
+ * microns). `preferCSSPageSize` makes the route's `@page { size: 13.333in 7.5in }` authoritative,
+ * so the two agree whichever one Chromium picks.
+ */
+export const PDF_PAGE_SIZE = { width: 13.333, height: 7.5 }
+
+export const PDF_PRINT_OPTIONS: Record<string, unknown> = {
+  landscape: true,
+  printBackground: true,
+  preferCSSPageSize: true,
+  pageSize: PDF_PAGE_SIZE,
+  margins: { marginType: 'none' }
+}
+
+/**
+ * The slice of BrowserWindow that export rendering needs. Kept structural so the
  * load/print flow can be exercised in tests with a fake window.
  */
-export interface PdfRenderWindow {
-  loadFile(filePath: string): Promise<void>
+export interface ExportRenderWindow {
+  loadURL(url: string): Promise<void>
+  loadFile(filePath: string, options?: { hash?: string }): Promise<void>
   destroy(): void
   webContents: {
+    id: number
     once(event: string, listener: (...args: any[]) => void): unknown
     removeListener(event: string, listener: (...args: any[]) => void): unknown
     printToPDF(options: Record<string, unknown>): Promise<Buffer>
+    executeJavaScript?(code: string): Promise<unknown>
   }
 }
 
-export interface RenderPdfOptions {
-  /** Directory for the temporary HTML file (defaults to the OS temp dir). */
-  tmpDir?: string
+/** Back-compat alias for the pre-render-route name. */
+export type PdfRenderWindow = ExportRenderWindow
+
+export interface ExportRouteParams {
+  rootPath: string
+  theme?: string
+  /** Number of slides the renderer expects to draw (informational; the route reloads the deck). */
+  slides?: number
+  /** Only trusted decks compile MDX; everything else falls back to stripped markdown. */
+  mdxTrusted?: boolean
+}
+
+export interface ExportLoadOptions extends ExportRouteParams {
+  /** `ELECTRON_RENDERER_URL` in dev; when absent we load the built `index.html`. */
+  devUrl?: string | null
+  /** Built renderer entry (production). */
+  indexFile?: string
   loadTimeoutMs?: number
+  readyGraceMs?: number
   settleMs?: number
 }
 
+/** Build the `#/export…` hash the renderer's export route parses. */
+export function buildExportHash(params: ExportRouteParams): string {
+  const query = new URLSearchParams()
+  query.set('deck', params.rootPath)
+  if (params.theme) query.set('theme', params.theme)
+  if (typeof params.slides === 'number' && Number.isFinite(params.slides)) {
+    query.set('slides', String(params.slides))
+  }
+  if (params.mdxTrusted) query.set('mdx', '1')
+  return `/export?${query.toString()}`
+}
+
 /**
- * Render `slideHtmls` to a PDF buffer in the given hidden window. The window
- * is always destroyed and the temporary HTML file always unlinked, whether the
- * load succeeds, fails (`did-fail-load`) or times out.
+ * Accept both the legacy call shape (`slideHtmls` / pre-rendered slide contents, which the new
+ * pipeline ignores) and the new options object.
  */
-export async function renderPdf(
-  win: PdfRenderWindow,
-  rootPath: string,
-  slideHtmls: string[],
-  title: string,
-  options: RenderPdfOptions = {}
-): Promise<Buffer> {
-  const loadTimeoutMs = options.loadTimeoutMs ?? PDF_LOAD_TIMEOUT_MS
-  const settleMs = options.settleMs ?? PDF_SETTLE_MS
-  const tmpPath = join(options.tmpDir ?? tmpdir(), `lecta-export-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.html`)
-
-  try {
-    // Build a single HTML document with all slides as pages.
-    // Written to a temp file so that relative image paths (e.g. images/photo.png)
-    // resolve against the presentation's root directory via <base href>.
-    const fullHtml = buildPdfHtml(slideHtmls, title)
-    const htmlWithBase = fullHtml.replace(
-      '<head>',
-      `<head>\n  <base href="file://${rootPath.replace(/\\/g, '/')}/">`
-    )
-    await writeFile(tmpPath, htmlWithBase, 'utf-8')
-
-    // Attach listeners BEFORE loading so we don't miss the events
-    const loaded = new Promise<void>((resolveLoad, rejectLoad) => {
-      let settleTimer: NodeJS.Timeout | null = null
-      const cleanup = (): void => {
-        clearTimeout(timeout)
-        if (settleTimer) clearTimeout(settleTimer)
-        win.webContents.removeListener('did-finish-load', onFinish)
-        win.webContents.removeListener('did-fail-load', onFail)
-      }
-      const onFinish = (): void => {
-        clearTimeout(timeout)
-        settleTimer = setTimeout(() => { cleanup(); resolveLoad() }, settleMs)
-      }
-      const onFail = (_event: unknown, errorCode: number, errorDescription: string): void => {
-        cleanup()
-        rejectLoad(new Error(`PDF export failed to load slides (${errorCode}: ${errorDescription})`))
-      }
-      const timeout = setTimeout(() => {
-        cleanup()
-        rejectLoad(new Error(`PDF export timed out after ${loadTimeoutMs} ms while loading slides`))
-      }, loadTimeoutMs)
-      win.webContents.once('did-finish-load', onFinish)
-      win.webContents.once('did-fail-load', onFail)
-    })
-    // loadFile's own rejection is reported through did-fail-load; swallow the duplicate
-    win.loadFile(tmpPath).catch(() => {})
-    await loaded
-
-    return await win.webContents.printToPDF({
-      landscape: true,
-      printBackground: true,
-      preferCSSPageSize: true,
-      margins: { top: 0, bottom: 0, left: 0, right: 0 }
-    })
-  } finally {
-    try { win.destroy() } catch { /* already destroyed */ }
-    await unlink(tmpPath).catch(() => {})
+export function normalizeExportOptions(
+  arg: unknown,
+  fallbackTheme?: string
+): { theme?: string; slides?: number; mdxTrusted?: boolean } {
+  if (!arg || Array.isArray(arg) || typeof arg !== 'object') {
+    return fallbackTheme ? { theme: fallbackTheme } : {}
+  }
+  const opts = arg as { theme?: unknown; slides?: unknown; mdxTrusted?: unknown }
+  return {
+    theme: typeof opts.theme === 'string' ? opts.theme : fallbackTheme,
+    slides: typeof opts.slides === 'number' ? opts.slides : undefined,
+    mdxTrusted: opts.mdxTrusted === true
   }
 }
 
-export function registerExportHandlers(): void {
-  ipcMain.handle(
-    'export:pdf',
-    async (_event, rootPath: string, slideHtmls: string[], title: string): Promise<string | null> => {
-      // The deck root becomes <base href> for the rendered page: confine it
-      const deckRoot = assertInsideOpenDeck(rootPath)
-      const result = await dialog.showSaveDialog({
-        title: 'Export as PDF',
-        defaultPath: `${title || 'presentation'}.pdf`,
-        filters: [{ name: 'PDF', extensions: ['pdf'] }]
-      })
+// ---------------------------------------------------------------------------
+// render-ready handshake
+// ---------------------------------------------------------------------------
 
-      if (result.canceled || !result.filePath) return null
+/** webContents id → callback armed by an in-flight `loadExportPage`. */
+const renderReadyWaiters = new Map<number, () => void>()
 
-      // Create a hidden window to render slides
-      const win = new BrowserWindow({
-        width: 1280,
-        height: 720,
-        show: false,
-        webPreferences: {
-          offscreen: true
-        }
-      })
-
-      const pdfBuffer = await renderPdf(win, deckRoot, slideHtmls, title)
-      await writeFile(result.filePath, pdfBuffer)
-      return result.filePath
-    }
-  )
-
-  // Export as self-contained HTML SPA
-  ipcMain.handle(
-    'export:html',
-    async (_event, rootPath: string, slideContents: (string | { content: string; isPreRendered: boolean })[], title: string, theme: string): Promise<string | null> => {
-      // Images are inlined from this root: it must belong to an open deck
-      const deckRoot = assertInsideOpenDeck(rootPath)
-      const result = await dialog.showSaveDialog({
-        title: 'Export as HTML',
-        defaultPath: `${title || 'presentation'}.html`,
-        filters: [{ name: 'HTML', extensions: ['html'] }]
-      })
-
-      if (result.canceled || !result.filePath) return null
-
-      // Normalize: accept both old string[] format and new { content, isPreRendered }[] format
-      const normalized = slideContents.map((s) =>
-        typeof s === 'string' ? { content: s, isPreRendered: false } : s
-      )
-      // Embed images as base64 data URIs in each slide before JSON serialization
-      const embedded = await Promise.all(
-        normalized.map(async (s) => ({
-          ...s,
-          content: await embedImages(s.content, deckRoot)
-        }))
-      )
-      const html = buildSpaHtml(embedded, title, theme)
-      await writeFile(result.filePath, html, 'utf-8')
-      return result.filePath
-    }
-  )
+/** Called by the `export:render-ready` IPC listener (and by tests) when a page finished painting. */
+export function signalRenderReady(webContentsId: number): void {
+  renderReadyWaiters.get(webContentsId)?.()
 }
 
-export function buildSpaHtml(slideData: { content: string; isPreRendered: boolean }[], title: string, theme: string): string {
-  const slidesJson = JSON.stringify(slideData)
+/**
+ * Load the export route in `win` and resolve once the page reports it is painted.
+ *
+ * Resolution order: `export:render-ready` (+ a short settle) wins; otherwise `did-finish-load`
+ * plus `readyGraceMs`; `did-fail-load` rejects; the whole thing is bounded by `loadTimeoutMs`.
+ * The window is NOT destroyed here — callers own its lifetime (HTML export reads the DOM after).
+ */
+export function loadExportPage(win: ExportRenderWindow, options: ExportLoadOptions): Promise<void> {
+  const loadTimeoutMs = options.loadTimeoutMs ?? PDF_LOAD_TIMEOUT_MS
+  const readyGraceMs = options.readyGraceMs ?? RENDER_READY_GRACE_MS
+  const settleMs = options.settleMs ?? PDF_SETTLE_MS
+  const hash = buildExportHash(options)
+  const id = win.webContents.id
+
+  return new Promise<void>((resolveLoad, rejectLoad) => {
+    let done = false
+    let graceTimer: NodeJS.Timeout | null = null
+    let settleTimer: NodeJS.Timeout | null = null
+
+    const cleanup = (): void => {
+      clearTimeout(timeout)
+      if (graceTimer) clearTimeout(graceTimer)
+      if (settleTimer) clearTimeout(settleTimer)
+      renderReadyWaiters.delete(id)
+      win.webContents.removeListener('did-finish-load', onFinish)
+      win.webContents.removeListener('did-fail-load', onFail)
+    }
+    const finish = (): void => {
+      if (done) return
+      done = true
+      cleanup()
+      resolveLoad()
+    }
+    const fail = (error: Error): void => {
+      if (done) return
+      done = true
+      cleanup()
+      rejectLoad(error)
+    }
+
+    // The page says it is painted — settle briefly, then go.
+    renderReadyWaiters.set(id, () => {
+      if (done) return
+      if (graceTimer) clearTimeout(graceTimer)
+      settleTimer = setTimeout(finish, settleMs)
+    })
+
+    // Fallback: the page loaded but never signalled (old bundle, crash in the route, …).
+    const onFinish = (): void => {
+      if (done || graceTimer) return
+      graceTimer = setTimeout(finish, readyGraceMs)
+    }
+    const onFail = (_event: unknown, errorCode: number, errorDescription: string): void => {
+      fail(new Error(`Export failed to load slides (${errorCode}: ${errorDescription})`))
+    }
+    const timeout = setTimeout(() => {
+      fail(new Error(`Export timed out after ${loadTimeoutMs} ms while loading slides`))
+    }, loadTimeoutMs)
+
+    win.webContents.once('did-finish-load', onFinish)
+    win.webContents.once('did-fail-load', onFail)
+
+    // A load rejection is also reported through did-fail-load; swallow the duplicate.
+    const devUrl = options.devUrl
+    if (devUrl) {
+      win.loadURL(`${devUrl.replace(/\/$/, '')}/#${hash}`).catch(() => {})
+    } else {
+      win.loadFile(options.indexFile ?? rendererIndexFile(), { hash }).catch(() => {})
+    }
+  })
+}
+
+/** What the export route publishes on `window.__lectaExport` once it is done. */
+export interface ExportPageStatus {
+  ready?: boolean
+  slideCount?: number
+  error?: string
+}
+
+export async function readExportStatus(win: ExportRenderWindow): Promise<ExportPageStatus | null> {
+  const exec = win.webContents.executeJavaScript
+  if (typeof exec !== 'function') return null
+  try {
+    const status = await exec.call(win.webContents, 'window.__lectaExport || null')
+    return (status as ExportPageStatus) ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Render the export route to a PDF buffer. The window is always destroyed, whether the load
+ * succeeds, fails (`did-fail-load`) or times out.
+ */
+export async function renderPdf(win: ExportRenderWindow, options: ExportLoadOptions): Promise<Buffer> {
+  try {
+    await loadExportPage(win, options)
+    const status = await readExportStatus(win)
+    if (status?.error) throw new Error(`Export failed to render the deck: ${status.error}`)
+    if (status && status.slideCount === 0) throw new Error('Export produced no slides')
+    return await win.webContents.printToPDF(PDF_PRINT_OPTIONS)
+  } finally {
+    try {
+      win.destroy()
+    } catch {
+      /* already destroyed */
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// HTML capture
+// ---------------------------------------------------------------------------
+
+export interface StyleSheetLike {
+  href?: string | null
+  cssRules?: ArrayLike<{ cssText: string }> | null
+}
+
+export interface CollectedCss {
+  css: string
+  /** Stylesheets whose rules the page could not read (cross-origin `file://` links). */
+  unreadable: string[]
+}
+
+/**
+ * Collect the page's own CSS into one blob.
+ *
+ * Runs inside the export window (it is serialized into the capture script), so it must stay
+ * dependency-free and plain-JS. Rules that would make the exported file reach the network —
+ * `@import url(http…)` and Google Fonts links — are dropped: a shared HTML export has to work
+ * offline and must not phone home.
+ */
+export function collectCss(sheets: StyleSheetLike[]): CollectedCss {
+  const parts: string[] = []
+  const unreadable: string[] = []
+  for (let s = 0; s < sheets.length; s++) {
+    const sheet = sheets[s]
+    let rules: ArrayLike<{ cssText: string }> | null = null
+    try {
+      rules = sheet.cssRules || null
+    } catch (err) {
+      rules = null
+    }
+    if (!rules) {
+      if (sheet.href) unreadable.push(String(sheet.href))
+      continue
+    }
+    for (let i = 0; i < rules.length; i++) {
+      const text = rules[i] && rules[i].cssText ? String(rules[i].cssText) : ''
+      if (!text) continue
+      if (/^\s*@import\s/i.test(text) && /https?:/i.test(text)) continue
+      if (/fonts\.googleapis\.com|fonts\.gstatic\.com/i.test(text)) continue
+      parts.push(text)
+    }
+  }
+  return { css: parts.join('\n'), unreadable }
+}
+
+export interface CapturedPage {
+  css: string
+  unreadable: string[]
+  body: string
+  title: string
+  slideCount: number
+}
+
+/** Script evaluated in the export window to snapshot its rendered DOM + CSS. */
+export function buildCaptureScript(): string {
+  return `(function () {
+  var collect = ${collectCss.toString()};
+  var collected = collect(Array.prototype.slice.call(document.styleSheets));
+  var clone = document.documentElement.cloneNode(true);
+  var drop = clone.querySelectorAll('script, style, link, noscript, template');
+  for (var i = 0; i < drop.length; i++) drop[i].parentNode.removeChild(drop[i]);
+  var body = clone.querySelector('body');
+  return {
+    css: collected.css,
+    unreadable: collected.unreadable,
+    body: body ? body.innerHTML : '',
+    title: document.title || '',
+    slideCount: document.querySelectorAll('.export-slide').length
+  };
+})()`
+}
+
+/**
+ * Read stylesheets the page itself could not read. Only the app's own bundled CSS is eligible:
+ * the file must be a `file://` URL inside the built renderer directory.
+ */
+export async function readLocalStylesheets(hrefs: string[], rendererRoot: string): Promise<string> {
+  const chunks: string[] = []
+  for (const href of hrefs) {
+    if (!href.startsWith('file://')) continue
+    const filePath = fileUrlToPath(href)
+    if (!filePath || !isInsideRoot(filePath, rendererRoot)) continue
+    try {
+      chunks.push(await readFile(filePath, 'utf-8'))
+    } catch {
+      /* stylesheet vanished — the export just loses that sheet */
+    }
+  }
+  return chunks.join('\n')
+}
+
+export interface StandaloneHtmlInput {
+  title: string
+  css: string
+  body: string
+  slideCount: number
+}
+
+/**
+ * Wrap the captured slide DOM in a self-contained deck: the app's own CSS, a screen-only
+ * presentation layer, and a small vanilla navigator. No external references of any kind.
+ */
+export function buildStandaloneHtml({ title, css, body, slideCount }: StandaloneHtmlInput): string {
+  const safeTitle = escapeHtml(title || 'Presentation')
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>${title}</title>
+<title>${safeTitle}</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background: ${theme === 'light' ? '#f8fafc' : '#0a0a0a'}; color: ${theme === 'light' ? '#1e293b' : '#e2e8f0'}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; overflow: hidden; height: 100vh; }
-  .slide-container { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; }
-  .slide { width: 1280px; height: 720px; padding: 48px; transform-origin: center center; background: ${theme === 'light' ? '#ffffff' : '#0f172a'}; border-radius: 8px; box-shadow: 0 4px 24px rgba(0,0,0,0.3); overflow: hidden; position: relative; }
-  .slide h1 { font-size: 2.5rem; font-weight: 700; margin-bottom: 1rem; color: ${theme === 'light' ? '#0f172a' : '#ffffff'}; }
-  .slide h2 { font-size: 2rem; font-weight: 600; margin-bottom: 0.75rem; }
-  .slide h3 { font-size: 1.5rem; font-weight: 500; margin-bottom: 0.5rem; }
-  .slide p { font-size: 1.25rem; line-height: 1.6; margin-bottom: 0.75rem; }
-  .slide ul { padding-left: 1.5rem; margin-bottom: 0.75rem; }
-  .slide li { font-size: 1.125rem; line-height: 1.6; margin-bottom: 0.25rem; }
-  .slide strong { font-weight: 700; }
-  .slide em { font-style: italic; }
-  .slide code { background: rgba(99,102,241,0.15); padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
-  .slide pre { background: rgba(0,0,0,0.3); border-radius: 8px; padding: 16px; margin: 12px 0; overflow-x: auto; }
-  .slide pre code { background: none; padding: 0; }
-  .slide img { max-width: 100%; height: auto; border-radius: 8px; }
-  .slide blockquote { border-left: 3px solid #6366f1; padding-left: 16px; margin: 12px 0; font-style: italic; opacity: 0.8; }
-  .slide table { width: 100%; border-collapse: collapse; margin: 12px 0; }
-  .slide th, .slide td { padding: 8px 12px; border-bottom: 1px solid rgba(${theme === 'light' ? '0,0,0' : '255,255,255'},0.1); text-align: left; }
-  .slide th { font-weight: 600; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 0.5px; }
-  .slide hr { border: none; border-top: 1px solid rgba(${theme === 'light' ? '0,0,0' : '255,255,255'},0.1); margin: 24px 0; }
-  .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; align-items: center; background: rgba(0,0,0,0.7); backdrop-filter: blur(10px); padding: 8px 16px; border-radius: 40px; z-index: 100; }
-  .nav button { background: none; border: none; color: #fff; font-size: 18px; cursor: pointer; padding: 4px 12px; border-radius: 20px; transition: background 0.15s; }
-  .nav button:hover { background: rgba(255,255,255,0.15); }
-  .nav span { color: #999; font-size: 14px; font-variant-numeric: tabular-nums; min-width: 60px; text-align: center; }
+${css}
+</style>
+<style>
+/* --- exported deck: screen presentation layer (print keeps the page-per-slide rules) --- */
+@media screen {
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #05050a; }
+  #lecta-export-root { position: fixed; inset: 0; }
+  .export-slide {
+    position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, -50%) scale(var(--export-scale, 1));
+    transform-origin: center center;
+    display: none; box-shadow: 0 10px 60px rgba(0,0,0,0.55);
+  }
+  .export-slide.is-active { display: block; }
+  .export-chrome {
+    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 14px; border-radius: 999px;
+    background: rgba(15,15,20,0.82); border: 1px solid rgba(255,255,255,0.12);
+    color: #e6e6ee; font: 500 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    z-index: 2147483000; opacity: 0.25; transition: opacity 0.2s;
+  }
+  .export-chrome:hover { opacity: 1; }
+  .export-chrome button {
+    background: none; border: 0; color: inherit; font: inherit; cursor: pointer;
+    padding: 3px 9px; border-radius: 999px;
+  }
+  .export-chrome button:hover { background: rgba(255,255,255,0.14); }
+  .export-chrome .export-counter { font-variant-numeric: tabular-nums; min-width: 64px; text-align: center; opacity: 0.75; }
+  .export-chrome .export-hint { opacity: 0.5; font-size: 11px; }
+  #export-notes {
+    position: fixed; left: 0; right: 0; bottom: 0; max-height: 38vh; overflow: auto;
+    padding: 18px 24px 60px; background: rgba(8,8,12,0.94); color: #d8d8e4;
+    border-top: 1px solid rgba(255,255,255,0.12); white-space: pre-wrap;
+    font: 400 14px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    z-index: 2147482000; display: none;
+  }
+  body.export-show-notes #export-notes { display: block; }
+  .export-notes { display: none; }
+}
+@media print {
+  .export-chrome, #export-notes { display: none !important; }
+}
 </style>
 </head>
 <body>
-<div class="slide-container" id="slideContainer"></div>
-<div class="nav">
-  <button onclick="prev()">&larr;</button>
-  <span id="counter">1 / 1</span>
-  <button onclick="next()">&rarr;</button>
+${body}
+<div id="export-notes"></div>
+<div class="export-chrome">
+  <button type="button" data-export-prev aria-label="Previous slide">&larr;</button>
+  <span class="export-counter" data-export-counter>1 / ${slideCount}</span>
+  <button type="button" data-export-next aria-label="Next slide">&rarr;</button>
+  <span class="export-hint">f fullscreen &middot; s notes</span>
 </div>
 <script>
-const slides = ${slidesJson};
-let current = 0;
-const container = document.getElementById('slideContainer');
-const counter = document.getElementById('counter');
-
-function render() {
-  const slide = slides[current] || { content: '', isPreRendered: false };
-  const md = typeof slide === 'string' ? slide : slide.content;
-  const preRendered = typeof slide === 'object' && slide.isPreRendered;
-  let html;
-  if (preRendered) {
-    html = md;
-  } else {
-    html = md
-      .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-      .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-      .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-      .replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>')
-      .replace(/\\*(.+?)\\*/g, '<em>$1</em>')
-      .replace(/\`(.+?)\`/g, '<code>$1</code>')
-      .replace(/^- (.+)$/gm, '<li>$1</li>')
-      .replace(/(<li>.*<\\/li>)/gs, '<ul>$1</ul>')
-      .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
-      .replace(/^---$/gm, '<hr>')
-      .replace(/^(?!<[hulbh])((?!<).+)$/gm, '<p>$1</p>')
-      .replace(/<p><\\/p>/g, '');
-  }
-  container.innerHTML = '<div class="slide">' + html + '</div>';
-  counter.textContent = (current + 1) + ' / ' + slides.length;
-  // Scale slide to fit viewport
-  const el = container.querySelector('.slide');
-  if (el) {
-    const sw = window.innerWidth, sh = window.innerHeight;
-    const s = Math.min(sw / 1280, sh / 720) * 0.9;
-    el.style.transform = 'scale(' + s + ')';
-  }
-}
-
-function next() { if (current < slides.length - 1) { current++; render(); } }
-function prev() { if (current > 0) { current--; render(); } }
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'ArrowRight' || e.key === ' ') next();
-  if (e.key === 'ArrowLeft') prev();
-});
-window.addEventListener('resize', render);
-render();
+${NAV_SCRIPT}
 </script>
 </body>
 </html>`
 }
 
-export function buildPdfHtml(slideHtmls: string[], title: string): string {
-  const slides = slideHtmls.map((html, i) => `
-    <div class="slide" ${i > 0 ? 'style="page-break-before: always;"' : ''}>
-      ${html}
-    </div>
-  `).join('')
+/** Vanilla navigator for the exported deck — no framework, no network. */
+const NAV_SCRIPT = `(function () {
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.export-slide'));
+  if (slides.length === 0) return;
+  var counter = document.querySelector('[data-export-counter]');
+  var notesPanel = document.getElementById('export-notes');
+  var current = 0;
 
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>${title}</title>
-  <style>
-    @page {
-      size: 1280px 720px;
-      margin: 0;
+  function scale() {
+    var w = window.innerWidth, h = window.innerHeight;
+    var s = Math.min(w / 1280, h / 720);
+    if (!isFinite(s) || s <= 0) s = 1;
+    document.documentElement.style.setProperty('--export-scale', String(s));
+  }
+
+  function show(index) {
+    current = Math.max(0, Math.min(slides.length - 1, index));
+    for (var i = 0; i < slides.length; i++) {
+      if (i === current) slides[i].classList.add('is-active');
+      else slides[i].classList.remove('is-active');
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
+    if (counter) counter.textContent = (current + 1) + ' / ' + slides.length;
+    if (notesPanel) {
+      var note = slides[current].querySelector('.export-notes');
+      notesPanel.textContent = note ? note.textContent : '';
     }
-    .slide {
-      width: 1280px;
-      height: 720px;
-      overflow: hidden;
-      position: relative;
+    try { location.hash = '#' + (current + 1); } catch (err) { /* ignore */ }
+  }
+
+  function next() { if (current < slides.length - 1) show(current + 1); }
+  function prev() { if (current > 0) show(current - 1); }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ' || e.key === 'Spacebar') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp' || e.key === 'Backspace') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End') { e.preventDefault(); show(slides.length - 1); }
+    else if (e.key === 'f' || e.key === 'F') {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
+    } else if (e.key === 's' || e.key === 'S') {
+      document.body.classList.toggle('export-show-notes');
     }
-    img { max-width: 100%; height: auto; }
-    table { width: 100%; border-collapse: collapse; }
-  </style>
-</head>
-<body>${slides}</body>
-</html>`
-}
+  });
+
+  document.addEventListener('click', function (e) {
+    var target = e.target;
+    while (target && target !== document.body) {
+      if (target.hasAttribute && target.hasAttribute('data-export-prev')) { prev(); return; }
+      if (target.hasAttribute && target.hasAttribute('data-export-next')) { next(); return; }
+      if (target.tagName === 'A' || target.id === 'export-notes') return;
+      target = target.parentNode;
+    }
+    next();
+  });
+
+  window.addEventListener('resize', scale);
+  scale();
+  var start = parseInt((location.hash || '').replace('#', ''), 10);
+  show(isFinite(start) && start > 0 ? start - 1 : 0);
+})()`
+
+// ---------------------------------------------------------------------------
+// asset inlining
+// ---------------------------------------------------------------------------
 
 const MIME_TYPES: Record<string, string> = {
   '.png': 'image/png',
@@ -302,26 +482,217 @@ const MIME_TYPES: Record<string, string> = {
   '.ico': 'image/x-icon',
 }
 
-export async function embedImages(html: string, rootPath: string): Promise<string> {
-  // Match src="..." attributes that reference local (non-data-uri, non-http) images
-  const srcRegex = /src=["'](?!data:|https?:\/\/|blob:)([^"']+)["']/g
-  const matches = [...html.matchAll(srcRegex)]
-  if (matches.length === 0) return html
+function fileUrlToPath(url: string): string | null {
+  try {
+    let path = decodeURIComponent(url.replace(/^[a-z-]+:\/\//i, ''))
+    // Windows: file:///C:/x → /C:/x
+    if (/^\/[A-Za-z]:[\\/]/.test(path)) path = path.slice(1)
+    return path
+  } catch {
+    // Malformed percent-encoding
+    return null
+  }
+}
 
-  let result = html
-  for (const match of matches) {
-    const relPath = match[1]
-    const absPath = resolve(rootPath, relPath)
-    const ext = extname(absPath).toLowerCase()
-    const mime = MIME_TYPES[ext]
-    if (!mime) continue
+/**
+ * Resolve a document URL to an absolute path inside `rootPath`, or null when it points anywhere
+ * else. Deck confinement lives here: the exporter reads whatever this returns.
+ */
+export function resolveAssetPath(ref: string, rootPath: string): string | null {
+  if (!ref) return null
+  if (/^(data:|https?:|blob:|about:)/i.test(ref)) return null
+
+  let candidate: string | null
+  if (/^(lecta-file|file):\/\//i.test(ref)) {
+    candidate = fileUrlToPath(ref)
+  } else {
     try {
-      const data = await readFile(absPath)
-      const dataUri = `data:${mime};base64,${data.toString('base64')}`
-      result = result.replace(match[0], `src="${dataUri}"`)
+      candidate = decodeURIComponent(ref)
     } catch {
-      // Image not found — leave the original src
+      candidate = ref
     }
   }
-  return result
+  if (!candidate) return null
+
+  const absolute = isAbsolute(candidate) ? resolve(candidate) : resolve(rootPath, candidate)
+  return isInsideRoot(absolute, rootPath) ? absolute : null
+}
+
+async function toDataUri(absolutePath: string): Promise<string | null> {
+  const mime = MIME_TYPES[extname(absolutePath).toLowerCase()]
+  if (!mime) return null
+  try {
+    const data = await readFile(absolutePath)
+    return `data:${mime};base64,${data.toString('base64')}`
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Replace every deck image reference (`src="…"` and `url(…)`, including `lecta-file://` URLs)
+ * with a base64 data URI so the exported file needs no companion assets and makes no requests.
+ * References outside the deck root, or of unsupported types, are left untouched.
+ */
+export async function embedImages(html: string, rootPath: string): Promise<string> {
+  const deckRoot = resolve(rootPath)
+  const attrPattern = /\b(src|href)=(["'])([^"']+)\2/gi
+  const urlPattern = /url\(\s*(["']?)([^"')]+)\1\s*\)/gi
+
+  // Pass 1: read every referenced deck asset (async), keyed by the raw reference.
+  const dataUris = new Map<string, string>()
+  const candidates = [
+    ...[...html.matchAll(attrPattern)].map((m) => m[3]),
+    ...[...html.matchAll(urlPattern)].map((m) => m[2])
+  ]
+  for (const ref of candidates) {
+    if (dataUris.has(ref)) continue
+    const absolute = resolveAssetPath(ref, deckRoot)
+    if (!absolute) continue
+    const dataUri = await toDataUri(absolute)
+    if (dataUri) dataUris.set(ref, dataUri)
+  }
+  if (dataUris.size === 0) return html
+
+  // Pass 2: rewrite only the references themselves — never matching text elsewhere on the page.
+  return html
+    .replace(attrPattern, (full, attr: string, _quote: string, ref: string) => {
+      const dataUri = dataUris.get(ref)
+      return dataUri ? `${attr}="${dataUri}"` : full
+    })
+    .replace(urlPattern, (full, _quote: string, ref: string) => {
+      const dataUri = dataUris.get(ref)
+      return dataUri ? `url("${dataUri}")` : full
+    })
+}
+
+// ---------------------------------------------------------------------------
+// IPC
+// ---------------------------------------------------------------------------
+
+function rendererIndexFile(): string {
+  return join(__dirname, '../renderer/index.html')
+}
+
+function rendererRoot(): string {
+  return join(__dirname, '../renderer')
+}
+
+/** Hidden 1280x720 window running the app's own renderer (same preload → same bridge). */
+function createExportWindow(): BrowserWindow {
+  return new BrowserWindow({
+    width: 1280,
+    height: 720,
+    useContentSize: true,
+    show: false,
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      sandbox: false,
+      contextIsolation: true,
+      nodeIntegration: false,
+      // A hidden window would otherwise be throttled, stalling the render we are waiting for.
+      backgroundThrottling: false,
+      devTools: false
+    }
+  })
+}
+
+function loadOptionsFor(rootPath: string, options: { theme?: string; slides?: number; mdxTrusted?: boolean }): ExportLoadOptions {
+  return {
+    rootPath,
+    ...options,
+    devUrl: process.env['ELECTRON_RENDERER_URL'] || null,
+    indexFile: rendererIndexFile()
+  }
+}
+
+export function registerExportHandlers(): void {
+  // The export route reports that every slide has painted.
+  ipcMain.on('export:render-ready', (event) => {
+    signalRenderReady(event.sender.id)
+  })
+
+  ipcMain.handle(
+    'export:pdf',
+    async (_event, rootPath: string, legacyOrOptions: unknown, title: string): Promise<string | null> => {
+      // The renderer loads the deck through this path: confine it to an open deck.
+      const deckRoot = assertInsideOpenDeck(rootPath)
+      const options = normalizeExportOptions(legacyOrOptions)
+
+      const result = await dialog.showSaveDialog({
+        title: 'Export as PDF',
+        defaultPath: `${title || 'presentation'}.pdf`,
+        filters: [{ name: 'PDF', extensions: ['pdf'] }]
+      })
+      if (result.canceled || !result.filePath) return null
+
+      const win = createExportWindow()
+      const pdfBuffer = await renderPdf(win, loadOptionsFor(deckRoot, options))
+      await writeFile(result.filePath, pdfBuffer)
+      return result.filePath
+    }
+  )
+
+  // Export as a single self-contained HTML deck
+  ipcMain.handle(
+    'export:html',
+    async (
+      _event,
+      rootPath: string,
+      legacyOrOptions: unknown,
+      title: string,
+      theme?: string
+    ): Promise<string | null> => {
+      // Images are inlined from this root: it must belong to an open deck
+      const deckRoot = assertInsideOpenDeck(rootPath)
+      const options = normalizeExportOptions(legacyOrOptions, typeof theme === 'string' ? theme : undefined)
+
+      const result = await dialog.showSaveDialog({
+        title: 'Export as HTML',
+        defaultPath: `${title || 'presentation'}.html`,
+        filters: [{ name: 'HTML', extensions: ['html'] }]
+      })
+      if (result.canceled || !result.filePath) return null
+
+      const win = createExportWindow()
+      let standalone: string
+      try {
+        await loadExportPage(win, loadOptionsFor(deckRoot, options))
+        const status = await readExportStatus(win)
+        if (status?.error) throw new Error(`Export failed to render the deck: ${status.error}`)
+
+        const captured = (await win.webContents.executeJavaScript!.call(
+          win.webContents,
+          buildCaptureScript()
+        )) as CapturedPage
+        if (!captured || captured.slideCount === 0) throw new Error('Export produced no slides')
+
+        const linkedCss = await readLocalStylesheets(captured.unreadable || [], rendererRoot())
+        standalone = buildStandaloneHtml({
+          title: title || captured.title,
+          css: `${linkedCss}\n${captured.css}`,
+          body: captured.body,
+          slideCount: captured.slideCount
+        })
+      } finally {
+        try {
+          win.destroy()
+        } catch {
+          /* already destroyed */
+        }
+      }
+
+      const inlined = await embedImages(standalone, deckRoot)
+      await writeFile(result.filePath, inlined, 'utf-8')
+      return result.filePath
+    }
+  )
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
 }

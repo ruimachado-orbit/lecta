@@ -8,14 +8,14 @@ export default function UnderHood() {
         <Reveal><h2 className="secTitle">Built on the tools<br /><em>you already use.</em></h2></Reveal>
         <div className="techColsThree">
           <Reveal delay={1}>
-            <div className="techGroupTitle">Execution &amp; Import</div>
+            <div className="techGroupTitle">Execution, Import &amp; Export</div>
             {[
-              { name: 'JavaScript', desc: 'Sandboxed V8 via Sandpack — safe, isolated, instant results.' },
-              { name: 'Python',     desc: 'Pyodide in WebAssembly — NumPy, pandas, matplotlib, all in-process.' },
+              { name: 'JavaScript', desc: 'Sandboxed Web Worker — no DOM, no network, hard cancel and timeout.' },
+              { name: 'Python',     desc: 'Pyodide in WebAssembly, bundled with the app — NumPy, pandas, matplotlib, all in-process and offline.' },
               { name: 'SQL',        desc: 'sql.js (SQLite) — import CSVs, run queries, display tabular results.' },
               { name: 'Native Shell', desc: 'Bash, Go, Rust — run any CLI command and show live output.' },
               { name: 'Jupyter (.ipynb)', desc: 'Import notebooks with cells, outputs, and kernel detection. Full interactive view.' },
-              { name: 'PowerPoint (.pptx)', desc: 'Layout detection, rich formatting, images, tables, and speaker notes.' },
+              { name: 'PowerPoint (.pptx)', desc: 'Import with layout detection, rich formatting, images, tables and speaker notes — and export an editable .pptx back out.' },
             ].map(t => (
               <div key={t.name} className="techItem">
                 <span className="tDot" />

@@ -110,7 +110,7 @@ Users can save reusable slides to a personal library. Before building from scrat
 export function createLectaServer(): McpServer {
   const server = new McpServer({
     name: 'lecta',
-    version: '0.1.0',
+    version: '0.1.2',
   })
 
   // ── MCP Prompts ──

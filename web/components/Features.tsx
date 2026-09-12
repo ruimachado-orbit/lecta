@@ -22,9 +22,9 @@ const features = [
     ),
   },
   {
-    name: 'Import PowerPoint',
-    desc: 'Open any .pptx file and get a fully editable Lecta deck — layout detection, rich formatting, images linked to slides, speaker notes, and tables preserved.',
-    chips: ['PPTX', 'Layouts', 'Images', 'Tables'],
+    name: 'PowerPoint In and Out',
+    desc: 'Open any .pptx file and get a fully editable Lecta deck — layout detection, rich formatting, images linked to slides, speaker notes, and tables preserved. Export back to an editable .pptx, or to PDF or a single-file HTML deck.',
+    chips: ['PPTX', 'Layouts', 'Images', 'Export'],
     icon: (
       <svg className="fIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
         <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>

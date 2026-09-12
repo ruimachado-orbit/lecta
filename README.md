@@ -16,10 +16,13 @@ Lecta puts slides and executable code side by side — no more switching between
 - **Incremental reveal** — manual slide breaks (`----`) with click-to-advance steps
 - **Skip slides** — hide slides from presentation without deleting them
 - **Drawing overlay** — freehand pen, lines, arrows, rectangles, ellipses, text annotations with color and fill controls
+- **MDX slides, behind a trust prompt** — a slide can be `.mdx` (JSX components, not just markdown), but MDX is executable, so it is only compiled after you trust that specific deck. Until then — and always for thumbnails, previews and exports — the slide renders as plain markdown. See [`docs/SECURITY-MODEL.md`](docs/SECURITY-MODEL.md)
 
 ### Code Execution
-- **5 execution engines** — JavaScript (sandboxed iframe), Python (Pyodide/WASM), SQL (sql.js/WASM), native (any language via local toolchain), or display-only
-- **14 languages** — JavaScript, TypeScript, Python, SQL, HTML, CSS, JSON, Bash, Go, Rust, Java, C#, Ruby, PHP
+- **5 execution engines** — JavaScript (isolated Web Worker), Python (Pyodide/WASM), SQL (sql.js/WASM), native (any language via local toolchain), or display-only
+- **15 languages** — JavaScript, TypeScript, Python, SQL, HTML, CSS, JSON, Bash, Go, Rust, Java, C#, Ruby, PHP, Markdown
+- **Works offline** — Monaco, Pyodide and sql.js are bundled with the app and loaded from `out/renderer/runtimes`; nothing is fetched from a CDN at run time
+- **Native execution is off by default** — `execution: native` runs only after you enable it in Settings, and then only a bare program name, in the open deck's folder, with no shell, an environment scrubbed of API keys, a configurable timeout and a hard process-group kill
 - **Real file loading** — code comes from actual files on disk, not inline snippets. Edit in VS Code, Lecta auto-reloads
 - **Streaming output** — stdout/stderr displayed in real-time with duration tracking
 - **Execution controls** — run, cancel, timeout (30s default)
@@ -53,12 +56,15 @@ API keys are configured per-provider in Settings with live validation, or per-de
 - **Presenter window** — speaker notes, timer, slide preview
 - **Audience window** — fullscreen presentation on a second display
 - **Live sync** — slides, code changes, execution output, artifacts, and mouse pointer all synchronized in real-time
-- **Remote control** — phone remote over the local network (scan a QR code from presenter view)
+- **Remote control** — phone remote over the local network (scan a QR code from presenter view). A random per-session token in the URL is the only credential and it travels over plain HTTP — see [`docs/SECURITY-MODEL.md`](docs/SECURITY-MODEL.md) before using it on an untrusted network
 
 ### Export
 - **PDF** — slide-by-slide export with print-quality rendering
 - **HTML** — self-contained single-file SPA with keyboard navigation and theme support
+- **PowerPoint (`.pptx`)** — editable deck built with `pptxgenjs` in the main process (no binary, no network): the 12 layouts mapped to slide masters, the 8 themes as colour/type sets, sub-slides as separate slides, code blocks as monospace boxes, images embedded from the deck folder, pinned elements placed at their canvas positions, and speaker notes attached
 - **Article** — AI-generated long-form document from your slides
+
+Exports are written atomically through a save dialog, and the result is reported with a **Reveal** action. Untrusted MDX slides export as plain markdown, never as compiled output.
 
 ### Attachments & Media
 - **Artifacts** — attach PDFs, Excel files, images, or any document to slides
@@ -142,7 +148,7 @@ MISTRAL_API_KEY=...
 
 Keys are loaded using a fallback chain:
 1. Deck's `.env` file (per-presentation)
-2. App-level settings (`~/.lecta/settings.json`)
+2. App-level settings (`settings.json` in Electron's `userData` directory — `~/Library/Application Support/Lecta` on macOS, `~/.config/Lecta` on Linux, `%APPDATA%\Lecta` on Windows). Keys there are encrypted with the OS keychain via Electron `safeStorage` and are never sent to the renderer
 3. Process environment variables
 
 ## Creating a Presentation
@@ -210,10 +216,10 @@ slides:
 
 | Engine | Languages | How it works |
 |--------|-----------|-------------|
-| `sandpack` | JavaScript, TypeScript | Sandboxed iframe, safe in-browser execution |
+| `sandpack` | JavaScript, TypeScript | Isolated Web Worker — no DOM, no bridge, hard cancel and timeout |
 | `pyodide` | Python | CPython compiled to WebAssembly, supports pip packages |
 | `sql` | SQL | SQLite in WebAssembly via sql.js, supports seed data |
-| `native` | Any | Runs via your local toolchain (`child_process.spawn`) |
+| `native` | Any | Runs via your local toolchain (`child_process.spawn`, no shell). Disabled until you turn it on in Settings |
 | `none` | — | Display code without execution |
 
 ### Themes
@@ -251,7 +257,11 @@ Use `----` to create incremental reveal steps within a single slide.
 | `Cmd+Enter` | Run code |
 | `F5` | Enter presenter mode |
 | `Esc` | Exit presenter mode |
-| `N` | Toggle speaker notes panel |
+| `Shift+N` | Add a slide |
+| `Shift+S` | Toggle speaker notes panel |
+| `Cmd+S` | Save the current slide |
+| `Cmd+Z` / `Cmd+Shift+Z` | Undo / redo a slide edit |
+| `Cmd+/` | Toggle the AI chat |
 
 ## Use with Claude (MCP Server)
 
@@ -341,16 +351,33 @@ make format
 make typecheck
 
 # Run tests
-make test
+make test           # app + shared (vitest)
+make test-mcp       # packages/mcp-server
+make test-all       # both suites
+make test-watch     # vitest in watch mode
 
-# Run tests in watch mode
-make test-watch
+# Packaged-app smoke test (needs `make build` first)
+bun run test:e2e
 
-# Clean build artifacts
+# Clean build artifacts (also removes node_modules)
 make clean
 ```
 
+> `bun test` would run Bun's own test runner — always go through the `make` targets or the npm scripts.
+
+### Documentation
+
+| Document | What is in it |
+|---|---|
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Processes, the IPC surface, deck-root confinement, atomic persistence, the `.lecta` container, presenter handshake, bundled runtimes, the MCP server's relationship to the app |
+| [`docs/SECURITY-MODEL.md`](docs/SECURITY-MODEL.md) | What a deck file can and cannot do, native-execution policy, the remote-control token model and its limits, how API keys are stored and exposed |
+| [`docs/RELEASING.md`](docs/RELEASING.md) | Make targets, CI gates, the smoke test, version sync, release checklist |
+| [`docs/PROJECT_REVIEW.md`](docs/PROJECT_REVIEW.md) | End-to-end review, the numbered defect list, and what has been fixed so far |
+| [`CHANGELOG.md`](CHANGELOG.md) | Keep-a-Changelog history |
+
 ## Releasing
+
+Full procedure — gates, version sync and the checklist — is in [`docs/RELEASING.md`](docs/RELEASING.md).
 
 Releases are published to [GitHub Releases](https://github.com/ruimachado-orbit/lecta/releases) with macOS DMGs and Linux packages (.deb + AppImage) attached.
 
@@ -377,13 +404,17 @@ Each bump command automatically:
 
 ## Security
 
+A deck is content someone sent you. [`docs/SECURITY-MODEL.md`](docs/SECURITY-MODEL.md) is the full account of what one can and cannot do; the short version:
+
 - **No secrets in the repo** — `.env` files are gitignored. Only `.env.example` (with a placeholder) is committed
-- **API key isolation** — API keys never leave the Electron main process. The renderer communicates via IPC. Keys are validated with live API calls before showing "Connected" status
+- **API key isolation** — keys never leave the main process. They are encrypted at rest with Electron `safeStorage` and the renderer only ever receives booleans saying which providers are configured
 - **Codex auth isolation** — ChatGPT sign-in for Codex-backed OpenAI access is owned by the local Codex CLI/app-server. Lecta reads account status and generation results, but does not read or store Codex OAuth tokens
-- **Sandboxed code execution** — JavaScript runs in a sandboxed iframe. Python and SQL run in WebAssembly. Only `native` execution runs with local permissions (opt-in)
-- **No `shell: true`** — native execution uses `child_process.spawn` without shell mode to prevent injection
-- **Context isolation** — Electron's `contextIsolation` is enabled; `nodeIntegration` is disabled
-- **CSP headers** — Content Security Policy restricts script sources in the renderer
+- **Deck confinement** — every filesystem path that crosses IPC, and every path read out of `lecta.yaml`, is resolved and rejected unless it is inside an open deck folder. Absolute paths and `..` are refused
+- **Sandboxed code execution** — JavaScript runs in an isolated Web Worker (no DOM, no bridge); Python and SQL run in WebAssembly. Only `native` execution runs with local permissions, and only after you opt in
+- **No `shell: true`** — native execution uses `child_process.spawn` without shell mode, with a scrubbed environment and a process-group kill on timeout or cancel
+- **Executable slides are opt-in** — MDX compiles only for a deck you have explicitly trusted, never for thumbnails, previews or exports
+- **Context isolation** — Electron's `contextIsolation` is enabled; `nodeIntegration` is disabled; navigation, `window.open` and `<webview>` attachment are guarded on every `webContents`
+- **CSP headers** — Content Security Policy restricts script sources in the renderer (no `'unsafe-inline'` scripts, `object-src 'none'`)
 
 ## Contributing
 

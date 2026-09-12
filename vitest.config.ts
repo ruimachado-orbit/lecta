@@ -10,6 +10,7 @@ export default defineConfig({
       'packages/shared/src/**/*.test.ts',
       'src/main/services/**/*.test.ts',
       'src/main/ipc/**/*.test.ts',
+      'src/renderer/src/**/*.test.ts',
     ],
     globals: true,
   },

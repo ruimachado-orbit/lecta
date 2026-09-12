@@ -160,8 +160,10 @@ export default function DocsPage() {
                 ['⌘ + Enter', 'Run code'],
                 ['F5', 'Enter presenter mode'],
                 ['Esc', 'Exit presenter mode'],
-                ['N', 'Toggle speaker notes'],
+                ['Shift + S', 'Toggle speaker notes'],
                 ['Shift + N', 'Add new slide'],
+                ['⌘ + S', 'Save the current slide'],
+                ['⌘ + Z / ⌘ ⇧ Z', 'Undo / redo a slide edit'],
                 ['⌘ + /', 'Toggle chat agent'],
               ].map(([key, action]) => (
                 <div key={key} className="docsShortcut">
@@ -172,17 +174,20 @@ export default function DocsPage() {
             </div>
           </section>
 
-          {/* ── Import Formats ── */}
+          {/* ── Import & Export Formats ── */}
           <section className="docsSection" id="import">
-            <h2>Import Formats</h2>
+            <h2>Import &amp; Export Formats</h2>
             <p>
-              Open any of these file types from the file dialog — Lecta converts them into editable presentations or notebooks.
+              Open any of these file types from the file dialog — Lecta converts them into editable presentations or notebooks — and hand a finished deck off in any of the export formats below.
             </p>
             <div className="docsProviderGrid">
               {[
                 ['Jupyter Notebook (.ipynb)', 'Full cell structure with markdown, code, and outputs. Kernel auto-detected (Python, JS, SQL, etc.). Interactive Jupyter-style view with cell execution, reorder, and kernel picker.'],
                 ['PowerPoint (.pptx)', 'Layout detection (title, section, two-column, etc.), rich text formatting (bold, italic, links), images linked to slides, tables as GFM markdown, speaker notes preserved.'],
                 ['Lecta File (.lecta)', 'Portable archive containing slides, code, and artifacts. Open on any machine with Lecta.'],
+                ['Export: PowerPoint (.pptx)', 'Editable deck built locally with pptxgenjs — no network, no external binary. The 12 layouts map to slide masters, the 8 themes to colour and type sets, code blocks to monospace boxes, and speaker notes come along.'],
+                ['Export: PDF', 'Slide-by-slide, print quality, one page per slide.'],
+                ['Export: HTML', 'Self-contained single-file deck with keyboard navigation and theme support.'],
               ].map(([format, desc]) => (
                 <div key={format} className="docsProvider">
                   <strong>{format}</strong>
@@ -200,8 +205,8 @@ export default function DocsPage() {
             </p>
             <div className="docsProviderGrid">
               {[
-                ['Anthropic', 'Claude Sonnet 4, Opus 4, Haiku 4'],
-                ['OpenAI', 'GPT-4o, GPT-4o Mini, o3, o3-mini, o4-mini'],
+                ['Anthropic', 'Claude Sonnet 4.5, Sonnet 4, Opus 4.1, Opus 4, Haiku 4.5'],
+                ['OpenAI', 'GPT-5.5, GPT-5.4, GPT-5.4 Mini via API key — plus GPT-5.3 Codex and Codex Spark with a ChatGPT sign-in through the Codex CLI'],
                 ['Google Gemini', 'Gemini 2.5 Pro, 2.5 Flash, 2.0 Flash'],
                 ['Mistral', 'Large, Medium, Small'],
                 ['Meta Llama', 'Llama 4 Maverick, Scout, 3.3 70B'],

@@ -1,7 +1,66 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import type { ExecutionResult } from '../../packages/shared/src/types/execution'
 import type { Presentation, LoadedPresentation, SupportedLanguage } from '../../packages/shared/src/types/presentation'
 import type { PresentationSnapshot, ChatStreamEvent } from '../../packages/shared/src/types/chat'
+
+/**
+ * Response channels must be unique per call: `Date.now()` alone collides when
+ * two streams start in the same millisecond, and the second listener then also
+ * receives the first stream's chunks.
+ */
+let channelSeq = 0
+function makeChannel(prefix: string): string {
+  channelSeq += 1
+  return `${prefix}${Date.now()}-${channelSeq}-${Math.random().toString(36).slice(2, 10)}`
+}
+
+/** Subscribe to a main-process channel and return an unsubscribe function. */
+function subscribe(
+  channel: string,
+  handler: (...args: unknown[]) => void
+): () => void {
+  const listener = (_event: IpcRendererEvent, ...args: unknown[]): void => handler(...args)
+  ipcRenderer.on(channel, listener)
+  return () => { ipcRenderer.removeListener(channel, listener) }
+}
+
+/**
+ * Run a text stream: chunks are forwarded to `callback` until the terminal
+ * `[DONE]` / `[ERROR]…` marker, at which point the listener is removed. The
+ * listener is also removed if the invoke rejects, so a failed call cannot leak
+ * a listener for a channel nobody will ever use again.
+ */
+function streamText(
+  channelPrefix: string,
+  callback: (chunk: string) => void,
+  invoke: (channel: string) => Promise<void>
+): Promise<void> {
+  const channel = makeChannel(channelPrefix)
+  let unsubscribed = false
+  const unsubscribe = subscribe(channel, (chunk) => {
+    const text = String(chunk)
+    callback(text)
+    if (text === '[DONE]' || text.startsWith('[ERROR]')) cleanup()
+  })
+  const cleanup = (): void => {
+    if (unsubscribed) return
+    unsubscribed = true
+    unsubscribe()
+  }
+
+  return invoke(channel).then(
+    (result) => {
+      // The terminal marker is sent before the handler returns; give it one
+      // task to be dispatched before dropping the listener.
+      setTimeout(cleanup, 0)
+      return result
+    },
+    (err) => {
+      cleanup()
+      throw err
+    }
+  )
+}
 
 const api = {
   // File system
@@ -96,11 +155,10 @@ const api = {
     deckTitle: string,
     slideIndex: number,
     callback: (chunk: string) => void
-  ): void => {
-    const channel = `ai:notes-stream-${Date.now()}`
-    ipcRenderer.on(channel, (_event, chunk: string) => callback(chunk))
-    ipcRenderer.invoke('ai:stream-notes', slideContent, codeContent, deckTitle, slideIndex, channel)
-  },
+  ): Promise<void> =>
+    streamText('ai:notes-stream-', callback, (channel) =>
+      ipcRenderer.invoke('ai:stream-notes', slideContent, codeContent, deckTitle, slideIndex, channel)
+    ),
 
   generateCode: (prompt: string, language: string, existingCode: string, deckTitle: string): Promise<string> =>
     ipcRenderer.invoke('ai:generate-code', prompt, language, existingCode, deckTitle),
@@ -133,11 +191,10 @@ const api = {
     slideContent: string,
     deckTitle: string,
     callback: (chunk: string) => void
-  ): void => {
-    const channel = `ai:prompt-stream-${Date.now()}`
-    ipcRenderer.on(channel, (_event, chunk: string) => callback(chunk))
-    ipcRenderer.invoke('ai:run-prompt', prompt, slideContent, deckTitle, channel)
-  },
+  ): Promise<void> =>
+    streamText('ai:prompt-stream-', callback, (channel) =>
+      ipcRenderer.invoke('ai:run-prompt', prompt, slideContent, deckTitle, channel)
+    ),
   generateFullPresentation: (
     prompt: string,
     title: string,
@@ -145,9 +202,13 @@ const api = {
     slideCount: number,
     onProgress: (data: { status: string; slideIndex: number; total: number }) => void
   ): Promise<{ slides: { id: string; markdown: string; layout: string }[]; title: string }> => {
-    const channel = `ai:gen-pres-progress-${Date.now()}`
-    ipcRenderer.on(channel, (_event, data) => onProgress(data))
-    return ipcRenderer.invoke('ai:generate-full-presentation', prompt, title, sourceContent, slideCount, channel)
+    const channel = makeChannel('ai:gen-pres-progress-')
+    const unsubscribe = subscribe(channel, (data) =>
+      onProgress(data as { status: string; slideIndex: number; total: number })
+    )
+    return ipcRenderer
+      .invoke('ai:generate-full-presentation', prompt, title, sourceContent, slideCount, channel)
+      .finally(unsubscribe)
   },
   readSourceFile: (filePath: string): Promise<string> =>
     ipcRenderer.invoke('ai:read-source-file', filePath),
@@ -159,11 +220,10 @@ const api = {
     slidesContent: { title: string; markdown: string; code: string | null; notes: string | null }[],
     rules: string,
     callback: (chunk: string) => void
-  ): void => {
-    const channel = `ai:article-stream-${Date.now()}`
-    ipcRenderer.on(channel, (_event, chunk: string) => callback(chunk))
-    ipcRenderer.invoke('ai:stream-article', deckTitle, author, slidesContent, rules, channel)
-  },
+  ): Promise<void> =>
+    streamText('ai:article-stream-', callback, (channel) =>
+      ipcRenderer.invoke('ai:stream-article', deckTitle, author, slidesContent, rules, channel)
+    ),
 
   // AI Image Generation (multi-provider: OpenAI DALL-E, Google Gemini)
   generateImage: (
@@ -201,65 +261,58 @@ const api = {
   exportHtml: (rootPath: string, slideContents: { content: string; isPreRendered: boolean }[] | string[], title: string, theme: string): Promise<string | null> =>
     ipcRenderer.invoke('export:html', rootPath, slideContents, title, theme),
 
-  // Presenter sync listener (for audience/presenter windows)
-  onPresenterSync: (callback: (slideIndex: number) => void): void => {
-    ipcRenderer.on('presenter:sync-slide', (_event, slideIndex: number) => callback(slideIndex))
-  },
-  onPresenterLoadPath: (callback: (rootPath: string) => void): void => {
-    ipcRenderer.on('presenter:load-path', (_event, rootPath: string) => callback(rootPath))
-  },
+  // Presenter sync listeners (for audience/presenter windows).
+  // Every `on*` helper returns an unsubscribe function — call it on unmount
+  // instead of `removeAllListeners`, which also kills other components' listeners.
+  onPresenterSync: (callback: (slideIndex: number) => void): (() => void) =>
+    subscribe('presenter:sync-slide', (slideIndex) => callback(slideIndex as number)),
+  onPresenterLoadPath: (callback: (rootPath: string) => void): (() => void) =>
+    subscribe('presenter:load-path', (rootPath) => callback(rootPath as string)),
   sendPresenterPath: (rootPath: string): void => {
     ipcRenderer.send('presenter:send-path', rootPath)
   },
   syncPresenterArtifact: (artifact: string | null): void => {
     ipcRenderer.send('presenter:sync-artifact', artifact)
   },
-  onPresenterArtifactSync: (callback: (artifact: string | null) => void): void => {
-    ipcRenderer.on('presenter:sync-artifact', (_event, artifact: string | null) => callback(artifact))
-  },
+  onPresenterArtifactSync: (callback: (artifact: string | null) => void): (() => void) =>
+    subscribe('presenter:sync-artifact', (artifact) => callback(artifact as string | null)),
   syncPresenterMouse: (pos: { x: number; y: number; area: string } | null): void => {
     ipcRenderer.send('presenter:sync-mouse', pos)
   },
-  onPresenterMouseSync: (callback: (pos: { x: number; y: number; area: string } | null) => void): void => {
-    ipcRenderer.removeAllListeners('presenter:sync-mouse')
-    ipcRenderer.on('presenter:sync-mouse', (_event, pos: { x: number; y: number; area: string } | null) => callback(pos))
-  },
-  onPresenterAudienceClosed: (callback: () => void): void => {
-    ipcRenderer.on('presenter:audience-closed', () => callback())
-  },
+  onPresenterMouseSync: (
+    callback: (pos: { x: number; y: number; area: string } | null) => void
+  ): (() => void) =>
+    subscribe('presenter:sync-mouse', (pos) =>
+      callback(pos as { x: number; y: number; area: string } | null)
+    ),
+  onPresenterAudienceClosed: (callback: () => void): (() => void) =>
+    subscribe('presenter:audience-closed', () => callback()),
   syncPresenterExecution: (output: string): void => {
     ipcRenderer.send('presenter:sync-execution', output)
   },
-  onPresenterExecutionSync: (callback: (output: string) => void): void => {
-    ipcRenderer.on('presenter:sync-execution', (_event, output: string) => callback(output))
-  },
+  onPresenterExecutionSync: (callback: (output: string) => void): (() => void) =>
+    subscribe('presenter:sync-execution', (output) => callback(output as string)),
   syncPresenterCode: (code: string): void => {
     ipcRenderer.send('presenter:sync-code', code)
   },
-  onPresenterCodeSync: (callback: (code: string) => void): void => {
-    ipcRenderer.on('presenter:sync-code', (_event, code: string) => callback(code))
-  },
-  onPresenterArtifactFrame: (callback: (base64: string) => void): void => {
-    ipcRenderer.on('presenter:artifact-frame', (_event, base64: string) => callback(base64))
-  },
+  onPresenterCodeSync: (callback: (code: string) => void): (() => void) =>
+    subscribe('presenter:sync-code', (code) => callback(code as string)),
+  onPresenterArtifactFrame: (callback: (base64: string) => void): (() => void) =>
+    subscribe('presenter:artifact-frame', (base64) => callback(base64 as string)),
 
   // File watcher
-  onFileChanged: (callback: (filePath: string, content: string) => void): void => {
-    ipcRenderer.on('fs:file-changed', (_event, filePath: string, content: string) => {
-      callback(filePath, content)
-    })
-  },
+  onFileChanged: (callback: (filePath: string, content: string) => void): (() => void) =>
+    subscribe('fs:file-changed', (filePath, content) =>
+      callback(filePath as string, content as string)
+    ),
 
   // Native execution streaming
-  onExecutionOutput: (callback: (data: string) => void): void => {
-    ipcRenderer.on('exec:output', (_event, data: string) => callback(data))
-  },
-  onExecutionError: (callback: (data: string) => void): void => {
-    ipcRenderer.on('exec:error', (_event, data: string) => callback(data))
-  },
-  onExecutionDone: (callback: (result: ExecutionResult) => void): void => {
-    ipcRenderer.on('exec:done', (_event, result: ExecutionResult) => callback(result))
-  },
+  onExecutionOutput: (callback: (data: string) => void): (() => void) =>
+    subscribe('exec:output', (data) => callback(data as string)),
+  onExecutionError: (callback: (data: string) => void): (() => void) =>
+    subscribe('exec:error', (data) => callback(data as string)),
+  onExecutionDone: (callback: (result: ExecutionResult) => void): (() => void) =>
+    subscribe('exec:done', (result) => callback(result as ExecutionResult)),
 
   // Artifacts
   openInSystemApp: (filePath: string): Promise<void> =>
@@ -407,10 +460,26 @@ const api = {
     actionMode: 'auto' | 'ask',
     onEvent: (event: ChatStreamEvent) => void
   ): Promise<unknown[]> => {
-    const channel = `chat:stream-${Date.now()}`
-    ipcRenderer.on(channel, (_event, data: ChatStreamEvent) => onEvent(data))
-    return ipcRenderer.invoke('chat:send-message', messages, snapshot, actionMode, channel)
+    const channel = makeChannel('chat:stream-')
+    let unsubscribed = false
+    const cleanup = (): void => {
+      if (unsubscribed) return
+      unsubscribed = true
+      unsubscribe()
+    }
+    const unsubscribe = subscribe(channel, (data) => {
+      const evt = data as ChatStreamEvent
+      onEvent(evt)
+      // `done` is the terminal event of a chat turn.
+      if (evt?.type === 'done') cleanup()
+    })
+    return ipcRenderer.invoke('chat:send-message', messages, snapshot, actionMode, channel).then(
+      (result) => { setTimeout(cleanup, 0); return result },
+      (err) => { cleanup(); throw err }
+    )
   },
+  cancelAI: (): Promise<void> =>
+    ipcRenderer.invoke('ai:cancel'),
   chatConfirmAction: (toolCallId: string, approved: boolean): Promise<void> =>
     ipcRenderer.invoke('chat:confirm-action', toolCallId, approved),
 

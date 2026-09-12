@@ -1,8 +1,16 @@
 import { ipcMain } from 'electron'
 import { writeFile, readFile, readdir, stat, mkdir } from 'fs/promises'
 import { join, extname } from 'path'
-import { ImageGenerationService, type ImageProvider } from '../services/gemini-image-service'
+import { ImageGenerationService, isImageProvider, type ImageProvider } from '../services/gemini-image-service'
 import { autoSave } from '../services/lecta-file'
+import { assertInsideOpenDeck } from '../services/deck-roots'
+
+/** Renderer input is untrusted: accept only known provider ids (undefined = current provider). */
+function requireImageProvider(provider: unknown): ImageProvider | undefined {
+  if (provider === undefined || provider === null || provider === '') return undefined
+  if (!isImageProvider(provider)) throw new Error(`Unknown image provider "${String(provider)}"`)
+  return provider
+}
 
 let imageService: ImageGenerationService | null = null
 
@@ -30,17 +38,18 @@ export function registerGeminiImageHandlers(): void {
       provider?: ImageProvider
     ): Promise<string> => {
       const service = getImageService()
-      const result = await service.generateImage({ prompt, aspectRatio, imageSize, provider })
+      const deckRoot = assertInsideOpenDeck(rootPath)
+      const result = await service.generateImage({ prompt, aspectRatio, imageSize, provider: requireImageProvider(provider) })
 
       const ext = result.mimeType === 'image/jpeg' ? '.jpg' : '.png'
       const fileName = `${Date.now()}-ai-generated${ext}`
-      const imagesDir = join(rootPath, 'images')
+      const imagesDir = join(deckRoot, 'images')
       await mkdir(imagesDir, { recursive: true })
 
       const buffer = Buffer.from(result.base64, 'base64')
       await writeFile(join(imagesDir, fileName), buffer)
 
-      await autoSave(rootPath)
+      await autoSave(deckRoot)
 
       return `images/${fileName}`
     }
@@ -59,28 +68,30 @@ export function registerGeminiImageHandlers(): void {
       provider?: ImageProvider
     ): Promise<string> => {
       const service = getImageService()
+      const deckRoot = assertInsideOpenDeck(rootPath)
+      const sourceImage = assertInsideOpenDeck(imagePath)
 
-      const imageBuffer = await readFile(imagePath)
+      const imageBuffer = await readFile(sourceImage)
       const imageBase64 = imageBuffer.toString('base64')
 
-      const ext = extname(imagePath).toLowerCase()
+      const ext = extname(sourceImage).toLowerCase()
       const mimeMap: Record<string, string> = {
         '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
         '.gif': 'image/gif', '.webp': 'image/webp'
       }
       const imageMimeType = mimeMap[ext] || 'image/png'
 
-      const result = await service.editImage({ prompt, imageBase64, imageMimeType, aspectRatio, provider })
+      const result = await service.editImage({ prompt, imageBase64, imageMimeType, aspectRatio, provider: requireImageProvider(provider) })
 
       const outExt = result.mimeType === 'image/jpeg' ? '.jpg' : '.png'
       const fileName = `${Date.now()}-ai-edited${outExt}`
-      const imagesDir = join(rootPath, 'images')
+      const imagesDir = join(deckRoot, 'images')
       await mkdir(imagesDir, { recursive: true })
 
       const buffer = Buffer.from(result.base64, 'base64')
       await writeFile(join(imagesDir, fileName), buffer)
 
-      await autoSave(rootPath)
+      await autoSave(deckRoot)
 
       return `images/${fileName}`
     }
@@ -90,7 +101,7 @@ export function registerGeminiImageHandlers(): void {
   ipcMain.handle(
     'gemini:has-api-key',
     async (_event, provider?: ImageProvider): Promise<boolean> => {
-      return getImageService().hasApiKey(provider)
+      return getImageService().hasApiKey(requireImageProvider(provider))
     }
   )
 
@@ -113,7 +124,9 @@ export function registerGeminiImageHandlers(): void {
   ipcMain.handle(
     'gemini:set-provider',
     async (_event, provider: ImageProvider): Promise<void> => {
-      getImageService().setProvider(provider)
+      const validated = requireImageProvider(provider)
+      if (!validated) throw new Error('Image provider is required')
+      getImageService().setProvider(validated)
     }
   )
 
@@ -121,7 +134,7 @@ export function registerGeminiImageHandlers(): void {
   ipcMain.handle(
     'gemini:list-images',
     async (_event, rootPath: string): Promise<{ relativePath: string; timestamp: number; size: number }[]> => {
-      const imagesDir = join(rootPath, 'images')
+      const imagesDir = join(assertInsideOpenDeck(rootPath), 'images')
       try {
         const files = await readdir(imagesDir)
         const imageExts = new Set(['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.bmp'])

@@ -1,5 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'child_process'
 import { app } from 'electron'
+import { mkdirSync } from 'fs'
+import { join } from 'path'
 import { createInterface, type Interface } from 'readline'
 import { loadCodexBinPath } from './env-loader'
 import { DEFAULT_CODEX_MODEL } from '../../../packages/shared/src/constants'
@@ -112,7 +114,34 @@ type DynamicToolHandler = (call: CodexDynamicToolCall) => Promise<CodexDynamicTo
 type ExitHandler = (reason: Error) => void
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000
-const TURN_TIMEOUT_MS = 180_000
+/** Whole-turn bound (turn/start → turn/completed). Override with LECTA_CODEX_TURN_TIMEOUT_MS or per call. */
+const DEFAULT_TURN_TIMEOUT_MS = 180_000
+
+function resolveTurnTimeout(override?: number): number {
+  if (override && override > 0) return override
+  const fromEnv = Number(process.env.LECTA_CODEX_TURN_TIMEOUT_MS)
+  return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : DEFAULT_TURN_TIMEOUT_MS
+}
+
+/**
+ * Codex threads run in a scratch directory, never in the deck folder: decks
+ * can carry per-deck `.env` files with API keys and Codex has a shell tool.
+ */
+function getCodexScratchDir(): string {
+  const dir = join(app.getPath('temp'), 'lecta-codex')
+  try {
+    mkdirSync(dir, { recursive: true })
+  } catch {
+    // Fall through — Codex reports a clear error if the directory is unusable.
+  }
+  return dir
+}
+
+interface ActiveTurn {
+  threadId: string
+  turnId: string | null
+  abort: (reason: Error) => void
+}
 
 export class CodexAppServerClient {
   private proc: ChildProcessWithoutNullStreams | null = null
@@ -123,6 +152,7 @@ export class CodexAppServerClient {
   private notificationHandlers = new Map<string, Set<NotificationHandler>>()
   private dynamicToolHandlers = new Map<string, DynamicToolHandler>()
   private exitHandlers = new Set<ExitHandler>()
+  private activeTurns = new Map<string, ActiveTurn>()
 
   async start(): Promise<void> {
     if (this.proc) return
@@ -153,12 +183,20 @@ export class CodexAppServerClient {
     })
     child.once('error', (err) => this.handleExit(new Error(this.formatCodexStartError(err))))
     child.once('close', () => this.handleExit())
+    // Without this, a missing binary or EPIPE on stdin is an uncaught exception in the main process.
+    child.stdin.on('error', (err) => this.handleExit(new Error(`Codex app-server stdin error: ${err.message}`)))
 
     const spawnError = new Promise<never>((_resolve, reject) => {
       child.once('error', (err) => {
         reject(new Error(this.formatCodexStartError(err)))
       })
     })
+    const spawned = new Promise<void>((resolve) => {
+      child.once('spawn', () => resolve())
+    })
+
+    // Only write to stdin once the process actually exists.
+    await Promise.race([spawned, spawnError])
 
     await Promise.race([
       this.request('initialize', {
@@ -239,15 +277,26 @@ export class CodexAppServerClient {
     }
   }
 
+  /** Write one JSON-RPC line; returns false when the process is gone or stdin is not writable. */
+  private writeLine(payload: unknown): boolean {
+    const stdin = this.proc?.stdin
+    if (!stdin || stdin.destroyed || !stdin.writable) return false
+    try {
+      stdin.write(`${JSON.stringify(payload)}\n`)
+      return true
+    } catch (err) {
+      this.handleExit(new Error(`Codex app-server stdin write failed: ${(err as Error).message}`))
+      return false
+    }
+  }
+
   private writeResponse(id: number, result: unknown): void {
-    if (!this.proc) return
-    this.proc.stdin.write(`${JSON.stringify({ id, result })}\n`)
+    this.writeLine({ id, result })
   }
 
   private writeError(id: number, err: unknown): void {
-    if (!this.proc) return
     const message = err instanceof Error ? err.message : String(err)
-    this.proc.stdin.write(`${JSON.stringify({ id, error: { code: -32000, message } })}\n`)
+    this.writeLine({ id, error: { code: -32000, message } })
   }
 
   private handleExit(reason = new Error('Codex app-server exited')): void {
@@ -272,6 +321,11 @@ export class CodexAppServerClient {
     }
     this.pending.clear()
     this.dynamicToolHandlers.clear()
+
+    for (const turn of [...this.activeTurns.values()]) {
+      turn.abort(reason)
+    }
+    this.activeTurns.clear()
 
     const exitHandlers = [...this.exitHandlers]
     this.exitHandlers.clear()
@@ -314,14 +368,73 @@ export class CodexAppServerClient {
       }, timeoutMs)
 
       this.pending.set(id, { resolve: resolve as (value: unknown) => void, reject, timer })
-      this.proc?.stdin.write(`${JSON.stringify(message)}\n`)
+      if (!this.writeLine(message)) {
+        clearTimeout(timer)
+        this.pending.delete(id)
+        reject(new Error('Codex app-server is not accepting input'))
+      }
     })
   }
 
   notify(method: string, params?: unknown): void {
     if (!this.proc) return
     const message = params === undefined ? { method } : { method, params }
-    this.proc.stdin.write(`${JSON.stringify(message)}\n`)
+    this.writeLine(message)
+  }
+
+  /**
+   * Interrupt every in-flight turn: sends `turn/interrupt` to Codex and rejects
+   * the awaiting callers. Safe to call when nothing is running.
+   */
+  async cancelTurn(): Promise<void> {
+    const turns = [...this.activeTurns.values()]
+    this.activeTurns.clear()
+    await Promise.all(turns.map(async (turn) => {
+      turn.abort(new Error('Codex turn cancelled'))
+      if (turn.turnId) {
+        try {
+          await this.request('turn/interrupt', { threadId: turn.threadId, turnId: turn.turnId }, 5_000)
+        } catch (err) {
+          console.warn('[codex app-server] turn/interrupt failed:', (err as Error).message)
+        }
+      }
+    }))
+  }
+
+  /**
+   * Bound a turn with a timeout and register it for cancellation. Returns the
+   * promise to await plus a `finish` cleanup to call when the turn is over.
+   */
+  private trackTurn(threadId: string, turnCompleted: Promise<void>, timeoutMs: number): {
+    bounded: Promise<void>
+    setTurnId: (turnId: string) => void
+    finish: () => void
+  } {
+    let abort: (reason: Error) => void = () => {}
+    const aborted = new Promise<never>((_resolve, reject) => {
+      abort = reject
+    })
+    const active: ActiveTurn = { threadId, turnId: null, abort }
+    this.activeTurns.set(threadId, active)
+
+    const timer = setTimeout(() => {
+      this.activeTurns.delete(threadId)
+      abort(new Error(`Codex turn timed out after ${Math.round(timeoutMs / 1000)}s`))
+      if (active.turnId) {
+        this.request('turn/interrupt', { threadId, turnId: active.turnId }, 5_000).catch((err) => {
+          console.warn('[codex app-server] turn/interrupt failed:', (err as Error).message)
+        })
+      }
+    }, timeoutMs)
+
+    return {
+      bounded: Promise.race([turnCompleted, aborted]),
+      setTurnId: (turnId) => { active.turnId = turnId },
+      finish: () => {
+        clearTimeout(timer)
+        this.activeTurns.delete(threadId)
+      },
+    }
   }
 
   async accountRead(refreshToken = false): Promise<CodexAccountReadResponse> {
@@ -349,12 +462,12 @@ export class CodexAppServerClient {
   async streamText(params: {
     system: string
     userMessage: string
-    cwd?: string
     model?: string
     onChunk: (chunk: string) => void
     dynamicTools?: CodexDynamicToolSpec[]
     onDynamicToolCall?: DynamicToolHandler
     finalInstruction?: string | null
+    turnTimeoutMs?: number
   }): Promise<string> {
     await this.start()
     await this.ensureChatGPTAccount()
@@ -362,7 +475,7 @@ export class CodexAppServerClient {
     const model = params.model || DEFAULT_CODEX_MODEL
     const threadResult = await this.request<CodexThreadStartResponse>('thread/start', {
       ...(model ? { model } : {}),
-      cwd: params.cwd || process.cwd(),
+      cwd: getCodexScratchDir(),
       approvalPolicy: 'never',
       sandbox: 'read-only',
       experimentalRawEvents: false,
@@ -431,23 +544,33 @@ export class CodexAppServerClient {
       ? `${params.system}\n\n${params.userMessage}\n\n${finalInstruction}`
       : `${params.system}\n\n${params.userMessage}`
 
-    try {
-      const turnResult = await this.request<CodexTurnStartResponse>(
-        'turn/start',
-        {
-          threadId,
-          input: [{ type: 'text', text: prompt, text_elements: [] }],
-          approvalPolicy: 'never',
-          sandboxPolicy: { type: 'readOnly', networkAccess: false },
-          ...(model ? { model } : {}),
-        },
-        TURN_TIMEOUT_MS
-      )
-      activeTurnId = turnResult.turn.id
+    const turnTimeoutMs = resolveTurnTimeout(params.turnTimeoutMs)
+    const tracked = this.trackTurn(threadId, turnCompleted, turnTimeoutMs)
+    // Avoid an unhandled rejection if the turn fails before we await it.
+    turnCompleted.catch(() => {})
 
-      await turnCompleted
+    try {
+      const turnResult = await Promise.race([
+        this.request<CodexTurnStartResponse>(
+          'turn/start',
+          {
+            threadId,
+            input: [{ type: 'text', text: prompt, text_elements: [] }],
+            approvalPolicy: 'never',
+            sandboxPolicy: { type: 'readOnly', networkAccess: false },
+            ...(model ? { model } : {}),
+          },
+          turnTimeoutMs
+        ),
+        tracked.bounded.then(() => { throw new Error('Codex turn completed before it was acknowledged') }),
+      ])
+      activeTurnId = turnResult.turn.id
+      tracked.setTurnId(turnResult.turn.id)
+
+      await tracked.bounded
       return fullText || completedText
     } finally {
+      tracked.finish()
       this.dynamicToolHandlers.delete(threadId)
       offExit()
       offCompleted()
@@ -459,10 +582,10 @@ export class CodexAppServerClient {
   async generateImage(params: {
     prompt: string
     aspectRatio?: string
-    cwd?: string
     model?: string
     imageBase64?: string
     imageMimeType?: string
+    turnTimeoutMs?: number
   }): Promise<CodexImageResult> {
     await this.start()
     await this.ensureChatGPTAccount()
@@ -470,7 +593,7 @@ export class CodexAppServerClient {
     const model = params.model || DEFAULT_CODEX_MODEL
     const threadResult = await this.request<CodexThreadStartResponse>('thread/start', {
       ...(model ? { model } : {}),
-      cwd: params.cwd || process.cwd(),
+      cwd: getCodexScratchDir(),
       approvalPolicy: 'never',
       sandbox: 'read-only',
       experimentalRawEvents: false,
@@ -528,26 +651,36 @@ export class CodexAppServerClient {
       input.push({ type: 'image', url: `data:${mimeType};base64,${params.imageBase64}` })
     }
 
-    try {
-      const turnResult = await this.request<CodexTurnStartResponse>(
-        'turn/start',
-        {
-          threadId,
-          input,
-          approvalPolicy: 'never',
-          sandboxPolicy: { type: 'readOnly', networkAccess: true },
-          ...(model ? { model } : {}),
-        },
-        TURN_TIMEOUT_MS
-      )
-      activeTurnId = turnResult.turn.id
+    const turnTimeoutMs = resolveTurnTimeout(params.turnTimeoutMs)
+    const tracked = this.trackTurn(threadId, turnCompleted, turnTimeoutMs)
+    turnCompleted.catch(() => {})
 
-      await turnCompleted
+    try {
+      const turnResult = await Promise.race([
+        this.request<CodexTurnStartResponse>(
+          'turn/start',
+          {
+            threadId,
+            input,
+            approvalPolicy: 'never',
+            // Image generation is a built-in Codex tool; the sandboxed shell does not need the network.
+            sandboxPolicy: { type: 'readOnly', networkAccess: false },
+            ...(model ? { model } : {}),
+          },
+          turnTimeoutMs
+        ),
+        tracked.bounded.then(() => { throw new Error('Codex turn completed before it was acknowledged') }),
+      ])
+      activeTurnId = turnResult.turn.id
+      tracked.setTurnId(turnResult.turn.id)
+
+      await tracked.bounded
       if (!imageResult) {
         throw new Error('Codex completed without returning an image.')
       }
       return imageResult
     } finally {
+      tracked.finish()
       offExit()
       offCompleted()
       offItemCompleted()

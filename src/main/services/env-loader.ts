@@ -157,7 +157,9 @@ const PROVIDER_KEY_MAP: Record<string, { envVar: string; settingsField: string }
   xai:          { envVar: 'XAI_API_KEY',           settingsField: 'xaiApiKey' },
   perplexity:   { envVar: 'PERPLEXITY_API_KEY',    settingsField: 'perplexityApiKey' },
   ollama:       { envVar: 'OLLAMA_BASE_URL',       settingsField: 'ollamaBaseUrl' },
-  nanobanana:   { envVar: 'NANOBANANA_API_KEY',    settingsField: 'nanobananaApiKey' },
+  // Note: `nanobananaApiKey` is still accepted by the settings schema for
+  // backwards compatibility, but there is no Nano Banana provider — "Nano
+  // Banana" is Google's image model, reached through GEMINI_API_KEY.
 }
 
 /**

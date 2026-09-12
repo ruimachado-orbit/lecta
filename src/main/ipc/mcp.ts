@@ -9,9 +9,15 @@ import {
 } from '../services/mcp-manager'
 import { loadSettings } from './settings'
 
+/**
+ * These handlers take no filesystem paths from the renderer — every path used
+ * here (the bundled server entry, Claude Desktop's config) is derived in the
+ * main process. Any path argument added later must go through
+ * `assertInsideOpenDeck` from ../services/deck-roots before it is used.
+ */
 export function registerMcpHandlers(): void {
-  ipcMain.handle('mcp:toggle', async (_event, enabled: boolean) => {
-    if (enabled) {
+  ipcMain.handle('mcp:toggle', async (_event, enabled: unknown) => {
+    if (enabled === true) {
       startMcpServer()
     } else {
       stopMcpServer()

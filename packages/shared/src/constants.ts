@@ -74,9 +74,26 @@ export const CODEX_MODELS: AIModelDef[] = [
   { id: 'gpt-5.3-codex-spark', name: 'GPT-5.3 Codex Spark', provider: 'openai', capabilities: ['text', 'code', 'image'] },
 ]
 
-export const OPENAI_API_MODELS: AIModelDef[] = CODEX_MODELS
+/**
+ * Models available through the OpenAI API (API-key mode, Chat Completions).
+ * The `*-codex*` ids are only reachable through the Codex CLI, so they are
+ * deliberately not part of this catalog.
+ */
+export const OPENAI_API_MODELS: AIModelDef[] = CODEX_MODELS.filter((m) => !m.id.includes('codex'))
 
 export const DEFAULT_CODEX_MODEL = CODEX_MODELS[0].id
+
+/** Prefix that explicitly routes a model id to a local Ollama instance (e.g. `ollama:llama3.2`). */
+export const OLLAMA_MODEL_PREFIX = 'ollama:'
+
+export function isOllamaPrefixedModel(modelId: string): boolean {
+  return modelId.startsWith(OLLAMA_MODEL_PREFIX)
+}
+
+/** Strip the `ollama:` prefix so the id can be sent to the Ollama API. */
+export function stripOllamaPrefix(modelId: string): string {
+  return isOllamaPrefixedModel(modelId) ? modelId.slice(OLLAMA_MODEL_PREFIX.length) : modelId
+}
 
 export const AI_PROVIDERS: AIProviderDef[] = [
   {
@@ -86,9 +103,11 @@ export const AI_PROVIDERS: AIProviderDef[] = [
     keyEnvVar: 'ANTHROPIC_API_KEY',
     keySettingsField: 'anthropicApiKey',
     models: [
+      { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', provider: 'anthropic', capabilities: ['text', 'code'] },
       { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', provider: 'anthropic', capabilities: ['text', 'code'] },
+      { id: 'claude-opus-4-1-20250805', name: 'Claude Opus 4.1', provider: 'anthropic', capabilities: ['text', 'code'] },
       { id: 'claude-opus-4-20250514', name: 'Claude Opus 4', provider: 'anthropic', capabilities: ['text', 'code'] },
-      { id: 'claude-haiku-4-20250414', name: 'Claude Haiku 4', provider: 'anthropic', capabilities: ['text', 'code'] },
+      { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', provider: 'anthropic', capabilities: ['text', 'code'] },
     ]
   },
   {
@@ -180,6 +199,9 @@ export function getAllModels(): AIModelDef[] {
 export function getProviderForModel(modelId: string): AIProviderDef | undefined {
   if (CODEX_MODELS.some((m) => m.id === modelId)) {
     return AI_PROVIDERS.find((p) => p.id === 'openai')
+  }
+  if (isOllamaPrefixedModel(modelId)) {
+    return AI_PROVIDERS.find((p) => p.id === 'ollama')
   }
   return AI_PROVIDERS.find((p) => p.models.some((m) => m.id === modelId))
 }

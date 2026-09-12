@@ -1,8 +1,100 @@
-import { ipcMain, BrowserWindow } from 'electron'
+import { ipcMain, type IpcMainInvokeEvent, type WebContents } from 'electron'
 import { getSharedAIService } from '../services/ai-singleton'
 
 function getAIService() {
   return getSharedAIService()
+}
+
+/**
+ * Send stream chunks back to the window that made the request — never to the
+ * focused one, which may be the presenter window or another app entirely.
+ */
+function makeSender(event: IpcMainInvokeEvent, channel: string): (payload: unknown) => void {
+  const sender: WebContents = event.sender
+  return (payload: unknown): void => {
+    if (sender.isDestroyed()) return
+    sender.send(channel, payload)
+  }
+}
+
+/**
+ * Run a streaming handler so the renderer ALWAYS receives exactly one terminal
+ * event (`[DONE]` or `[ERROR]…`), including when the handler throws.
+ */
+async function runStream(
+  event: IpcMainInvokeEvent,
+  channel: string,
+  run: (emit: (chunk: string) => void) => Promise<unknown>
+): Promise<void> {
+  const send = makeSender(event, channel)
+  let terminated = false
+  const terminate = (payload: string): void => {
+    if (terminated) return
+    terminated = true
+    send(payload)
+  }
+
+  try {
+    await run((chunk: string) => {
+      if (!terminated) send(chunk)
+    })
+    terminate('[DONE]')
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    terminate(`[ERROR]${msg}`)
+  }
+}
+
+const PDF_EXTRACTION_TIMEOUT_MS = 30_000
+
+function withTimeout<T>(work: Promise<T>, ms: number, message: string): Promise<T> {
+  let timer: NodeJS.Timeout
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms)
+  })
+  return Promise.race([work, timeout]).finally(() => clearTimeout(timer)) as Promise<T>
+}
+
+/**
+ * Extract text from a PDF with pdfjs running in this process. Shelling out to
+ * `node` is not an option: packaged users have no Node on PATH, and a failure
+ * must be a real error rather than a placeholder string fed to the model.
+ */
+async function extractPdfText(filePath: string): Promise<string> {
+  const { readFile } = await import('fs/promises')
+  const data = new Uint8Array(await readFile(filePath))
+
+  let pdfjs: typeof import('pdfjs-dist/legacy/build/pdf.mjs')
+  try {
+    pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
+  } catch (err) {
+    throw new Error(`PDF support is unavailable (pdfjs failed to load): ${(err as Error).message}`)
+  }
+
+  const doc = await pdfjs.getDocument({
+    data,
+    // No DOM in the main process, and no eval under the app's CSP posture.
+    isEvalSupported: false,
+    useSystemFonts: false,
+    disableFontFace: true,
+  }).promise
+
+  try {
+    const pages: string[] = []
+    for (let i = 1; i <= doc.numPages; i++) {
+      const page = await doc.getPage(i)
+      const content = await page.getTextContent()
+      pages.push(
+        content.items
+          .map((item) => ('str' in item ? item.str : ''))
+          .join(' ')
+      )
+      page.cleanup()
+    }
+    return pages.join('\n')
+  } finally {
+    await doc.destroy()
+  }
 }
 
 export async function setAIDeckPath(deckPath: string): Promise<void> {
@@ -27,7 +119,7 @@ export function registerAiHandlers(): void {
   ipcMain.handle(
     'ai:stream-notes',
     async (
-      _event,
+      event,
       slideContent: string,
       codeContent: string | null,
       deckTitle: string,
@@ -35,25 +127,9 @@ export function registerAiHandlers(): void {
       responseChannel: string
     ): Promise<void> => {
       const service = getAIService()
-      const window = BrowserWindow.getFocusedWindow()
-
-      try {
-        await service.streamNotes(
-          slideContent,
-          codeContent,
-          deckTitle,
-          slideIndex,
-          (chunk: string) => {
-            window?.webContents.send(responseChannel, chunk)
-          }
-        )
-
-        // Signal completion
-        window?.webContents.send(responseChannel, '[DONE]')
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        window?.webContents.send(responseChannel, `[ERROR]${msg}`)
-      }
+      await runStream(event, responseChannel, (emit) =>
+        service.streamNotes(slideContent, codeContent, deckTitle, slideIndex, emit)
+      )
     }
   )
 
@@ -172,37 +248,23 @@ export function registerAiHandlers(): void {
   ipcMain.handle(
     'ai:run-prompt',
     async (
-      _event,
+      event,
       prompt: string,
       slideContent: string,
       deckTitle: string,
       responseChannel: string
     ): Promise<void> => {
       const service = getAIService()
-      const window = BrowserWindow.getFocusedWindow()
-
-      try {
-        await service.runPrompt(
-          prompt,
-          slideContent,
-          deckTitle,
-          (chunk: string) => {
-            window?.webContents.send(responseChannel, chunk)
-          }
-        )
-
-        window?.webContents.send(responseChannel, '[DONE]')
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        window?.webContents.send(responseChannel, `[ERROR]${msg}`)
-      }
+      await runStream(event, responseChannel, (emit) =>
+        service.runPrompt(prompt, slideContent, deckTitle, emit)
+      )
     }
   )
 
   ipcMain.handle(
     'ai:generate-full-presentation',
     async (
-      _event,
+      event,
       prompt: string,
       title: string,
       sourceContent: string | null,
@@ -210,7 +272,7 @@ export function registerAiHandlers(): void {
       progressChannel: string
     ): Promise<{ slides: { id: string; markdown: string; layout: string }[]; title: string }> => {
       const service = getAIService()
-      const window = BrowserWindow.getFocusedWindow()
+      const sendProgress = makeSender(event, progressChannel)
 
       console.log('[ai:generate-full-presentation] prompt length:', prompt.length, 'sourceContent length:', sourceContent?.length ?? 0, 'slideCount:', slideCount)
       try {
@@ -220,7 +282,7 @@ export function registerAiHandlers(): void {
           sourceContent,
           slideCount,
           (status: string, slideIndex: number, total: number) => {
-            window?.webContents.send(progressChannel, { status, slideIndex, total })
+            sendProgress({ status, slideIndex, total })
           }
         )
         console.log('[ai:generate-full-presentation] result slides:', result.slides?.length ?? 0)
@@ -239,49 +301,24 @@ export function registerAiHandlers(): void {
       const ext = filePath.toLowerCase().split('.').pop()
 
       if (ext === 'pdf') {
-        try {
-          const { execFileSync } = await import('child_process')
-          const { join } = await import('path')
-          const { app } = await import('electron')
-          const appPath = app.getAppPath()
-          const projectRoot = appPath.endsWith('.asar')
-            ? join(appPath, '..', '..')
-            : appPath
-          const script = [
-            'const fs = require("fs");',
-            'const path = require("path");',
-            'const root = process.argv[1];',
-            'const pdfjsLib = require(path.join(root, "node_modules", "pdfjs-dist", "legacy", "build", "pdf.mjs"));',
-            'const workerPath = path.join(root, "node_modules", "pdfjs-dist", "legacy", "build", "pdf.worker.mjs");',
-            'pdfjsLib.GlobalWorkerOptions.workerSrc = workerPath;',
-            'async function main() {',
-            '  const data = new Uint8Array(fs.readFileSync(process.argv[2]));',
-            '  const doc = await pdfjsLib.getDocument({ data }).promise;',
-            '  let text = "";',
-            '  for (let i = 1; i <= doc.numPages; i++) {',
-            '    const page = await doc.getPage(i);',
-            '    const content = await page.getTextContent();',
-            '    text += content.items.map(item => item.str).join(" ") + "\\n";',
-            '  }',
-            '  process.stdout.write(text);',
-            '}',
-            'main().catch(e => { process.stderr.write(e.message); process.exit(1); });'
-          ].join('\n')
-          const result = execFileSync('node', ['--eval', script, projectRoot, filePath], {
-            maxBuffer: 10 * 1024 * 1024,
-            timeout: 30000,
-            encoding: 'utf-8'
-          })
-          return result.trim().slice(0, 50000)
-        } catch (err) {
-          console.error('[pdf] Error:', err instanceof Error ? err.message : err)
-          return '[Could not read PDF file]'
-        }
+        const text = await withTimeout(
+          extractPdfText(filePath),
+          PDF_EXTRACTION_TIMEOUT_MS,
+          `Reading the PDF timed out after ${PDF_EXTRACTION_TIMEOUT_MS / 1000}s.`
+        )
+        return text.trim().slice(0, 50000)
       }
 
       // For text-based files (md, txt, csv, json, etc.)
       const content = await readFile(filePath, 'utf-8')
       return content.slice(0, 50000)
+    }
+  )
+
+  ipcMain.handle(
+    'ai:cancel',
+    async (): Promise<void> => {
+      await getAIService().cancelActiveGeneration()
     }
   )
 
@@ -296,7 +333,7 @@ export function registerAiHandlers(): void {
   ipcMain.handle(
     'ai:stream-article',
     async (
-      _event,
+      event,
       deckTitle: string,
       author: string,
       slidesContent: { title: string; markdown: string; code: string | null; notes: string | null }[],
@@ -304,24 +341,9 @@ export function registerAiHandlers(): void {
       responseChannel: string
     ): Promise<void> => {
       const service = getAIService()
-      const window = BrowserWindow.getFocusedWindow()
-
-      try {
-        await service.streamArticle(
-          deckTitle,
-          author,
-          slidesContent,
-          rules,
-          (chunk: string) => {
-            window?.webContents.send(responseChannel, chunk)
-          }
-        )
-
-        window?.webContents.send(responseChannel, '[DONE]')
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        window?.webContents.send(responseChannel, `[ERROR]${msg}`)
-      }
+      await runStream(event, responseChannel, (emit) =>
+        service.streamArticle(deckTitle, author, slidesContent, rules, emit)
+      )
     }
   )
 }

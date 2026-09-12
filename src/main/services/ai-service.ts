@@ -2,9 +2,9 @@ import Anthropic from '@anthropic-ai/sdk'
 import OpenAI from 'openai'
 import { GoogleGenAI } from '@google/genai'
 import { loadAnthropicKey, loadOpenAIKey, loadGeminiKey, loadAIModel, loadProviderKey, getProviderKeySource, loadOpenAIAuthMode } from './env-loader'
-import { DEFAULT_AI_MODEL, getProviderForModel, type AIProviderID } from '../../../packages/shared/src/constants'
+import { DEFAULT_AI_MODEL, getProviderForModel, isOllamaPrefixedModel, stripOllamaPrefix, type AIProviderID } from '../../../packages/shared/src/constants'
 import type { PresentationSnapshot, ChatStreamEvent } from '../../../packages/shared/src/types/chat'
-import { getToolSchemas, findTool, type ToolExecutionContext } from './chat-agent-tools'
+import { getToolSchemas, findTool, wrapDeckContent, DECK_CONTENT_NOTICE, type ToolExecutionContext } from './chat-agent-tools'
 import {
   getCodexAppServerClient,
   type CodexDynamicToolCall,
@@ -54,12 +54,39 @@ interface GenerationResult {
   text: string
 }
 
+/** Cap on the chat history forwarded to the model (the system prompt is rebuilt every turn). */
+const MAX_HISTORY_MESSAGES = 40
+const MAX_HISTORY_CHARS = 60_000
+
+/**
+ * Keep only the most recent messages so the request cannot grow without bound.
+ * The result always starts with a `user` message (required by Anthropic and
+ * expected by the other providers).
+ */
+export function capChatHistory<T extends { role: string; content: unknown }>(messages: T[]): T[] {
+  const sizeOf = (m: T): number =>
+    typeof m.content === 'string' ? m.content.length : JSON.stringify(m.content ?? '').length
+
+  let kept = messages.slice(-MAX_HISTORY_MESSAGES)
+  let total = kept.reduce((sum, m) => sum + sizeOf(m), 0)
+  while (kept.length > 1 && total > MAX_HISTORY_CHARS) {
+    total -= sizeOf(kept[0])
+    kept = kept.slice(1)
+  }
+  while (kept.length > 1 && kept[0].role !== 'user') {
+    kept = kept.slice(1)
+  }
+  return kept
+}
+
 export class AIService {
   private anthropicClient: Anthropic | null = null
   private openaiClient: OpenAI | null = null
   private geminiClient: GoogleGenAI | null = null
   private openaiCompatClients: Map<string, OpenAI> = new Map() // Mistral, Meta, xAI, Perplexity
   private model: string = DEFAULT_AI_MODEL
+  /** Model ids reported by a running Ollama instance (see fetchOllamaModels). */
+  private knownOllamaModels = new Set<string>()
 
   async setDeckPath(deckPath: string): Promise<void> {
     currentDeckPath = deckPath
@@ -84,10 +111,30 @@ export class AIService {
     this.openaiCompatClients.clear()
   }
 
-  private getProviderForCurrentModel(): AIProviderID {
+  /**
+   * Resolve the provider for the selected model. Unknown ids are an error:
+   * only ids from the static catalog, ids returned by `fetchOllamaModels()`,
+   * or ids explicitly prefixed with `ollama:` are accepted.
+   */
+  private async getProviderForCurrentModel(): Promise<AIProviderID> {
     const provider = getProviderForModel(this.model)
-    // If not found in static providers, assume it's an Ollama model
-    return provider?.id ?? 'ollama'
+    if (provider) return provider.id
+    if (isOllamaPrefixedModel(this.model)) return 'ollama'
+    if (this.knownOllamaModels.has(this.model)) return 'ollama'
+    // The id may be an Ollama model selected in a previous session — refresh the list once.
+    await this.fetchOllamaModels()
+    if (this.knownOllamaModels.has(this.model)) return 'ollama'
+    throw new Error(`Unknown model "${this.model}"`)
+  }
+
+  /** Model id as sent on the wire (strips the `ollama:` routing prefix). */
+  private requestModelId(provider: AIProviderID): string {
+    return provider === 'ollama' ? stripOllamaPrefix(this.model) : this.model
+  }
+
+  /** Abort any in-flight Codex turn. Provider SDK requests are not cancellable here. */
+  async cancelActiveGeneration(): Promise<void> {
+    await getCodexAppServerClient().cancelTurn()
   }
 
   private async shouldUseCodexForOpenAI(): Promise<boolean> {
@@ -175,7 +222,7 @@ export class AIService {
     userMessage: string
     maxTokens: number
   }): Promise<GenerationResult> {
-    const provider = this.getProviderForCurrentModel()
+    const provider = await this.getProviderForCurrentModel()
 
     switch (provider) {
       case 'anthropic': {
@@ -199,10 +246,8 @@ export class AIService {
         const isReasoning = /^(o[1-9]|o\d+-mini)/.test(this.model)
         const response = await client.chat.completions.create({
           model: this.model,
-          ...(isReasoning
-            ? { max_completion_tokens: params.maxTokens }
-            : { max_tokens: params.maxTokens }
-          ),
+          // GPT-5 and o-series reject `max_tokens`; `max_completion_tokens` works for every Chat Completions model.
+          max_completion_tokens: params.maxTokens,
           messages: [
             // Reasoning models don't support system messages — merge into user
             ...(isReasoning
@@ -237,7 +282,7 @@ export class AIService {
       case 'ollama': {
         const client = await this.getOpenAICompatClient(provider)
         const response = await client.chat.completions.create({
-          model: this.model,
+          model: this.requestModelId(provider),
           max_tokens: params.maxTokens,
           messages: [
             { role: 'system', content: params.system },
@@ -258,7 +303,7 @@ export class AIService {
     maxTokens: number
     onChunk: (chunk: string) => void
   }): Promise<string> {
-    const provider = this.getProviderForCurrentModel()
+    const provider = await this.getProviderForCurrentModel()
     let full = ''
 
     switch (provider) {
@@ -288,10 +333,7 @@ export class AIService {
         const isReasoning = /^(o[1-9]|o\d+-mini)/.test(this.model)
         const stream = await client.chat.completions.create({
           model: this.model,
-          ...(isReasoning
-            ? { max_completion_tokens: params.maxTokens }
-            : { max_tokens: params.maxTokens }
-          ),
+          max_completion_tokens: params.maxTokens,
           messages: [
             ...(isReasoning
               ? [{ role: 'user' as const, content: `${params.system}\n\n${params.userMessage}` }]
@@ -340,7 +382,7 @@ export class AIService {
       case 'ollama': {
         const client = await this.getOpenAICompatClient(provider)
         const stream = await client.chat.completions.create({
-          model: this.model,
+          model: this.requestModelId(provider),
           max_tokens: params.maxTokens,
           messages: [
             { role: 'system', content: params.system },
@@ -387,7 +429,6 @@ export class AIService {
     return getCodexAppServerClient().streamText({
       system: params.system,
       userMessage: params.userMessage,
-      cwd: currentDeckPath ?? undefined,
       model: this.model,
       onChunk: params.onChunk,
       dynamicTools: params.dynamicTools,
@@ -777,25 +818,26 @@ Generate exactly ${slideCount} slides.`
     let raw = ''
     let slidesFound = 0
 
-    try {
-      await this.streamGenerate({
-        system: systemPrompt,
-        userMessage,
-        maxTokens: 16384,
-        onChunk: (chunk: string) => {
-          raw += chunk
-          const newCount = (raw.match(/"id"\s*:/g) || []).length
-          if (newCount > slidesFound) {
-            slidesFound = newCount
-            onProgress(`Generating slide ${slidesFound} of ${slideCount}...`, slidesFound, slideCount)
-          }
+    // Provider errors propagate to the caller — a failed request must not become a "successful" empty deck.
+    await this.streamGenerate({
+      system: systemPrompt,
+      userMessage,
+      maxTokens: 16384,
+      onChunk: (chunk: string) => {
+        raw += chunk
+        const newCount = (raw.match(/"id"\s*:/g) || []).length
+        if (newCount > slidesFound) {
+          slidesFound = newCount
+          onProgress(`Generating slide ${slidesFound} of ${slideCount}...`, slidesFound, slideCount)
         }
-      })
-    } catch (streamErr) {
-      console.error('[generateFullPresentation] Stream error:', streamErr)
-    }
+      }
+    })
 
-    console.log('[generateFullPresentation] raw length:', raw.length, 'first 200 chars:', raw.slice(0, 200))
+    console.log('[generateFullPresentation] raw length:', raw.length)
+
+    if (!raw.trim()) {
+      throw new Error('The model returned no content for the presentation.')
+    }
 
     onProgress('Finalizing presentation...', slideCount, slideCount)
 
@@ -831,7 +873,7 @@ Generate exactly ${slideCount} slides.`
       return { slides, title: finalTitle }
     }
 
-    // Fallback — could not parse JSON
+    // Fallback — text was received but is not valid JSON: keep it as a single slide
     console.error('[generateFullPresentation] Failed to parse JSON from response. First 500 chars:', raw.slice(0, 500))
     return { slides: [{ id: 'generated', markdown: raw.replace(/```json\s*/gi, '').replace(/```/g, '').trim(), layout: 'default' }], title }
   }
@@ -882,7 +924,7 @@ Generate exactly ${slideCount} slides.`
 
   async hasApiKey(): Promise<boolean> {
     try {
-      const provider = this.getProviderForCurrentModel()
+      const provider = await this.getProviderForCurrentModel()
       if (provider === 'openai' && await this.shouldUseCodexForOpenAI()) {
         const account = await getCodexAppServerClient().accountRead(false)
         return account.account?.type === 'chatgpt'
@@ -1015,7 +1057,9 @@ Generate exactly ${slideCount} slides.`
       const resp = await fetch(`${url.replace(/\/+$/, '')}/api/tags`)
       if (!resp.ok) return []
       const data = await resp.json() as { models?: { name: string; model: string }[] }
-      return (data.models || []).map((m) => ({ id: m.name, name: m.name }))
+      const models = (data.models || []).map((m) => ({ id: m.name, name: m.name }))
+      for (const m of models) this.knownOllamaModels.add(m.id)
+      return models
     } catch {
       return []
     }
@@ -1080,7 +1124,14 @@ Rules:
 
     onEvent({ type: 'tool_call_start', id: toolCallId, toolName, toolInput })
 
-    if (actionMode === 'ask' && tool.isMutation && confirmAction) {
+    // Destructive / multi-slide tools always need the user's approval, whatever the mode.
+    const needsConfirmation = tool.alwaysConfirm === true || (actionMode === 'ask' && tool.isMutation)
+    if (needsConfirmation) {
+      if (!confirmAction) {
+        const msg = `"${toolName}" requires user confirmation, which is not available in this session.`
+        onEvent({ type: 'tool_call_result', id: toolCallId, toolName, result: msg, success: false })
+        return { result: msg, isError: true }
+      }
       onEvent({ type: 'tool_confirm_request', id: toolCallId, toolName, toolInput })
       const approved = await confirmAction(toolCallId, toolName, toolInput)
       if (!approved) {
@@ -1115,7 +1166,8 @@ Rules:
     onEvent: (event: ChatStreamEvent) => void,
     confirmAction?: (toolCallId: string, toolName: string, toolInput: unknown) => Promise<boolean>
   ): Promise<Anthropic.MessageParam[]> {
-    const provider = this.getProviderForCurrentModel()
+    const provider = await this.getProviderForCurrentModel()
+    messages = capChatHistory(messages)
 
     // Build system prompt with presentation context
     const slideOverview = snapshot.slides
@@ -1130,26 +1182,28 @@ Rules:
     const currentSlide = snapshot.slides[snapshot.currentSlideIndex]
     let currentSlideContext = ''
     if (currentSlide) {
-      currentSlideContext = `\n\nCurrent slide (index ${snapshot.currentSlideIndex}) markdown source:\n\`\`\`markdown\n${currentSlide.markdownContent}\n\`\`\``
+      currentSlideContext = `\n\nCurrent slide (index ${snapshot.currentSlideIndex}) markdown source:\n${wrapDeckContent('current slide markdown', currentSlide.markdownContent)}`
       if (currentSlide.renderedHtml) {
         // Truncate very large HTML to avoid blowing up the context
         const html = currentSlide.renderedHtml.length > 4000
           ? currentSlide.renderedHtml.slice(0, 4000) + '\n... (truncated)'
           : currentSlide.renderedHtml
-        currentSlideContext += `\n\nRendered HTML of current slide (what the user sees):\n\`\`\`html\n${html}\n\`\`\``
+        currentSlideContext += `\n\nRendered HTML of current slide (what the user sees):\n${wrapDeckContent('current slide rendered html', html)}`
       }
     }
 
     const systemPrompt = `You are Lecta AI, an intelligent assistant embedded in the Lecta presentation app. You help users view, edit, and improve their presentations through natural conversation.
 
+${DECK_CONTENT_NOTICE}
+
 Current presentation context:
-- Title: "${snapshot.title}"
-- Author: ${snapshot.author}
+- Title: ${wrapDeckContent('title', snapshot.title)}
+- Author: ${wrapDeckContent('author', snapshot.author)}
 - Theme: ${snapshot.theme}
 - Total slides: ${snapshot.slides.length}
 - Currently viewing: Slide ${snapshot.currentSlideIndex + 1}
 - Slide overview:
-${slideOverview}
+${wrapDeckContent('slide overview', slideOverview)}
 ${currentSlideContext}
 
 Guidelines:
@@ -1325,11 +1379,16 @@ IMPORTANT RULES FOR HTML IN MARKDOWN:
       const client = await this.getGeminiClient()
 
       // Convert tool schemas to Gemini format
-      const geminiFunctionDeclarations = anthropicTools.map((t) => ({
-        name: t.name,
-        description: t.description || '',
-        parameters: t.input_schema as Record<string, unknown>
-      }))
+      // Gemini rejects `parameters` whose `properties` is empty — omit it for parameterless tools.
+      const geminiFunctionDeclarations = anthropicTools.map((t) => {
+        const schema = t.input_schema as { properties?: Record<string, unknown> }
+        const hasProperties = !!schema.properties && Object.keys(schema.properties).length > 0
+        return {
+          name: t.name,
+          description: t.description || '',
+          ...(hasProperties ? { parameters: t.input_schema as Record<string, unknown> } : {})
+        }
+      })
 
       // Build Gemini contents from messages
       const geminiContents: { role: string; parts: { text?: string; functionCall?: { name: string; args: Record<string, unknown> }; functionResponse?: { name: string; response: Record<string, unknown> } }[] }[] = []
@@ -1458,8 +1517,8 @@ IMPORTANT RULES FOR HTML IN MARKDOWN:
       iterations++
 
       const response = await client.chat.completions.create({
-        model: this.model,
-        ...(isReasoning
+        model: this.requestModelId(provider),
+        ...(provider === 'openai'
           ? { max_completion_tokens: 4096 }
           : { max_tokens: 4096 }
         ),
@@ -1481,18 +1540,28 @@ IMPORTANT RULES FOR HTML IN MARKDOWN:
       // Add assistant message to conversation
       oaiMessages.push(assistantMsg)
 
+      // Some OpenAI-compatible servers report finish_reason "stop" alongside tool calls — trust the calls.
       const toolCalls = assistantMsg.tool_calls
-      if (!toolCalls || toolCalls.length === 0 || choice.finish_reason !== 'tool_calls') {
+      if (!toolCalls || toolCalls.length === 0) {
         break
       }
 
       // Execute each tool call and add results
       for (const tc of toolCalls) {
         if (tc.type !== 'function') continue
-        let parsedInput: Record<string, unknown> = {}
+        let parsedInput: Record<string, unknown>
         try {
-          parsedInput = JSON.parse(tc.function.arguments || '{}')
-        } catch { /* empty */ }
+          const parsed: unknown = JSON.parse(tc.function.arguments || '{}')
+          if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            throw new Error('arguments must be a JSON object')
+          }
+          parsedInput = parsed as Record<string, unknown>
+        } catch (parseErr) {
+          const msg = `Invalid JSON in tool arguments for ${tc.function.name}: ${(parseErr as Error).message}`
+          onEvent({ type: 'tool_call_result', id: tc.id, toolName: tc.function.name, result: msg, success: false })
+          oaiMessages.push({ role: 'tool', tool_call_id: tc.id, content: msg })
+          continue
+        }
 
         const { result } = await this.executeToolCall(
           tc.id,

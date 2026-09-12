@@ -165,7 +165,7 @@ function dispatchRendererAction(action: string, params: Record<string, unknown>)
         } else {
           // No presentation open — create one, add slides, and open it
           const title = slides[0]?.markdown?.match(/^#\s+(.+)/m)?.[1] || 'AI Generated Presentation'
-          window.electronAPI.createPresentation(title).then(async (newPath) => {
+          window.electronAPI.createPresentation(title).then(async (newPath: string | null) => {
             if (!newPath) return
             const loaded = await window.electronAPI.addBulkSlides(newPath, slides, 0)
             const { useTabsStore } = await import('./tabs-store')
@@ -210,11 +210,27 @@ function dispatchRendererAction(action: string, params: Record<string, unknown>)
   }
 }
 
+/**
+ * Cap on the history sent to the model. The main process caps again, but doing
+ * it here keeps the IPC payload (and the snapshot round-trip) bounded too.
+ */
+const MAX_HISTORY_MESSAGES = 40
+const MAX_HISTORY_CHARS = 60_000
+
 function buildApiMessages(messages: ChatMessage[]): { role: 'user' | 'assistant'; content: string }[] {
-  return messages.map((m) => ({
-    role: m.role,
-    content: m.content
-  }))
+  const mapped = messages.map((m) => ({ role: m.role, content: m.content }))
+
+  let kept = mapped.slice(-MAX_HISTORY_MESSAGES)
+  let total = kept.reduce((sum, m) => sum + m.content.length, 0)
+  while (kept.length > 1 && total > MAX_HISTORY_CHARS) {
+    total -= kept[0].content.length
+    kept = kept.slice(1)
+  }
+  // The first message must be a user turn for the Anthropic API.
+  while (kept.length > 1 && kept[0].role !== 'user') {
+    kept = kept.slice(1)
+  }
+  return kept
 }
 
 /** Get the active tab, or undefined */
@@ -460,6 +476,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
         tabs: s.tabs.map((t) =>
           t.id === activeTabId
             ? { ...t, isStreaming: false, error: (err as Error).message }
+            : t
+        )
+      }))
+    } finally {
+      // The preload helper drops its IPC listener when the turn ends; make sure
+      // the tab leaves the streaming state even if no `done` event arrived.
+      set((s) => ({
+        tabs: s.tabs.map((t) =>
+          t.id === activeTabId
+            ? {
+                ...t,
+                isStreaming: false,
+                currentStreamingText: '',
+                activeToolCalls: [],
+                pendingConfirmation: null
+              }
             : t
         )
       }))

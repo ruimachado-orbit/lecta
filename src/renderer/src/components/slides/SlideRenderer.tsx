@@ -1,9 +1,12 @@
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
+import type { SlideBackground } from '@shared/types/presentation'
 import { FlowDiagram } from '../common/FlowDiagram'
 import { resolveImageSrc } from './slide-utils'
+import { parseElements, stripElements, zOf } from './element-model'
+import { PinnedLayer } from './PinnedElements'
 
 interface SlideRendererProps {
   markdown: string
@@ -12,46 +15,28 @@ interface SlideRendererProps {
   clickStep?: number
   /** Callback to report total click steps found in this slide */
   onClickSteps?: (total: number) => void
+  /** Optional per-slide backdrop, painted behind the content. */
+  background?: SlideBackground
+  /**
+   * Suppress the read-only pinned-element layer. The editable canvas draws its own
+   * (draggable) copy of the same elements, and two layers would double every element.
+   */
+  hidePinned?: boolean
 }
 
 /**
- * Preprocess markdown to convert column syntax and text boxes into HTML.
+ * Preprocess markdown to convert column syntax into HTML.
+ *
+ * Pinned elements (textbox / image / shape comments) are NOT handled here — they are
+ * parsed by `element-model` and rendered as React elements in a full-slide overlay, so
+ * their coordinates mean the same thing in every view.
  */
 function preprocessColumns(md: string): string {
-  let result = md
-    // Columns
+  return md
     .replace(/<!--\s*columns\s*-->/gi, '<div class="slide-columns">')
     .replace(/<!--\s*col\s*-->/gi, '</div><div class="slide-col">')
     .replace(/<!--\s*\/columns\s*-->/gi, '</div></div>')
     .replace(/<div class="slide-columns">/g, '<div class="slide-columns"><div class="slide-col">')
-
-  // Text boxes: <!-- textbox x=N y=N w=N [fs=N] [fc=#hex] [fb=0|1] [fi=0|1] -->content<!-- /textbox -->
-  result = result.replace(
-    /<!--\s*textbox\s+x=(\d+)\s+y=(\d+)(?:\s+w=(\d+))?(?:\s+fs=(\d+))?(?:\s+fc=([^\s]+))?(?:\s+fb=([01]))?(?:\s+fi=([01]))?\s*-->([\s\S]*?)<!--\s*\/textbox\s*-->/gi,
-    (_match, x, y, w, fs, fc, fb, fi, content) => {
-      const width = w ? `width:${w}px;` : 'width:300px;'
-      const fontSize = fs ? `font-size:${fs}px;` : ''
-      const color = fc ? `color:${fc};` : ''
-      const fontWeight = fb === '1' ? 'font-weight:bold;' : ''
-      const fontStyle = fi === '1' ? 'font-style:italic;' : ''
-      return `<div class="slide-textbox" style="left:${x}px;top:${y}px;${width}${fontSize}${color}${fontWeight}${fontStyle}">${content.trim()}</div>`
-    }
-  )
-
-  // Shapes: <!-- shape type=rect x=N y=N w=N h=N fill=# stroke=# sw=N -->
-  result = result.replace(
-    /<!--\s*shape\s+type=(\w+)\s+x=(-?\d+)\s+y=(-?\d+)\s+w=(\d+)\s+h=(\d+)(?:\s+fill=([^\s]+))?(?:\s+stroke=([^\s]+))?(?:\s+sw=(\d+))?\s*-->/gi,
-    (_match, type, x, y, w, h, fill, stroke, sw) => {
-      const f = fill || 'transparent', s = stroke || '#ffffff', swv = sw || '2'
-      let inner = ''
-      if (type === 'rect') inner = `<rect x="${Number(swv)/2}" y="${Number(swv)/2}" width="${Number(w)-Number(swv)}" height="${Number(h)-Number(swv)}" rx="4" fill="${f}" stroke="${s}" stroke-width="${swv}" />`
-      else if (type === 'ellipse') inner = `<ellipse cx="${Number(w)/2}" cy="${Number(h)/2}" rx="${Number(w)/2-Number(swv)/2}" ry="${Number(h)/2-Number(swv)/2}" fill="${f}" stroke="${s}" stroke-width="${swv}" />`
-      else if (type === 'line') inner = `<line x1="${swv}" y1="${Number(h)/2}" x2="${Number(w)-Number(swv)}" y2="${Number(h)/2}" stroke="${s}" stroke-width="${swv}" stroke-linecap="round" />`
-      return `<svg class="slide-shape" style="position:absolute;left:${x}px;top:${y}px;width:${w}px;height:${h}px;" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">${inner}</svg>`
-    }
-  )
-
-  return result
 }
 
 /**
@@ -125,29 +110,43 @@ function processClickAnimations(md: string): { processed: string; totalClicks: n
   return { processed: result.join('\n'), totalClicks: clickCount }
 }
 
-/** Extract positioned images from markdown and return them separately */
-function extractPositionedImages(md: string, rootPath?: string): { cleaned: string; images: { x: number; y: number; w: number; src: string; border?: string; radius?: number }[] } {
-  const images: { x: number; y: number; w: number; src: string; border?: string; radius?: number }[] = []
-  const cleaned = md.replace(
-    /<!--\s*image\s+x=(-?\d+)\s+y=(-?\d+)\s+w=(\d+)\s+src=([^\s]+)(?:\s+border=([^\s]+))?(?:\s+radius=(\d+))?\s*-->/gi,
-    (_match, x, y, w, src, border, radius) => {
-      images.push({
-        x: parseInt(x), y: parseInt(y), w: parseInt(w),
-        src: resolveImageSrc(src, rootPath),
-        border: border?.replace(/_/g, ' '),
-        radius: radius ? parseInt(radius) : undefined,
-      })
-      return '' // Remove from markdown
-    }
-  )
-  return { cleaned, images }
+/** True when the slide has any backdrop worth painting. */
+function paintsBackground(bg: SlideBackground | undefined): bg is SlideBackground {
+  return !!bg && !!(bg.color || bg.gradient || bg.image)
 }
 
-export function SlideRenderer({ markdown, rootPath, clickStep = -1, onClickSteps }: SlideRendererProps): JSX.Element {
+/**
+ * The slide's backdrop, painted behind the content but above the theme's canvas colour.
+ * Sits in the full-slide coordinate space, like the pinned layer.
+ */
+export function SlideBackgroundLayer({ background, rootPath }: { background: SlideBackground; rootPath?: string }): JSX.Element {
+  const layers: string[] = []
+  if (background.image) layers.push(`url("${resolveImageSrc(background.image, rootPath)}")`)
+  if (background.gradient) layers.push(background.gradient)
+
+  return (
+    <div
+      className="slide-bg-layer"
+      style={{
+        backgroundColor: background.color,
+        backgroundImage: layers.length > 0 ? layers.join(', ') : undefined,
+      }}
+    >
+      {background.overlay ? (
+        <div className="slide-bg-overlay" style={{ background: `rgba(0,0,0,${Math.min(100, background.overlay) / 100})` }} />
+      ) : null}
+    </div>
+  )
+}
+
+export function SlideRenderer({ markdown, rootPath, clickStep = -1, onClickSteps, background, hidePinned }: SlideRendererProps): JSX.Element {
   const { processed: clickProcessed, totalClicks } = processClickAnimations(markdown)
 
-  // Extract positioned images before markdown processing
-  const { cleaned: mdWithoutImages, images: positionedImages } = extractPositionedImages(clickProcessed, rootPath)
+  // Pinned elements come out of the markdown entirely and are drawn in their own layer.
+  const pinned = hidePinned
+    ? []
+    : parseElements(clickProcessed).slice().sort((a, b) => zOf(a) - zOf(b) || a.index - b.index)
+  const body = stripElements(clickProcessed)
 
   // Report total click steps to parent on mount and whenever the count changes.
   // Seeded with -1 so the first presented slide (or the slide after an MDX one) initialises reveal.
@@ -159,101 +158,91 @@ export function SlideRenderer({ markdown, rootPath, clickStep = -1, onClickSteps
     }
   }, [totalClicks]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const painted = paintsBackground(background)
+
   return (
-    <div className="slide-content max-w-none relative">
-      {/* Positioned images rendered directly as React elements */}
-      {positionedImages.map((img, i) => (
-        <img
-          key={`pos-img-${i}`}
-          src={img.src}
-          style={{
-            position: 'absolute',
-            left: img.x,
-            top: img.y,
-            width: img.w,
-            border: img.border || undefined,
-            borderRadius: img.radius || undefined,
-            zIndex: 5,
-          }}
-        />
-      ))}
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeRaw]}
-        components={{
-          // Renderers are minimal — all visual styling flows through CSS variables in globals.css
-          // This ensures themes work without changing component code
-          code: ({ className, children, ...props }) => {
-            // Render mermaid diagrams
-            if (className?.includes('language-mermaid')) {
-              const chart = String(children).replace(/\n$/, '')
-              return <FlowDiagram chart={chart} />
-            }
-            const isInline = !className
-            if (isInline) {
-              return <code>{children}</code>
-            }
-            return <code className={`${className} block`} {...props}>{children}</code>
-          },
-          pre: ({ node, children }) => {
-            const codeChild = node?.children?.[0] as any
-            if (
-              codeChild?.tagName === 'code' &&
-              codeChild?.properties?.className?.some?.((c: string) => c.includes('mermaid'))
-            ) {
-              return <>{children}</>
-            }
-            return <pre>{children}</pre>
-          },
-          a: ({ href, children }) => (
-            <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>
-          ),
-          img: ({ src, alt, node }) => {
-            const imgProps = (node as any)?.properties || {}
-            const border = imgProps.dataBorder || undefined
-            const radius = imgProps.dataBorderRadius || undefined
-            const width = imgProps.width || undefined
-            return (
-              <img
-                src={resolveImageSrc(src, rootPath)}
-                alt={alt}
-                className="my-4"
-                style={{
-                  width: width ? `${width}px` : undefined,
-                  maxWidth: '100%',
-                  border: border || undefined,
-                  borderRadius: radius ? `${radius}px` : undefined,
-                }}
-              />
-            )
-          },
-          div: ({ node, children, ...props }) => {
-            const step = (node?.properties as any)?.['dataClickStep']
-            if (step !== undefined) {
-              const stepNum = parseInt(String(step), 10)
-              // clickStep -1 = show all (edit/preview mode)
-              const visible = clickStep === -1 || clickStep >= stepNum
+    <>
+      {painted && <SlideBackgroundLayer background={background} rootPath={rootPath} />}
+      <div className="slide-content max-w-none relative" style={painted ? { zIndex: 1 } : undefined}>
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          rehypePlugins={[rehypeRaw]}
+          components={{
+            // Renderers are minimal — all visual styling flows through CSS variables in globals.css
+            // This ensures themes work without changing component code
+            code: ({ className, children, ...props }) => {
+              // Render mermaid diagrams
+              if (className?.includes('language-mermaid')) {
+                const chart = String(children).replace(/\n$/, '')
+                return <FlowDiagram chart={chart} />
+              }
+              const isInline = !className
+              if (isInline) {
+                return <code>{children}</code>
+              }
+              return <code className={`${className} block`} {...props}>{children}</code>
+            },
+            pre: ({ node, children }) => {
+              const codeChild = node?.children?.[0] as any
+              if (
+                codeChild?.tagName === 'code' &&
+                codeChild?.properties?.className?.some?.((c: string) => c.includes('mermaid'))
+              ) {
+                return <>{children}</>
+              }
+              return <pre>{children}</pre>
+            },
+            a: ({ href, children }) => (
+              <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>
+            ),
+            img: ({ src, alt, node }) => {
+              const imgProps = (node as any)?.properties || {}
+              const border = imgProps.dataBorder || undefined
+              const radius = imgProps.dataBorderRadius || undefined
+              const width = imgProps.width || undefined
               return (
-                <div
-                  className={`slide-click-step ${visible ? 'slide-click-visible' : 'slide-click-hidden'}`}
-                  data-click-step={stepNum}
-                  {...props}
-                >
-                  {children}
-                </div>
+                <img
+                  src={resolveImageSrc(src, rootPath)}
+                  alt={alt}
+                  className="my-4"
+                  style={{
+                    width: width ? `${width}px` : undefined,
+                    maxWidth: '100%',
+                    border: border || undefined,
+                    borderRadius: radius ? `${radius}px` : undefined,
+                  }}
+                />
               )
-            }
-            // Auto-fit text
-            const className = String((node?.properties as any)?.className || '')
-            if (className.includes('slide-autofit')) {
-              return <div className="slide-autofit" {...props}>{children}</div>
-            }
-            return <div {...props}>{children}</div>
-          },
-        }}
-      >
-        {enhanceVisualPatterns(preprocessColumns(mdWithoutImages))}
-      </ReactMarkdown>
-    </div>
+            },
+            div: ({ node, children, ...props }) => {
+              const step = (node?.properties as any)?.['dataClickStep']
+              if (step !== undefined) {
+                const stepNum = parseInt(String(step), 10)
+                // clickStep -1 = show all (edit/preview mode)
+                const visible = clickStep === -1 || clickStep >= stepNum
+                return (
+                  <div
+                    className={`slide-click-step ${visible ? 'slide-click-visible' : 'slide-click-hidden'}`}
+                    data-click-step={stepNum}
+                    {...props}
+                  >
+                    {children}
+                  </div>
+                )
+              }
+              // Auto-fit text
+              const className = String((node?.properties as any)?.className || '')
+              if (className.includes('slide-autofit')) {
+                return <div className="slide-autofit" {...props}>{children}</div>
+              }
+              return <div {...props}>{children}</div>
+            },
+          }}
+        >
+          {enhanceVisualPatterns(preprocessColumns(body))}
+        </ReactMarkdown>
+      </div>
+      <PinnedLayer elements={pinned} rootPath={rootPath} />
+    </>
   )
 }

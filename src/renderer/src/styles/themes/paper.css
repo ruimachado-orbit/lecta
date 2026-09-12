@@ -80,6 +80,12 @@
 
   --slide-textbox-border: rgba(138,58,16,0.06);
   --slide-textbox-color: #3d2c1e;
+
+  /* Surfaces — glass / card / frame presets */
+  --slide-glass-bg: rgba(255,253,247,0.60);
+  --slide-glass-border: rgba(0,0,0,0.08);
+  --slide-surface: #fffdf7;
+  --slide-shadow-color: rgba(60,45,25,0.20);
 }
 
 /* Paper — thin editorial rule under H1 */

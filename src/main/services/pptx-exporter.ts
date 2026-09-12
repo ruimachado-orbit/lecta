@@ -147,9 +147,13 @@ export type Block =
 
 type HeadingBlock = Extract<Block, { type: 'heading' }>
 
-export interface PinnedText { x: number; y: number; w: number; text: string; fontSize?: number; color?: string; bold?: boolean; italic?: boolean }
-export interface PinnedImage { x: number; y: number; w: number; src: string; radius?: number; border?: string }
-export interface PinnedShape { type: string; x: number; y: number; w: number; h: number; fill?: string; stroke?: string; strokeWidth?: number }
+/** Visual presets an element can carry; see `element-model.ts` in the renderer. */
+export type PinnedStyle = 'none' | 'glass' | 'card' | 'frame'
+export type PinnedShadow = 'none' | 'soft' | 'hard'
+
+export interface PinnedText { x: number; y: number; w: number; text: string; fontSize?: number; color?: string; bold?: boolean; italic?: boolean; style?: PinnedStyle; pad?: number; align?: 'left' | 'center' | 'right' }
+export interface PinnedImage { x: number; y: number; w: number; h?: number; src: string; fit?: 'cover' | 'contain'; radius?: number; border?: string; opacity?: number; rotate?: number; shadow?: PinnedShadow; style?: PinnedStyle; z?: number }
+export interface PinnedShape { type: string; x: number; y: number; w: number; h: number; fill?: string; stroke?: string; strokeWidth?: number; opacity?: number; radius?: number; rotate?: number; shadow?: PinnedShadow; style?: PinnedStyle; z?: number }
 
 export interface ParsedSlide {
   blocks: Block[]
@@ -158,7 +162,7 @@ export interface ParsedSlide {
   shapes: PinnedShape[]
 }
 
-const TEXTBOX_RE = /<!--\s*textbox\s+x=(\d+)\s+y=(\d+)(?:\s+w=(\d+))?(?:\s+fs=(\d+))?(?:\s+fc=([^\s]+))?(?:\s+fb=([01]))?(?:\s+fi=([01]))?\s*-->([\s\S]*?)<!--\s*\/textbox\s*-->/gi
+const TEXTBOX_RE = /<!--\s*textbox\s+([^>]*?)-->([\s\S]*?)<!--\s*\/textbox\s*-->/gi
 const IMAGE_RE = /<!--\s*image\s+([^>]*?)-->/gi
 const SHAPE_RE = /<!--\s*shape\s+([^>]*?)-->/gi
 
@@ -168,24 +172,59 @@ function parseAttrs(s: string): Record<string, string> {
   return out
 }
 
+function pinnedStyle(v: string | undefined): PinnedStyle | undefined {
+  return v === 'glass' || v === 'card' || v === 'frame' || v === 'none' ? v : undefined
+}
+
+function pinnedShadow(v: string | undefined): PinnedShadow | undefined {
+  return v === 'soft' || v === 'hard' || v === 'none' ? v : undefined
+}
+
 export function parseSlideMarkdown(md: string): ParsedSlide {
   const textboxes: PinnedText[] = []
   const images: PinnedImage[] = []
   const shapes: PinnedShape[] = []
 
   let src = md.replace(/\r\n/g, '\n')
-  src = src.replace(TEXTBOX_RE, (_m, x, y, w, fs, fc, fb, fi, content) => {
-    textboxes.push({ x: +x, y: +y, w: w ? +w : 320, text: String(content).trim(), fontSize: fs ? +fs : undefined, color: fc ? String(fc).replace('#', '') : undefined, bold: fb === '1', italic: fi === '1' })
+  src = src.replace(TEXTBOX_RE, (_m, attrs, content) => {
+    const a = parseAttrs(attrs)
+    textboxes.push({
+      x: +(a.x || 0), y: +(a.y || 0), w: a.w ? +a.w : 320,
+      text: String(content).trim(),
+      fontSize: a.fs ? +a.fs : undefined,
+      color: a.fc ? a.fc.replace('#', '') : undefined,
+      bold: a.fb === '1', italic: a.fi === '1',
+      style: pinnedStyle(a.style), pad: a.pad ? +a.pad : undefined,
+      align: a.align === 'center' || a.align === 'right' ? a.align : undefined,
+    })
     return ''
   })
   src = src.replace(IMAGE_RE, (_m, attrs) => {
     const a = parseAttrs(attrs)
-    if (a.src) images.push({ x: +(a.x || 0), y: +(a.y || 0), w: +(a.w || 400), src: a.src, radius: a.radius ? +a.radius : undefined, border: a.border?.replace(/_/g, ' ') })
+    if (a.src) images.push({
+      x: +(a.x || 0), y: +(a.y || 0), w: +(a.w || 400), h: a.h ? +a.h : undefined,
+      src: a.src,
+      fit: a.fit === 'cover' || a.fit === 'contain' ? a.fit : undefined,
+      radius: a.radius ? +a.radius : undefined,
+      border: a.border?.replace(/_/g, ' '),
+      opacity: a.opacity ? +a.opacity : undefined,
+      rotate: a.rotate ? +a.rotate : undefined,
+      shadow: pinnedShadow(a.shadow), style: pinnedStyle(a.style),
+      z: a.z ? +a.z : undefined,
+    })
     return ''
   })
   src = src.replace(SHAPE_RE, (_m, attrs) => {
     const a = parseAttrs(attrs)
-    shapes.push({ type: a.type || 'rect', x: +(a.x || 0), y: +(a.y || 0), w: +(a.w || 200), h: +(a.h || 120), fill: a.fill, stroke: a.stroke, strokeWidth: a.sw ? +a.sw : undefined })
+    shapes.push({
+      type: a.type || 'rect', x: +(a.x || 0), y: +(a.y || 0), w: +(a.w || 200), h: +(a.h || 120),
+      fill: a.fill, stroke: a.stroke, strokeWidth: a.sw ? +a.sw : undefined,
+      opacity: a.opacity ? +a.opacity : undefined,
+      radius: a.radius ? +a.radius : undefined,
+      rotate: a.rotate ? +a.rotate : undefined,
+      shadow: pinnedShadow(a.shadow), style: pinnedStyle(a.style),
+      z: a.z ? +a.z : undefined,
+    })
     return ''
   })
   // Column markers become col-break blocks; every other HTML comment is dropped.
@@ -447,22 +486,106 @@ function splitColumns(blocks: Block[], n: number): { head: HeadingBlock | null; 
   return { head, cols }
 }
 
+/** Points of corner rounding for a radius given in canvas px, as a fraction of the box. */
+function roundness(radius: number | undefined, w: number, h: number): number | undefined {
+  if (!radius) return undefined
+  // pptxgenjs `rectRadius` is a fraction (0-1) of half the shorter side.
+  return Math.min(1, radius / Math.max(1, Math.min(w, h) / 2))
+}
+
+function shadowProps(shadow: PinnedShadow | undefined, style: PinnedStyle | undefined): PptxGenJS.ShadowProps | undefined {
+  const kind = shadow ?? (style === 'glass' || style === 'card' ? 'soft' : 'none')
+  if (kind === 'soft') return { type: 'outer', color: '000000', opacity: 0.35, blur: 18, offset: 6, angle: 90 }
+  if (kind === 'hard') return { type: 'outer', color: '000000', opacity: 0.55, blur: 6, offset: 4, angle: 90 }
+  return undefined
+}
+
+/**
+ * PowerPoint has no backdrop blur, so `glass` and `card` are approximated by a rounded
+ * rectangle behind the element: a mostly-transparent light fill plus a 1pt hairline
+ * border. `frame` is the hairline on its own.
+ */
+function renderSurface(
+  ctx: Ctx,
+  slide: PptxGenJS.Slide,
+  el: { x: number; y: number; w: number; h: number; style?: PinnedStyle; radius?: number; shadow?: PinnedShadow; rotate?: number }
+): void {
+  if (!el.style || el.style === 'none') return
+  const light = ctx.pal.dark ? 'FFFFFF' : '0F172A'
+  const pad = 12
+  const box = { x: el.x - pad, y: el.y - pad, w: el.w + pad * 2, h: el.h + pad * 2 }
+  const radius = roundness((el.radius ?? (el.style === 'glass' ? 20 : 16)) + pad, box.w, box.h)
+  slide.addShape(radius ? ctx.pres.ShapeType.roundRect : ctx.pres.ShapeType.rect, {
+    x: px(box.x),
+    y: px(box.y),
+    w: px(box.w),
+    h: px(box.h),
+    rectRadius: radius,
+    rotate: el.rotate,
+    fill: el.style === 'frame' ? { type: 'none' } : { color: light, transparency: el.style === 'glass' ? 80 : 70 },
+    line: { color: light, width: 1, transparency: 40 },
+    shadow: shadowProps(el.shadow, el.style)
+  })
+}
+
 async function renderPinned(ctx: Ctx, slide: PptxGenJS.Slide, parsed: ParsedSlide): Promise<void> {
   const { pal } = ctx
-  for (const s of parsed.shapes) {
-    const shapeType = s.type === 'ellipse' || s.type === 'circle' ? ctx.pres.ShapeType.ellipse : s.type === 'line' ? ctx.pres.ShapeType.line : ctx.pres.ShapeType.rect
-    slide.addShape(shapeType, { x: px(s.x), y: px(s.y), w: px(s.w), h: px(s.h), fill: s.fill && s.fill !== 'none' ? { color: s.fill.replace('#', '') } : { type: 'none' }, line: s.stroke && s.stroke !== 'none' ? { color: s.stroke.replace('#', ''), width: s.strokeWidth || 1 } : undefined })
+
+  // `z` (then source order) decides what covers what, exactly as on the canvas.
+  const shapes = [...parsed.shapes].sort((a, b) => (a.z ?? 0) - (b.z ?? 0))
+  const images = [...parsed.images].sort((a, b) => (a.z ?? 0) - (b.z ?? 0))
+
+  for (const s of shapes) {
+    renderSurface(ctx, slide, { x: s.x, y: s.y, w: s.w, h: s.h, style: s.style, radius: s.radius, shadow: s.shadow, rotate: s.rotate })
+    const shapeType =
+      s.type === 'ellipse' || s.type === 'circle'
+        ? ctx.pres.ShapeType.ellipse
+        : s.type === 'line'
+          ? ctx.pres.ShapeType.line
+          : s.radius
+            ? ctx.pres.ShapeType.roundRect
+            : ctx.pres.ShapeType.rect
+    const transparency = s.opacity !== undefined ? Math.max(0, Math.min(100, 100 - s.opacity)) : undefined
+    slide.addShape(shapeType, {
+      x: px(s.x), y: px(s.y), w: px(s.w), h: px(s.h),
+      rectRadius: s.type === 'rect' || !s.type ? roundness(s.radius, s.w, s.h) : undefined,
+      rotate: s.rotate,
+      // A style preset already drew its own shadowed surface behind this shape.
+      shadow: s.style && s.style !== 'none' ? undefined : shadowProps(s.shadow, undefined),
+      fill: s.fill && s.fill !== 'none' && s.fill !== 'transparent'
+        ? { color: s.fill.replace('#', ''), transparency }
+        : { type: 'none' },
+      line: s.stroke && s.stroke !== 'none'
+        ? { color: s.stroke.replace('#', ''), width: s.strokeWidth || 1, transparency }
+        : undefined
+    })
   }
-  for (const im of parsed.images) {
+
+  for (const im of images) {
     const img = await resolveImage(ctx, im.src)
     if (!img) continue
-    const opts: PptxGenJS.ImageProps = { ...img, x: px(im.x), y: px(im.y), w: px(im.w), h: px(im.w) * 0.66 }
+    const h = im.h ?? im.w * 0.66
+    renderSurface(ctx, slide, { x: im.x, y: im.y, w: im.w, h, style: im.style, radius: im.radius, shadow: im.shadow, rotate: im.rotate })
+    const opts: PptxGenJS.ImageProps = { ...img, x: px(im.x), y: px(im.y), w: px(im.w), h: px(h) }
     if (im.radius) opts.rounding = true
+    if (im.fit) opts.sizing = { type: im.fit, w: px(im.w), h: px(h) }
+    if (im.rotate) opts.rotate = im.rotate
+    if (im.opacity !== undefined) opts.transparency = Math.max(0, Math.min(100, 100 - im.opacity))
+    const shadow = im.style && im.style !== 'none' ? undefined : shadowProps(im.shadow, undefined)
+    if (shadow) opts.shadow = shadow
     slide.addImage(opts)
   }
+
   for (const tb of parsed.textboxes) {
     const size = tb.fontSize ? Math.round(tb.fontSize * 0.75) : 16
-    slide.addText(inlineRuns(tb.text, textStyle(pal, size, tb.color || pal.body), { bold: tb.bold, italic: tb.italic }), { x: px(tb.x), y: px(tb.y), w: px(tb.w), h: Math.max(0.35, (tb.text.split('\n').length * size) / 72 * 1.5), valign: 'top', margin: 2 })
+    const h = Math.max(0.35, ((tb.text.split('\n').length * size) / 72) * 1.5)
+    renderSurface(ctx, slide, { x: tb.x, y: tb.y, w: tb.w, h: h * PX_PER_IN, style: tb.style })
+    slide.addText(inlineRuns(tb.text, textStyle(pal, size, tb.color || pal.body), { bold: tb.bold, italic: tb.italic }), {
+      x: px(tb.x), y: px(tb.y), w: px(tb.w), h,
+      valign: 'top',
+      align: tb.align,
+      margin: tb.pad !== undefined ? tb.pad * 0.75 : 2
+    })
   }
 }
 

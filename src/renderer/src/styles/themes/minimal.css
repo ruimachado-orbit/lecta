@@ -79,6 +79,12 @@
 
   --slide-textbox-border: #e5e5e5;
   --slide-textbox-color: #262626;
+
+  /* Surfaces — glass / card / frame presets */
+  --slide-glass-bg: rgba(255,255,255,0.55);
+  --slide-glass-border: rgba(0,0,0,0.08);
+  --slide-surface: #ffffff;
+  --slide-shadow-color: rgba(15,23,42,0.14);
 }
 
 /* Minimal — zero decoration */

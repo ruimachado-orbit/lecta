@@ -44,6 +44,19 @@ html, body, * {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Overlay primitives (components/common/Dialog.tsx, Popover.tsx).
+   Both are skipped when the OS asks for reduced motion — the media query above
+   collapses the duration, and the components also omit the animation entirely. */
+@keyframes dialogIn {
+  from { opacity: 0; transform: translateY(-8px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes popoverIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 @theme {
   --font-sans: -apple-system, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
   --color-brand: #ffffff;
@@ -1031,6 +1044,60 @@ html[data-theme="light"]:not([data-slide-theme]) .slide-content td { border-bott
 }
 .slide-textbox:hover {
   border-color: var(--slide-accent);
+}
+
+/* ============================================================
+   PINNED ELEMENTS & SLIDE BACKGROUNDS
+   Both layers are `inset: 0` siblings of `.slide-content`, so they resolve against the
+   slide's `absolute inset-0` wrapper and share the 1280x720 canvas coordinate space the
+   editor, the presenter view and the PPTX exporter all use.
+   ============================================================ */
+.slide-bg-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: cover;
+}
+.slide-bg-overlay {
+  position: absolute;
+  inset: 0;
+}
+.slide-pinned-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  overflow: hidden;
+  pointer-events: none;
+}
+/* A pinned text box positions itself; the shared `.slide-textbox` chrome still applies. */
+.slide-pinned-layer .slide-textbox {
+  z-index: auto;
+}
+.slide-shape-svg {
+  display: block;
+}
+
+/* Alignment guides shown while dragging a pinned element. */
+.slide-snap-guide {
+  position: absolute;
+  background: var(--slide-accent, #6366f1);
+  pointer-events: none;
+  z-index: 40;
+  opacity: 0.9;
+}
+.slide-snap-guide-v {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+.slide-snap-guide-h {
+  left: 0;
+  right: 0;
+  height: 1px;
 }
 
 /* ============================================================

@@ -12,6 +12,9 @@ import { ArtifactBar } from '../artifacts/ArtifactBar'
 import { useSubSlides } from '../../hooks/useSubSlides'
 import { DrawingOverlay, DrawingToolbar } from './DrawingOverlay'
 import { DraggableElements } from './DraggableElements'
+import { appendElement, extractElementComments, stripElements, CANVAS_H, CANVAS_W } from './element-model'
+import { SUGGESTED_GLASS_GRADIENT } from './style-presets'
+import { applySlideBackground, hasBackground } from './slide-background'
 import Editor, { type OnMount } from '@monaco-editor/react'
 
 export function SlidePanel(): JSX.Element {
@@ -171,11 +174,11 @@ export function SlidePanel(): JSX.Element {
   // so they are rendered on top of whichever sub-slide is showing. They are stripped from the
   // sub-slide body first, otherwise a comment that lives in this section is drawn twice.
   const fullMd = currentSlide.markdownContent
-  const globalComments = extractGlobalComments(fullMd)
+  const globalComments = extractElementComments(fullMd)
 
   const subSlideMarkdown = subSlides[currentSubSlide]?.markdown ?? fullMd
   const activeMarkdown = globalComments.length > 0
-    ? `${stripGlobalComments(subSlideMarkdown).trimEnd()}\n${globalComments.join('\n')}`
+    ? `${stripElements(subSlideMarkdown).trimEnd()}\n${globalComments.join('\n')}`
     : subSlideMarkdown
 
   const showMdxTrustBanner = currentSlide.isMdx && !mdxTrusted && !mdxBannerDismissed
@@ -509,47 +512,6 @@ export function SlidePanel(): JSX.Element {
   )
 }
 
-/** Read-only overlay for positioned images — renders outside content scaling so images appear at correct slide coordinates */
-function PositionedImagesOverlay({ markdown, rootPath, pad }: { markdown: string; rootPath?: string; pad: boolean }): JSX.Element | null {
-  const regex = /<!--\s*image\s+x=(-?\d+)\s+y=(-?\d+)\s+w=(\d+)\s+src=([^\s]+)(?:\s+border=([^\s]+))?(?:\s+radius=(\d+))?\s*-->/gi
-  const images: { x: number; y: number; w: number; src: string; border?: string; radius?: number }[] = []
-  let match
-  while ((match = regex.exec(markdown)) !== null) {
-    images.push({
-      x: parseInt(match[1]), y: parseInt(match[2]), w: parseInt(match[3]),
-      src: match[4],
-      border: match[5]?.replace(/_/g, ' '),
-      radius: match[6] ? parseInt(match[6]) : undefined,
-    })
-  }
-  if (images.length === 0) return null
-
-  const resolve = (src: string) => {
-    if (src.startsWith('http') || src.startsWith('data:') || src.startsWith('lecta-file://')) return src
-    if (rootPath) return `lecta-file://${rootPath}/${src}`
-    return src
-  }
-
-  return (
-    <div className={`absolute inset-0 ${pad ? 'slide-pad' : ''}`} style={{ zIndex: 8, pointerEvents: 'none' }}>
-      {images.map((img, i) => (
-        <img
-          key={`pimg-${i}`}
-          src={resolve(img.src)}
-          style={{
-            position: 'absolute',
-            left: img.x,
-            top: img.y,
-            width: img.w,
-            border: img.border || undefined,
-            borderRadius: img.radius || undefined,
-          }}
-        />
-      ))}
-    </div>
-  )
-}
-
 /** 16:9 slide canvas that auto-scales content to fit */
 function SlideCanvas({ markdown, fullMarkdown, rootPath, transition, layout, slideIndex, slideId, drawingMode, editable, onUpdateMarkdown, showGlobalLayers, isMdx }: {
   markdown: string; rootPath?: string; transition?: string; layout?: string; slideIndex?: number; drawingMode?: boolean
@@ -562,10 +524,14 @@ function SlideCanvas({ markdown, fullMarkdown, rootPath, transition, layout, sli
   slideId?: string
 }): JSX.Element {
   const slideTheme = usePresentationStore((s) => s.presentation?.theme) || 'dark'
+  const background = usePresentationStore((s) =>
+    typeof slideIndex === 'number' ? s.presentation?.slides[slideIndex]?.background : undefined
+  )
   const containerRef = useRef<HTMLDivElement>(null)
   const slideRef = useRef<HTMLDivElement>(null)
   const transitionRef = useRef<HTMLDivElement>(null)
   const [canvasScale, setCanvasScale] = useState(1)
+  const [dropActive, setDropActive] = useState(false)
 
   // Trigger entrance animation on markdown change
   useEffect(() => {
@@ -599,9 +565,72 @@ function SlideCanvas({ markdown, fullMarkdown, rootPath, transition, layout, sli
     return () => ro.disconnect()
   }, [])
 
+  const acceptsDrops = !!(editable && onUpdateMarkdown && rootPath && typeof slideIndex === 'number')
+
+  /**
+   * Import dropped/pasted image files into the deck and pin them where they landed.
+   * Several files fan out from the drop point so they do not stack exactly on top of
+   * each other.
+   */
+  const importImages = useCallback(
+    async (files: File[], point: { x: number; y: number }) => {
+      if (!acceptsDrops || files.length === 0) return
+      let md = fullMarkdown ?? markdown
+      let placed = 0
+      for (const file of files) {
+        try {
+          const dataUrl = await readAsDataUrl(file)
+          const relative = await window.electronAPI.importDroppedImage(rootPath!, file.name, dataUrl)
+          if (!relative) continue
+          const w = 480
+          const x = clampToCanvas(point.x - w / 2 + placed * 24, w, CANVAS_W)
+          const y = clampToCanvas(point.y - (w * 0.66) / 2 + placed * 24, w * 0.66, CANVAS_H)
+          md = appendElement(md, { kind: 'image', x, y, w, src: relative, extra: [] })
+          placed++
+        } catch (error) {
+          usePresentationStore.setState({ error: (error as Error).message })
+        }
+      }
+      if (placed > 0) onUpdateMarkdown!(md)
+    },
+    [acceptsDrops, fullMarkdown, markdown, onUpdateMarkdown, rootPath]
+  )
+
+  /** Pointer position in slide coordinates (the canvas is CSS-scaled to fit). */
+  const toSlidePoint = (clientX: number, clientY: number): { x: number; y: number } => {
+    const rect = slideRef.current?.getBoundingClientRect()
+    if (!rect) return { x: CANVAS_W / 2, y: CANVAS_H / 2 }
+    return { x: (clientX - rect.left) / canvasScale, y: (clientY - rect.top) / canvasScale }
+  }
 
   return (
-    <div ref={containerRef} className="h-full w-full relative overflow-hidden" style={{ background: 'var(--slide-bg)' }}>
+    <div
+      ref={containerRef}
+      className="h-full w-full relative overflow-hidden"
+      style={{ background: 'var(--slide-bg)' }}
+      onDragOver={acceptsDrops ? (e) => { e.preventDefault(); setDropActive(true) } : undefined}
+      onDragLeave={acceptsDrops ? () => setDropActive(false) : undefined}
+      onDrop={
+        acceptsDrops
+          ? (e) => {
+              e.preventDefault()
+              setDropActive(false)
+              const files = imageFilesFrom(e.dataTransfer)
+              if (files.length > 0) void importImages(files, toSlidePoint(e.clientX, e.clientY))
+            }
+          : undefined
+      }
+      onPaste={
+        acceptsDrops
+          ? (e) => {
+              const files = imageFilesFrom(e.clipboardData)
+              if (files.length === 0) return
+              e.preventDefault()
+              void importImages(files, { x: CANVAS_W / 2, y: CANVAS_H / 2 })
+            }
+          : undefined
+      }
+    >
       <div
         ref={slideRef}
         className="absolute overflow-hidden"
@@ -623,11 +652,16 @@ function SlideCanvas({ markdown, fullMarkdown, rootPath, transition, layout, sli
               height: layout === 'blank' || isMdx ? SLIDE_H : undefined,
             }}
           >
-            <ContentRenderer markdown={markdown} rootPath={rootPath} isMdx={isMdx} slideId={slideId} />
+            <ContentRenderer
+              markdown={markdown}
+              rootPath={rootPath}
+              isMdx={isMdx}
+              slideId={slideId}
+              background={background}
+              hidePinned={!!(editable && onUpdateMarkdown)}
+            />
           </div>
         </div>
-        {/* Positioned images overlay — always visible, outside content scaling */}
-        <PositionedImagesOverlay markdown={markdown} rootPath={rootPath} pad={layout !== 'blank' && !isMdx} />
         {/* Draggable elements overlay (text boxes, shapes, positioned images — editable) */}
         {editable && onUpdateMarkdown && (
           <div className="absolute inset-0 slide-pad" style={{ zIndex: 10 }}>
@@ -637,6 +671,12 @@ function SlideCanvas({ markdown, fullMarkdown, rootPath, transition, layout, sli
               onUpdateMarkdown={onUpdateMarkdown}
               editable={true}
               rootPath={rootPath}
+              hasSlideBackground={hasBackground(background)}
+              onApplySuggestedBackground={() => {
+                if (typeof slideIndex === 'number') {
+                  void applySlideBackground(slideIndex, { ...background, gradient: SUGGESTED_GLASS_GRADIENT.css })
+                }
+              }}
             />
           </div>
         )}
@@ -657,9 +697,40 @@ function SlideCanvas({ markdown, fullMarkdown, rootPath, transition, layout, sli
         {showGlobalLayers && (
           <GlobalLayers width={SLIDE_W} height={SLIDE_H} />
         )}
+        {dropActive && (
+          <div className="absolute inset-0 pointer-events-none border-2 border-dashed border-indigo-400/70 bg-indigo-500/10 flex items-center justify-center"
+            style={{ zIndex: 50 }}>
+            <span className="text-2xl font-medium text-indigo-200">Drop image to pin it here</span>
+          </div>
+        )}
       </div>
     </div>
   )
+}
+
+/** Image files from a drop or a paste, including screenshots pasted as raw bitmaps. */
+function imageFilesFrom(source: DataTransfer | null): File[] {
+  if (!source) return []
+  const files = Array.from(source.files).filter((f) => f.type.startsWith('image/'))
+  if (files.length > 0) return files
+  return Array.from(source.items)
+    .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+    .map((item) => item.getAsFile())
+    .filter((f): f is File => f !== null)
+}
+
+function readAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = () => reject(reader.error ?? new Error(`Could not read ${file.name}`))
+    reader.readAsDataURL(file)
+  })
+}
+
+/** Keep a pinned element's box on the slide. */
+function clampToCanvas(value: number, size: number, limit: number): number {
+  return Math.round(Math.max(0, Math.min(value, limit - size)))
 }
 
 /** Global layers: persistent header/footer rendered on every slide */
@@ -688,29 +759,6 @@ function GlobalLayers({ width, height }: { width: number; height: number }): JSX
       </div>
     </div>
   )
-}
-
-/**
- * Comment forms that position an element on the whole slide rather than inside one sub-slide.
- */
-const GLOBAL_COMMENT_PATTERNS = [
-  /<!--\s*image\s[^>]*-->/gi,
-  /<!--\s*textbox[\s\S]*?\/textbox\s*-->/gi,
-  /<!--\s*shape\s[^>]*-->/gi
-]
-
-/** All positioned-element comments in a slide, de-duplicated and in source order. */
-function extractGlobalComments(md: string): string[] {
-  const found: string[] = []
-  for (const pattern of GLOBAL_COMMENT_PATTERNS) {
-    for (const match of md.matchAll(pattern)) found.push(match[0])
-  }
-  return [...new Set(found)]
-}
-
-/** Remove positioned-element comments so they can be re-appended exactly once. */
-function stripGlobalComments(md: string): string {
-  return GLOBAL_COMMENT_PATTERNS.reduce((acc, pattern) => acc.replace(pattern, ''), md)
 }
 
 /** Split full markdown into sections by --- separators */

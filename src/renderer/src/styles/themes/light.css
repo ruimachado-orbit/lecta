@@ -59,6 +59,12 @@
 
   --slide-textbox-border: #e5e7eb;
   --slide-textbox-color: #374151;
+
+  /* Surfaces — glass / card / frame presets */
+  --slide-glass-bg: rgba(255,255,255,0.55);
+  --slide-glass-border: rgba(0,0,0,0.08);
+  --slide-surface: #ffffff;
+  --slide-shadow-color: rgba(15,23,42,0.16);
 }
 
 [data-slide-theme="light"] :is(.slide-content, .wysiwyg-content) ul li::marker {

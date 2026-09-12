@@ -52,6 +52,21 @@ interface RecentDeck {
 
 let recentDecks: RecentDeck[] = []
 
+/** Cap on a single dropped/pasted image, so a stray paste cannot fill the deck folder. */
+const MAX_DROPPED_IMAGE_BYTES = 25 * 1024 * 1024
+
+/** Image media types accepted from a drop or paste, and the extension each is saved with. */
+const IMAGE_EXTENSIONS: Record<string, string> = {
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'image/jpg': '.jpg',
+  'image/gif': '.gif',
+  'image/webp': '.webp',
+  'image/avif': '.avif',
+  'image/bmp': '.bmp',
+  'image/svg+xml': '.svg'
+}
+
 /** Returns ~/Documents/Lecta, creating it if it doesn't exist */
 function getLectaDocumentsDir(): string {
   return join(homedir(), 'Documents', 'Lecta')
@@ -883,6 +898,48 @@ export function registerFileSystemHandlers(): void {
       await autoSave(root)
 
       return `images/${destName}`
+    }
+  )
+
+  /**
+   * Import an image that was dropped onto, or pasted into, the slide canvas.
+   *
+   * The renderer only ever hands over bytes (a data URL) and a display name — never a
+   * host path — so nothing outside the deck can be read, and the destination is confined
+   * to `<deck>/images/` by `assertInsideOpenDeck` + `resolveInsideDeck`. Returns the
+   * deck-relative path to store in the slide markdown.
+   */
+  ipcMain.handle(
+    'fs:import-dropped-image',
+    async (_event, rootPath: string, fileName: string, dataUrl: string): Promise<string | null> => {
+      const root = assertInsideOpenDeck(rootPath)
+      if (typeof dataUrl !== 'string') throw new Error('Dropped image must be a data URL')
+
+      const match = /^data:(image\/[a-z0-9.+-]+);base64,([A-Za-z0-9+/=]+)$/i.exec(dataUrl.trim())
+      if (!match) throw new Error('Dropped image must be a base64 image data URL')
+
+      const bytes = Buffer.from(match[2], 'base64')
+      if (bytes.length === 0) throw new Error('Dropped image is empty')
+      if (bytes.length > MAX_DROPPED_IMAGE_BYTES) {
+        throw new Error(`Dropped image is larger than ${MAX_DROPPED_IMAGE_BYTES / (1024 * 1024)} MB`)
+      }
+
+      const ext = IMAGE_EXTENSIONS[match[1].toLowerCase()]
+      if (!ext) throw new Error(`Unsupported image type: ${match[1]}`)
+
+      // Only the base name is used, stripped to safe characters — a name like
+      // "../../evil.png" or "C:\evil.png" can never escape the images folder.
+      const stem =
+        basename(typeof fileName === 'string' ? fileName : '', extname(fileName || ''))
+          .replace(/[^A-Za-z0-9._-]+/g, '-')
+          .replace(/^[-.]+/, '')
+          .slice(0, 60) || 'image'
+
+      await mkdir(join(root, 'images'), { recursive: true })
+      const relative = `images/${Date.now()}-${stem}${ext}`
+      await atomicWriteFile(resolveInsideDeck(root, relative), bytes)
+      await autoSave(root)
+      return relative
     }
   )
 

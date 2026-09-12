@@ -72,6 +72,12 @@
 
   --slide-textbox-border: rgba(0,212,255,0.06);
   --slide-textbox-color: #bbbbbb;
+
+  /* Surfaces — glass / card / frame presets */
+  --slide-glass-bg: rgba(255,255,255,0.10);
+  --slide-glass-border: rgba(255,255,255,0.22);
+  --slide-surface: #111111;
+  --slide-shadow-color: rgba(0,0,0,0.70);
 }
 
 /* Keynote Dark — cyan glow on H1 */

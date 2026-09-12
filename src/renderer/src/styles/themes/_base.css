@@ -107,6 +107,13 @@
   --slide-bullet-color: currentColor;
   --slide-element-radius: 0.5rem;
 
+  /* Surfaces — translucent "liquid glass", solid cards, device frames.
+     Dark default: a light film over a dark canvas. Light themes invert these. */
+  --slide-glass-bg: rgba(255,255,255,0.10);
+  --slide-glass-border: rgba(255,255,255,0.22);
+  --slide-surface: #15152e;
+  --slide-shadow-color: rgba(0,0,0,0.55);
+
   /* Textbox */
   --slide-textbox-border: rgba(99,102,241,0.12);
   --slide-textbox-color: #b0b0d0;

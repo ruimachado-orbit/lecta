@@ -1,7 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { usePresentationStore } from '../../stores/presentation-store'
+import { useImageStore } from '../../stores/image-store'
 import { useUIStore, COLOR_PALETTES } from '../../stores/ui-store'
 import { requireAI, showAIError } from '../ai/AIAlert'
+import { GRADIENT_PRESETS } from './style-presets'
+import { applySlideBackground, patchSlideBackground } from './slide-background'
 
 interface SlideEditToolbarProps {
   editorRef: React.RefObject<any>
@@ -108,6 +111,7 @@ export function SlideEditToolbar({ editorRef }: SlideEditToolbarProps): JSX.Elem
             insertAtCursor(`\n![image](${encodedPath})\n`)
           }
         }}>🖼</Btn>
+        <BackgroundPicker />
         <Sep />
         <Btn
           title="Beautify with AI — clean up and professionalize this slide"
@@ -230,6 +234,146 @@ function AIPromptBar({
           )}
         </button>
       )}
+    </div>
+  )
+}
+
+/**
+ * Per-slide backdrop picker: a colour, one of six gradients, or an image from the deck's
+ * image library. Backdrops live in `lecta.yaml`, so the change is written straight to the
+ * manifest rather than into the slide markdown.
+ */
+function BackgroundPicker(): JSX.Element {
+  const presentation = usePresentationStore((s) => s.presentation)
+  const currentSlideIndex = usePresentationStore((s) => s.currentSlideIndex)
+  const background = usePresentationStore((s) => s.presentation?.slides[s.currentSlideIndex]?.background)
+  const { images, loadImagesFromWorkspace } = useImageStore()
+  const [open, setOpen] = useState(false)
+
+  const rootPath = presentation?.rootPath
+  useEffect(() => {
+    if (open && rootPath) void loadImagesFromWorkspace(rootPath)
+  }, [open, rootPath, loadImagesFromWorkspace])
+
+  const set = (patch: Parameters<typeof patchSlideBackground>[1]) =>
+    void patchSlideBackground(currentSlideIndex, patch)
+
+  const preview =
+    background?.gradient || (background?.color ? background.color : undefined) || 'repeating-conic-gradient(#4b5563 0% 25%, #374151 0% 50%) 50% / 6px 6px'
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition-colors"
+        title="Slide background"
+        aria-label="Slide background"
+      >
+        <span className="w-3 h-3 rounded-sm border border-gray-600" style={{ background: preview }} />
+        <span className="hidden sm:inline">Background</span>
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 top-full mt-1 z-50 w-64 rounded-lg border border-gray-700 bg-gray-900 p-2.5 shadow-2xl space-y-2.5">
+            <Field label="Gradient">
+              <div className="grid grid-cols-6 gap-1">
+                {GRADIENT_PRESETS.map((g) => (
+                  <button
+                    key={g.id}
+                    onClick={() => set({ gradient: g.css })}
+                    title={g.label}
+                    aria-label={g.label}
+                    className={`h-6 rounded border transition-colors ${background?.gradient === g.css ? 'border-white' : 'border-gray-700 hover:border-gray-500'}`}
+                    style={{ background: g.css }}
+                  />
+                ))}
+              </div>
+            </Field>
+
+            <Field label="Colour">
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={background?.color ?? '#0f172a'}
+                  onChange={(e) => set({ color: e.target.value })}
+                  className="h-6 w-10 rounded border border-gray-700 bg-transparent"
+                  aria-label="Background colour"
+                />
+                <button
+                  onClick={() => set({ color: undefined })}
+                  className="text-[10px] text-gray-500 hover:text-gray-300"
+                >
+                  Clear colour
+                </button>
+              </div>
+            </Field>
+
+            <Field label="Image">
+              <div className="flex gap-1 flex-wrap max-h-24 overflow-y-auto">
+                {images.slice(0, 12).map((img) => (
+                  <button
+                    key={img.relativePath}
+                    onClick={() => set({ image: img.relativePath })}
+                    title={img.relativePath}
+                    aria-label={img.relativePath}
+                    className={`h-9 w-12 rounded border overflow-hidden ${background?.image === img.relativePath ? 'border-white' : 'border-gray-700 hover:border-gray-500'}`}
+                  >
+                    <img src={img.fullSrc} alt="" className="h-full w-full object-cover" />
+                  </button>
+                ))}
+                {images.length === 0 && <span className="text-[10px] text-gray-600">No images in this deck yet.</span>}
+              </div>
+              <div className="mt-1 flex items-center gap-2">
+                <button
+                  onClick={async () => {
+                    if (!rootPath) return
+                    const relative = await window.electronAPI.uploadImage(rootPath)
+                    if (relative) set({ image: relative })
+                  }}
+                  className="text-[10px] text-indigo-300 hover:text-indigo-200"
+                >
+                  Upload…
+                </button>
+                {background?.image && (
+                  <button onClick={() => set({ image: undefined })} className="text-[10px] text-gray-500 hover:text-gray-300">
+                    Remove image
+                  </button>
+                )}
+              </div>
+            </Field>
+
+            <Field label={`Overlay · ${background?.overlay ?? 0}%`}>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={background?.overlay ?? 0}
+                onChange={(e) => set({ overlay: Number(e.target.value) || undefined })}
+                className="w-full accent-indigo-500"
+                aria-label="Background overlay"
+              />
+            </Field>
+
+            <button
+              onClick={() => { void applySlideBackground(currentSlideIndex, undefined); setOpen(false) }}
+              className="w-full rounded-md border border-gray-700 py-1 text-[10px] text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition-colors"
+            >
+              Clear background
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }): JSX.Element {
+  return (
+    <div>
+      <div className="mb-1 text-[10px] uppercase tracking-wide text-gray-500">{label}</div>
+      {children}
     </div>
   )
 }

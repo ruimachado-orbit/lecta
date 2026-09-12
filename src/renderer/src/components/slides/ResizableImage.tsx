@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from 'react'
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { queuePinComment } from './slide-utils'
+import { CANVAS_H, CANVAS_W, serializeElement } from './element-model'
 
 const BORDER_COLORS = [
   { label: 'White', value: '#ffffff' },
@@ -82,15 +83,22 @@ export function ResizableImageView({ node, updateAttributes, deleteNode, selecte
       if (imagesIdx !== -1) imgSrc = imgSrc.substring(imagesIdx + 1)
     }
 
+    // Pinned elements live in true slide coordinates, so centring is plain arithmetic.
     const imgWidth = width || 400
-    const borderAttr = border ? ` border=${border.replace(/\s+/g, '_')}` : ''
-    const radiusAttr = currentBorderRadius ? ` radius=${currentBorderRadius}` : ''
-    const centerX = Math.round((1280 - imgWidth) / 2 - 48)
-    const centerY = Math.round((720 - 300) / 2 - 48)
-    const comment = `\n<!-- image x=${centerX} y=${centerY} w=${imgWidth} src=${imgSrc}${borderAttr}${radiusAttr} -->\n`
+    const imgHeight = Math.round(imgWidth * 0.66)
+    const comment = serializeElement({
+      kind: 'image',
+      x: Math.round((CANVAS_W - imgWidth) / 2),
+      y: Math.round((CANVAS_H - imgHeight) / 2),
+      w: imgWidth,
+      src: imgSrc,
+      border: border ? border.replace(/\s+/g, '_') : undefined,
+      radius: currentBorderRadius || undefined,
+      extra: []
+    })
 
     // Queue comment so onUpdate (fired synchronously by deleteNode) picks it up atomically
-    queuePinComment(comment.trim())
+    queuePinComment(comment)
     deleteNode()
   }
 

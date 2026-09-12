@@ -69,6 +69,12 @@
 
   --slide-textbox-border: rgba(196,160,53,0.08);
   --slide-textbox-color: #a0a098;
+
+  /* Surfaces — glass / card / frame presets */
+  --slide-glass-bg: rgba(255,255,255,0.10);
+  --slide-glass-border: rgba(255,255,255,0.22);
+  --slide-surface: #121216;
+  --slide-shadow-color: rgba(0,0,0,0.65);
 }
 
 /* Executive — thin gold rule under H1 */

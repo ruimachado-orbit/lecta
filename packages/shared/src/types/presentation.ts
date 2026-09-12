@@ -36,6 +36,23 @@ export interface WebAppConfig {
   label?: string
 }
 
+/**
+ * Optional per-slide backdrop, painted behind the slide content. Any combination of the
+ * three layers may be set; they stack colour → gradient → image, with `overlay` (0-100)
+ * darkening whatever is beneath it so light text and translucent "glass" elements stay
+ * legible.
+ */
+export interface SlideBackground {
+  /** Any CSS colour. */
+  color?: string
+  /** Any CSS `background-image` value — the built-in presets are linear-gradients. */
+  gradient?: string
+  /** Deck-relative image path, e.g. `images/hero.png`. */
+  image?: string
+  /** Darkening scrim over the layers below, 0-100. */
+  overlay?: number
+}
+
 export interface PromptConfig {
   prompt: string
   label?: string
@@ -56,6 +73,7 @@ export interface SlideConfig {
   layout?: SlideLayout
   drawings?: string // JSON string of Excalidraw elements
   skipped?: boolean
+  background?: SlideBackground
 }
 
 export interface CodeBlockConfig {

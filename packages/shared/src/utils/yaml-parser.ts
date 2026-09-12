@@ -59,6 +59,17 @@ const PromptConfigSchema = z.object({
   response: z.string().optional(),
 })
 
+/**
+ * Per-slide backdrop. Every field is optional; an empty object is dropped on serialize so
+ * a background that was cleared does not linger in the manifest.
+ */
+const SlideBackgroundSchema = z.object({
+  color: z.string().optional(),
+  gradient: z.string().optional(),
+  image: deckRelativePath('background.image').optional(),
+  overlay: z.number().min(0).max(100).optional(),
+})
+
 const SlideConfigSchema = z.object({
   id: z.string().min(1, 'slide id must not be empty'),
   title: z.string().optional(),
@@ -73,6 +84,7 @@ const SlideConfigSchema = z.object({
   layout: z.enum(SLIDE_LAYOUTS).optional(),
   drawings: z.string().optional(),
   skipped: z.boolean().optional(),
+  background: SlideBackgroundSchema.optional(),
 })
 
 const AIConfigSchema = z.object({
@@ -178,6 +190,9 @@ export function serializePresentation(config: Presentation): string {
     if (s.layout && s.layout !== 'default') slide.layout = s.layout
     if (s.drawings) slide.drawings = s.drawings
     if (s.skipped) slide.skipped = true
+    if (s.background && Object.values(s.background).some((v) => v !== undefined && v !== '')) {
+      slide.background = s.background
+    }
 
     // Anything the schema did not name (a slide-level key from a newer version) survives.
     for (const [key, value] of Object.entries(s as unknown as Record<string, unknown>)) {

@@ -72,6 +72,86 @@ describe('parseSlideMarkdown', () => {
   })
 })
 
+describe('pinned element attributes', () => {
+  it('reads the extended image, shape and textbox attribute sets', () => {
+    const p = parseSlideMarkdown(
+      [
+        '<!-- image x=64 y=48 w=520 h=300 src=logo.png fit=cover radius=20 opacity=90 rotate=-3 shadow=soft style=glass z=2 -->',
+        '<!-- shape type=rect x=10 y=10 w=200 h=100 fill=#123456 opacity=60 radius=12 shadow=hard style=card z=-1 -->',
+        '<!-- textbox x=10 y=10 w=400 fs=32 style=glass pad=24 align=center -->Glass<!-- /textbox -->'
+      ].join('\n')
+    )
+    expect(p.images[0]).toMatchObject({ x: 64, y: 48, w: 520, h: 300, fit: 'cover', radius: 20, opacity: 90, rotate: -3, shadow: 'soft', style: 'glass', z: 2 })
+    expect(p.shapes[0]).toMatchObject({ opacity: 60, radius: 12, shadow: 'hard', style: 'card', z: -1 })
+    expect(p.textboxes[0]).toMatchObject({ x: 10, y: 10, w: 400, fontSize: 32, style: 'glass', pad: 24, align: 'center', text: 'Glass' })
+  })
+
+  it('still reads decks written before the new attributes existed', () => {
+    const p = parseSlideMarkdown(
+      [
+        '<!-- image x=10 y=20 w=200 src=logo.png border=2px_solid_#fff radius=8 -->',
+        '<!-- shape type=ellipse x=1 y=2 w=3 h=4 fill=#123456 stroke=none sw=2 -->',
+        '<!-- textbox x=100 y=200 w=300 fs=24 fc=#ff0000 fb=1 -->Pinned<!-- /textbox -->'
+      ].join('\n')
+    )
+    expect(p.images[0]).toMatchObject({ x: 10, y: 20, w: 200, radius: 8, border: '2px solid #fff' })
+    expect(p.images[0].style).toBeUndefined()
+    expect(p.images[0].fit).toBeUndefined()
+    expect(p.shapes[0]).toMatchObject({ type: 'ellipse', strokeWidth: 2 })
+    expect(p.shapes[0].opacity).toBeUndefined()
+    expect(p.textboxes[0]).toMatchObject({ text: 'Pinned', fontSize: 24, color: 'ff0000', bold: true, italic: false })
+    expect(p.textboxes[0].style).toBeUndefined()
+  })
+
+  it('ignores unknown enum values rather than passing them to PowerPoint', () => {
+    const p = parseSlideMarkdown('<!-- image x=0 y=0 w=10 src=logo.png fit=squish style=neon shadow=glow -->')
+    expect(p.images[0]).toMatchObject({ fit: undefined, style: undefined, shadow: undefined })
+  })
+
+  it('renders glass and card as a rounded translucent backing shape', async () => {
+    const res = await buildPptx({
+      title: 'Glass',
+      rootPath: root,
+      slides: [
+        {
+          id: 'glass',
+          layout: 'blank',
+          markdownContent: [
+            '<!-- image x=100 y=100 w=400 h=250 src=logo.png fit=cover radius=20 opacity=80 rotate=6 shadow=soft style=glass -->',
+            '<!-- shape type=rect x=700 y=100 w=300 h=200 fill=#123456 radius=16 style=card -->'
+          ].join('\n')
+        }
+      ]
+    })
+    expect(res.warnings).toEqual([])
+    const { slides } = await slideTexts(res.buffer)
+    // Two backing surfaces, both rounded, both translucent.
+    expect(slides[0].match(/roundRect/g)?.length).toBeGreaterThanOrEqual(2)
+    expect(slides[0]).toContain('alpha')
+    // Rotation is emitted on the picture (pptxgenjs writes rot in 60000ths of a degree).
+    expect(slides[0]).toContain('rot="360000"')
+  })
+
+  it('honours z-order when placing pinned shapes', async () => {
+    const res = await buildPptx({
+      title: 'Z',
+      rootPath: root,
+      slides: [
+        {
+          id: 'z',
+          layout: 'blank',
+          markdownContent: [
+            '<!-- shape type=rect x=0 y=0 w=10 h=10 fill=#aa0000 z=5 -->',
+            '<!-- shape type=rect x=0 y=0 w=10 h=10 fill=#00bb00 z=1 -->'
+          ].join('\n')
+        }
+      ]
+    })
+    const { slides } = await slideTexts(res.buffer)
+    expect(slides[0].indexOf('00BB00')).toBeLessThan(slides[0].indexOf('AA0000'))
+  })
+})
+
 describe('helpers', () => {
   it('splits sub-slides cumulatively', () => {
     expect(splitSubSlides('a\n----\nb\n----\nc')).toEqual(['a', 'a\n\nb', 'a\n\nb\n\nc'])

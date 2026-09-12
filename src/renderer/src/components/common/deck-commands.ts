@@ -19,7 +19,8 @@ export async function exportDeckAs(kind: ExportKind): Promise<ExportOutcome | nu
 export const EXPORT_LABELS: Record<ExportKind, string> = {
   pdf: 'Export PDF',
   html: 'Export HTML',
-  pptx: 'Export PowerPoint'
+  pptx: 'Export PowerPoint',
+  md: 'Export single Markdown file'
 }
 
 /** Import slides from another deck, inserting them after the current slide. */

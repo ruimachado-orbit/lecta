@@ -163,7 +163,7 @@ export function CommandPalette(): JSX.Element | null {
         }
       )
 
-      for (const kind of ['pdf', 'html', 'pptx'] as ExportKind[]) {
+      for (const kind of ['pdf', 'html', 'pptx', 'md'] as ExportKind[]) {
         list.push({
           id: `action-export-${kind}`,
           title: EXPORT_LABELS[kind],

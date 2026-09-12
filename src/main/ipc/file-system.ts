@@ -5,6 +5,7 @@ import { homedir } from 'os'
 import { stringify as stringifyYaml } from 'yaml'
 import { parsePresentationYaml, serializePresentation } from '../../../packages/shared/src/utils/yaml-parser'
 import { DECK_CONFIG_FILE } from '../../../packages/shared/src/constants'
+import { defaultEngineForLanguage } from '../../../packages/shared/src/slide-options'
 import {
   parseSingleFileDeck,
   materializeToFolder,
@@ -206,13 +207,6 @@ async function writePresentationYaml(presentation: Presentation): Promise<void> 
   const { rootPath: _rootPath, ...config } = presentation
   void _rootPath
   await atomicWriteFile(configPath, serializePresentation(config as Presentation))
-}
-
-const LANGUAGE_TO_ENGINE: Partial<Record<SupportedLanguage, ExecutionEngine>> = {
-  javascript: 'sandpack',
-  typescript: 'sandpack',
-  python: 'pyodide',
-  sql: 'sql'
 }
 
 /** Extensions we accept as a single-file deck (see packages/shared/src/utils/single-file.ts). */
@@ -649,7 +643,7 @@ export function registerFileSystemHandlers(): void {
         createdCodePath = codePath
 
         // Update slide config
-        const engine = LANGUAGE_TO_ENGINE[language] || 'native'
+        const engine = defaultEngineForLanguage(language)
         slide.code = {
           file: codeFile,
           language,

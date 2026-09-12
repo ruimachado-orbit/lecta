@@ -9,7 +9,7 @@ import { usePresentationStore } from '../stores/presentation-store'
  * StatusBar shows) when something fails — never a console-only failure.
  */
 
-export type ExportKind = 'pdf' | 'html' | 'pptx'
+export type ExportKind = 'pdf' | 'html' | 'pptx' | 'md'
 
 export interface ExportOutcome {
   path: string
@@ -31,7 +31,7 @@ function clearError(): void {
   if (usePresentationStore.getState().error) usePresentationStore.setState({ error: null })
 }
 
-const KIND_LABEL: Record<ExportKind, string> = { pdf: 'PDF', html: 'HTML', pptx: 'PowerPoint' }
+const KIND_LABEL: Record<ExportKind, string> = { pdf: 'PDF', html: 'HTML', pptx: 'PowerPoint', md: 'Markdown' }
 
 /**
  * Export the open deck. Returns the saved path (plus any exporter warnings), or `null` when the
@@ -59,7 +59,9 @@ export async function exportDeck(kind: ExportKind): Promise<ExportOutcome | null
   try {
     const outcome = kind === 'pptx'
       ? await exportPptx()
-      : await exportRendered(kind, options)
+      : kind === 'md'
+        ? await exportSingleFile(presentation.rootPath)
+        : await exportRendered(kind, options)
     // Warnings are not failures: they ride back to the caller, which shows them in the
     // completion toast next to the saved path.
     if (outcome) clearError()
@@ -80,6 +82,12 @@ async function exportRendered(kind: 'pdf' | 'html', options: ExportRenderOptions
     ? await api.exportPdf(presentation.rootPath, options, presentation.title)
     : await api.exportHtml(presentation.rootPath, options, presentation.title, options.theme)
 
+  return path ? { path } : null
+}
+
+/** Whole deck as one `deck.md` (frontmatter, `---` separators, code fences, notes). */
+async function exportSingleFile(rootPath: string): Promise<ExportOutcome | null> {
+  const path = await window.electronAPI.exportSingleFile(rootPath)
   return path ? { path } : null
 }
 

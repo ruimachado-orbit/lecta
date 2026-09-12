@@ -288,7 +288,7 @@ export function Toolbar(): JSX.Element {
               Import slides
             </MenuItem>
             <MenuSeparator />
-            {(['pdf', 'html', 'pptx'] as ExportKind[]).map((kind) => (
+            {(['pdf', 'html', 'pptx', 'md'] as ExportKind[]).map((kind) => (
               <MenuItem
                 key={kind}
                 onClick={() => { void runExport(kind) }}

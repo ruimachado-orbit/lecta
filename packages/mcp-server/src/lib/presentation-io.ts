@@ -4,116 +4,48 @@
  */
 
 import { readFile, writeFile, mkdir, access, copyFile, rename, unlink, stat as fsStat } from 'fs/promises'
-import { join, basename, dirname, extname, isAbsolute, relative, resolve, sep } from 'path'
+import { join, basename, dirname, extname, resolve } from 'path'
 import { homedir } from 'os'
-import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
-import { z } from 'zod'
+import { DECK_CONFIG_FILE } from '#shared/constants.js'
+import {
+  DEFAULT_THEME,
+  SLIDE_LAYOUTS,
+  SLIDE_THEMES,
+  defaultEngineForLanguage,
+  extensionForLanguage,
+  isSlideTheme,
+  nativeCommandForLanguage,
+} from '#shared/slide-options.js'
+import { resolveRelativePath } from '#shared/utils/path-resolver.js'
+import { parsePresentationYaml, serializePresentation } from '#shared/utils/yaml-parser.js'
+import type {
+  ExecutionEngine,
+  LoadedPresentation,
+  LoadedSlide,
+  Presentation,
+  SlideConfig,
+  SlideLayout,
+  SlideTransition,
+  SupportedLanguage,
+} from '#shared/types/presentation.js'
 
-// ── Types (mirrored from packages/shared to avoid import issues with NodeNext) ──
-
-export type SlideLayout =
-  | 'default' | 'center' | 'title' | 'section'
-  | 'two-col' | 'two-col-wide-left' | 'two-col-wide-right'
-  | 'three-col' | 'top-bottom' | 'big-number' | 'quote' | 'blank'
-
-export type SlideTransition = 'none' | 'left' | 'right' | 'top' | 'bottom'
-
-export type SupportedLanguage =
-  | 'javascript' | 'typescript' | 'python' | 'sql' | 'html' | 'css'
-  | 'json' | 'bash' | 'rust' | 'go' | 'java' | 'csharp' | 'ruby' | 'php' | 'markdown'
-
-export type ExecutionEngine = 'sandpack' | 'pyodide' | 'sql' | 'native' | 'none'
-
-export interface ArtifactConfig {
-  path: string
-  label: string
-}
-
-export interface CodeBlockConfig {
-  file: string
-  language: SupportedLanguage
-  execution: ExecutionEngine
-  dependencies?: string[]
-  packages?: string[]
-  seedData?: string
-  command?: string
-  args?: string[]
-}
-
-export interface VideoConfig {
-  url: string
-  label?: string
-}
-
-export interface WebAppConfig {
-  url: string
-  label?: string
-}
-
-export interface PromptConfig {
-  prompt: string
-  label?: string
-  response?: string
-}
-
-export interface SlideConfig {
-  id: string
-  title?: string
-  content: string
-  code?: CodeBlockConfig
-  video?: VideoConfig
-  webapp?: WebAppConfig
-  prompts: PromptConfig[]
-  artifacts: ArtifactConfig[]
-  notes?: string
-  transition?: SlideTransition
-  layout?: SlideLayout
-  drawings?: string
-  skipped?: boolean
-}
-
-export interface SlideGroupConfig {
-  id: string
-  name: string
-  slideIds: string[]
-  color?: string
-}
-
-export interface AIConfig {
-  model?: string
-  autoGenerateNotes?: boolean
-  context?: 'slide' | 'code' | 'slide+code'
-}
-
-export interface Presentation {
-  title: string
-  author: string
-  theme: string
-  lastViewedIndex?: number
-  slides: SlideConfig[]
-  rootPath: string
-  ai?: AIConfig
-  groups?: SlideGroupConfig[]
-  presenterNotes?: string
-}
-
-export interface LoadedSlide {
-  config: SlideConfig
-  markdownContent: string
-  codeContent: string | null
-  codeLanguage: SupportedLanguage | null
-  notesContent: string | null
-  isMdx?: boolean
-}
-
-export interface LoadedPresentation {
-  config: Presentation
-  slides: LoadedSlide[]
+// The deck manifest schema, its parser/serializer, the slide-option lists and the
+// deck-relative path guard all live in packages/shared and are re-exported here, so the
+// server and the app cannot drift apart on what a lecta.yaml looks like.
+export { DECK_CONFIG_FILE, parsePresentationYaml, resolveRelativePath, serializePresentation }
+export { SLIDE_LAYOUTS, SLIDE_THEMES }
+export type {
+  ExecutionEngine,
+  LoadedPresentation,
+  LoadedSlide,
+  Presentation,
+  SlideConfig,
+  SlideLayout,
+  SlideTransition,
+  SupportedLanguage,
 }
 
 // ── Constants ──
-
-export const DECK_CONFIG_FILE = 'lecta.yaml'
 
 /** Default directory for new presentations — ~/Documents/Lecta */
 export function getDefaultPresentationsPath(): string {
@@ -157,21 +89,6 @@ export function expandHome(inputPath: string): string {
     return join(homedir(), inputPath.slice(2))
   }
   return inputPath
-}
-
-/**
- * Resolve a deck-relative path, refusing anything that escapes the deck folder.
- * The app does the same in `packages/shared/src/utils/path-resolver.ts`.
- */
-export function resolveInsideDeck(rootPath: string, relativePath: string): string {
-  const root = resolve(rootPath)
-  const resolved = resolve(root, relativePath)
-  const rel = relative(root, resolved)
-  const escapes = rel === '..' || rel.startsWith('..' + sep) || rel.startsWith('../')
-  if (escapes || isAbsolute(rel)) {
-    throw new Error(`Path "${relativePath}" escapes the presentation folder`)
-  }
-  return resolved
 }
 
 async function pathExists(p: string): Promise<boolean> {
@@ -263,159 +180,6 @@ async function writeJsonSidecar(path: string, data: unknown): Promise<void> {
   await writeFileAtomic(path, JSON.stringify(data, null, 2))
 }
 
-const VALID_THEMES = ['dark', 'light', 'executive', 'minimal', 'corporate', 'creative', 'keynote-dark', 'paper']
-
-const VALID_LAYOUTS: SlideLayout[] = [
-  'default', 'center', 'title', 'section', 'two-col', 'two-col-wide-left',
-  'two-col-wide-right', 'three-col', 'top-bottom', 'big-number', 'quote', 'blank'
-]
-
-const LANGUAGE_TO_ENGINE: Partial<Record<SupportedLanguage, ExecutionEngine>> = {
-  javascript: 'sandpack',
-  typescript: 'sandpack',
-  python: 'pyodide',
-  sql: 'sql'
-}
-
-const LANGUAGE_TO_EXT: Partial<Record<SupportedLanguage, string>> = {
-  javascript: '.js', typescript: '.ts', python: '.py', sql: '.sql',
-  html: '.html', css: '.css', json: '.json', bash: '.sh',
-  rust: '.rs', go: '.go', java: '.java', csharp: '.cs', ruby: '.rb', php: '.php',
-  markdown: '.md'
-}
-
-const NATIVE_COMMAND_MAP: Partial<Record<SupportedLanguage, string>> = {
-  javascript: 'node', bash: 'bash', python: 'python3',
-  rust: 'rustc', go: 'go', ruby: 'ruby', php: 'php'
-}
-
-// ── Zod Schema (mirrors packages/shared/src/utils/yaml-parser.ts) ──
-
-/** Deck manifest paths must be relative and must not escape the deck folder. */
-function deckRelativePath(field: string) {
-  return z
-    .string()
-    .min(1, `${field} must not be empty`)
-    .refine((p) => !/^([a-zA-Z]:[\\/]|[\\/]|~)/.test(p), {
-      message: `${field} must be a relative path inside the deck folder`
-    })
-    .refine((p) => !p.split(/[\\/]/).includes('..'), {
-      message: `${field} must not contain ".." path segments`
-    })
-}
-
-const ArtifactConfigSchema = z.object({ path: deckRelativePath('artifacts[].path'), label: z.string() })
-
-const CodeBlockConfigSchema = z.object({
-  file: deckRelativePath('code.file'),
-  language: z.enum([
-    'javascript', 'typescript', 'python', 'sql', 'html', 'css',
-    'json', 'bash', 'rust', 'go', 'java', 'csharp', 'ruby', 'php', 'markdown'
-  ]),
-  execution: z.enum(['sandpack', 'pyodide', 'sql', 'native', 'none']),
-  dependencies: z.array(z.string()).optional(),
-  packages: z.array(z.string()).optional(),
-  seedData: z.string().optional(),
-  command: z.string().optional(),
-  args: z.array(z.string()).optional()
-})
-
-const ThemeSchema = z.string().default('dark').transform((theme) => {
-  if (VALID_THEMES.includes(theme)) return theme
-  console.warn(`[lecta-mcp] Unknown theme "${theme}" — falling back to "dark".`)
-  return 'dark'
-})
-
-const PresentationSchema = z.object({
-  title: z.string(),
-  author: z.string(),
-  theme: ThemeSchema,
-  lastViewedIndex: z.number().int().nonnegative().optional(),
-  slides: z.array(z.object({
-    id: z.string().min(1, 'slide id must not be empty'),
-    title: z.string().optional(),
-    content: deckRelativePath('content'),
-    code: CodeBlockConfigSchema.optional(),
-    video: z.object({ url: z.string(), label: z.string().optional() }).optional(),
-    webapp: z.object({ url: z.string(), label: z.string().optional() }).optional(),
-    prompts: z.array(z.object({ prompt: z.string(), label: z.string().optional(), response: z.string().optional() })).default([]),
-    artifacts: z.array(ArtifactConfigSchema).default([]),
-    notes: deckRelativePath('notes').optional(),
-    transition: z.enum(['none', 'left', 'right', 'top', 'bottom']).optional(),
-    layout: z.enum([
-      'default', 'center', 'title', 'section', 'two-col', 'two-col-wide-left',
-      'two-col-wide-right', 'three-col', 'top-bottom', 'big-number', 'quote', 'blank'
-    ]).optional(),
-    drawings: z.string().optional(),
-    skipped: z.boolean().optional()
-  })),
-  ai: z.object({
-    model: z.string().optional(),
-    autoGenerateNotes: z.boolean().optional(),
-    context: z.enum(['slide', 'code', 'slide+code']).optional()
-  }).optional(),
-  groups: z.array(z.object({
-    id: z.string(),
-    name: z.string(),
-    slideIds: z.array(z.string()),
-    color: z.string().optional()
-  })).optional(),
-  presenterNotes: z.string().optional()
-}).passthrough()
-
-/** Top-level keys the serializer writes itself, in this order. */
-const KNOWN_TOP_LEVEL_KEYS = new Set([
-  'title', 'author', 'theme', 'lastViewedIndex', 'slides', 'ai', 'groups', 'presenterNotes'
-])
-
-// ── Parse & Serialize ──
-
-export function parsePresentationYaml(yamlContent: string, rootPath: string): Presentation {
-  const raw = parseYaml(yamlContent)
-  const parsed = PresentationSchema.parse(raw)
-  return { ...parsed, rootPath, slides: parsed.slides as SlideConfig[] }
-}
-
-export function serializePresentationYaml(presentation: Presentation): string {
-  const toSerialize: Record<string, unknown> = {
-    title: presentation.title,
-    author: presentation.author,
-    theme: presentation.theme,
-    ...(presentation.lastViewedIndex != null && presentation.lastViewedIndex > 0
-      ? { lastViewedIndex: presentation.lastViewedIndex } : {}),
-    slides: presentation.slides.map((s) => {
-      const slide: Record<string, unknown> = { id: s.id, ...(s.title ? { title: s.title } : {}), content: s.content }
-      if (s.code) slide.code = s.code
-      if (s.video) slide.video = s.video
-      if (s.webapp) slide.webapp = s.webapp
-      if (s.prompts && s.prompts.length > 0) slide.prompts = s.prompts
-      slide.artifacts = s.artifacts
-      if (s.notes) slide.notes = s.notes
-      if (s.transition && s.transition !== 'none') slide.transition = s.transition
-      if (s.layout && s.layout !== 'default') slide.layout = s.layout
-      if (s.drawings) slide.drawings = s.drawings
-      if (s.skipped) slide.skipped = true
-      return slide
-    })
-  }
-  if (presentation.ai) toSerialize.ai = presentation.ai
-  if (presentation.presenterNotes) toSerialize.presenterNotes = presentation.presenterNotes
-  if (presentation.groups && presentation.groups.length > 0) {
-    toSerialize.groups = presentation.groups.map((g) => {
-      const group: Record<string, unknown> = { id: g.id, name: g.name, slideIds: g.slideIds }
-      if (g.color) group.color = g.color
-      return group
-    })
-  }
-  // Unknown top-level keys (hand-written by the user, or written by a newer app
-  // version) survive a read/write round trip instead of being silently dropped.
-  for (const [key, value] of Object.entries(presentation as unknown as Record<string, unknown>)) {
-    if (KNOWN_TOP_LEVEL_KEYS.has(key) || key === 'rootPath' || value === undefined) continue
-    toSerialize[key] = value
-  }
-  return stringifyYaml(toSerialize, { lineWidth: 120 })
-}
-
 // ── Config Cache ──
 
 const configCache = new Map<string, { config: Presentation; mtimeMs: number }>()
@@ -465,7 +229,7 @@ export async function loadPresentation(inputPath: string): Promise<LoadedPresent
       // server read (and hand to the model) a file outside the presentation.
       let markdownContent: string
       try {
-        markdownContent = await readFile(resolveInsideDeck(rootPath, slideConfig.content), 'utf-8')
+        markdownContent = await readFile(resolveRelativePath(rootPath, slideConfig.content), 'utf-8')
       } catch {
         markdownContent = `# ${slideConfig.id}`
       }
@@ -473,7 +237,7 @@ export async function loadPresentation(inputPath: string): Promise<LoadedPresent
       let codeContent: string | null = null
       if (slideConfig.code) {
         try {
-          codeContent = await readFile(resolveInsideDeck(rootPath, slideConfig.code.file), 'utf-8')
+          codeContent = await readFile(resolveRelativePath(rootPath, slideConfig.code.file), 'utf-8')
         } catch {
           codeContent = ''
         }
@@ -482,7 +246,7 @@ export async function loadPresentation(inputPath: string): Promise<LoadedPresent
       let notesContent: string | null = null
       if (slideConfig.notes) {
         try {
-          notesContent = await readFile(resolveInsideDeck(rootPath, slideConfig.notes), 'utf-8')
+          notesContent = await readFile(resolveRelativePath(rootPath, slideConfig.notes), 'utf-8')
         } catch {
           notesContent = null
         }
@@ -504,7 +268,7 @@ export async function loadPresentation(inputPath: string): Promise<LoadedPresent
 
 export async function savePresentationYaml(presentation: Presentation): Promise<void> {
   const configPath = join(presentation.rootPath, DECK_CONFIG_FILE)
-  await writeFileAtomic(configPath, serializePresentationYaml(presentation))
+  await writeFileAtomic(configPath, serializePresentation(presentation))
   // Update cache with fresh mtime
   const st = await fsStat(configPath)
   configCache.set(presentation.rootPath, { config: presentation, mtimeMs: st.mtimeMs })
@@ -519,7 +283,7 @@ export async function createPresentation(opts: {
   slideTitles?: string[]
   format?: 'md' | 'mdx'
 }): Promise<{ rootPath: string; slideCount: number }> {
-  const theme = opts.theme && VALID_THEMES.includes(opts.theme) ? opts.theme : 'dark'
+  const theme = isSlideTheme(opts.theme) ? opts.theme : DEFAULT_THEME
   const author = opts.author ?? ''
   const slideCount = Math.max(1, Math.min(opts.slideCount ?? 1, 50))
 
@@ -654,16 +418,16 @@ export async function addSlide(opts: {
 
   // Handle code block
   if (opts.code) {
-    const codeExt = LANGUAGE_TO_EXT[opts.code.language] || '.txt'
+    const codeExt = extensionForLanguage(opts.code.language)
     const codeFile = await uniqueDeckPath(rootPath, `code/${autoId}${codeExt}`)
     await mkdir(join(rootPath, 'code'), { recursive: true })
     await writeFile(join(rootPath, codeFile), opts.code.content, 'utf-8')
 
-    const engine = opts.code.execution ?? LANGUAGE_TO_ENGINE[opts.code.language] ?? 'native'
+    const engine = opts.code.execution ?? defaultEngineForLanguage(opts.code.language)
     newSlide.code = { file: codeFile, language: opts.code.language, execution: engine }
 
     if (engine === 'native') {
-      const cmd = NATIVE_COMMAND_MAP[opts.code.language]
+      const cmd = nativeCommandForLanguage(opts.code.language)
       if (cmd) {
         newSlide.code.command = cmd
         newSlide.code.args = [codeFile]
@@ -710,15 +474,15 @@ export async function editSlide(opts: {
     const currentExt = slide.content.endsWith('.mdx') ? '.mdx' : '.md'
     const targetExt = opts.format === 'mdx' ? '.mdx' : '.md'
     if (currentExt !== targetExt) {
-      const oldPath = resolveInsideDeck(rootPath, slide.content)
+      const oldPath = resolveRelativePath(rootPath, slide.content)
       const newContentPath = slide.content.replace(/\.(mdx?|md)$/, targetExt)
-      await rename(oldPath, resolveInsideDeck(rootPath, newContentPath))
+      await rename(oldPath, resolveRelativePath(rootPath, newContentPath))
       slide.content = newContentPath
     }
   }
 
   if (opts.content !== undefined) {
-    await writeFile(resolveInsideDeck(rootPath, slide.content), opts.content, 'utf-8')
+    await writeFile(resolveRelativePath(rootPath, slide.content), opts.content, 'utf-8')
   }
 
   if (opts.layout !== undefined) {
@@ -741,12 +505,12 @@ export async function editSlide(opts: {
         `Add the slide again with a code block, or edit the slide content instead.`
       )
     }
-    await writeFile(resolveInsideDeck(rootPath, slide.code.file), opts.codeContent, 'utf-8')
+    await writeFile(resolveRelativePath(rootPath, slide.code.file), opts.codeContent, 'utf-8')
   }
 
   if (opts.codeLanguage !== undefined && slide.code) {
     slide.code.language = opts.codeLanguage
-    slide.code.execution = LANGUAGE_TO_ENGINE[opts.codeLanguage] ?? 'native'
+    slide.code.execution = defaultEngineForLanguage(opts.codeLanguage)
   }
 
   if (opts.notes !== undefined) {
@@ -755,7 +519,7 @@ export async function editSlide(opts: {
       slide.notes = notesPath
     }
     await mkdir(join(rootPath, 'slides'), { recursive: true })
-    await writeFile(resolveInsideDeck(rootPath, slide.notes), opts.notes, 'utf-8')
+    await writeFile(resolveRelativePath(rootPath, slide.notes), opts.notes, 'utf-8')
   }
 
   await savePresentationYaml(config)
@@ -828,7 +592,7 @@ export async function listSlides(rootPath: string, includeContent: boolean = fal
     config.slides.map(async (s) => {
       if (s.title) return s.title
       try {
-        const body = await readFile(resolveInsideDeck(config.rootPath, s.content), 'utf-8')
+        const body = await readFile(resolveRelativePath(config.rootPath, s.content), 'utf-8')
         return body.match(/^#\s+(.+)$/m)?.[1]?.trim()
       } catch {
         return undefined
@@ -858,8 +622,8 @@ export async function listSlides(rootPath: string, includeContent: boolean = fal
 }
 
 export async function setTheme(rootPath: string, theme: string): Promise<{ oldTheme: string; newTheme: string }> {
-  if (!VALID_THEMES.includes(theme)) {
-    throw new Error(`Invalid theme "${theme}". Valid themes: ${VALID_THEMES.join(', ')}`)
+  if (!isSlideTheme(theme)) {
+    throw new Error(`Invalid theme "${theme}". Valid themes: ${SLIDE_THEMES.join(', ')}`)
   }
   const config = await loadPresentationConfig(rootPath)
   const oldTheme = config.theme
@@ -888,7 +652,7 @@ export async function addArtifact(opts: {
   await mkdir(join(config.rootPath, 'artifacts'), { recursive: true })
 
   const fileName = basename(opts.filePath)
-  const destPath = resolveInsideDeck(config.rootPath, join('artifacts', fileName))
+  const destPath = resolveRelativePath(config.rootPath, join('artifacts', fileName))
   await copyFile(opts.filePath, destPath)
 
   const label = opts.label ?? fileName.replace(extname(fileName), '')
@@ -929,7 +693,7 @@ export async function addImage(opts: {
     const slide = config.slides[opts.slideIndex]
     if (!slide) throw new Error(`Slide at index ${opts.slideIndex} not found`)
 
-    const slidePath = resolveInsideDeck(config.rootPath, slide.content)
+    const slidePath = resolveRelativePath(config.rootPath, slide.content)
     let content = await readFile(slidePath, 'utf-8')
 
     const isMdx = slide.content.endsWith('.mdx')
@@ -975,7 +739,7 @@ export async function customizeTheme(_opts: {
   throw new Error(
     'Per-deck colour and font overrides are not supported by the Lecta app yet — the renderer ' +
     'ignores them, so saving them would silently do nothing. Use set_theme to pick one of the ' +
-    `built-in themes instead: ${VALID_THEMES.join(', ')}.`
+    `built-in themes instead: ${SLIDE_THEMES.join(', ')}.`
   )
 }
 
@@ -1423,7 +1187,7 @@ export async function generateAIImage(opts: {
     const slide = config.slides[opts.slideIndex]
     if (!slide) throw new Error(`Slide at index ${opts.slideIndex} not found`)
 
-    const slidePath = resolveInsideDeck(config.rootPath, slide.content)
+    const slidePath = resolveRelativePath(config.rootPath, slide.content)
     let content = await readFile(slidePath, 'utf-8')
 
     const isMdx = slide.content.endsWith('.mdx')
@@ -1447,5 +1211,3 @@ export async function generateAIImage(opts: {
 
   return { imagePath, inserted, provider }
 }
-
-export { VALID_THEMES, VALID_LAYOUTS }

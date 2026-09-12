@@ -1,6 +1,20 @@
 import ReactMarkdown from 'react-markdown'
 import type { ChatMessage as ChatMessageType, ToolCallInfo } from '../../stores/chat-store'
 
+/** "slide_index: 2 · instruction: make it shorter" — the call in one line. */
+function summarizeArgs(input: unknown): string {
+  if (!input || typeof input !== 'object') return ''
+  const parts: string[] = []
+  for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
+    if (value === null || value === undefined || typeof value === 'object') continue
+    const text = String(value).replace(/\s+/g, ' ').trim()
+    if (!text) continue
+    parts.push(`${key}: ${text.length > 48 ? `${text.slice(0, 48)}…` : text}`)
+    if (parts.length === 2) break
+  }
+  return parts.join(' · ')
+}
+
 function ToolCallBadge({ toolCall }: { toolCall: ToolCallInfo }): JSX.Element {
   const statusColors = {
     pending: 'text-yellow-500 bg-yellow-500/10 border-yellow-500/20',
@@ -17,16 +31,16 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCallInfo }): JSX.Element {
   }
 
   const friendlyName = toolCall.name.replace(/_/g, ' ')
+  const args = summarizeArgs(toolCall.input)
 
   return (
     <div
-      className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium border mt-1 mr-1 ${statusColors[toolCall.status]}`}
+      className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium border mt-1 mr-1 max-w-full ${statusColors[toolCall.status]}`}
+      title={toolCall.result || args || friendlyName}
     >
-      <span>{statusIcons[toolCall.status]}</span>
-      <span>{friendlyName}</span>
-      {toolCall.result && toolCall.status !== 'executing' && (
-        <span className="opacity-70 max-w-[150px] truncate">— {toolCall.result}</span>
-      )}
+      <span aria-hidden="true">{statusIcons[toolCall.status]}</span>
+      <span className="flex-shrink-0">{friendlyName}</span>
+      {args && <span className="opacity-70 truncate">{args}</span>}
     </div>
   )
 }

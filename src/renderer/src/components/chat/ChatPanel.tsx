@@ -1,15 +1,15 @@
-import { useState, useRef, useEffect } from 'react'
+import { useRef, useEffect } from 'react'
 import { useChatStore } from '../../stores/chat-store'
 import { useUIStore } from '../../stores/ui-store'
+import { ChatComposer } from './ChatComposer'
 import { ChatMessageComponent } from './ChatMessage'
-import { ModelSelector } from '../ai/ModelSelector'
 import { SelectionToolbar } from './SelectionToolbar'
 
 const QUICK_ACTIONS = [
-  { label: 'Improve this slide', message: 'Improve the current slide to be clearer and more impactful' },
-  { label: 'Generate speaker notes', message: 'Generate speaker notes for the current slide' },
-  { label: 'Summarize deck', message: 'Give me an overview of the entire presentation' },
-  { label: 'Beautify slide', message: 'Beautify the current slide with better formatting' }
+  { label: 'Beautify slide', message: '/prettify' },
+  { label: 'Speaker notes', message: '/notes' },
+  { label: 'Run the code', message: '/run' },
+  { label: 'Summarize deck', message: 'Give me an overview of the entire presentation' }
 ]
 
 export function ChatWelcome({ onQuickAction }: { onQuickAction: (msg: string) => void }): JSX.Element {
@@ -21,8 +21,11 @@ export function ChatWelcome({ onQuickAction }: { onQuickAction: (msg: string) =>
         </svg>
       </div>
       <h3 className="text-sm font-medium text-gray-300 mb-1">Lecta AI</h3>
-      <p className="text-xs text-gray-500 mb-4">
-        Ask me to view, edit, or improve your slides
+      <p className="text-xs text-gray-500 mb-1">
+        Ask me to view, edit, run or improve your slides
+      </p>
+      <p className="text-[10px] text-gray-600 mb-4">
+        Type <span className="font-mono text-gray-500">/</span> for commands
       </p>
       <div className="flex flex-wrap gap-1.5 justify-center">
         {QUICK_ACTIONS.map((action) => (
@@ -78,86 +81,23 @@ export function ConfirmationBanner(): JSX.Element | null {
   )
 }
 
-export function ActionModeToggle(): JSX.Element {
-  const { actionMode, setActionMode } = useChatStore()
-
-  return (
-    <button
-      onClick={() => setActionMode(actionMode === 'auto' ? 'ask' : 'auto')}
-      className={`flex items-center gap-1 px-2 py-1 rounded text-[9px] font-medium transition-colors flex-shrink-0 ${
-        actionMode === 'auto'
-          ? 'bg-green-600/20 text-green-500 hover:bg-green-600/30'
-          : 'bg-yellow-600/20 text-yellow-500 hover:bg-yellow-600/30'
-      }`}
-      title={
-        actionMode === 'auto'
-          ? 'Auto mode: actions execute immediately'
-          : 'Ask mode: confirmation required before changes'
-      }
-      aria-label={
-        actionMode === 'auto'
-          ? 'Auto mode: actions execute immediately'
-          : 'Ask mode: confirmation required before changes'
-      }>
-      {actionMode === 'auto' ? (
-        <>
-          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z" />
-          </svg>
-          Auto
-        </>
-      ) : (
-        <>
-          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
-          </svg>
-          Ask
-        </>
-      )}
-    </button>
-  )
-}
-
 /**
  * Inline chat panel — used inside a PanelGroup in AppShell.
  * Fills its parent container (no fixed positioning).
  */
 export function ChatSidebarPanel(): JSX.Element {
-  const { tabs, activeTabId, sendMessage, cancel, clearActiveTab, closeSidebar } = useChatStore()
+  const { tabs, activeTabId, sendMessage, clearActiveTab, closeSidebar } = useChatStore()
   const activeTab = tabs.find((t) => t.id === activeTabId)
   const providerStatuses = useUIStore((s) => s.providerStatuses)
   const noProviders = !providerStatuses.some((s) => s.hasKey)
 
-  const [input, setInput] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }, [activeTab?.messages])
-
-  useEffect(() => {
-    setTimeout(() => inputRef.current?.focus(), 100)
-  }, [])
-
-  const isStreaming = !!activeTab?.isStreaming
-  const isDisabled = noProviders || isStreaming
-
-  const handleSend = (): void => {
-    const text = input.trim()
-    if (!text || isDisabled) return
-    setInput('')
-    sendMessage(text)
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent): void => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSend()
-    }
-  }
 
   return (
     <div className="h-full flex flex-col bg-gray-950">
@@ -234,52 +174,7 @@ export function ChatSidebarPanel(): JSX.Element {
       <SelectionToolbar />
       <ConfirmationBanner />
 
-      {/* Input area */}
-      <div className={`border-t border-gray-800 p-2 flex-shrink-0 ${noProviders ? 'opacity-50' : ''}`}>
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-1.5">
-            <ActionModeToggle />
-            <ModelSelector compact />
-          </div>
-          <div className="flex items-end gap-1.5">
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={noProviders ? 'Configure an AI provider in Settings' : 'Ask Lecta AI...'}
-              rows={1}
-              className="flex-1 resize-none bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-xs text-gray-300 placeholder-gray-500 focus:outline-none focus:border-gray-700 max-h-24 overflow-y-auto disabled:cursor-not-allowed"
-              style={{ minHeight: '36px' }}
-              disabled={!!isDisabled}
-            />
-            {isStreaming ? (
-              <button
-                onClick={cancel}
-                className="w-8 h-8 rounded-lg bg-red-600/80 hover:bg-red-600 text-white flex items-center justify-center transition-colors flex-shrink-0"
-                title="Stop generating"
-                aria-label="Stop generating"
-              >
-                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
-                  <rect x="6" y="6" width="12" height="12" rx="2" />
-                </svg>
-              </button>
-            ) : (
-              <button
-                onClick={handleSend}
-                disabled={!input.trim() || !!isDisabled}
-                className="w-8 h-8 rounded-lg bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800 disabled:text-gray-600 text-white flex items-center justify-center transition-colors flex-shrink-0"
-                title="Send"
-                aria-label="Send"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
-                </svg>
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
+      <ChatComposer compact />
     </div>
   )
 }

@@ -1,9 +1,9 @@
-import { useState, useRef, useEffect } from 'react'
+import { useRef, useEffect } from 'react'
 import { useChatStore, type ChatTab } from '../../stores/chat-store'
 import { useUIStore } from '../../stores/ui-store'
+import { ChatComposer } from './ChatComposer'
 import { ChatMessageComponent } from './ChatMessage'
-import { ConfirmationBanner, ActionModeToggle, ChatWelcome } from './ChatPanel'
-import { ModelSelector } from '../ai/ModelSelector'
+import { ConfirmationBanner, ChatWelcome } from './ChatPanel'
 import { SelectionToolbar } from './SelectionToolbar'
 
 /**
@@ -11,10 +11,8 @@ import { SelectionToolbar } from './SelectionToolbar'
  * Supports multiple tabs, each with its own conversation.
  */
 export function ChatView(): JSX.Element {
-  const {
-    tabs, activeTabId, switchTab, createTab, closeTab,
-    closeFullChat, sendMessage, cancel, clearActiveTab
-  } = useChatStore()
+  const { tabs, activeTabId, switchTab, createTab, closeTab, closeFullChat, sendMessage } =
+    useChatStore()
 
   const activeTab = tabs.find((t) => t.id === activeTabId)
 
@@ -65,7 +63,7 @@ export function ChatView(): JSX.Element {
 
       {/* Chat content */}
       {activeTab ? (
-        <ChatTabContent tab={activeTab} onSend={sendMessage} onCancel={cancel} onClear={clearActiveTab} />
+        <ChatTabContent tab={activeTab} onSend={sendMessage} />
       ) : (
         <div className="flex-1 flex items-center justify-center text-gray-600 text-sm">
           No active chat
@@ -109,43 +107,20 @@ function TabButton({
 }
 
 function ChatTabContent({
-  tab, onSend, onCancel, onClear
+  tab, onSend
 }: {
   tab: ChatTab
   onSend: (text: string) => Promise<void>
-  onCancel: () => void
-  onClear: () => void
 }): JSX.Element {
-  const [input, setInput] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLTextAreaElement>(null)
   const providerStatuses = useUIStore((s) => s.providerStatuses)
   const noProviders = !providerStatuses.some((s) => s.hasKey)
-  const isDisabled = noProviders || tab.isStreaming
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }, [tab.messages])
-
-  useEffect(() => {
-    inputRef.current?.focus()
-  }, [tab.id])
-
-  const handleSend = (): void => {
-    const text = input.trim()
-    if (!text || isDisabled) return
-    setInput('')
-    onSend(text)
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent): void => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSend()
-    }
-  }
 
   return (
     <div
@@ -199,52 +174,7 @@ function ChatTabContent({
         <ConfirmationBanner />
       )}
 
-      {/* Input */}
-      <div className={`border-t border-gray-700 p-3 flex-shrink-0 ${noProviders ? 'opacity-50' : ''}`}>
-        <div className="max-w-2xl mx-auto space-y-2">
-          <div className="flex items-center gap-2">
-            <ActionModeToggle />
-            <ModelSelector compact />
-          </div>
-          <div className="flex items-end gap-2">
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={noProviders ? 'Configure an AI provider in Settings' : 'Ask Lecta AI...'}
-              rows={1}
-              className="flex-1 resize-none bg-gray-900 border border-gray-700 rounded-full px-4 py-2.5 text-sm text-gray-300 placeholder-gray-500 focus:outline-none focus:border-gray-600 max-h-32 overflow-y-auto disabled:cursor-not-allowed shadow-sm"
-              style={{ minHeight: '42px' }}
-              disabled={isDisabled}
-            />
-            {tab.isStreaming ? (
-              <button
-                onClick={onCancel}
-                className="w-9 h-9 rounded-full bg-red-600/80 hover:bg-red-600 text-white flex items-center justify-center transition-colors flex-shrink-0"
-                title="Stop generating"
-                aria-label="Stop generating"
-              >
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                  <rect x="6" y="6" width="12" height="12" rx="2" />
-                </svg>
-              </button>
-            ) : (
-              <button
-                onClick={handleSend}
-                disabled={!input.trim() || isDisabled}
-                className="w-9 h-9 rounded-full bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800 disabled:text-gray-600 text-white flex items-center justify-center transition-colors flex-shrink-0"
-                title="Send"
-                aria-label="Send"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
-                </svg>
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
+      <ChatComposer />
     </div>
   )
 }

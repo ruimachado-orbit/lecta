@@ -1,0 +1,25 @@
+{
+  // Compiles the pieces of `packages/shared` the MCP server uses into `dist/shared`, as
+  // the first half of `npm run build`. `imports` in package.json maps `#shared/*` onto
+  // that output, so the emitted JS — and the copy electron-builder ships as
+  // `resources/mcp-server/dist` — resolves the same parser, serializer and slide-option
+  // lists the app uses instead of the fork this package used to carry.
+  //
+  // Only entry points are listed; tsc pulls in whatever they import. That keeps the
+  // NodeNext requirements (explicit `.js` extensions on relative imports, no Node-only
+  // APIs beyond `path`) confined to the shared modules the server actually needs.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "composite": true,
+    "rootDir": "../shared/src",
+    "outDir": "./dist/shared",
+    "tsBuildInfoFile": "./dist/shared.tsbuildinfo"
+  },
+  "include": [
+    "../shared/src/constants.ts",
+    "../shared/src/slide-options.ts",
+    "../shared/src/types/presentation.ts",
+    "../shared/src/utils/yaml-parser.ts",
+    "../shared/src/utils/path-resolver.ts"
+  ]
+}

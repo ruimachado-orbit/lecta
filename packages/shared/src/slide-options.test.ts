@@ -10,8 +10,15 @@ import {
   isSlideLayout,
   isSlideTheme,
   isSlideTransition,
+  LANGUAGE_DEFAULT_ENGINES,
+  LANGUAGE_FILE_EXTENSIONS,
+  LANGUAGE_NATIVE_COMMANDS,
+  defaultEngineForLanguage,
+  extensionForLanguage,
   isSupportedLanguage,
+  nativeCommandForLanguage,
 } from './slide-options'
+import { detectLanguage } from './utils/path-resolver'
 
 describe('slide option lists', () => {
   it('ships the documented themes, in order', () => {
@@ -60,5 +67,44 @@ describe('type guards', () => {
     expect(isSupportedLanguage('cobol')).toBe(false)
     expect(isSlideLayout(undefined)).toBe(false)
     expect(isSlideTheme(42)).toBe(false)
+  })
+})
+
+// These three maps moved here out of `packages/mcp-server/src/lib/presentation-io.ts`,
+// which used to keep private copies (and `src/main/ipc/file-system.ts` still inlines its
+// own — that one should be pointed here next).
+describe('per-language defaults', () => {
+  it('gives every language an engine, defaulting to native', () => {
+    expect(defaultEngineForLanguage('python')).toBe('pyodide')
+    expect(defaultEngineForLanguage('javascript')).toBe('sandpack')
+    expect(defaultEngineForLanguage('typescript')).toBe('sandpack')
+    expect(defaultEngineForLanguage('sql')).toBe('sql')
+    // Anything without an in-app runtime shells out instead of silently doing nothing.
+    for (const language of CODE_LANGUAGES) {
+      const engine = defaultEngineForLanguage(language)
+      expect(EXECUTION_ENGINES).toContain(engine)
+      if (!(language in LANGUAGE_DEFAULT_ENGINES)) expect(engine).toBe('native')
+    }
+  })
+
+  it('gives every language exactly one extension that detects back to it', () => {
+    for (const language of CODE_LANGUAGES) {
+      const ext = extensionForLanguage(language)
+      expect(ext, language).toMatch(/^\.[a-z]+$/)
+      expect(detectLanguage(`code/example${ext}`), language).toBe(language)
+    }
+    expect(Object.keys(LANGUAGE_FILE_EXTENSIONS).sort()).toEqual([...CODE_LANGUAGES].sort())
+  })
+
+  it('names a native command only where one makes sense', () => {
+    expect(nativeCommandForLanguage('python')).toBe('python3')
+    expect(nativeCommandForLanguage('javascript')).toBe('node')
+    expect(nativeCommandForLanguage('rust')).toBe('rustc')
+    // No command for languages that are not executed by a single interpreter.
+    expect(nativeCommandForLanguage('json')).toBeUndefined()
+    expect(nativeCommandForLanguage('markdown')).toBeUndefined()
+    for (const language of Object.keys(LANGUAGE_NATIVE_COMMANDS)) {
+      expect(CODE_LANGUAGES).toContain(language)
+    }
   })
 })

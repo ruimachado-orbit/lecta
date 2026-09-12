@@ -5,7 +5,9 @@ import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import Color from '@tiptap/extension-color'
 import { TextStyle } from '@tiptap/extension-text-style'
-import { requireAI, showAIError } from '../ai/AIAlert'
+import { requireAI } from '../ai/AIAlert'
+import { useChatStore } from '../../stores/chat-store'
+import { registerInlineInserter } from '../chat/inline-insert-bridge'
 
 const FontSize = TextStyle.extend({
   addAttributes() {
@@ -533,12 +535,8 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
   // Inline AI state
   const [hasApiKey, setHasApiKey] = useState(false)
   const [showAIButton, setShowAIButton] = useState(false)
-  const [showAIPrompt, setShowAIPrompt] = useState(false)
-  const [aiPrompt, setAIPrompt] = useState('')
-  const [aiLoading, setAILoading] = useState(false)
   const [aiButtonPos, setAIButtonPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const aiPromptInputRef = useRef<HTMLInputElement>(null)
 
   // Check for API key on mount and when deck changes
   useEffect(() => {
@@ -571,12 +569,12 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
   const resetIdleTimer = useCallback(() => {
     setShowAIButton(false)
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
-    if (!hasApiKey || showAIPrompt) return
+    if (!hasApiKey) return
     idleTimerRef.current = setTimeout(() => {
       updateCursorPosition()
       setShowAIButton(true)
     }, 2000)
-  }, [hasApiKey, showAIPrompt, updateCursorPosition])
+  }, [hasApiKey, updateCursorPosition])
 
   // Clean up idle timer
   useEffect(() => {
@@ -758,28 +756,22 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
   // Keep editor ref in sync for callbacks
   editorRef.current = editor
 
-  const handleAIGenerate = async (): Promise<void> => {
-    if (!aiPrompt.trim() || !presentation || !slide || !editorRef.current) return
+  /**
+   * The inline prompt bar is gone: `/inline` in the chat runs the same
+   * `generateInlineText` call and inserts through the bridge below.
+   */
+  const handleAskInline = (): void => {
+    setShowAIButton(false)
     if (!requireAI()) return
-    setAILoading(true)
-    try {
-      const result = await window.electronAPI.generateInlineText(
-        aiPrompt.trim(),
-        slide.markdownContent,
-        presentation.title || 'Untitled'
-      )
-      if (result) {
-        editorRef.current.chain().focus().insertContent(result).run()
-      }
-    } catch (err) {
-      showAIError(err)
-    } finally {
-      setAILoading(false)
-      setShowAIPrompt(false)
-      setShowAIButton(false)
-      setAIPrompt('')
-    }
+    useChatStore.getState().openWithPrefill('/inline ')
   }
+
+  // Publish insert-at-caret so `/inline` lands where the user was typing.
+  useEffect(() => {
+    return registerInlineInserter((text: string) => {
+      editorRef.current?.chain().focus().insertContent(text).run()
+    })
+  }, [])
 
   if (!editor) return <div />
 
@@ -1164,13 +1156,9 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
         {/* Overflow is fine — content auto-splits into sub-slides */}
         <EditorContent editor={editor} />
         {/* Inline AI button — appears after 2s idle near cursor */}
-        {hasApiKey && showAIButton && !showAIPrompt && (
+        {hasApiKey && showAIButton && (
           <button
-            onClick={() => {
-              setShowAIButton(false)
-              setShowAIPrompt(true)
-              setTimeout(() => aiPromptInputRef.current?.focus(), 50)
-            }}
+            onClick={handleAskInline}
             className="absolute z-20 flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-medium shadow-lg transition-all animate-fade-in"
             style={{ top: aiButtonPos.top, left: aiButtonPos.left }}
             title="Generate with AI"
@@ -1181,43 +1169,6 @@ export function WysiwygEditor({ slideIndex, breakOffsets = [], subSlideMarkdown,
             </svg>
             AI
           </button>
-        )}
-        {/* Inline AI prompt input */}
-        {hasApiKey && showAIPrompt && (
-          <>
-            <div className="fixed inset-0 z-30" onClick={() => { setShowAIPrompt(false); setAIPrompt('') }} />
-            <div
-              className="absolute z-40 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-2 w-72 animate-fade-in"
-              style={{ top: aiButtonPos.top, left: Math.max(0, aiButtonPos.left - 100) }}
-            >
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <svg className="w-3 h-3 text-indigo-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
-                </svg>
-                <span className="text-[10px] text-gray-400 font-medium">Generate with AI</span>
-              </div>
-              <form onSubmit={(e) => { e.preventDefault(); handleAIGenerate() }}>
-                <input
-                  ref={aiPromptInputRef}
-                  type="text"
-                  value={aiPrompt}
-                  onChange={(e) => setAIPrompt(e.target.value)}
-                  placeholder="Describe what to write..."
-                  disabled={aiLoading}
-                  className="w-full px-2 py-1.5 bg-gray-800 border border-gray-700 rounded text-[11px] text-white placeholder-gray-500 outline-none focus:border-indigo-500 transition-colors"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Escape') { setShowAIPrompt(false); setAIPrompt(''); editor.commands.focus() }
-                  }}
-                />
-                <div className="flex items-center justify-between mt-1.5">
-                  <span className="text-[9px] text-gray-600">Enter to generate, Esc to cancel</span>
-                  {aiLoading && (
-                    <span className="text-[9px] text-indigo-400 animate-pulse">Generating...</span>
-                  )}
-                </div>
-              </form>
-            </div>
-          </>
         )}
         {/* Sub-slide breaks are now controlled by --- (horizontal rules) in the content */}
       </div>

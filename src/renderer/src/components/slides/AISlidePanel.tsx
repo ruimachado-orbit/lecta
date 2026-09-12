@@ -1,11 +1,13 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
+import { useChatStore } from '../../stores/chat-store'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore } from '../../stores/ui-store'
 import { ModelSelector } from '../ai/ModelSelector'
 import { requireAI, showAIError } from '../ai/AIAlert'
 
 export function AIGeneratePanel(): JSX.Element {
-  const { presentation, slides, currentSlideIndex, addSlide } = usePresentationStore()
+  const { presentation, slides, currentSlideIndex } = usePresentationStore()
+  const pendingGeneratePrompt = useUIStore((s) => s.pendingGeneratePrompt)
   const [prompt, setPrompt] = useState('')
   const [count, setCount] = useState(5)
   const [position, setPosition] = useState<'after' | 'start' | 'end'>('after')
@@ -13,6 +15,13 @@ export function AIGeneratePanel(): JSX.Element {
   const [useArtifacts, setUseArtifacts] = useState(true)
 
   const currentSlide = slides[currentSlideIndex]
+
+  // `/deck <prompt>` in the chat opens this form with the prompt already in it.
+  useEffect(() => {
+    if (!pendingGeneratePrompt) return
+    setPrompt(pendingGeneratePrompt)
+    useUIStore.getState().setPendingGeneratePrompt(null)
+  }, [pendingGeneratePrompt])
 
   const getArtifactContext = (): string | undefined => {
     if (!useArtifacts || !currentSlide) return undefined
@@ -195,235 +204,48 @@ export function AIGeneratePanel(): JSX.Element {
   )
 }
 
+/**
+ * The refine bar for AI-generated slides is now one button: typing happens in the
+ * chat, where `/improve` runs the very same `improveSlide` call.
+ */
 export function AIImproveBar(): JSX.Element {
-  const { slides, currentSlideIndex, presentation } = usePresentationStore()
-  const [prompt, setPrompt] = useState('')
-  const [isImproving, setIsImproving] = useState(false)
+  const slides = usePresentationStore((s) => s.slides)
+  const currentSlideIndex = usePresentationStore((s) => s.currentSlideIndex)
+  const openWithPrefill = useChatStore((s) => s.openWithPrefill)
 
   const currentSlide = slides[currentSlideIndex]
-  const isAIGenerated = currentSlide?.markdownContent?.includes('<!-- ai-generated -->')
-
-  if (!isAIGenerated) return <></>
-
-  const getArtifactContext = (): string | undefined => {
-    if (!currentSlide) return undefined
-    const parts: string[] = []
-    if (currentSlide.codeContent) {
-      parts.push(`Code (${currentSlide.config.code?.language}):\n${currentSlide.codeContent}`)
-    }
-    if (currentSlide.config.video) parts.push(`Video: ${currentSlide.config.video.url}`)
-    if (currentSlide.config.webapp) parts.push(`Web App: ${currentSlide.config.webapp.url}`)
-    if (currentSlide.config.artifacts.length > 0) {
-      parts.push(`Artifacts: ${currentSlide.config.artifacts.map(a => a.label).join(', ')}`)
-    }
-    return parts.length > 0 ? parts.join('\n\n') : undefined
-  }
-
-  const handleImprove = async () => {
-    if (!prompt.trim() || !presentation || !currentSlide) return
-    if (!requireAI()) return
-    setIsImproving(true)
-    try {
-      const result = await window.electronAPI.improveSlide(
-        currentSlide.markdownContent,
-        presentation.title,
-        prompt,
-        getArtifactContext()
-      )
-      // Refuses (with a toast) when the slide is executable MDX
-      const applied = usePresentationStore.getState().applyAIContent(
-        currentSlideIndex,
-        `<!-- ai-generated -->\n${result}`
-      )
-      if (applied) setPrompt('')
-    } catch (err) {
-      showAIError(err)
-    } finally {
-      setIsImproving(false)
-    }
-  }
+  if (!currentSlide?.markdownContent?.includes('<!-- ai-generated -->')) return <></>
 
   return (
-    <div className="bg-white/5 border-t border-gray-700 px-4 py-2 flex items-center gap-2">
-      <span className="text-white text-[10px] flex-shrink-0" title="This slide was AI-generated">✦ AI</span>
-      <input
-        type="text"
-        value={prompt}
-        onChange={(e) => setPrompt(e.target.value)}
-        onKeyDown={(e) => e.key === 'Enter' && handleImprove()}
-        placeholder="Improve this slide... (e.g. 'make it more concise', 'add a comparison table')"
-        disabled={isImproving}
-        className="flex-1 bg-transparent text-xs text-gray-300 placeholder-gray-600
-                   focus:outline-none disabled:opacity-50"
-      />
-      {prompt.trim() && (
-        <button
-          onClick={handleImprove}
-          disabled={isImproving}
-          className="px-3 py-1 bg-white hover:bg-gray-200 disabled:opacity-40
-                     text-black text-[10px] font-medium rounded transition-colors flex items-center gap-1"
-        >
-          {isImproving ? <><Spinner /> Improving...</> : 'Improve'}
-        </button>
-      )}
-    </div>
+    <button
+      onClick={() => {
+        if (!requireAI()) return
+        openWithPrefill('/improve ')
+      }}
+      className="flex items-center gap-1 px-2 py-0.5 text-[10px] text-gray-400 hover:text-gray-200 hover:bg-gray-800 rounded transition-colors"
+      title="This slide was AI-generated — refine it in the chat"
+      aria-label="Refine this AI-generated slide in the chat"
+    >
+      <span className="text-white">✦ AI</span>
+      Refine
+    </button>
   )
 }
 
 /**
- * "Change with AI" — prompt-based slide modification with accept/reject.
- * Works on any slide. Shows inline prompt bar, generates changes, previews diff.
+ * "Improve with AI" — opens the chat with `/improve ` ready to type. The prompt
+ * bar and its accept/reject preview are gone: the chat is the one place to type,
+ * and undo (Cmd+Z) restores the previous content.
  */
 export function AIChangeBar(): JSX.Element {
-  const { slides, currentSlideIndex, updateMarkdownContent, presentation } = usePresentationStore()
-  const [showPrompt, setShowPrompt] = useState(false)
-  const [prompt, setPrompt] = useState('')
-  const [isProcessing, setIsProcessing] = useState(false)
-  const [review, setReview] = useState<{ original: string; improved: string } | null>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const openWithPrefill = useChatStore((s) => s.openWithPrefill)
 
-  const currentSlide = slides[currentSlideIndex]
-
-  useEffect(() => {
-    if (showPrompt) {
-      setTimeout(() => inputRef.current?.focus(), 100)
-    }
-  }, [showPrompt])
-
-  // Reset on slide change
-  useEffect(() => {
-    setShowPrompt(false)
-    setReview(null)
-    setPrompt('')
-  }, [currentSlideIndex])
-
-  const handleSubmit = async () => {
-    if (!prompt.trim() || !presentation || !currentSlide) return
-    if (!requireAI()) return
-    if (currentSlide.isMdx) {
-      useUIStore.getState().setAiAlert('AI edits are disabled for executable .mdx slides — edit the slide by hand.')
-      return
-    }
-    setIsProcessing(true)
-
-    try {
-      // Get artifact context
-      const artifactParts: string[] = []
-      if (currentSlide.codeContent) {
-        artifactParts.push(`Code (${currentSlide.config.code?.language}):\n${currentSlide.codeContent}`)
-      }
-      if (currentSlide.config.video) artifactParts.push(`Video: ${currentSlide.config.video.url}`)
-      if (currentSlide.config.webapp) artifactParts.push(`Web App: ${currentSlide.config.webapp.url}`)
-      const artifactContext = artifactParts.length > 0 ? artifactParts.join('\n\n') : undefined
-
-      const result = await window.electronAPI.improveSlide(
-        currentSlide.markdownContent,
-        presentation.title,
-        prompt,
-        artifactContext
-      )
-
-      // Preview changes on canvas immediately
-      const original = currentSlide.markdownContent
-      updateMarkdownContent(currentSlideIndex, result)
-      // Show review bar (accept saves to disk, reject restores original)
-      setReview({ original, improved: result })
-    } catch (err) {
-      showAIError(err)
-    } finally {
-      setIsProcessing(false)
-    }
-  }
-
-  const handleAccept = () => {
-    if (!review) return
-    usePresentationStore.getState().applyAIContent(currentSlideIndex, review.improved)
-    setReview(null)
-    setPrompt('')
-    setShowPrompt(false)
-  }
-
-  const handleReject = () => {
-    if (!review) return
-    // Restore original
-    updateMarkdownContent(currentSlideIndex, review.original)
-    setReview(null)
-  }
-
-  // Review mode — show accept/reject bar
-  if (review) {
-    return (
-      <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-900/20 border-t border-amber-700/30">
-        <svg className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
-        </svg>
-        <span className="text-[11px] text-amber-300 flex-shrink-0">AI changes applied</span>
-        <span className="text-[10px] text-gray-500 truncate flex-1">{prompt}</span>
-        <button
-          onClick={handleAccept}
-          className="px-3 py-1 bg-green-600 hover:bg-green-500 text-white text-[10px] font-medium rounded transition-colors"
-        >
-          Accept
-        </button>
-        <button
-          onClick={handleReject}
-          className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 text-[10px] font-medium rounded transition-colors"
-        >
-          Reject
-        </button>
-      </div>
-    )
-  }
-
-  // Prompt input mode
-  if (showPrompt) {
-    return (
-      <div className="flex items-center gap-2 px-4 py-2 w-full">
-        <svg className="w-3 h-3 text-gray-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
-        </svg>
-        <input
-          ref={inputRef}
-          type="text"
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') handleSubmit()
-            if (e.key === 'Escape') { setShowPrompt(false); setPrompt('') }
-          }}
-          placeholder="Describe what to change — layout, content, diagram, restructure..."
-          disabled={isProcessing}
-          className="flex-1 bg-transparent text-sm text-gray-200 placeholder-gray-500 focus:outline-none disabled:opacity-50"
-        />
-        {isProcessing ? (
-          <span className="flex items-center gap-1 text-xs text-gray-400">
-            <Spinner /> Improving...
-          </span>
-        ) : (
-          <>
-            <button
-              onClick={handleSubmit}
-              disabled={!prompt.trim()}
-              className="px-3 py-1 text-gray-400 hover:text-white disabled:opacity-20 text-xs font-medium transition-colors"
-            >
-              Apply
-            </button>
-            <button
-              onClick={() => { setShowPrompt(false); setPrompt('') }}
-              className="px-2 py-1 text-gray-600 hover:text-gray-400 text-xs transition-colors"
-            >
-              Cancel
-            </button>
-          </>
-        )}
-      </div>
-    )
-  }
-
-  // Default — just the button
   return (
     <button
-      onClick={() => setShowPrompt(true)}
+      onClick={() => {
+        if (!requireAI()) return
+        openWithPrefill('/improve ')
+      }}
       className="flex items-center gap-1 px-2 py-0.5 text-gray-500 hover:text-gray-300 hover:bg-gray-800 text-[10px] rounded transition-colors"
       title="Improve this slide with AI"
       aria-label="Improve this slide with AI"

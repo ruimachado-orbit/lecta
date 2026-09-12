@@ -1,5 +1,12 @@
 import { create } from 'zustand'
 import type { ChatStreamEvent, PresentationSnapshot, SlideSnapshot } from '../../../../packages/shared/src/types/chat'
+import {
+  formatRunOutcome,
+  getLastExecution,
+  requestCodeRun
+} from '../components/chat/code-run-bridge'
+import { agentPromptFor, runSlashCommand } from '../components/chat/slash-actions'
+import { parseSlashCommand, type SlashCommandName } from '../components/chat/slash-commands'
 import { usePresentationStore } from './presentation-store'
 
 /** Terminal message the main process sends when a turn is cancelled. */
@@ -32,6 +39,13 @@ export interface ChatTab {
   error: string | null
 }
 
+/** Text the user selected elsewhere in the app, quoted into the next message. */
+export interface ChatAttachment {
+  /** Where it came from, e.g. "Slide 3 selection". */
+  label: string
+  text: string
+}
+
 interface ChatState {
   // Full-screen chat mode (replaces HomeScreen)
   showFullChat: boolean
@@ -42,6 +56,11 @@ interface ChatState {
   // Tabs
   tabs: ChatTab[]
   activeTabId: string | null
+
+  // Composer — shared by the sidebar and the full-screen view so a slash command
+  // prefilled from a toolbar button lands in whichever one is on screen.
+  composerDraft: string
+  attachment: ChatAttachment | null
 
   // Settings
   actionMode: 'auto' | 'ask'
@@ -57,6 +76,14 @@ interface ChatState {
   createTab: (initialMessage?: string) => string
   closeTab: (tabId: string) => void
   switchTab: (tabId: string) => void
+
+  // Actions — composer
+  setComposerDraft: (text: string) => void
+  /** Open the chat with `prefill` in the composer (used by the ✨ buttons). */
+  openWithPrefill: (prefill: string) => void
+  /** Open the chat and run `text` straight away (one-click AI buttons). */
+  runCommand: (text: string) => void
+  setAttachment: (attachment: ChatAttachment | null) => void
 
   // Actions — chat
   setActionMode: (mode: 'auto' | 'ask') => void
@@ -90,14 +117,35 @@ function captureSlideHtml(): string | undefined {
   }
 }
 
-function buildSnapshot(): PresentationSnapshot {
+/**
+ * The snapshot plus the last code run. `lastExecution` is an extra field rather
+ * than part of `PresentationSnapshot`: the shared type is owned elsewhere, and
+ * `get_last_output` reads it through the same optional shape in
+ * `chat-agent-tools.ts`.
+ */
+export type ChatSnapshot = PresentationSnapshot & {
+  lastExecution?: {
+    slideIndex: number
+    language: string
+    status: string
+    output: string
+    exitCode: number | null
+    durationMs: number
+    isExecuting: boolean
+  }
+}
+
+function buildSnapshot(): ChatSnapshot {
   const presStore = usePresentationStore.getState()
   const presentation = presStore.presentation
   const slides = presStore.slides
   const currentIdx = presStore.currentSlideIndex
   const currentRenderedHtml = captureSlideHtml()
 
+  const lastExecution = getLastExecution()
+
   return {
+    ...(lastExecution ? { lastExecution } : {}),
     title: presentation?.title || 'Untitled',
     author: presentation?.author || 'Unknown',
     theme: presentation?.theme || 'default',
@@ -181,6 +229,9 @@ function dispatchRendererAction(action: string, params: Record<string, unknown>)
       }
       break
     }
+    case 'runCode':
+      void runCodeForAgent()
+      break
     case 'insertChartInSlide': {
       const idx = params.slideIndex as number
       const svg = params.svg as string
@@ -214,6 +265,149 @@ function dispatchRendererAction(action: string, params: Record<string, unknown>)
       break
     }
   }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Slash commands                                                              */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Run a slash command that is handled in the renderer (no model turn): the
+ * command's own service call does the work and its report becomes the reply.
+ * The tab still shows as streaming so the composer is disabled and Stop — which
+ * cancels the underlying `ai:*` request — stays available.
+ */
+async function runLocalSlashCommand(
+  command: SlashCommandName,
+  args: string,
+  displayText: string
+): Promise<void> {
+  const tabId = useChatStore.getState().activeTabId
+  const tab = useChatStore.getState().tabs.find((t) => t.id === tabId)
+  if (!tabId || !tab) return
+
+  const now = Date.now()
+  const userMessage: ChatMessage = { id: `msg-${now}`, role: 'user', content: displayText, timestamp: now }
+  const assistantMessage: ChatMessage = {
+    id: `msg-${now + 1}`,
+    role: 'assistant',
+    content: '',
+    timestamp: now
+  }
+  const title = tab.messages.length === 0
+    ? displayText.slice(0, 40) + (displayText.length > 40 ? '...' : '')
+    : tab.title
+
+  useChatStore.setState((s) => ({
+    tabs: s.tabs.map((t) =>
+      t.id === tabId
+        ? {
+            ...t,
+            title,
+            messages: [...t.messages, userMessage, assistantMessage],
+            isStreaming: true,
+            currentStreamingText: '',
+            error: null
+          }
+        : t
+    )
+  }))
+
+  const outcome = await runSlashCommand(command, args)
+
+  useChatStore.setState((s) => ({
+    tabs: s.tabs.map((t) =>
+      t.id === tabId
+        ? {
+            ...t,
+            messages: t.messages.map((m) =>
+              m.id === assistantMessage.id
+                ? { ...m, content: outcome.kind === 'agent' ? 'Sending that to the assistant…' : outcome.message }
+                : m
+            ),
+            isStreaming: false,
+            currentStreamingText: ''
+          }
+        : t
+    )
+  }))
+
+  // Safety net: a command that turned out to need the agent after all.
+  if (outcome.kind === 'agent') await useChatStore.getState().sendMessage(outcome.prompt)
+}
+
+/* -------------------------------------------------------------------------- */
+/* Running the deck's code for the agent                                       */
+/* -------------------------------------------------------------------------- */
+
+/** Marks the turn that reports a run back to the model, so it is not counted twice. */
+const RUN_RESULT_PREFIX = 'Execution result —'
+
+/**
+ * A `run_code` tool call cannot answer the model in the same turn: the run
+ * happens in the renderer, after the tool result has already been sent. So the
+ * renderer runs the code and, once the turn is idle, reports the output back as
+ * one follow-up message. Capped so a model that keeps re-running cannot loop.
+ */
+const MAX_AUTO_RUN_FOLLOWUPS = 2
+let autoRunFollowUps = 0
+
+/** Resolves once the given tab is no longer streaming (or has gone away). */
+function whenTabIdle(tabId: string): Promise<void> {
+  return new Promise((resolve) => {
+    let unsubscribe: (() => void) | null = null
+    let done = false
+    const settle = (): void => {
+      if (done) return
+      done = true
+      unsubscribe?.()
+      resolve()
+    }
+    const check = (state: ChatState): void => {
+      const tab = state.tabs.find((t) => t.id === tabId)
+      if (!tab || !tab.isStreaming) settle()
+    }
+    unsubscribe = useChatStore.subscribe(check)
+    check(useChatStore.getState())
+    if (done) unsubscribe()
+  })
+}
+
+/** Append a message to a tab without touching the streaming assistant bubble. */
+function appendMessage(tabId: string, role: 'user' | 'assistant', content: string): void {
+  useChatStore.setState((s) => ({
+    tabs: s.tabs.map((t) =>
+      t.id === tabId
+        ? {
+            ...t,
+            messages: [
+              ...t.messages,
+              { id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, role, content, timestamp: Date.now() }
+            ]
+          }
+        : t
+    )
+  }))
+}
+
+async function runCodeForAgent(): Promise<void> {
+  const tabId = useChatStore.getState().activeTabId
+  if (!tabId) return
+
+  let report: string
+  try {
+    report = formatRunOutcome(await requestCodeRun())
+  } catch (err) {
+    report = `The code could not be run: ${err instanceof Error ? err.message : String(err)}`
+  }
+
+  await whenTabIdle(tabId)
+  if (autoRunFollowUps >= MAX_AUTO_RUN_FOLLOWUPS) {
+    appendMessage(tabId, 'assistant', report)
+    return
+  }
+  autoRunFollowUps += 1
+  await useChatStore.getState().sendMessage(`${RUN_RESULT_PREFIX} ${report}`)
 }
 
 /**
@@ -261,6 +455,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isSidebarOpen: false,
   tabs: [],
   activeTabId: null,
+  composerDraft: '',
+  attachment: null,
   actionMode: 'auto',
 
   // --- Navigation ---
@@ -335,14 +531,73 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   switchTab: (tabId: string) => set({ activeTabId: tabId }),
 
+  // --- Composer ---
+
+  setComposerDraft: (text: string) => set({ composerDraft: text }),
+
+  /**
+   * The ✨ buttons that replaced the scattered prompt bars all land here: open
+   * the chat (creating a tab if needed) with the slash command already typed.
+   */
+  openWithPrefill: (prefill: string) => {
+    const state = get()
+    if (state.tabs.length === 0) {
+      const tab = makeTab()
+      set({ tabs: [tab], activeTabId: tab.id })
+    }
+    set({ composerDraft: prefill })
+    if (!state.showFullChat) set({ isSidebarOpen: true })
+  },
+
+  /**
+   * One-click AI buttons (Beautify, Generate notes) send their slash command
+   * without the user typing: same path, same transcript, Stop still available.
+   */
+  runCommand: (text: string) => {
+    const state = get()
+    if (state.tabs.length === 0) {
+      const tab = makeTab()
+      set({ tabs: [tab], activeTabId: tab.id })
+    }
+    set({ composerDraft: '' })
+    if (!state.showFullChat) set({ isSidebarOpen: true })
+    void get().sendMessage(text)
+  },
+
+  setAttachment: (attachment) => set({ attachment }),
+
   // --- Chat ---
 
   setActionMode: (mode) => set({ actionMode: mode }),
 
-  sendMessage: async (text: string) => {
+  sendMessage: async (rawText: string) => {
     const state = get()
     const tab = getActiveTab(state)
     if (!tab) return
+
+    // A fresh user message ends the run-report budget of the previous one.
+    if (!rawText.startsWith(RUN_RESULT_PREFIX)) autoRunFollowUps = 0
+
+    // A quoted selection (from "Ask AI" on selected text) rides along once.
+    const attachment = state.attachment
+    if (attachment) set({ attachment: null })
+    const quoted = attachment
+      ? `${attachment.label}:\n> ${attachment.text.split('\n').join('\n> ')}\n\n`
+      : ''
+
+    const parsed = parseSlashCommand(rawText)
+    if (parsed) {
+      const expanded = agentPromptFor(parsed.command)
+      if (expanded) {
+        // A shorthand for asking the agent — carry on down the normal path.
+        return get().sendMessage(quoted + expanded)
+      }
+      const args = attachment ? `${parsed.args}\n\nSelected text:\n${attachment.text}`.trim() : parsed.args
+      await runLocalSlashCommand(parsed.command, args, quoted + rawText)
+      return
+    }
+
+    const text = quoted + rawText
 
     const userMessage: ChatMessage = {
       id: `msg-${Date.now()}`,

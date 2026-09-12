@@ -1,5 +1,12 @@
+import { createRequire } from 'module'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
+import {
+  CODE_LANGUAGES,
+  SLIDE_LAYOUTS,
+  SLIDE_THEMES,
+  SLIDE_TRANSITIONS,
+} from '#shared/slide-options.js'
 import {
   createPresentation,
   addSlide,
@@ -24,7 +31,12 @@ import {
   saveSlideToLibrary,
   insertLibrarySlide,
 } from './lib/presentation-io.js'
-import type { SlideLayout, SlideTransition, SupportedLanguage } from './lib/presentation-io.js'
+
+// The version advertised to MCP clients is the package's own — `make sync-version` bumps
+// package.json, and there is nothing here to fall out of step with it.
+const { version: SERVER_VERSION } = createRequire(import.meta.url)('../package.json') as {
+  version: string
+}
 
 // ── MCP Prompt: The Lecta Presentation Skill ──
 
@@ -110,7 +122,7 @@ Users can save reusable slides to a personal library. Before building from scrat
 export function createLectaServer(): McpServer {
   const server = new McpServer({
     name: 'lecta',
-    version: '0.1.2',
+    version: SERVER_VERSION,
   })
 
   // ── MCP Prompts ──
@@ -241,7 +253,7 @@ RIGHT (pure JSX — full control over layout and styling, title is a styled div)
     `Create a new Lecta presentation. Always use format 'mdx' for visually rich slides with inline JSX/React. If you are not confident writing JSX/React, fall back to 'md'. The presentation is saved to disk and the user opens it in the Lecta app to view, edit, and present. Do NOT call any export tool after this — the user views it in the app. If path is omitted, presentations are saved to ~/Documents/Lecta.${SLIDE_CONTENT_GUIDE}`,
     {
       title: z.string().describe('Presentation title'),
-      theme: z.enum(['dark', 'light', 'executive', 'minimal', 'corporate', 'creative', 'keynote-dark', 'paper']).optional().describe('Visual theme (default: dark)'),
+      theme: z.enum(SLIDE_THEMES).optional().describe('Visual theme (default: dark)'),
       author: z.string().optional().describe('Author name'),
       slide_count: z.number().int().min(1).max(50).optional().describe('Number of starter slides (default: 1)'),
       slide_titles: z.array(z.string()).optional().describe('Titles for each starter slide'),
@@ -280,13 +292,10 @@ RIGHT (pure JSX — full control over layout and styling, title is a styled div)
       presentation_path: z.string().describe('Root path of the presentation (returned by create_presentation)'),
       title: z.string().optional().describe('Short slide title for the navigation bar (not rendered on the slide). Auto-derived from content heading if omitted.'),
       content: z.string().describe('MDX (preferred) or Markdown content for the slide. For MDX: write pure JSX with a root <div> covering the full canvas — title must be a styled <div>, not a markdown # heading. For MD: start with a single # heading. Follow the 7×7 guideline by default (concise bullets, ~7 words each) but adapt to the user\'s requested style.'),
-      layout: z.enum(['default', 'center', 'title', 'section', 'two-col', 'two-col-wide-left', 'two-col-wide-right', 'three-col', 'top-bottom', 'big-number', 'quote', 'blank']).optional().describe('Slide layout (default: "default")'),
+      layout: z.enum(SLIDE_LAYOUTS).optional().describe('Slide layout (default: "default")'),
       code: z.object({
         content: z.string().describe('Code content'),
-        language: z.enum([
-          'javascript', 'typescript', 'python', 'sql', 'html', 'css',
-          'json', 'bash', 'rust', 'go', 'java', 'csharp', 'ruby', 'php', 'markdown'
-        ]).describe('Programming language'),
+        language: z.enum(CODE_LANGUAGES).describe('Programming language'),
       }).optional().describe('Code block to attach to the slide'),
       notes: z.string().optional().describe('Speaker notes'),
       format: z.enum(['md', 'mdx']).optional().describe('Slide file format (default: mdx). Use mdx for rich slides with inline JSX/React styling. Fall back to md if you are not comfortable with JSX/React.'),
@@ -296,11 +305,11 @@ RIGHT (pure JSX — full control over layout and styling, title is a styled div)
         rootPath: params.presentation_path,
         title: params.title,
         content: params.content,
-        layout: params.layout as SlideLayout | undefined,
+        layout: params.layout,
         format: params.format,
         code: params.code ? {
           content: params.code.content,
-          language: params.code.language as SupportedLanguage,
+          language: params.code.language,
         } : undefined,
         notes: params.notes,
       })
@@ -326,10 +335,10 @@ RIGHT (pure JSX — full control over layout and styling, title is a styled div)
       slide_index: z.number().int().nonnegative().describe('0-based slide index'),
       title: z.string().optional().describe('New slide title for the navigation bar (not rendered on the slide)'),
       content: z.string().optional().describe('New markdown content (replaces entire slide)'),
-      layout: z.enum(['default', 'center', 'title', 'section', 'two-col', 'two-col-wide-left', 'two-col-wide-right', 'three-col', 'top-bottom', 'big-number', 'quote', 'blank']).optional().describe('New layout'),
+      layout: z.enum(SLIDE_LAYOUTS).optional().describe('New layout'),
       code_content: z.string().optional().describe('New code content'),
       notes: z.string().optional().describe('New speaker notes'),
-      transition: z.enum(['none', 'left', 'right', 'top', 'bottom']).optional().describe('Slide transition'),
+      transition: z.enum(SLIDE_TRANSITIONS).optional().describe('Slide transition'),
       format: z.enum(['md', 'mdx']).optional().describe('Convert slide to this format (default: mdx). Changes the file extension and updates the config. Use mdx for rich slides with inline JSX/React styling. Fall back to md if you are not comfortable with JSX/React.'),
     },
     async (params) => {
@@ -338,10 +347,10 @@ RIGHT (pure JSX — full control over layout and styling, title is a styled div)
         slideIndex: params.slide_index,
         title: params.title,
         content: params.content,
-        layout: params.layout as SlideLayout | undefined,
+        layout: params.layout,
         codeContent: params.code_content,
         notes: params.notes,
-        transition: params.transition as SlideTransition | undefined,
+        transition: params.transition,
         format: params.format,
       })
       return {
@@ -401,7 +410,7 @@ RIGHT (pure JSX — full control over layout and styling, title is a styled div)
     'Change the visual theme',
     {
       presentation_path: z.string().describe('Root path of the presentation'),
-      theme: z.enum(['dark', 'light', 'executive', 'minimal', 'corporate', 'creative', 'keynote-dark', 'paper']).describe('Theme to apply'),
+      theme: z.enum(SLIDE_THEMES).describe('Theme to apply'),
     },
     async (params) => {
       const result = await setTheme(params.presentation_path, params.theme)

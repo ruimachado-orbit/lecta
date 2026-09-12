@@ -1,12 +1,16 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import { useChatStore } from '../../stores/chat-store'
 import { usePresentationStore } from '../../stores/presentation-store'
-import { requireAI, showAIError } from './AIAlert'
+import { requireAI } from './AIAlert'
 
 export function SpeakerNotes(): JSX.Element {
   const { slides, currentSlideIndex, presentation, updateNotesContent, saveSlideContent } =
     usePresentationStore()
   const currentSlide = slides[currentSlideIndex]
-  const [isGenerating, setIsGenerating] = useState(false)
+  const isGenerating = useChatStore((s) => {
+    const tab = s.tabs.find((t) => t.id === s.activeTabId)
+    return !!tab?.isStreaming
+  })
   const [activeTab, setActiveTab] = useState<'speaker' | 'presenter'>('speaker')
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
@@ -29,40 +33,15 @@ export function SpeakerNotes(): JSX.Element {
     }
   }, [currentSlideIndex])
 
-  const handleGenerate = useCallback(async () => {
+  /**
+   * Still one click — it just runs `/notes` in the chat, which streams into this
+   * pane through the same `streamNotes` call the button used to make itself.
+   */
+  const handleGenerate = (): void => {
     if (!currentSlide || !presentation) return
     if (!requireAI()) return
-
-    setIsGenerating(true)
-
-    try {
-      let accumulated = ''
-      window.electronAPI.streamNotes(
-        currentSlide.markdownContent,
-        currentSlide.codeContent,
-        presentation.title,
-        currentSlideIndex,
-        (chunk: string) => {
-          if (chunk === '[DONE]') {
-            updateNotesContent(currentSlideIndex, accumulated)
-            setIsGenerating(false)
-            saveSlideContent(currentSlideIndex)
-            return
-          }
-          if (chunk.startsWith('[ERROR]')) {
-            setIsGenerating(false)
-            showAIError(new Error(chunk.replace('[ERROR]', '').trim()))
-            return
-          }
-          accumulated += chunk
-          updateNotesContent(currentSlideIndex, accumulated)
-        }
-      )
-    } catch (err) {
-      setIsGenerating(false)
-      showAIError(err)
-    }
-  }, [currentSlide, presentation, currentSlideIndex, updateNotesContent, saveSlideContent])
+    useChatStore.getState().runCommand('/notes')
+  }
 
   return (
     <div className="h-48 bg-gray-900 border-t border-gray-800 flex flex-col">

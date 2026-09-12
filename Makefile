@@ -63,7 +63,6 @@ REPO    := ruimachado-orbit/lecta
 sync-version:
 	@sed -i.bak "s/export const VERSION = '.*'/export const VERSION = '$(VERSION)'/" web/lib/config.ts && rm -f web/lib/config.ts.bak
 	@node -e "for (const f of ['web/package.json','packages/mcp-server/package.json']) { const fs=require('fs'); const j=JSON.parse(fs.readFileSync(f,'utf8')); j.version='$(VERSION)'; fs.writeFileSync(f, JSON.stringify(j,null,2)+'\n') }"
-	@sed -i.bak "s/version: '[0-9.]*'/version: '$(VERSION)'/" packages/mcp-server/src/server.ts && rm -f packages/mcp-server/src/server.ts.bak
 	@echo "📌 Version synced to $(VERSION)"
 
 # Bump helpers — update package.json, sync web config, commit
@@ -87,7 +86,7 @@ bump-major:
 
 _commit-version:
 	$(eval VERSION := $(shell node -p "require('./package.json').version"))
-	@git add package.json web/lib/config.ts web/package.json packages/mcp-server/package.json packages/mcp-server/src/server.ts
+	@git add package.json web/lib/config.ts web/package.json packages/mcp-server/package.json
 	@git commit -m "chore: bump version to $(VERSION)"
 	@git push origin main
 

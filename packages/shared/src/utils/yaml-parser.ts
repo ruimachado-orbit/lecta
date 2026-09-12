@@ -1,6 +1,6 @@
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
 import { z } from 'zod'
-import type { Presentation, SlideConfig } from '../types/presentation'
+import type { Presentation, SlideConfig } from '../types/presentation.js'
 import {
   CODE_LANGUAGES,
   DEFAULT_THEME,
@@ -9,7 +9,7 @@ import {
   SLIDE_THEMES,
   SLIDE_TRANSITIONS,
   isSlideTheme,
-} from '../slide-options'
+} from '../slide-options.js'
 
 /**
  * Every path inside a deck manifest is resolved against the deck folder, so it must be
@@ -133,6 +133,14 @@ const PresentationSchema = z
   })
   .passthrough()
 
+/**
+ * Slide keys the schema names. `serializePresentation` decides for each of them whether
+ * it belongs in the output — `layout: default`, `transition: none` and an empty
+ * `prompts` list are deliberately dropped — so they must be excluded from the
+ * unknown-key passthrough below, which would otherwise put the defaults straight back.
+ */
+const KNOWN_SLIDE_KEYS: ReadonlySet<string> = new Set(Object.keys(SlideConfigSchema.shape))
+
 /** Top-level keys `serializePresentation` writes itself, in this order. */
 const KNOWN_TOP_LEVEL_KEYS = [
   'title',
@@ -196,7 +204,8 @@ export function serializePresentation(config: Presentation): string {
 
     // Anything the schema did not name (a slide-level key from a newer version) survives.
     for (const [key, value] of Object.entries(s as unknown as Record<string, unknown>)) {
-      if (!(key in slide) && value !== undefined) slide[key] = value
+      if (KNOWN_SLIDE_KEYS.has(key) || value === undefined) continue
+      slide[key] = value
     }
     return slide
   })

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
+import { useChatStore } from '../../stores/chat-store'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useImageStore } from '../../stores/image-store'
 import { useUIStore, COLOR_PALETTES } from '../../stores/ui-store'
-import { requireAI, showAIError } from '../ai/AIAlert'
+import { requireAI } from '../ai/AIAlert'
 import { GRADIENT_PRESETS } from './style-presets'
 import { applySlideBackground, patchSlideBackground } from './slide-background'
 
@@ -15,8 +16,8 @@ export function SlideEditToolbar({ editorRef }: SlideEditToolbarProps): JSX.Elem
     usePresentationStore()
   const { palette, setPalette } = useUIStore()
   const [showPalette, setShowPalette] = useState(false)
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [genLabel, setGenLabel] = useState('')
+  const runCommand = useChatStore((s) => s.runCommand)
+  const openWithPrefill = useChatStore((s) => s.openWithPrefill)
 
   const currentSlide = slides[currentSlideIndex]
 
@@ -54,24 +55,11 @@ export function SlideEditToolbar({ editorRef }: SlideEditToolbarProps): JSX.Elem
     }
   }
 
-  const handleBeautify = async () => {
+  /** One click, no typing — but the work and its result live in the chat. */
+  const handleBeautify = (): void => {
     if (!presentation || !currentSlide) return
     if (!requireAI()) return
-    setIsGenerating(true)
-    setGenLabel('Beautifying...')
-    try {
-      const result = await window.electronAPI.beautifySlide(
-        currentSlide.markdownContent,
-        presentation.title,
-        currentSlide.config.layout
-      )
-      usePresentationStore.getState().applyAIContent(currentSlideIndex, result)
-    } catch (err) {
-      showAIError(err)
-    } finally {
-      setIsGenerating(false)
-      setGenLabel('')
-    }
+    runCommand('/prettify')
   }
 
   return (
@@ -116,10 +104,19 @@ export function SlideEditToolbar({ editorRef }: SlideEditToolbarProps): JSX.Elem
         <Btn
           title="Beautify with AI — clean up and professionalize this slide"
           onClick={handleBeautify}
-          disabled={isGenerating}
           accent
         >
-          {isGenerating ? genLabel : '✨ Beautify'}
+          ✨ Beautify
+        </Btn>
+        <Btn
+          title="Ask AI about this slide — opens the chat with /improve"
+          onClick={() => {
+            if (!requireAI()) return
+            openWithPrefill('/improve ')
+          }}
+          accent
+        >
+          Ask AI
         </Btn>
         <Sep />
         {/* Color palette picker */}
@@ -154,86 +151,6 @@ export function SlideEditToolbar({ editorRef }: SlideEditToolbarProps): JSX.Elem
           )}
         </div>
       </div>
-
-      {/* AI prompt bar */}
-      <AIPromptBar
-        editorRef={editorRef}
-        currentSlide={currentSlide}
-        presentation={presentation}
-        updateMarkdownContent={updateMarkdownContent}
-        currentSlideIndex={currentSlideIndex}
-      />
-    </div>
-  )
-}
-
-function AIPromptBar({
-  editorRef,
-  currentSlide,
-  presentation,
-  updateMarkdownContent,
-  currentSlideIndex
-}: {
-  editorRef: React.RefObject<any>
-  currentSlide: any
-  presentation: any
-  updateMarkdownContent: (i: number, c: string) => void
-  currentSlideIndex: number
-}): JSX.Element {
-  const [prompt, setPrompt] = useState('')
-  const [isGenerating, setIsGenerating] = useState(false)
-
-  const handleGenerate = async () => {
-    if (!prompt.trim() || !presentation || !currentSlide) return
-    if (!requireAI()) return
-    setIsGenerating(true)
-    try {
-      const result = await window.electronAPI.generateSlideContent(
-        prompt,
-        presentation.title,
-        currentSlide.markdownContent
-      )
-      // Replace entire slide content with AI result (refused for executable .mdx slides)
-      const applied = usePresentationStore.getState().applyAIContent(currentSlideIndex, result, false)
-      if (applied) setPrompt('')
-    } catch (err) {
-      showAIError(err)
-    } finally {
-      setIsGenerating(false)
-    }
-  }
-
-  return (
-    <div className="h-9 flex items-center px-2 gap-2 border-t border-gray-800/50">
-      <SparklesIcon />
-      <input
-        type="text"
-        value={prompt}
-        onChange={(e) => setPrompt(e.target.value)}
-        onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
-        placeholder="Describe what you want... (Enter to generate)"
-        disabled={isGenerating}
-        className="flex-1 bg-transparent text-sm text-gray-300 placeholder-gray-600
-                   focus:outline-none disabled:opacity-50"
-      />
-      {prompt.trim() && (
-        <button
-          onClick={handleGenerate}
-          disabled={isGenerating}
-          className="px-3 py-1 bg-white hover:bg-gray-200 disabled:opacity-50
-                     text-black text-[11px] font-medium rounded-md transition-colors
-                     flex items-center gap-1.5"
-        >
-          {isGenerating ? (
-            <>
-              <Spinner />
-              Generating...
-            </>
-          ) : (
-            'Generate'
-          )}
-        </button>
-      )}
     </div>
   )
 }
@@ -410,21 +327,4 @@ function Btn({
 
 function Sep(): JSX.Element {
   return <div className="w-px h-4 bg-gray-700 mx-0.5" />
-}
-
-function Spinner(): JSX.Element {
-  return (
-    <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-    </svg>
-  )
-}
-
-function SparklesIcon(): JSX.Element {
-  return (
-    <svg className="w-4 h-4 text-white flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-      <path d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z" />
-    </svg>
-  )
 }

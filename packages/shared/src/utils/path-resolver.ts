@@ -1,5 +1,5 @@
 import { extname, resolve, relative, isAbsolute, sep } from 'path'
-import type { SupportedLanguage } from '../types/presentation'
+import type { SupportedLanguage } from '../types/presentation.js'
 
 export function resolveRelativePath(rootPath: string, relativePath: string): string {
   const resolved = resolve(rootPath, relativePath)

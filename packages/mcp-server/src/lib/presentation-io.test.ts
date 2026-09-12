@@ -7,7 +7,6 @@ import {
   toSafeSlug,
   expandHome,
   escapeMdx,
-  resolveInsideDeck,
   assertPresentationDir,
   customizeTheme,
   loadPresentationConfig,
@@ -16,8 +15,6 @@ import {
   saveDesignElement,
   listSlideLibrary,
   saveSlideToLibrary,
-  parsePresentationYaml,
-  serializePresentationYaml,
   loadPresentation,
   savePresentationYaml,
   createPresentation,
@@ -27,9 +24,10 @@ import {
   listSlides,
   setTheme,
   getDefaultPresentationsPath,
-  VALID_THEMES,
-  VALID_LAYOUTS,
 } from './presentation-io.js'
+import { SLIDE_LAYOUTS, SLIDE_THEMES } from '#shared/slide-options.js'
+import { resolveRelativePath } from '#shared/utils/path-resolver.js'
+import { parsePresentationYaml, serializePresentation } from '#shared/utils/yaml-parser.js'
 
 let tempDir: string
 
@@ -73,20 +71,20 @@ describe('getDefaultPresentationsPath', () => {
   })
 })
 
-describe('VALID_THEMES', () => {
+describe('SLIDE_THEMES', () => {
   it('includes expected themes', () => {
-    expect(VALID_THEMES).toContain('dark')
-    expect(VALID_THEMES).toContain('light')
-    expect(VALID_THEMES).toContain('executive')
+    expect(SLIDE_THEMES).toContain('dark')
+    expect(SLIDE_THEMES).toContain('light')
+    expect(SLIDE_THEMES).toContain('executive')
   })
 })
 
-describe('VALID_LAYOUTS', () => {
+describe('SLIDE_LAYOUTS', () => {
   it('includes expected layouts', () => {
-    expect(VALID_LAYOUTS).toContain('default')
-    expect(VALID_LAYOUTS).toContain('title')
-    expect(VALID_LAYOUTS).toContain('two-col')
-    expect(VALID_LAYOUTS).toContain('blank')
+    expect(SLIDE_LAYOUTS).toContain('default')
+    expect(SLIDE_LAYOUTS).toContain('title')
+    expect(SLIDE_LAYOUTS).toContain('two-col')
+    expect(SLIDE_LAYOUTS).toContain('blank')
   })
 })
 
@@ -114,7 +112,7 @@ slides:
   })
 })
 
-describe('serializePresentationYaml', () => {
+describe('serializePresentation', () => {
   it('roundtrips through parse and serialize', () => {
     const yaml = `
 title: Roundtrip
@@ -126,7 +124,7 @@ slides:
     artifacts: []
 `
     const parsed = parsePresentationYaml(yaml, '/root')
-    const serialized = serializePresentationYaml(parsed)
+    const serialized = serializePresentation(parsed)
     const reparsed = parsePresentationYaml(serialized, '/root')
     expect(reparsed.title).toBe('Roundtrip')
     expect(reparsed.theme).toBe('light')
@@ -145,7 +143,7 @@ slides:
     artifacts: []
 `
     const parsed = parsePresentationYaml(yaml, '/root')
-    const serialized = serializePresentationYaml(parsed)
+    const serialized = serializePresentation(parsed)
     // default layout and none transition should be omitted
     expect(serialized).not.toContain('layout:')
     expect(serialized).not.toContain('transition:')
@@ -162,7 +160,7 @@ slides:
     artifacts: []
 `
     const parsed = parsePresentationYaml(yaml, '/root')
-    const serialized = serializePresentationYaml(parsed)
+    const serialized = serializePresentation(parsed)
     expect(serialized).not.toContain('lastViewedIndex')
   })
 
@@ -183,7 +181,7 @@ groups:
     color: red
 `
     const parsed = parsePresentationYaml(yaml, '/root')
-    const serialized = serializePresentationYaml(parsed)
+    const serialized = serializePresentation(parsed)
     expect(serialized).toContain('ai:')
     expect(serialized).toContain('groups:')
     expect(serialized).toContain('color: red')
@@ -609,18 +607,18 @@ describe('escapeMdx', () => {
   })
 })
 
-describe('resolveInsideDeck', () => {
+describe('resolveRelativePath', () => {
   it('resolves paths inside the deck', () => {
-    expect(resolveInsideDeck('/deck', 'slides/01.md')).toBe('/deck/slides/01.md')
+    expect(resolveRelativePath('/deck', 'slides/01.md')).toBe('/deck/slides/01.md')
   })
 
   it('rejects escaping paths', () => {
-    expect(() => resolveInsideDeck('/deck', '../../etc/passwd')).toThrow('escapes')
-    expect(() => resolveInsideDeck('/deck', '/etc/passwd')).toThrow('escapes')
+    expect(() => resolveRelativePath('/deck', '../../etc/passwd')).toThrow('Path traversal detected')
+    expect(() => resolveRelativePath('/deck', '/etc/passwd')).toThrow('Path traversal detected')
   })
 
   it('allows names that merely start with dots', () => {
-    expect(resolveInsideDeck('/deck', 'slides/..notes.md')).toBe('/deck/slides/..notes.md')
+    expect(resolveRelativePath('/deck', 'slides/..notes.md')).toBe('/deck/slides/..notes.md')
   })
 })
 
@@ -787,7 +785,7 @@ describe('customizeTheme', () => {
   })
 })
 
-describe('serializePresentationYaml — unknown keys', () => {
+describe('serializePresentation — unknown keys', () => {
   it('round-trips top-level keys the schema does not know', async () => {
     await writeFile(join(tempDir, 'lecta.yaml'), `
 title: Extras
@@ -801,7 +799,7 @@ slides:
     artifacts: []
 `, 'utf-8')
     const config = await loadPresentationConfig(tempDir)
-    const yaml = serializePresentationYaml(config)
+    const yaml = serializePresentation(config)
     expect(yaml).toContain('customBranding')
     expect(yaml).toContain('images/logo.png')
     expect(yaml).not.toContain('rootPath')
@@ -891,5 +889,120 @@ describe('JSON side-cars never rewrite a file they could not parse', () => {
     await saveSlideToLibrary({ name: 'S', markdown: '# S' })
     const files = await readdir(dataDir)
     expect(files).toEqual(['slide-library.json'])
+  })
+})
+
+// ── The lecta.yaml contract ──
+//
+// This server writes decks with the app's serializer — `serializePresentation` from
+// packages/shared — and this fixture is a byte-for-byte copy of the one in
+// `packages/shared/src/utils/yaml-parser.test.ts`. A deck written by the server and a
+// deck written by the app have to be indistinguishable, so if one of the two copies
+// starts failing, the packages have forked again — fix the fork, do not fork the fixture.
+
+/** Exercises every branch of the serializer: defaults, extras and every optional block. */
+const CONTRACT_YAML = `title: Shared Contract
+author: Lecta
+theme: executive
+lastViewedIndex: 2
+customBranding:
+  logo: images/logo.png
+slides:
+  - id: intro
+    title: Intro
+    content: slides/01-intro.mdx
+    layout: title
+    transition: left
+    artifacts: []
+  - id: demo
+    content: slides/02-demo.md
+    layout: default
+    transition: none
+    prompts: []
+    notes: slides/02-demo.notes.md
+    skipped: true
+    background:
+      color: "#0a0e1a"
+      overlay: 40
+    code:
+      file: code/demo.py
+      language: python
+      execution: pyodide
+    artifacts:
+      - path: artifacts/handout.pdf
+        label: Handout
+ai:
+  model: claude-sonnet-4
+groups:
+  - id: g1
+    name: Act I
+    slideIds:
+      - intro
+    color: "#ff6b35"
+presenterNotes: Breathe.
+`
+
+/**
+ * What `serializePresentation` must produce for `CONTRACT_YAML`. Note the second slide:
+ * `layout: default`, `transition: none` and the empty `prompts` list are dropped, while
+ * the unknown top-level `customBranding` survives, moved below the keys the serializer
+ * writes itself.
+ */
+const CONTRACT_YAML_SERIALIZED = `title: Shared Contract
+author: Lecta
+theme: executive
+lastViewedIndex: 2
+slides:
+  - id: intro
+    title: Intro
+    content: slides/01-intro.mdx
+    artifacts: []
+    transition: left
+    layout: title
+  - id: demo
+    content: slides/02-demo.md
+    code:
+      file: code/demo.py
+      language: python
+      execution: pyodide
+    artifacts:
+      - path: artifacts/handout.pdf
+        label: Handout
+    notes: slides/02-demo.notes.md
+    skipped: true
+    background:
+      color: "#0a0e1a"
+      overlay: 40
+ai:
+  model: claude-sonnet-4
+groups:
+  - id: g1
+    name: Act I
+    slideIds:
+      - intro
+    color: "#ff6b35"
+presenterNotes: Breathe.
+customBranding:
+  logo: images/logo.png
+`
+
+describe('lecta.yaml contract (byte-identical in the app and the MCP server)', () => {
+  it('serializes the fixture deck byte for byte', () => {
+    const parsed = parsePresentationYaml(CONTRACT_YAML, '/decks/contract')
+    expect(serializePresentation(parsed)).toBe(CONTRACT_YAML_SERIALIZED)
+  })
+
+  it('drops slide keys that carry their default value', () => {
+    const parsed = parsePresentationYaml(CONTRACT_YAML, '/decks/contract')
+    const [, demo] = serializePresentation(parsed).split('  - id: demo')
+    // The unknown-key passthrough must not put the omitted defaults back.
+    expect(demo).not.toContain('layout: default')
+    expect(demo).not.toContain('transition: none')
+    expect(demo).not.toContain('prompts:')
+  })
+
+  it('is idempotent — serializing the output again changes nothing', () => {
+    const once = serializePresentation(parsePresentationYaml(CONTRACT_YAML, '/decks/contract'))
+    expect(serializePresentation(parsePresentationYaml(once, '/decks/contract'))).toBe(once)
   })
 })

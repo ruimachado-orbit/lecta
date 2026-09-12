@@ -363,3 +363,118 @@ describe('shipped example decks', () => {
     }
   })
 })
+
+// ── The lecta.yaml contract ──
+//
+// The MCP server writes decks with this same serializer (it imports it as
+// `#shared/utils/yaml-parser.js`) and carries a byte-for-byte copy of this fixture in
+// `packages/mcp-server/src/lib/presentation-io.test.ts`. A deck written by the server and
+// a deck written by the app have to be indistinguishable, so if one of the two copies
+// starts failing, the packages have forked again — fix the fork, do not fork the fixture.
+
+/** Exercises every branch of the serializer: defaults, extras and every optional block. */
+const CONTRACT_YAML = `title: Shared Contract
+author: Lecta
+theme: executive
+lastViewedIndex: 2
+customBranding:
+  logo: images/logo.png
+slides:
+  - id: intro
+    title: Intro
+    content: slides/01-intro.mdx
+    layout: title
+    transition: left
+    artifacts: []
+  - id: demo
+    content: slides/02-demo.md
+    layout: default
+    transition: none
+    prompts: []
+    notes: slides/02-demo.notes.md
+    skipped: true
+    background:
+      color: "#0a0e1a"
+      overlay: 40
+    code:
+      file: code/demo.py
+      language: python
+      execution: pyodide
+    artifacts:
+      - path: artifacts/handout.pdf
+        label: Handout
+ai:
+  model: claude-sonnet-4
+groups:
+  - id: g1
+    name: Act I
+    slideIds:
+      - intro
+    color: "#ff6b35"
+presenterNotes: Breathe.
+`
+
+/**
+ * What `serializePresentation` must produce for `CONTRACT_YAML`. Note the second slide:
+ * `layout: default`, `transition: none` and the empty `prompts` list are dropped, while
+ * the unknown top-level `customBranding` survives, moved below the keys the serializer
+ * writes itself.
+ */
+const CONTRACT_YAML_SERIALIZED = `title: Shared Contract
+author: Lecta
+theme: executive
+lastViewedIndex: 2
+slides:
+  - id: intro
+    title: Intro
+    content: slides/01-intro.mdx
+    artifacts: []
+    transition: left
+    layout: title
+  - id: demo
+    content: slides/02-demo.md
+    code:
+      file: code/demo.py
+      language: python
+      execution: pyodide
+    artifacts:
+      - path: artifacts/handout.pdf
+        label: Handout
+    notes: slides/02-demo.notes.md
+    skipped: true
+    background:
+      color: "#0a0e1a"
+      overlay: 40
+ai:
+  model: claude-sonnet-4
+groups:
+  - id: g1
+    name: Act I
+    slideIds:
+      - intro
+    color: "#ff6b35"
+presenterNotes: Breathe.
+customBranding:
+  logo: images/logo.png
+`
+
+describe('lecta.yaml contract (byte-identical in the app and the MCP server)', () => {
+  it('serializes the fixture deck byte for byte', () => {
+    const parsed = parsePresentationYaml(CONTRACT_YAML, '/decks/contract')
+    expect(serializePresentation(parsed)).toBe(CONTRACT_YAML_SERIALIZED)
+  })
+
+  it('drops slide keys that carry their default value', () => {
+    const parsed = parsePresentationYaml(CONTRACT_YAML, '/decks/contract')
+    const [, demo] = serializePresentation(parsed).split('  - id: demo')
+    // The unknown-key passthrough must not put the omitted defaults back.
+    expect(demo).not.toContain('layout: default')
+    expect(demo).not.toContain('transition: none')
+    expect(demo).not.toContain('prompts:')
+  })
+
+  it('is idempotent — serializing the output again changes nothing', () => {
+    const once = serializePresentation(parsePresentationYaml(CONTRACT_YAML, '/decks/contract'))
+    expect(serializePresentation(parsePresentationYaml(once, '/decks/contract'))).toBe(once)
+  })
+})

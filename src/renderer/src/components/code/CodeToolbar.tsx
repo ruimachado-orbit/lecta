@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useEffect } from 'react'
+import { useChatStore } from '../../stores/chat-store'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useExecutionStore } from '../../stores/execution-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useCodeExecution } from '../../hooks/useCodeExecution'
-import { requireAI, showAIError } from '../ai/AIAlert'
+import { registerCodeRunner } from '../chat/code-run-bridge'
+import { requireAI } from '../ai/AIAlert'
 
 const FONT_SIZES = [
   { label: 'S', value: 12 },
@@ -12,13 +14,15 @@ const FONT_SIZES = [
 ]
 
 export function CodeToolbar(): JSX.Element {
-  const { slides, currentSlideIndex, updateCodeContent, saveSlideContent, presentation, removeAttachment } = usePresentationStore()
-  const { isExecuting, clearOutput } = useExecutionStore()
+  const { slides, currentSlideIndex, removeAttachment } = usePresentationStore()
+  const { isExecuting } = useExecutionStore()
   const { fontSize, setFontSize, aiEnabled } = useUIStore()
   const { runCode, cancelCode } = useCodeExecution()
-  const [showAIPrompt, setShowAIPrompt] = useState(false)
-  const [aiPrompt, setAIPrompt] = useState('')
-  const [isGenerating, setIsGenerating] = useState(false)
+  const openWithPrefill = useChatStore((s) => s.openWithPrefill)
+
+  // This component owns the only mounted `useCodeExecution`, so `/run` and the
+  // agent's `run_code` tool borrow its runner rather than mounting a second one.
+  useEffect(() => registerCodeRunner(runCode), [runCode])
 
   const currentSlide = slides[currentSlideIndex]
   const codeConfig = currentSlide?.config.code
@@ -38,28 +42,6 @@ export function CodeToolbar(): JSX.Element {
         const content = await window.electronAPI.readFile(filePath)
         updateCodeContent(currentSlideIndex, content)
       }
-    }
-  }
-
-  const handleAIGenerate = async () => {
-    if (!aiPrompt.trim() || !codeConfig || !presentation) return
-    if (!requireAI()) return
-    setIsGenerating(true)
-    try {
-      const code = await window.electronAPI.generateCode(
-        aiPrompt,
-        codeConfig.language,
-        currentSlide?.codeContent || '',
-        presentation.title
-      )
-      updateCodeContent(currentSlideIndex, code)
-      saveSlideContent(currentSlideIndex)
-      setAIPrompt('')
-      setShowAIPrompt(false)
-    } catch (err) {
-      showAIError(err)
-    } finally {
-      setIsGenerating(false)
     }
   }
 
@@ -102,17 +84,17 @@ export function CodeToolbar(): JSX.Element {
           <ResetIcon />
         </button>
 
-        {/* AI Generate Code */}
+        {/* AI: hand off to the chat, prefilled with /code */}
         <button
-          onClick={() => setShowAIPrompt(!showAIPrompt)}
-          disabled={!aiEnabled}
+          onClick={() => {
+            if (!requireAI()) return
+            openWithPrefill('/code ')
+          }}
           className={`p-1 rounded transition-colors ${
-            !aiEnabled ? 'text-gray-700 cursor-not-allowed'
-            : showAIPrompt ? 'text-white font-bold'
-            : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
+            aiEnabled ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-800' : 'text-gray-600 hover:text-gray-400'
           }`}
-          title={aiEnabled ? 'Generate code with AI' : 'Configure an AI provider in Settings'}
-          aria-label={aiEnabled ? 'Generate code with AI' : 'Configure an AI provider in Settings'}
+          title="Generate code with AI — opens the chat with /code"
+          aria-label="Generate code with AI — opens the chat with /code"
         >
           <SparklesIcon />
         </button>
@@ -145,28 +127,6 @@ export function CodeToolbar(): JSX.Element {
         </button>
       </div>
 
-      {/* AI prompt bar */}
-      {showAIPrompt && (
-        <div className="h-9 flex items-center px-3 gap-2 border-t border-gray-800">
-          <SparklesIcon />
-          <input
-            type="text"
-            value={aiPrompt}
-            onChange={(e) => setAIPrompt(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleAIGenerate()}
-            placeholder={`Generate ${codeConfig?.language} code...`}
-            disabled={isGenerating}
-            autoFocus
-            className="flex-1 bg-transparent text-sm text-gray-300 placeholder-gray-600 focus:outline-none disabled:opacity-50"
-          />
-          {aiPrompt.trim() && (
-            <button onClick={handleAIGenerate} disabled={isGenerating}
-              className="px-3 py-1 bg-white hover:bg-gray-200 disabled:opacity-50 text-black text-[11px] font-medium rounded-md transition-colors flex items-center gap-1.5">
-              {isGenerating ? 'Generating...' : 'Generate'}
-            </button>
-          )}
-        </div>
-      )}
     </div>
   )
 }

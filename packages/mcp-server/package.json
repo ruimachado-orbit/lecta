@@ -7,9 +7,12 @@
     "lecta-mcp": "./dist/index.js"
   },
   "main": "./dist/index.js",
+  "imports": {
+    "#shared/*": "./dist/shared/*"
+  },
   "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
+    "build": "tsc -b",
+    "dev": "tsc -b --watch",
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest"

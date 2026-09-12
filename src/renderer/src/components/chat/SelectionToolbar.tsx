@@ -2,15 +2,18 @@ import { useState, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useUIStore } from '../../stores/ui-store'
 import { useChatStore } from '../../stores/chat-store'
+import { usePresentationStore } from '../../stores/presentation-store'
 import { useTabsStore } from '../../stores/tabs-store'
 
 /**
- * Floating toolbar that appears when the user selects text inside an assistant
- * chat message. Offers a "Generate Presentation" action that opens a new Home
- * tab with the AI Generate panel pre-filled with the selected text.
+ * Floating toolbar for selected text — inside an assistant chat message or on the
+ * slide itself. "Ask AI" quotes the selection into the chat composer; "Generate
+ * Presentation" opens a new Home tab with the AI Generate panel pre-filled.
  */
 export function SelectionToolbar(): JSX.Element | null {
-  const [selection, setSelection] = useState<{ text: string; x: number; y: number } | null>(null)
+  const [selection, setSelection] = useState<
+    { text: string; x: number; y: number; source: 'chat' | 'slide' } | null
+  >(null)
 
   const handleMouseUp = useCallback(() => {
     // Small delay so the browser finalises the selection range
@@ -27,17 +30,23 @@ export function SelectionToolbar(): JSX.Element | null {
         return
       }
 
-      // Only trigger inside assistant messages (not user bubbles)
+      // Assistant messages (never user bubbles) and slide content are askable.
       const anchor = sel.anchorNode
       if (!anchor) { setSelection(null); return }
       const el = anchor.nodeType === Node.TEXT_NODE ? anchor.parentElement : anchor as HTMLElement
       if (!el) { setSelection(null); return }
-      const msgEl = el.closest('[data-chat-role="assistant"]')
-      if (!msgEl) { setSelection(null); return }
+      const inChat = !!el.closest('[data-chat-role="assistant"]')
+      const inSlide = !!el.closest('.slide-content, .ProseMirror')
+      if (!inChat && !inSlide) { setSelection(null); return }
 
       const range = sel.getRangeAt(0)
       const rect = range.getBoundingClientRect()
-      setSelection({ text, x: rect.left + rect.width / 2, y: rect.top })
+      setSelection({
+        text,
+        x: rect.left + rect.width / 2,
+        y: rect.top,
+        source: inChat ? 'chat' : 'slide'
+      })
     })
   }, [])
 
@@ -58,6 +67,21 @@ export function SelectionToolbar(): JSX.Element | null {
       document.removeEventListener('mousedown', handleMouseDown)
     }
   }, [handleMouseUp, handleMouseDown])
+
+  const handleAsk = useCallback(() => {
+    if (!selection) return
+    const chat = useChatStore.getState()
+    const slideIndex = usePresentationStore.getState().currentSlideIndex
+    chat.setAttachment({
+      label: selection.source === 'slide' ? `Slide ${slideIndex + 1} selection` : 'Chat selection',
+      text: selection.text
+    })
+    // Land in whichever chat surface is on screen.
+    if (!chat.showFullChat) chat.openSidebar()
+
+    setSelection(null)
+    window.getSelection()?.removeAllRanges()
+  }, [selection])
 
   const handleGenerate = useCallback(() => {
     if (!selection) return
@@ -80,7 +104,7 @@ export function SelectionToolbar(): JSX.Element | null {
   if (!selection) return null
 
   // Position the toolbar above the selection, centered
-  const toolbarWidth = 190
+  const toolbarWidth = 280
   const left = Math.max(8, Math.min(selection.x - toolbarWidth / 2, window.innerWidth - toolbarWidth - 8))
   const top = selection.y - 40
 
@@ -95,6 +119,16 @@ export function SelectionToolbar(): JSX.Element | null {
         WebkitAppRegion: 'no-drag',
       } as React.CSSProperties}
     >
+      <button
+        onClick={handleAsk}
+        className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium text-gray-200 bg-gray-700 hover:bg-gray-600 rounded-md transition-colors"
+        title="Quote this selection into the chat"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+        </svg>
+        Ask AI
+      </button>
       <button
         onClick={handleGenerate}
         className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium text-white bg-indigo-600 hover:bg-indigo-500 rounded-md transition-colors"

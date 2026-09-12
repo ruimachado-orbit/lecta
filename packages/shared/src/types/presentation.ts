@@ -3,9 +3,9 @@ import type {
   SlideLayout,
   SlideTransition,
   SupportedLanguage,
-} from '../slide-options'
+} from '../slide-options.js'
 
-export type { ExecutionEngine, SlideLayout, SlideTheme, SlideTransition, SupportedLanguage } from '../slide-options'
+export type { ExecutionEngine, SlideLayout, SlideTheme, SlideTransition, SupportedLanguage } from '../slide-options.js'
 
 export interface SlideGroupConfig {
   id: string

@@ -29,10 +29,17 @@ extraResources:
     to: example-decks/hello-world
     filter:
       - "**/*"
+  # The MCP server, launched out-of-process by Claude Desktop (see
+  # src/main/services/mcp-manager.ts). `dist` carries the compiled server *and* the
+  # `dist/shared` copy of packages/shared that its build compiles in, and package.json
+  # must ship beside them: it is what marks the folder as ESM and maps the `#shared/*`
+  # subpath imports the compiled code uses. Without it Node refuses to load dist/index.js.
   - from: packages/mcp-server/dist
     to: mcp-server/dist
     filter:
       - "**/*"
+  - from: packages/mcp-server/package.json
+    to: mcp-server/package.json
   - from: packages/mcp-server/node_modules
     to: mcp-server/node_modules
     filter:

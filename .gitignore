@@ -52,3 +52,6 @@ pnpm-debug.log*
 *.pem
 *.key
 credentials.json
+
+# TypeScript incremental build info
+*.tsbuildinfo

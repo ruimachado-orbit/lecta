@@ -4,13 +4,17 @@ import { GoogleGenAI } from '@google/genai'
 import { loadAnthropicKey, loadOpenAIKey, loadGeminiKey, loadAIModel, loadProviderKey, getProviderKeySource, loadOpenAIAuthMode } from './env-loader'
 import { DEFAULT_AI_MODEL, getProviderForModel, isOllamaPrefixedModel, stripOllamaPrefix, type AIProviderID } from '../../../packages/shared/src/constants'
 import type { PresentationSnapshot, ChatStreamEvent } from '../../../packages/shared/src/types/chat'
-import { getToolSchemas, findTool, wrapDeckContent, DECK_CONTENT_NOTICE, type ToolExecutionContext } from './chat-agent-tools'
-import {
-  getCodexAppServerClient,
-  type CodexDynamicToolCall,
-  type CodexDynamicToolResponse,
-  type CodexDynamicToolSpec,
-} from './codex-app-server-client'
+import { getAllTools, wrapDeckContent, DECK_CONTENT_NOTICE, type ToolExecutionContext } from './chat-agent-tools'
+import { getCodexAppServerClient } from './codex-app-server-client'
+import { createAnthropicAdapter } from './ai/anthropic'
+import { createGeminiAdapter } from './ai/gemini'
+import { createOpenAICompatibleAdapter } from './ai/openai-compatible'
+import { createCodexAdapter } from './ai/codex'
+import { runToolLoop, type LoopTool } from './ai/tool-loop'
+import type { GenerateRequest, LLMAdapter } from './ai/types'
+
+/** OpenAI reasoning models reject a `system` message and `tool_choice`. */
+const REASONING_MODEL_PATTERN = /^(o[1-9]|o\d+-mini)/
 
 const SLIDE_7x7_RULE = `
 SLIDE CANVAS: 1280×720px with 80px horizontal / 60px vertical padding.
@@ -84,6 +88,8 @@ export class AIService {
   private openaiClient: OpenAI | null = null
   private geminiClient: GoogleGenAI | null = null
   private openaiCompatClients: Map<string, OpenAI> = new Map() // Mistral, Meta, xAI, Perplexity
+  /** One adapter per provider (plus an `openai:codex` entry), dropped with the clients. */
+  private adapters: Map<string, LLMAdapter> = new Map()
   private model: string = DEFAULT_AI_MODEL
   /** Model ids reported by a running Ollama instance (see fetchOllamaModels). */
   private knownOllamaModels = new Set<string>()
@@ -95,6 +101,7 @@ export class AIService {
     this.openaiClient = null
     this.geminiClient = null
     this.openaiCompatClients.clear()
+    this.adapters.clear()
 
     const envModel = await loadAIModel(deckPath)
     if (envModel) {
@@ -109,6 +116,7 @@ export class AIService {
     this.openaiClient = null
     this.geminiClient = null
     this.openaiCompatClients.clear()
+    this.adapters.clear()
   }
 
   /**
@@ -116,23 +124,21 @@ export class AIService {
    * only ids from the static catalog, ids returned by `fetchOllamaModels()`,
    * or ids explicitly prefixed with `ollama:` are accepted.
    */
-  private async getProviderForCurrentModel(): Promise<AIProviderID> {
-    const provider = getProviderForModel(this.model)
+  private async resolveProvider(model: string): Promise<AIProviderID> {
+    const provider = getProviderForModel(model)
     if (provider) return provider.id
-    if (isOllamaPrefixedModel(this.model)) return 'ollama'
-    if (this.knownOllamaModels.has(this.model)) return 'ollama'
+    if (isOllamaPrefixedModel(model)) return 'ollama'
+    if (this.knownOllamaModels.has(model)) return 'ollama'
     // The id may be an Ollama model selected in a previous session — refresh the list once.
     await this.fetchOllamaModels()
-    if (this.knownOllamaModels.has(this.model)) return 'ollama'
-    throw new Error(`Unknown model "${this.model}"`)
+    if (this.knownOllamaModels.has(model)) return 'ollama'
+    throw new Error(`Unknown model "${model}"`)
   }
 
-  /** Model id as sent on the wire (strips the `ollama:` routing prefix). */
-  private requestModelId(provider: AIProviderID): string {
-    return provider === 'ollama' ? stripOllamaPrefix(this.model) : this.model
-  }
-
-  /** Abort any in-flight Codex turn. Provider SDK requests are not cancellable here. */
+  /**
+   * Abort any in-flight Codex turn. SDK-backed providers are cancelled through
+   * the `AbortSignal` threaded from the IPC layer, not from here.
+   */
   async cancelActiveGeneration(): Promise<void> {
     await getCodexAppServerClient().cancelTurn()
   }
@@ -210,238 +216,111 @@ export class AIService {
     return client
   }
 
-  // Keep backward compat for chatWithTools (which uses Anthropic SDK types)
-  private async getClient(): Promise<Anthropic> {
-    return this.getAnthropicClient()
+  // ── Adapters ──
+
+  /**
+   * The adapter for the currently selected model. Adapters are cached per
+   * provider and dropped whenever the deck or the model changes, because the
+   * underlying SDK clients reload their keys then.
+   */
+  async getAdapter(model: string = this.model): Promise<LLMAdapter> {
+    const provider = await this.resolveProvider(model)
+    const useCodex = provider === 'openai' && (await this.shouldUseCodexForOpenAI())
+    const cacheKey = useCodex ? 'openai:codex' : provider
+
+    const cached = this.adapters.get(cacheKey)
+    if (cached) return cached
+
+    const adapter = this.buildAdapter(provider, useCodex)
+    this.adapters.set(cacheKey, adapter)
+    return adapter
+  }
+
+  private buildAdapter(provider: AIProviderID, useCodex: boolean): LLMAdapter {
+    switch (provider) {
+      case 'anthropic':
+        return createAnthropicAdapter(() => this.getAnthropicClient())
+      case 'google':
+        return createGeminiAdapter(() => this.getGeminiClient())
+      case 'openai':
+        return useCodex
+          ? createCodexAdapter({ getClient: () => getCodexAppServerClient() })
+          : createOpenAICompatibleAdapter({
+              id: 'openai',
+              getClient: () => this.getOpenAIClient(),
+              // GPT-5 and the o-series reject `max_tokens`.
+              tokenParam: 'max_completion_tokens',
+              reasoningModelPattern: REASONING_MODEL_PATTERN,
+            })
+      case 'ollama':
+        return createOpenAICompatibleAdapter({
+          id: 'ollama',
+          getClient: () => this.getOpenAICompatClient('ollama'),
+          tokenParam: 'max_tokens',
+          requestModelId: stripOllamaPrefix,
+        })
+      case 'mistral':
+      case 'meta':
+      case 'xai':
+      case 'perplexity':
+        return createOpenAICompatibleAdapter({
+          id: provider,
+          getClient: () => this.getOpenAICompatClient(provider),
+          tokenParam: 'max_tokens',
+        })
+      default:
+        throw new Error(`Unsupported provider: ${provider}`)
+    }
   }
 
   // ── Unified generation ──
+
+  /** Build the single-user-turn request every prompt-shaped method sends. */
+  private buildRequest(params: {
+    system: string
+    userMessage: string
+    maxTokens: number
+    temperature?: number
+    signal?: AbortSignal
+  }): GenerateRequest {
+    return {
+      model: this.model,
+      system: params.system,
+      messages: [{ role: 'user', content: params.userMessage }],
+      maxTokens: params.maxTokens,
+      ...(params.temperature !== undefined ? { temperature: params.temperature } : {}),
+      ...(params.signal ? { signal: params.signal } : {}),
+    }
+  }
 
   private async generate(params: {
     system: string
     userMessage: string
     maxTokens: number
+    signal?: AbortSignal
   }): Promise<GenerationResult> {
-    const provider = await this.getProviderForCurrentModel()
-
-    switch (provider) {
-      case 'anthropic': {
-        const client = await this.getAnthropicClient()
-        const response = await client.messages.create({
-          model: this.model,
-          max_tokens: params.maxTokens,
-          system: params.system,
-          messages: [{ role: 'user', content: params.userMessage }]
-        })
-        const textBlock = response.content.find((block) => block.type === 'text')
-        return { text: textBlock?.text ?? '' }
-      }
-
-      case 'openai': {
-        if (await this.shouldUseCodexForOpenAI()) {
-          return this.generateWithCodex(params)
-        }
-
-        const client = await this.getOpenAIClient()
-        const isReasoning = /^(o[1-9]|o\d+-mini)/.test(this.model)
-        const response = await client.chat.completions.create({
-          model: this.model,
-          // GPT-5 and o-series reject `max_tokens`; `max_completion_tokens` works for every Chat Completions model.
-          max_completion_tokens: params.maxTokens,
-          messages: [
-            // Reasoning models don't support system messages — merge into user
-            ...(isReasoning
-              ? [{ role: 'user' as const, content: `${params.system}\n\n${params.userMessage}` }]
-              : [
-                  { role: 'system' as const, content: params.system },
-                  { role: 'user' as const, content: params.userMessage }
-                ]
-            )
-          ]
-        })
-        return { text: response.choices[0]?.message?.content ?? '' }
-      }
-
-      case 'google': {
-        const client = await this.getGeminiClient()
-        const response = await client.models.generateContent({
-          model: this.model,
-          contents: params.userMessage,
-          config: {
-            systemInstruction: params.system,
-            maxOutputTokens: params.maxTokens,
-          }
-        })
-        return { text: response.text ?? '' }
-      }
-
-      case 'mistral':
-      case 'meta':
-      case 'xai':
-      case 'perplexity':
-      case 'ollama': {
-        const client = await this.getOpenAICompatClient(provider)
-        const response = await client.chat.completions.create({
-          model: this.requestModelId(provider),
-          max_tokens: params.maxTokens,
-          messages: [
-            { role: 'system', content: params.system },
-            { role: 'user', content: params.userMessage }
-          ]
-        })
-        return { text: response.choices[0]?.message?.content ?? '' }
-      }
-
-      default:
-        throw new Error(`Unsupported provider: ${provider}`)
-    }
+    const adapter = await this.getAdapter()
+    const text = await adapter.generate(this.buildRequest(params))
+    return { text }
   }
 
   private async streamGenerate(params: {
     system: string
     userMessage: string
     maxTokens: number
+    signal?: AbortSignal
     onChunk: (chunk: string) => void
   }): Promise<string> {
-    const provider = await this.getProviderForCurrentModel()
-    let full = ''
-
-    switch (provider) {
-      case 'anthropic': {
-        const client = await this.getAnthropicClient()
-        const stream = client.messages.stream({
-          model: this.model,
-          max_tokens: params.maxTokens,
-          system: params.system,
-          messages: [{ role: 'user', content: params.userMessage }]
-        })
-        for await (const event of stream) {
-          if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-            full += event.delta.text
-            params.onChunk(event.delta.text)
-          }
-        }
-        return full
-      }
-
-      case 'openai': {
-        if (await this.shouldUseCodexForOpenAI()) {
-          return this.streamGenerateWithCodex(params)
-        }
-
-        const client = await this.getOpenAIClient()
-        const isReasoning = /^(o[1-9]|o\d+-mini)/.test(this.model)
-        const stream = await client.chat.completions.create({
-          model: this.model,
-          max_completion_tokens: params.maxTokens,
-          messages: [
-            ...(isReasoning
-              ? [{ role: 'user' as const, content: `${params.system}\n\n${params.userMessage}` }]
-              : [
-                  { role: 'system' as const, content: params.system },
-                  { role: 'user' as const, content: params.userMessage }
-                ]
-            )
-          ],
-          stream: true
-        })
-        for await (const chunk of stream) {
-          const delta = chunk.choices[0]?.delta?.content
-          if (delta) {
-            full += delta
-            params.onChunk(delta)
-          }
-        }
-        return full
-      }
-
-      case 'google': {
-        const client = await this.getGeminiClient()
-        const response = await client.models.generateContentStream({
-          model: this.model,
-          contents: params.userMessage,
-          config: {
-            systemInstruction: params.system,
-            maxOutputTokens: params.maxTokens,
-          }
-        })
-        for await (const chunk of response) {
-          const text = chunk.text
-          if (text) {
-            full += text
-            params.onChunk(text)
-          }
-        }
-        return full
-      }
-
-      case 'mistral':
-      case 'meta':
-      case 'xai':
-      case 'perplexity':
-      case 'ollama': {
-        const client = await this.getOpenAICompatClient(provider)
-        const stream = await client.chat.completions.create({
-          model: this.requestModelId(provider),
-          max_tokens: params.maxTokens,
-          messages: [
-            { role: 'system', content: params.system },
-            { role: 'user', content: params.userMessage }
-          ],
-          stream: true
-        })
-        for await (const chunk of stream) {
-          const delta = chunk.choices[0]?.delta?.content
-          if (delta) {
-            full += delta
-            params.onChunk(delta)
-          }
-        }
-        return full
-      }
-
-      default:
-        throw new Error(`Unsupported provider: ${provider}`)
-    }
-  }
-
-  private async generateWithCodex(params: {
-    system: string
-    userMessage: string
-    maxTokens: number
-  }): Promise<GenerationResult> {
-    const text = await this.streamGenerateWithCodex({
-      ...params,
-      onChunk: () => {},
-    })
-    return { text }
-  }
-
-  private async streamGenerateWithCodex(params: {
-    system: string
-    userMessage: string
-    maxTokens: number
-    onChunk: (chunk: string) => void
-    dynamicTools?: CodexDynamicToolSpec[]
-    onDynamicToolCall?: (call: CodexDynamicToolCall) => Promise<CodexDynamicToolResponse>
-    finalInstruction?: string | null
-  }): Promise<string> {
-    return getCodexAppServerClient().streamText({
-      system: params.system,
-      userMessage: params.userMessage,
-      model: this.model,
-      onChunk: params.onChunk,
-      dynamicTools: params.dynamicTools,
-      onDynamicToolCall: params.onDynamicToolCall,
-      finalInstruction: params.finalInstruction,
-    })
+    const adapter = await this.getAdapter()
+    return adapter.stream(this.buildRequest(params), params.onChunk)
   }
 
   async generateNotes(
     slideContent: string,
     codeContent: string | null,
     deckTitle: string,
-    slideIndex: number
+    slideIndex: number,
+    signal?: AbortSignal
   ): Promise<string> {
     let userMessage = `Deck: "${deckTitle}"\nSlide ${slideIndex + 1}:\n\n${slideContent}`
     if (codeContent) {
@@ -451,7 +330,8 @@ export class AIService {
     const result = await this.generate({
       system: SYSTEM_PROMPT,
       userMessage,
-      maxTokens: 1024
+      maxTokens: 1024,
+      signal
     })
     return result.text
   }
@@ -461,7 +341,8 @@ export class AIService {
     codeContent: string | null,
     deckTitle: string,
     slideIndex: number,
-    onChunk: (chunk: string) => void
+    onChunk: (chunk: string) => void,
+    signal?: AbortSignal
   ): Promise<void> {
     let userMessage = `Deck: "${deckTitle}"\nSlide ${slideIndex + 1}:\n\n${slideContent}`
     if (codeContent) {
@@ -472,14 +353,16 @@ export class AIService {
       system: SYSTEM_PROMPT,
       userMessage,
       maxTokens: 1024,
-      onChunk
+      onChunk,
+      signal
     })
   }
 
   async generateSlideContent(
     prompt: string,
     deckTitle: string,
-    existingContent: string
+    existingContent: string,
+    signal?: AbortSignal
   ): Promise<string> {
     const result = await this.generate({
       system: `You are a technical presentation content generator. Generate markdown content for presentation slides.
@@ -490,14 +373,16 @@ Rules:
 - For diagrams: use a mermaid code block (\`\`\`mermaid)
 - Match the style and tone of the existing presentation`,
       userMessage: `Deck: "${deckTitle}"\n\nExisting slide content:\n${existingContent}\n\nRequest: ${prompt}`,
-      maxTokens: 2048
+      maxTokens: 2048,
+      signal
     })
     return result.text
   }
 
   async generateSvgChart(
     prompt: string,
-    deckTitle: string
+    deckTitle: string,
+    signal?: AbortSignal
   ): Promise<string> {
     const result = await this.generate({
       system: `You are an SVG chart/diagram generator for technical presentations.
@@ -510,7 +395,8 @@ Rules:
 - Supported chart types: bar, line, pie, flow diagram, architecture diagram, timeline
 - Make it clean and readable for a presentation`,
       userMessage: `Deck: "${deckTitle}"\n\nGenerate an SVG chart/diagram: ${prompt}`,
-      maxTokens: 4096
+      maxTokens: 4096,
+      signal
     })
     return result.text
   }
@@ -518,7 +404,8 @@ Rules:
   async beautifySlide(
     slideContent: string,
     deckTitle: string,
-    slideLayout?: string
+    slideLayout?: string,
+    signal?: AbortSignal
   ): Promise<string> {
     const result = await this.generate({
       system: `You are a world-class McKinsey-level presentation designer. Transform slide content into visually striking, executive-quality markdown.
@@ -606,7 +493,8 @@ Slide layout type: ${slideLayout || 'default'}
 Original slide content to beautify (preserve ALL information, enrich with better structure and formatting):
 
 ${slideContent}`,
-      maxTokens: 4096
+      maxTokens: 4096,
+      signal
     })
     return result.text
   }
@@ -616,7 +504,8 @@ ${slideContent}`,
     deckTitle: string,
     existingSlides: string[],
     count: number,
-    artifactContext?: string
+    artifactContext?: string,
+    signal?: AbortSignal
   ): Promise<{ id: string; markdown: string }[]> {
     const existingContext = existingSlides.length > 0
       ? `\n\nExisting slides in this deck:\n${existingSlides.map((s, i) => `--- Slide ${i + 1} ---\n${s}`).join('\n\n')}`
@@ -638,7 +527,8 @@ Rules:
 - For diagrams: use mermaid code blocks in markdown
 - If existing slides provided, continue from where they left off`,
       userMessage: `Deck: "${deckTitle}"\nGenerate ${count} slides.${existingContext}${artifactInfo}\n\nTopic/instructions: ${prompt}`,
-      maxTokens: 4096 * 2
+      maxTokens: 4096 * 2,
+      signal
     })
 
     const parsed = this.extractJSON(result.text)
@@ -655,7 +545,8 @@ Rules:
     slideContent: string,
     deckTitle: string,
     userPrompt: string,
-    artifactContext?: string
+    artifactContext?: string,
+    signal?: AbortSignal
   ): Promise<string> {
     const artifactInfo = artifactContext
       ? `\n\nArtifact context:\n${artifactContext}`
@@ -670,7 +561,8 @@ Rules:
 - Follow the 7×7 guideline by default, but respect the user's style preferences
 - For diagrams: use mermaid code blocks`,
       userMessage: `Deck: "${deckTitle}"\n\nCurrent slide:\n${slideContent}${artifactInfo}\n\nImprove this slide: ${userPrompt}`,
-      maxTokens: 2048
+      maxTokens: 2048,
+      signal
     })
     return result.text
   }
@@ -679,7 +571,8 @@ Rules:
     prompt: string,
     language: string,
     existingCode: string,
-    deckTitle: string
+    deckTitle: string,
+    signal?: AbortSignal
   ): Promise<string> {
     const result = await this.generate({
       system: `You are an expert ${language} programmer. Generate code for a presentation demo.
@@ -691,7 +584,8 @@ Rules:
 - Keep it concise — this runs in a live presentation
 - Include print/console output so results are visible when executed`,
       userMessage: `Deck: "${deckTitle}"\nLanguage: ${language}\n${existingCode ? `\nExisting code:\n${existingCode}\n` : ''}\nGenerate code: ${prompt}`,
-      maxTokens: 2048
+      maxTokens: 2048,
+      signal
     })
 
     let code = result.text
@@ -702,7 +596,8 @@ Rules:
   async generateInlineText(
     prompt: string,
     slideContent: string,
-    deckTitle: string
+    deckTitle: string,
+    signal?: AbortSignal
   ): Promise<string> {
     const result = await this.generate({
       system: `You are a concise writing assistant for presentation slides. Generate a short sentence or phrase based on the user's prompt.
@@ -714,7 +609,8 @@ Rules:
 - Be direct and punchy — this is for a presentation, not an essay
 - Never wrap in quotes or add prefixes like "Here is..."`,
       userMessage: `Deck: "${deckTitle}"\n\nCurrent slide content:\n${slideContent}\n\nGenerate text for: ${prompt}`,
-      maxTokens: 256
+      maxTokens: 256,
+      signal
     })
     return result.text.slice(0, 300)
   }
@@ -723,13 +619,15 @@ Rules:
     prompt: string,
     _slideContent: string,
     _deckTitle: string,
-    onChunk: (chunk: string) => void
+    onChunk: (chunk: string) => void,
+    signal?: AbortSignal
   ): Promise<void> {
     await this.streamGenerate({
       system: `You are a helpful AI assistant. Be concise and direct. Use markdown formatting for clarity. Provide actionable, useful answers.`,
       userMessage: prompt,
       maxTokens: 2048,
-      onChunk
+      onChunk,
+      signal
     })
   }
 
@@ -738,7 +636,8 @@ Rules:
     title: string,
     sourceContent: string | null,
     slideCount: number,
-    onProgress: (status: string, slideIndex: number, total: number) => void
+    onProgress: (status: string, slideIndex: number, total: number) => void,
+    signal?: AbortSignal
   ): Promise<{ slides: { id: string; markdown: string; layout: string }[]; title: string }> {
     const sourceContext = sourceContent
       ? `\n\nSOURCE DOCUMENT — THIS IS YOUR PRIMARY INPUT:\n\`\`\`\n${sourceContent.slice(0, 30000)}\n\`\`\`\n\nYou MUST base the presentation content on the source document above. Extract real facts, data points, names, figures, and structure directly from it. Do NOT invent information that is not in the source document. The user's prompt provides additional instructions on how to present the source material.`
@@ -823,6 +722,7 @@ Generate exactly ${slideCount} slides.`
       system: systemPrompt,
       userMessage,
       maxTokens: 16384,
+      signal,
       onChunk: (chunk: string) => {
         raw += chunk
         const newCount = (raw.match(/"id"\s*:/g) || []).length
@@ -924,7 +824,7 @@ Generate exactly ${slideCount} slides.`
 
   async hasApiKey(): Promise<boolean> {
     try {
-      const provider = await this.getProviderForCurrentModel()
+      const provider = await this.resolveProvider(this.model)
       if (provider === 'openai' && await this.shouldUseCodexForOpenAI()) {
         const account = await getCodexAppServerClient().accountRead(false)
         return account.account?.type === 'chatgpt'
@@ -1070,7 +970,8 @@ Generate exactly ${slideCount} slides.`
     author: string,
     slidesContent: { title: string; markdown: string; code: string | null; notes: string | null }[],
     rules: string,
-    onChunk: (chunk: string) => void
+    onChunk: (chunk: string) => void,
+    signal?: AbortSignal
   ): Promise<void> {
     const slidesContext = slidesContent
       .map(
@@ -1099,76 +1000,13 @@ Rules:
 - Speaker notes contain what the presenter would SAY — use them to enrich explanations and add depth that slides alone lack`,
       userMessage: `Presentation: "${deckTitle}"\nAuthor: ${author}\n\nFull presentation content:\n\n${slidesContext}${userRules}\n\nTransform this presentation into a complete article.`,
       maxTokens: 8192,
-      onChunk
+      onChunk,
+      signal
     })
   }
 
-  /**
-   * Execute a resolved tool call, handling confirmation flow and emitting events.
-   * Shared by all provider chat loops.
-   */
-  private async executeToolCall(
-    toolCallId: string,
-    toolName: string,
-    toolInput: Record<string, unknown>,
-    snapshot: PresentationSnapshot,
-    actionMode: 'auto' | 'ask',
-    onEvent: (event: ChatStreamEvent) => void,
-    confirmAction?: (toolCallId: string, toolName: string, toolInput: unknown) => Promise<boolean>
-  ): Promise<{ result: string; isError: boolean }> {
-    const tool = findTool(toolName)
-    if (!tool) {
-      onEvent({ type: 'tool_call_result', id: toolCallId, toolName, result: `Unknown tool: ${toolName}`, success: false })
-      return { result: `Unknown tool: ${toolName}`, isError: true }
-    }
-
-    onEvent({ type: 'tool_call_start', id: toolCallId, toolName, toolInput })
-
-    // Destructive / multi-slide tools always need the user's approval, whatever the mode.
-    const needsConfirmation = tool.alwaysConfirm === true || (actionMode === 'ask' && tool.isMutation)
-    if (needsConfirmation) {
-      if (!confirmAction) {
-        const msg = `"${toolName}" requires user confirmation, which is not available in this session.`
-        onEvent({ type: 'tool_call_result', id: toolCallId, toolName, result: msg, success: false })
-        return { result: msg, isError: true }
-      }
-      onEvent({ type: 'tool_confirm_request', id: toolCallId, toolName, toolInput })
-      const approved = await confirmAction(toolCallId, toolName, toolInput)
-      if (!approved) {
-        onEvent({ type: 'tool_call_result', id: toolCallId, toolName, result: 'Action rejected by user.', success: false })
-        return { result: 'Action was rejected by the user.', isError: false }
-      }
-    }
-
-    const context: ToolExecutionContext = { snapshot, aiService: this }
-    try {
-      const result = await tool.execute(toolInput, context)
-      onEvent({ type: 'tool_call_result', id: toolCallId, toolName, result: result.result, success: result.success, rendererAction: result.rendererAction })
-      return { result: result.result, isError: !result.success }
-    } catch (err) {
-      const errorMsg = `Tool execution error: ${(err as Error).message}`
-      onEvent({ type: 'tool_call_result', id: toolCallId, toolName, result: errorMsg, success: false })
-      return { result: errorMsg, isError: true }
-    }
-  }
-
-  /**
-   * Chat agent with tool use — ReAct-style loop.
-   * All providers support tool use:
-   * - Anthropic: native tool_use blocks
-   * - Google/Gemini: functionCall/functionResponse
-   * - OpenAI + all OpenAI-compatible (default): function calling
-   */
-  async chatWithTools(
-    messages: Anthropic.MessageParam[],
-    snapshot: PresentationSnapshot,
-    actionMode: 'auto' | 'ask',
-    onEvent: (event: ChatStreamEvent) => void,
-    confirmAction?: (toolCallId: string, toolName: string, toolInput: unknown) => Promise<boolean>
-  ): Promise<Anthropic.MessageParam[]> {
-    const provider = await this.getProviderForCurrentModel()
-    messages = capChatHistory(messages)
-
+  /** Build the chat system prompt for the current deck snapshot. */
+  private buildChatSystemPrompt(snapshot: PresentationSnapshot): string {
     // Build system prompt with presentation context
     const slideOverview = snapshot.slides
       .map((s, i) => {
@@ -1263,325 +1101,53 @@ IMPORTANT RULES FOR HTML IN MARKDOWN:
 - When wrapping a markdown table in an HTML div, the table markdown must be separated by blank lines from the div tags
 - Self-closing tags must use /> (e.g., <br/>, <hr/>)`
 
-    const anthropicTools = getToolSchemas()
+    return systemPrompt
+  }
 
-    if (provider === 'openai' && await this.shouldUseCodexForOpenAI()) {
-      const codexDynamicTools: CodexDynamicToolSpec[] = anthropicTools.map((tool) => ({
-        name: tool.name,
-        description: tool.description || '',
-        inputSchema: tool.input_schema,
-      }))
+  /**
+   * Chat agent with tool use.
+   *
+   * Prompt building and the tool registry live here; the ReAct loop, the
+   * confirmation gate and every provider wire format live behind the adapter
+   * in `services/ai/`.
+   */
+  async chatWithTools(
+    messages: Anthropic.MessageParam[],
+    snapshot: PresentationSnapshot,
+    actionMode: 'auto' | 'ask',
+    onEvent: (event: ChatStreamEvent) => void,
+    confirmAction?: (toolCallId: string, toolName: string, toolInput: unknown) => Promise<boolean>,
+    signal?: AbortSignal
+  ): Promise<Anthropic.MessageParam[]> {
+    const capped = capChatHistory(messages)
+    const adapter = await this.getAdapter()
+    const context: ToolExecutionContext = { snapshot, aiService: this, ...(signal ? { signal } : {}) }
 
-      const conversationText = messages
-        .map((m) => {
-          const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content)
-          return `${m.role.toUpperCase()}:\n${content}`
-        })
-        .join('\n\n')
-
-      const text = await this.streamGenerateWithCodex({
-        system: systemPrompt,
-        userMessage: conversationText,
-        maxTokens: 4096,
-        dynamicTools: codexDynamicTools,
-        onDynamicToolCall: async (call) => {
-          const toolInput = call.arguments && typeof call.arguments === 'object' && !Array.isArray(call.arguments)
-            ? call.arguments as Record<string, unknown>
-            : {}
-          const { result, isError } = await this.executeToolCall(
-            call.callId,
-            call.tool,
-            toolInput,
-            snapshot,
-            actionMode,
-            onEvent,
-            confirmAction
-          )
-
-          return {
-            contentItems: [{ type: 'inputText', text: result }],
-            success: !isError,
-          }
-        },
-        onChunk: (chunk) => onEvent({ type: 'text_delta', text: chunk }),
-        finalInstruction: 'Use the available tools when a request requires inspecting or changing the presentation. After any necessary tool calls, respond concisely with what you did.',
-      })
-
-      onEvent({ type: 'done' })
-      return [...messages, { role: 'assistant', content: text }]
-    }
-
-    // --- Anthropic path ---
-    if (provider === 'anthropic') {
-      const client = await this.getAnthropicClient()
-      const maxIterations = 10
-      const conversationMessages = [...messages]
-      let iterations = 0
-
-      while (iterations < maxIterations) {
-        iterations++
-
-        const response = await client.messages.create({
-          model: this.model,
-          max_tokens: 4096,
-          system: systemPrompt,
-          tools: anthropicTools,
-          messages: conversationMessages
-        })
-
-        const assistantContent: Anthropic.ContentBlock[] = response.content
-        const toolUseBlocks = assistantContent.filter(
-          (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
-        )
-
-        for (const block of assistantContent) {
-          if (block.type === 'text' && block.text) {
-            onEvent({ type: 'text_delta', text: block.text })
-          }
-        }
-
-        conversationMessages.push({ role: 'assistant', content: assistantContent })
-
-        if (response.stop_reason === 'end_turn' || toolUseBlocks.length === 0) {
-          break
-        }
-
-        const toolResults: Anthropic.ToolResultBlockParam[] = []
-
-        for (const toolUse of toolUseBlocks) {
-          const { result, isError } = await this.executeToolCall(
-            toolUse.id,
-            toolUse.name,
-            toolUse.input as Record<string, unknown>,
-            snapshot,
-            actionMode,
-            onEvent,
-            confirmAction
-          )
-
-          toolResults.push({
-            type: 'tool_result',
-            tool_use_id: toolUse.id,
-            content: result,
-            is_error: isError
-          })
-        }
-
-        conversationMessages.push({ role: 'user', content: toolResults })
-      }
-
-      onEvent({ type: 'done' })
-      return conversationMessages
-    }
-
-    // --- Google/Gemini path ---
-    if (provider === 'google') {
-      const client = await this.getGeminiClient()
-
-      // Convert tool schemas to Gemini format
-      // Gemini rejects `parameters` whose `properties` is empty — omit it for parameterless tools.
-      const geminiFunctionDeclarations = anthropicTools.map((t) => {
-        const schema = t.input_schema as { properties?: Record<string, unknown> }
-        const hasProperties = !!schema.properties && Object.keys(schema.properties).length > 0
-        return {
-          name: t.name,
-          description: t.description || '',
-          ...(hasProperties ? { parameters: t.input_schema as Record<string, unknown> } : {})
-        }
-      })
-
-      // Build Gemini contents from messages
-      const geminiContents: { role: string; parts: { text?: string; functionCall?: { name: string; args: Record<string, unknown> }; functionResponse?: { name: string; response: Record<string, unknown> } }[] }[] = []
-
-      for (const m of messages) {
-        const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content)
-        geminiContents.push({
-          role: m.role === 'assistant' ? 'model' : 'user',
-          parts: [{ text: content }]
-        })
-      }
-
-      const maxIterations = 10
-      let iterations = 0
-
-      while (iterations < maxIterations) {
-        iterations++
-
-        const response = await client.models.generateContent({
-          model: this.model,
-          contents: geminiContents,
-          config: {
-            systemInstruction: systemPrompt,
-            maxOutputTokens: 4096,
-            tools: [{ functionDeclarations: geminiFunctionDeclarations }]
-          }
-        })
-
-        const candidate = response.candidates?.[0]
-        if (!candidate?.content?.parts) break
-
-        const parts = candidate.content.parts
-        let hasToolCalls = false
-
-        // Emit text parts
-        for (const part of parts) {
-          if (part.text) {
-            onEvent({ type: 'text_delta', text: part.text })
-          }
-        }
-
-        // Add model response to conversation
-        geminiContents.push({ role: 'model', parts: parts as any })
-
-        // Process function calls
-        const functionResponseParts: { functionResponse: { name: string; response: Record<string, unknown> } }[] = []
-
-        for (const part of parts) {
-          if (part.functionCall) {
-            hasToolCalls = true
-            const fc = part.functionCall
-            const toolCallId = `tc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
-            const args = (fc.args || {}) as Record<string, unknown>
-
-            const { result, isError } = await this.executeToolCall(
-              toolCallId,
-              fc.name!,
-              args,
-              snapshot,
-              actionMode,
-              onEvent,
-              confirmAction
-            )
-
-            functionResponseParts.push({
-              functionResponse: {
-                name: fc.name!,
-                response: { result, isError }
-              }
-            })
-          }
-        }
-
-        if (!hasToolCalls) break
-
-        // Add function responses back to conversation
-        geminiContents.push({ role: 'user', parts: functionResponseParts as any })
-      }
-
-      onEvent({ type: 'done' })
-      return messages
-    }
-
-    // --- OpenAI and all OpenAI-compatible providers (default path) ---
-    // Any provider not explicitly handled above uses OpenAI function-calling format.
-    // This covers: openai, mistral, meta, xai, perplexity, and any future providers.
-    const client = provider === 'openai'
-      ? await this.getOpenAIClient()
-      : await this.getOpenAICompatClient(provider)
-
-    const openaiTools: OpenAI.ChatCompletionTool[] = anthropicTools.map((t) => ({
-      type: 'function' as const,
-      function: {
-        name: t.name,
-        description: t.description || '',
-        parameters: t.input_schema as Record<string, unknown>
-      }
+    const tools: LoopTool[] = getAllTools().map((tool) => ({
+      schema: {
+        name: tool.schema.name,
+        description: tool.schema.description || '',
+        parameters: tool.schema.input_schema as Record<string, unknown>,
+      },
+      isMutation: tool.isMutation,
+      ...(tool.alwaysConfirm ? { alwaysConfirm: true as const } : {}),
+      execute: (input: Record<string, unknown>) => tool.execute(input, context),
     }))
 
-    const isReasoning = provider === 'openai' && /^(o[1-9]|o\d+-mini)/.test(this.model)
-
-    // Convert Anthropic-format messages to OpenAI format
-    const oaiMessages: OpenAI.ChatCompletionMessageParam[] = isReasoning
-      ? []
-      : [{ role: 'system', content: systemPrompt }]
-
-    for (const m of messages) {
-      if (m.role === 'user') {
-        const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content)
-        oaiMessages.push({
-          role: 'user',
-          content: isReasoning && oaiMessages.length === 0
-            ? `${systemPrompt}\n\n${content}`
-            : content
-        })
-      } else if (m.role === 'assistant') {
-        const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content)
-        oaiMessages.push({ role: 'assistant', content })
-      }
+    const request: GenerateRequest = {
+      model: this.model,
+      system: this.buildChatSystemPrompt(snapshot),
+      messages: capped.map((m) => ({
+        role: m.role,
+        content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+      })),
+      maxTokens: 4096,
+      ...(signal ? { signal } : {}),
     }
 
-    const maxIterations = 10
-    let iterations = 0
-
-    while (iterations < maxIterations) {
-      iterations++
-
-      const response = await client.chat.completions.create({
-        model: this.requestModelId(provider),
-        ...(provider === 'openai'
-          ? { max_completion_tokens: 4096 }
-          : { max_tokens: 4096 }
-        ),
-        messages: oaiMessages,
-        tools: openaiTools,
-        ...(isReasoning ? {} : { tool_choice: 'auto' as const })
-      })
-
-      const choice = response.choices[0]
-      if (!choice) break
-
-      const assistantMsg = choice.message
-
-      // Emit text content
-      if (assistantMsg.content) {
-        onEvent({ type: 'text_delta', text: assistantMsg.content })
-      }
-
-      // Add assistant message to conversation
-      oaiMessages.push(assistantMsg)
-
-      // Some OpenAI-compatible servers report finish_reason "stop" alongside tool calls — trust the calls.
-      const toolCalls = assistantMsg.tool_calls
-      if (!toolCalls || toolCalls.length === 0) {
-        break
-      }
-
-      // Execute each tool call and add results
-      for (const tc of toolCalls) {
-        if (tc.type !== 'function') continue
-        let parsedInput: Record<string, unknown>
-        try {
-          const parsed: unknown = JSON.parse(tc.function.arguments || '{}')
-          if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-            throw new Error('arguments must be a JSON object')
-          }
-          parsedInput = parsed as Record<string, unknown>
-        } catch (parseErr) {
-          const msg = `Invalid JSON in tool arguments for ${tc.function.name}: ${(parseErr as Error).message}`
-          onEvent({ type: 'tool_call_result', id: tc.id, toolName: tc.function.name, result: msg, success: false })
-          oaiMessages.push({ role: 'tool', tool_call_id: tc.id, content: msg })
-          continue
-        }
-
-        const { result } = await this.executeToolCall(
-          tc.id,
-          tc.function.name,
-          parsedInput,
-          snapshot,
-          actionMode,
-          onEvent,
-          confirmAction
-        )
-
-        oaiMessages.push({
-          role: 'tool',
-          tool_call_id: tc.id,
-          content: result
-        })
-      }
-    }
+    const { text } = await runToolLoop({ adapter, request, tools, actionMode, onEvent, confirmAction })
 
     onEvent({ type: 'done' })
-    return messages
+    return text ? [...capped, { role: 'assistant', content: text }] : capped
   }
 }

@@ -1,5 +1,7 @@
 import { ipcMain, type IpcMainInvokeEvent } from 'electron'
 import { getSharedAIService } from '../services/ai-singleton'
+import { withCancellation } from './ai'
+import { CANCELLED_MESSAGE } from '../services/ai/types'
 import type Anthropic from '@anthropic-ai/sdk'
 import type { PresentationSnapshot, ChatStreamEvent } from '../../../packages/shared/src/types/chat'
 
@@ -93,25 +95,26 @@ export function registerChatAgentHandlers(): void {
       }
 
       try {
-        const updatedMessages = await service.chatWithTools(
-          messages,
-          snapshot,
-          actionMode,
-          sendEvent,
-          confirmAction
-        )
+        // `ai:cancel` aborts this controller; the Stop button in the chat uses it.
+        const updatedMessages = await withCancellation(event, (signal) => {
+          // A turn parked on a confirmation must not survive a cancel.
+          signal.addEventListener('abort', onSenderGone, { once: true })
+          return service.chatWithTools(messages, snapshot, actionMode, sendEvent, confirmAction, signal)
+        })
         return updatedMessages
       } catch (err) {
         const raw = (err as Error).message || String(err)
         // Extract user-friendly message from API error JSON
         let friendly = raw
-        try {
-          const jsonMatch = raw.match(/\{[\s\S]*\}/)
-          if (jsonMatch) {
-            const parsed = JSON.parse(jsonMatch[0])
-            friendly = parsed?.error?.message || parsed?.message || raw
-          }
-        } catch { /* use raw */ }
+        if (raw !== CANCELLED_MESSAGE) {
+          try {
+            const jsonMatch = raw.match(/\{[\s\S]*\}/)
+            if (jsonMatch) {
+              const parsed = JSON.parse(jsonMatch[0])
+              friendly = parsed?.error?.message || parsed?.message || raw
+            }
+          } catch { /* use raw */ }
+        }
         sendEvent({ type: 'error', message: friendly })
         sendEvent({ type: 'done' })
         return messages

@@ -11,6 +11,8 @@ export interface ToolResult {
 export interface ToolExecutionContext {
   snapshot: PresentationSnapshot
   aiService: AIService
+  /** Cancels the nested provider call when the user stops the turn. */
+  signal?: AbortSignal
 }
 
 export interface ToolDefinition {
@@ -261,7 +263,9 @@ const improveSlide: ToolDefinition = {
       const improved = await context.aiService.improveSlide(
         slide.markdownContent,
         context.snapshot.title,
-        instruction
+        instruction,
+        undefined,
+        context.signal
       )
       return {
         success: true,
@@ -303,7 +307,8 @@ const beautifySlide: ToolDefinition = {
       const beautified = await context.aiService.beautifySlide(
         slide.markdownContent,
         context.snapshot.title,
-        slide.layout
+        slide.layout,
+        context.signal
       )
       return {
         success: true,
@@ -345,7 +350,8 @@ const generateSpeakerNotes: ToolDefinition = {
         slide.markdownContent,
         slide.codeContent,
         context.snapshot.title,
-        idx
+        idx,
+        context.signal
       )
       return {
         success: true,
@@ -398,7 +404,8 @@ const generateCode: ToolDefinition = {
         prompt,
         language,
         slide.codeContent || '',
-        context.snapshot.title
+        context.snapshot.title,
+        context.signal
       )
       return {
         success: true,
@@ -434,7 +441,7 @@ const generateChart: ToolDefinition = {
   execute: async (input, context) => {
     const prompt = input.prompt as string
     try {
-      const svg = await context.aiService.generateSvgChart(prompt, context.snapshot.title)
+      const svg = await context.aiService.generateSvgChart(prompt, context.snapshot.title, context.signal)
       return {
         success: true,
         result: `Chart generated. SVG length: ${svg.length} characters.`,
@@ -649,7 +656,9 @@ const generateSlides: ToolDefinition = {
         prompt,
         context.snapshot.title,
         existingSlides,
-        count
+        count,
+        undefined,
+        context.signal
       )
       return {
         success: true,

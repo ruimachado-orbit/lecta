@@ -13,7 +13,7 @@ import { SelectionToolbar } from './SelectionToolbar'
 export function ChatView(): JSX.Element {
   const {
     tabs, activeTabId, switchTab, createTab, closeTab,
-    closeFullChat, sendMessage, clearActiveTab
+    closeFullChat, sendMessage, cancel, clearActiveTab
   } = useChatStore()
 
   const activeTab = tabs.find((t) => t.id === activeTabId)
@@ -65,7 +65,7 @@ export function ChatView(): JSX.Element {
 
       {/* Chat content */}
       {activeTab ? (
-        <ChatTabContent tab={activeTab} onSend={sendMessage} onClear={clearActiveTab} />
+        <ChatTabContent tab={activeTab} onSend={sendMessage} onCancel={cancel} onClear={clearActiveTab} />
       ) : (
         <div className="flex-1 flex items-center justify-center text-gray-600 text-sm">
           No active chat
@@ -109,10 +109,11 @@ function TabButton({
 }
 
 function ChatTabContent({
-  tab, onSend, onClear
+  tab, onSend, onCancel, onClear
 }: {
   tab: ChatTab
   onSend: (text: string) => Promise<void>
+  onCancel: () => void
   onClear: () => void
 }): JSX.Element {
   const [input, setInput] = useState('')
@@ -217,17 +218,30 @@ function ChatTabContent({
               style={{ minHeight: '42px' }}
               disabled={isDisabled}
             />
-            <button
-              onClick={handleSend}
-              disabled={!input.trim() || isDisabled}
-              className="w-9 h-9 rounded-full bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800 disabled:text-gray-600 text-white flex items-center justify-center transition-colors flex-shrink-0"
-              title="Send"
-              aria-label="Send"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
-              </svg>
-            </button>
+            {tab.isStreaming ? (
+              <button
+                onClick={onCancel}
+                className="w-9 h-9 rounded-full bg-red-600/80 hover:bg-red-600 text-white flex items-center justify-center transition-colors flex-shrink-0"
+                title="Stop generating"
+                aria-label="Stop generating"
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <rect x="6" y="6" width="12" height="12" rx="2" />
+                </svg>
+              </button>
+            ) : (
+              <button
+                onClick={handleSend}
+                disabled={!input.trim() || isDisabled}
+                className="w-9 h-9 rounded-full bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800 disabled:text-gray-600 text-white flex items-center justify-center transition-colors flex-shrink-0"
+                title="Send"
+                aria-label="Send"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+                </svg>
+              </button>
+            )}
           </div>
         </div>
       </div>

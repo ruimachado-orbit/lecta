@@ -123,7 +123,7 @@ export function ActionModeToggle(): JSX.Element {
  * Fills its parent container (no fixed positioning).
  */
 export function ChatSidebarPanel(): JSX.Element {
-  const { tabs, activeTabId, sendMessage, clearActiveTab, closeSidebar } = useChatStore()
+  const { tabs, activeTabId, sendMessage, cancel, clearActiveTab, closeSidebar } = useChatStore()
   const activeTab = tabs.find((t) => t.id === activeTabId)
   const providerStatuses = useUIStore((s) => s.providerStatuses)
   const noProviders = !providerStatuses.some((s) => s.hasKey)
@@ -142,7 +142,8 @@ export function ChatSidebarPanel(): JSX.Element {
     setTimeout(() => inputRef.current?.focus(), 100)
   }, [])
 
-  const isDisabled = noProviders || activeTab?.isStreaming
+  const isStreaming = !!activeTab?.isStreaming
+  const isDisabled = noProviders || isStreaming
 
   const handleSend = (): void => {
     const text = input.trim()
@@ -252,17 +253,30 @@ export function ChatSidebarPanel(): JSX.Element {
               style={{ minHeight: '36px' }}
               disabled={!!isDisabled}
             />
-            <button
-              onClick={handleSend}
-              disabled={!input.trim() || !!isDisabled}
-              className="w-8 h-8 rounded-lg bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800 disabled:text-gray-600 text-white flex items-center justify-center transition-colors flex-shrink-0"
-              title="Send"
-              aria-label="Send"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
-              </svg>
-            </button>
+            {isStreaming ? (
+              <button
+                onClick={cancel}
+                className="w-8 h-8 rounded-lg bg-red-600/80 hover:bg-red-600 text-white flex items-center justify-center transition-colors flex-shrink-0"
+                title="Stop generating"
+                aria-label="Stop generating"
+              >
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                  <rect x="6" y="6" width="12" height="12" rx="2" />
+                </svg>
+              </button>
+            ) : (
+              <button
+                onClick={handleSend}
+                disabled={!input.trim() || !!isDisabled}
+                className="w-8 h-8 rounded-lg bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800 disabled:text-gray-600 text-white flex items-center justify-center transition-colors flex-shrink-0"
+                title="Send"
+                aria-label="Send"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+                </svg>
+              </button>
+            )}
           </div>
         </div>
       </div>

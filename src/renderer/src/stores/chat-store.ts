@@ -2,6 +2,9 @@ import { create } from 'zustand'
 import type { ChatStreamEvent, PresentationSnapshot, SlideSnapshot } from '../../../../packages/shared/src/types/chat'
 import { usePresentationStore } from './presentation-store'
 
+/** Terminal message the main process sends when a turn is cancelled. */
+const CANCELLED_MESSAGE = 'Cancelled'
+
 export interface ToolCallInfo {
   id: string
   name: string
@@ -58,6 +61,7 @@ interface ChatState {
   // Actions — chat
   setActionMode: (mode: 'auto' | 'ask') => void
   sendMessage: (text: string) => Promise<void>
+  cancel: () => void
   confirmAction: (approved: boolean) => void
   clearActiveTab: () => void
 }
@@ -457,6 +461,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
             }
 
             case 'error': {
+              // A user-initiated stop is not a failure — no red banner for it.
+              if (event.message === CANCELLED_MESSAGE) break
               updateTab(() => ({ error: event.message }))
               break
             }
@@ -498,6 +504,31 @@ export const useChatStore = create<ChatState>((set, get) => ({
         )
       }))
     }
+  },
+
+  /**
+   * Stop the turn in flight: the main process aborts the provider request and
+   * ends the stream with a `Cancelled` error, but the tab leaves the streaming
+   * state immediately so the composer is usable again.
+   */
+  cancel: () => {
+    const state = get()
+    const activeTabId = state.activeTabId
+    void window.electronAPI.cancelAI()
+    if (!activeTabId) return
+    set((s) => ({
+      tabs: s.tabs.map((t) =>
+        t.id === activeTabId
+          ? {
+              ...t,
+              isStreaming: false,
+              currentStreamingText: '',
+              activeToolCalls: [],
+              pendingConfirmation: null
+            }
+          : t
+      )
+    }))
   },
 
   confirmAction: (approved: boolean) => {

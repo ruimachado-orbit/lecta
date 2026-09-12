@@ -1,8 +1,49 @@
 import { ipcMain, type IpcMainInvokeEvent, type WebContents } from 'electron'
 import { getSharedAIService } from '../services/ai-singleton'
+import { CANCELLED_MESSAGE } from '../services/ai/types'
 
 function getAIService() {
   return getSharedAIService()
+}
+
+/**
+ * In-flight AI requests, keyed by the webContents that asked. A window can have
+ * several running at once (notes for one slide while an article streams), so
+ * each id holds a set and `ai:cancel` stops all of that window's work — never
+ * another window's.
+ */
+const inFlight = new Map<number, Set<AbortController>>()
+
+/**
+ * Run `work` under a fresh AbortController registered for this sender, so
+ * `ai:cancel` can stop it. The controller is dropped when the work settles.
+ */
+export async function withCancellation<T>(
+  event: IpcMainInvokeEvent,
+  work: (signal: AbortSignal) => Promise<T>
+): Promise<T> {
+  const senderId = event.sender.id
+  const controller = new AbortController()
+  let controllers = inFlight.get(senderId)
+  if (!controllers) {
+    controllers = new Set()
+    inFlight.set(senderId, controllers)
+  }
+  controllers.add(controller)
+  try {
+    return await work(controller.signal)
+  } finally {
+    controllers.delete(controller)
+    if (controllers.size === 0) inFlight.delete(senderId)
+  }
+}
+
+/** Abort everything the given window has in flight. Safe when nothing is running. */
+export function cancelAIForSender(senderId: number): void {
+  const controllers = inFlight.get(senderId)
+  if (!controllers) return
+  inFlight.delete(senderId)
+  for (const controller of controllers) controller.abort()
 }
 
 /**
@@ -24,7 +65,7 @@ function makeSender(event: IpcMainInvokeEvent, channel: string): (payload: unkno
 async function runStream(
   event: IpcMainInvokeEvent,
   channel: string,
-  run: (emit: (chunk: string) => void) => Promise<unknown>
+  run: (emit: (chunk: string) => void, signal: AbortSignal) => Promise<unknown>
 ): Promise<void> {
   const send = makeSender(event, channel)
   let terminated = false
@@ -34,13 +75,18 @@ async function runStream(
     send(payload)
   }
 
+  let aborted = false
   try {
-    await run((chunk: string) => {
-      if (!terminated) send(chunk)
+    await withCancellation(event, (signal) => {
+      signal.addEventListener('abort', () => { aborted = true }, { once: true })
+      return run((chunk: string) => {
+        if (!terminated) send(chunk)
+      }, signal)
     })
     terminate('[DONE]')
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    // A cancelled stream still gets exactly one terminal event, always 'Cancelled'.
+    const msg = aborted ? CANCELLED_MESSAGE : err instanceof Error ? err.message : String(err)
     terminate(`[ERROR]${msg}`)
   }
 }
@@ -105,14 +151,16 @@ export function registerAiHandlers(): void {
   ipcMain.handle(
     'ai:generate-notes',
     async (
-      _event,
+      event,
       slideContent: string,
       codeContent: string | null,
       deckTitle: string,
       slideIndex: number
     ): Promise<string> => {
       const service = getAIService()
-      return service.generateNotes(slideContent, codeContent, deckTitle, slideIndex)
+      return withCancellation(event, (signal) =>
+        service.generateNotes(slideContent, codeContent, deckTitle, slideIndex, signal)
+      )
     }
   )
 
@@ -127,8 +175,8 @@ export function registerAiHandlers(): void {
       responseChannel: string
     ): Promise<void> => {
       const service = getAIService()
-      await runStream(event, responseChannel, (emit) =>
-        service.streamNotes(slideContent, codeContent, deckTitle, slideIndex, emit)
+      await runStream(event, responseChannel, (emit, signal) =>
+        service.streamNotes(slideContent, codeContent, deckTitle, slideIndex, emit, signal)
       )
     }
   )
@@ -136,45 +184,49 @@ export function registerAiHandlers(): void {
   ipcMain.handle(
     'ai:generate-slide-content',
     async (
-      _event,
+      event,
       prompt: string,
       deckTitle: string,
       existingContent: string
     ): Promise<string> => {
       const service = getAIService()
-      return service.generateSlideContent(prompt, deckTitle, existingContent)
+      return withCancellation(event, (signal) =>
+        service.generateSlideContent(prompt, deckTitle, existingContent, signal)
+      )
     }
   )
 
   ipcMain.handle(
     'ai:generate-chart',
     async (
-      _event,
+      event,
       prompt: string,
       deckTitle: string
     ): Promise<string> => {
       const service = getAIService()
-      return service.generateSvgChart(prompt, deckTitle)
+      return withCancellation(event, (signal) => service.generateSvgChart(prompt, deckTitle, signal))
     }
   )
 
   ipcMain.handle(
     'ai:beautify-slide',
     async (
-      _event,
+      event,
       slideContent: string,
       deckTitle: string,
       slideLayout?: string
     ): Promise<string> => {
       const service = getAIService()
-      return service.beautifySlide(slideContent, deckTitle, slideLayout)
+      return withCancellation(event, (signal) =>
+        service.beautifySlide(slideContent, deckTitle, slideLayout, signal)
+      )
     }
   )
 
   ipcMain.handle(
     'ai:generate-bulk-slides',
     async (
-      _event,
+      event,
       prompt: string,
       deckTitle: string,
       existingSlides: string[],
@@ -182,21 +234,25 @@ export function registerAiHandlers(): void {
       artifactContext?: string
     ): Promise<{ id: string; markdown: string }[]> => {
       const service = getAIService()
-      return service.generateBulkSlides(prompt, deckTitle, existingSlides, count, artifactContext)
+      return withCancellation(event, (signal) =>
+        service.generateBulkSlides(prompt, deckTitle, existingSlides, count, artifactContext, signal)
+      )
     }
   )
 
   ipcMain.handle(
     'ai:improve-slide',
     async (
-      _event,
+      event,
       slideContent: string,
       deckTitle: string,
       userPrompt: string,
       artifactContext?: string
     ): Promise<string> => {
       const service = getAIService()
-      return service.improveSlide(slideContent, deckTitle, userPrompt, artifactContext)
+      return withCancellation(event, (signal) =>
+        service.improveSlide(slideContent, deckTitle, userPrompt, artifactContext, signal)
+      )
     }
   )
 
@@ -226,22 +282,26 @@ export function registerAiHandlers(): void {
 
   ipcMain.handle(
     'ai:generate-code',
-    async (_event, prompt: string, language: string, existingCode: string, deckTitle: string): Promise<string> => {
+    async (event, prompt: string, language: string, existingCode: string, deckTitle: string): Promise<string> => {
       const service = getAIService()
-      return service.generateCode(prompt, language, existingCode, deckTitle)
+      return withCancellation(event, (signal) =>
+        service.generateCode(prompt, language, existingCode, deckTitle, signal)
+      )
     }
   )
 
   ipcMain.handle(
     'ai:generate-inline-text',
     async (
-      _event,
+      event,
       prompt: string,
       slideContent: string,
       deckTitle: string
     ): Promise<string> => {
       const service = getAIService()
-      return service.generateInlineText(prompt, slideContent, deckTitle)
+      return withCancellation(event, (signal) =>
+        service.generateInlineText(prompt, slideContent, deckTitle, signal)
+      )
     }
   )
 
@@ -255,8 +315,8 @@ export function registerAiHandlers(): void {
       responseChannel: string
     ): Promise<void> => {
       const service = getAIService()
-      await runStream(event, responseChannel, (emit) =>
-        service.runPrompt(prompt, slideContent, deckTitle, emit)
+      await runStream(event, responseChannel, (emit, signal) =>
+        service.runPrompt(prompt, slideContent, deckTitle, emit, signal)
       )
     }
   )
@@ -276,14 +336,17 @@ export function registerAiHandlers(): void {
 
       console.log('[ai:generate-full-presentation] prompt length:', prompt.length, 'sourceContent length:', sourceContent?.length ?? 0, 'slideCount:', slideCount)
       try {
-        const result = await service.generateFullPresentation(
-          prompt,
-          title,
-          sourceContent,
-          slideCount,
-          (status: string, slideIndex: number, total: number) => {
-            sendProgress({ status, slideIndex, total })
-          }
+        const result = await withCancellation(event, (signal) =>
+          service.generateFullPresentation(
+            prompt,
+            title,
+            sourceContent,
+            slideCount,
+            (status: string, slideIndex: number, total: number) => {
+              sendProgress({ status, slideIndex, total })
+            },
+            signal
+          )
         )
         console.log('[ai:generate-full-presentation] result slides:', result.slides?.length ?? 0)
         return result
@@ -317,7 +380,9 @@ export function registerAiHandlers(): void {
 
   ipcMain.handle(
     'ai:cancel',
-    async (): Promise<void> => {
+    async (event): Promise<void> => {
+      // Abort this window's SDK-backed request, then interrupt any Codex turn.
+      cancelAIForSender(event.sender.id)
       await getAIService().cancelActiveGeneration()
     }
   )
@@ -341,8 +406,8 @@ export function registerAiHandlers(): void {
       responseChannel: string
     ): Promise<void> => {
       const service = getAIService()
-      await runStream(event, responseChannel, (emit) =>
-        service.streamArticle(deckTitle, author, slidesContent, rules, emit)
+      await runStream(event, responseChannel, (emit, signal) =>
+        service.streamArticle(deckTitle, author, slidesContent, rules, emit, signal)
       )
     }
   )

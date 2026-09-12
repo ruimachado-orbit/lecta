@@ -16,6 +16,17 @@ export function ModelSelector({ compact = false }: { compact?: boolean; directio
   const dropdownRef = useRef<HTMLDivElement>(null)
   const [style, setStyle] = useState<React.CSSProperties>({})
   const [ollamaModels, setOllamaModels] = useState<AIModelDef[]>([])
+  const [configuredKeys, setConfiguredKeys] = useState<Record<string, boolean>>({})
+
+  // `settings:get` redacts secrets and returns configuredKeys booleans instead.
+  useEffect(() => {
+    let cancelled = false
+    window.electronAPI.getAppSettings().then((settings: Record<string, unknown>) => {
+      if (cancelled) return
+      setConfiguredKeys((settings.configuredKeys as Record<string, boolean> | undefined) ?? {})
+    }).catch(() => { /* keep provider statuses as the only source */ })
+    return () => { cancelled = true }
+  }, [providerStatuses])
 
   // Fetch Ollama models when Ollama is configured
   const ollamaConfigured = providerStatuses.some((s) => s.id === 'ollama' && s.hasKey)
@@ -81,8 +92,17 @@ export function ModelSelector({ compact = false }: { compact?: boolean; directio
   const currentModel = getModelDef(aiModel) ?? ollamaModels.find((m) => m.id === aiModel)
   const currentProvider = getProviderForModel(aiModel) ?? (ollamaModels.some((m) => m.id === aiModel) ? AI_PROVIDERS.find((p) => p.id === 'ollama') : undefined)
 
+  /**
+   * A provider is offered when a key is stored for it in Settings
+   * (`configuredKeys[keySettingsField]`) or when the main process reports a key
+   * from another source — a deck `.env`, an environment variable, Codex auth,
+   * or the Ollama base URL, none of which are secrets in the settings file.
+   */
   const configuredProviderIds = new Set(
-    providerStatuses.filter((s) => s.hasKey).map((s) => s.id)
+    AI_PROVIDERS
+      .filter((p) => configuredKeys[p.keySettingsField] === true
+        || providerStatuses.some((s) => s.id === p.id && s.hasKey))
+      .map((p) => p.id)
   )
 
   // Build available providers, injecting dynamic Ollama models
@@ -99,6 +119,13 @@ export function ModelSelector({ compact = false }: { compact?: boolean; directio
   })
   const noProviders = availableProviders.length === 0
 
+  /**
+   * The stored model id is no longer offered by any configured provider —
+   * a renamed catalog entry, a revoked key, or an Ollama model that is gone.
+   * Requests would fail with "Unknown model", so say so instead of pretending.
+   */
+  const isStaleModel = !noProviders && !availableProviders.some((p) => p.models.some((m) => m.id === aiModel))
+
   const displayName = noProviders ? 'No AI configured' : (currentModel?.name ?? aiModel)
   const providerIcon = noProviders ? '—' : (currentProvider?.icon ?? '?')
 
@@ -108,6 +135,11 @@ export function ModelSelector({ compact = false }: { compact?: boolean; directio
       className="w-64 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-[9999]"
       style={{ ...style, overflowY: 'auto', WebkitAppRegion: 'no-drag' } as React.CSSProperties}
     >
+      {isStaleModel && (
+        <div className="px-3 py-2 m-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[10px] text-amber-400">
+          <span className="font-medium">“{aiModel}”</span> is not available from any configured provider. Pick a model below.
+        </div>
+      )}
       {availableProviders.length === 0 ? (
         <div className="p-3 text-xs text-gray-500 text-center">
           No providers configured. Add credentials in Settings.
@@ -188,7 +220,10 @@ export function ModelSelector({ compact = false }: { compact?: boolean; directio
         <span className="w-4 h-4 rounded bg-gray-800 flex items-center justify-center text-[9px] font-bold text-gray-400 flex-shrink-0">
           {providerIcon}
         </span>
-        <span className={`truncate max-w-[120px] ${noProviders ? 'text-gray-500' : 'text-gray-300'}`}>{displayName}</span>
+        <span className={`truncate max-w-[120px] ${noProviders ? 'text-gray-500' : isStaleModel ? 'text-amber-400' : 'text-gray-300'}`}>{displayName}</span>
+        {isStaleModel && (
+          <span className="text-amber-400 flex-shrink-0" title={`"${aiModel}" is not available from any configured provider`}>!</span>
+        )}
         {!noProviders && (
           <svg className={`w-3 h-3 text-gray-500 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />

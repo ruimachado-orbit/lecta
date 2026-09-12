@@ -137,6 +137,9 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     const tone = typeof body.tone === 'string' && TONES.includes(body.tone) ? body.tone : 'default'
     const verbosity = typeof body.verbosity === 'string' && VERBOSITIES.includes(body.verbosity) ? body.verbosity : 'standard'
     const theme = typeof body.theme === 'string' && THEMES.includes(body.theme) ? body.theme : 'dark'
+    const language = typeof body.language === 'string' && body.language.trim().length > 0 && body.language.length <= 24
+      ? body.language.trim()
+      : undefined
 
     busy = true
     try {
@@ -148,7 +151,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         slideCount,
         () => {},
         undefined,
-        { tone, verbosity }
+        { tone, verbosity, language }
       )
       if (!result.slides || result.slides.length === 0) {
         sendJson(res, 502, { error: 'The model returned no slides' })

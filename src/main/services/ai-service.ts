@@ -298,6 +298,7 @@ export class AIService {
     system: string
     userMessage: string
     maxTokens: number
+    temperature?: number
     signal?: AbortSignal
   }): Promise<GenerationResult> {
     const adapter = await this.getAdapter()
@@ -309,6 +310,7 @@ export class AIService {
     system: string
     userMessage: string
     maxTokens: number
+    temperature?: number
     signal?: AbortSignal
     onChunk: (chunk: string) => void
   }): Promise<string> {
@@ -803,7 +805,7 @@ Check for: text overflowing or clipped, elements overlapping, too-dense slides, 
     sourceContent: string | null,
     slideCount: number,
     signal?: AbortSignal,
-    options?: { tone?: string; verbosity?: string }
+    options?: { tone?: string; verbosity?: string; language?: string; temperature?: number }
   ): Promise<{ id: string; title: string; layout: string; keyPoints: string[] }[] | null> {
     const result = await this.generate({
       system: `You are a technical presentation architect. Produce a slide outline for a ${slideCount}-slide deck.${this.sourceSystemRule(sourceContent)}${this.generationStyleRule(options)}
@@ -820,6 +822,7 @@ RULES:
 - Use a logical narrative arc: context → problem → solution → evidence → recommendation.`,
       userMessage: `Topic/instructions: ${prompt}\n\nSuggested title: "${title}"${this.sourceBlock(sourceContent)}\n\nGenerate exactly ${slideCount} outline entries as a JSON array.`,
       maxTokens: 4096,
+      temperature: options?.temperature,
       signal
     })
 
@@ -846,7 +849,7 @@ RULES:
   }
 
   /** Style rule injected into generation prompts from tone / verbosity picks. */
-  private generationStyleRule(options?: { tone?: string; verbosity?: string }): string {
+  private generationStyleRule(options?: { tone?: string; verbosity?: string; language?: string }): string {
     const parts: string[] = []
     if (options?.tone && options.tone !== 'default') {
       parts.push(`- Tone: ${options.tone.replace(/_/g, ' ')}`)
@@ -859,6 +862,10 @@ RULES:
             ? 'Write fuller slides: heading + detailed bullets, tables and takeaways where useful.'
             : 'Follow the default 7×7 density guideline.'
       parts.push(`- Content density: ${options.verbosity}. ${density}`)
+    }
+    if (parts.length === 0 && !options?.language) return ''
+    if (options?.language && options.language !== 'English') {
+      parts.push(`- Language: write the ENTIRE presentation (titles, body, takeaways) in ${options.language}`)
     }
     if (parts.length === 0) return ''
     return `\n\nSTYLE PREFERENCES:\n${parts.join('\n')}`
@@ -894,7 +901,7 @@ RULES:
     sourceContent: string | null,
     slideCount: number,
     signal?: AbortSignal,
-    options?: { tone?: string; verbosity?: string; webSearch?: boolean }
+    options?: { tone?: string; verbosity?: string; language?: string; temperature?: number; webSearch?: boolean }
   ): Promise<{ id: string; title: string; layout: string; keyPoints: string[] }[]> {
     return this.withWebSearch(options?.webSearch, async () => {
       const outline = await this.generateOutline(prompt, title, sourceContent, slideCount, signal, options)
@@ -906,7 +913,7 @@ RULES:
   }
 
   /** The write-phase system prompt (moved out of the orchestrator). */
-  private buildPresentationSystemPrompt(slideCount: number, sourceContent: string | null, options?: { tone?: string; verbosity?: string }): string {
+  private buildPresentationSystemPrompt(slideCount: number, sourceContent: string | null, options?: { tone?: string; verbosity?: string; language?: string }): string {
     return `You are a McKinsey-level presentation designer. You create executive-quality presentations that are rich in content, data-driven, and visually structured.${this.sourceSystemRule(sourceContent)}${this.brandContext()}${this.generationStyleRule(options)}
 
 OUTPUT FORMAT: A valid JSON object with this exact structure:
@@ -980,7 +987,7 @@ Generate exactly ${slideCount} slides.`
     slideCount: number,
     onProgress: (status: string, slideIndex: number, total: number) => void,
     signal?: AbortSignal,
-    options?: { tone?: string; verbosity?: string }
+    options?: { tone?: string; verbosity?: string; language?: string; temperature?: number }
   ): Promise<{ slides: { id: string; markdown: string; layout: string }[]; title: string }> {
     const outlineText = outline
       ? `\n\nOUTLINE TO FOLLOW (use these ids, titles and layouts exactly):\n${outline
@@ -998,6 +1005,7 @@ Generate exactly ${slideCount} slides.`
       system: this.buildPresentationSystemPrompt(slideCount, sourceContent, options),
       userMessage,
       maxTokens: 16384,
+      temperature: options?.temperature,
       signal,
       onChunk: (chunk: string) => {
         raw += chunk
@@ -1112,7 +1120,7 @@ KEEP the same number of slides and their ids. Output the FULL corrected deck (ev
     slideCount: number,
     onProgress: (status: string, slideIndex: number, total: number) => void,
     signal?: AbortSignal,
-    options?: { tone?: string; verbosity?: string; webSearch?: boolean; outline?: { id: string; title: string; layout: string; keyPoints: string[] }[] | null }
+    options?: { tone?: string; verbosity?: string; language?: string; temperature?: number; webSearch?: boolean; outline?: { id: string; title: string; layout: string; keyPoints: string[] }[] | null }
   ): Promise<{ slides: { id: string; markdown: string; layout: string }[]; title: string }> {
     return this.withWebSearch(options?.webSearch, async () => {
       // Phase 1 — outline. The wizard may supply a user-edited outline; otherwise

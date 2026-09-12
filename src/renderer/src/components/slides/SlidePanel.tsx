@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore } from '../../stores/ui-store'
 import { ContentRenderer } from './ContentRenderer'
+import { SlideErrorBoundary } from './SlideErrorBoundary'
 import { prefetchMdx } from './MdxRenderer'
 import { SlideNavigator } from './SlideNavigator'
 import { SlideEditToolbar } from './SlideEditToolbar'
@@ -674,16 +675,18 @@ function SlideCanvas({ markdown, fullMarkdown, rootPath, transition, layout, sli
               height: layout === 'blank' || isMdx ? SLIDE_H : undefined,
             }}
           >
-            <ContentRenderer
-              markdown={markdown}
-              rootPath={rootPath}
-              isMdx={isMdx}
-              slideId={slideId}
-              background={background}
-              hidePinned={!!(editable && onUpdateMarkdown)}
-              clickToEdit={clickToEdit}
-              onPickBlock={onPickBlock}
-            />
+            <SlideErrorBoundary label={slideId}>
+              <ContentRenderer
+                markdown={markdown}
+                rootPath={rootPath}
+                isMdx={isMdx}
+                slideId={slideId}
+                background={background}
+                hidePinned={!!(editable && onUpdateMarkdown)}
+                clickToEdit={clickToEdit}
+                onPickBlock={onPickBlock}
+              />
+            </SlideErrorBoundary>
           </div>
         </div>
         {/* Draggable elements overlay (text boxes, shapes, positioned images — editable) */}

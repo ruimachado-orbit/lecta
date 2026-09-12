@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore } from '../../stores/ui-store'
+import { LayoutPicker } from './LayoutPicker'
 
 export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCount?: number; currentSubSlide?: number }): JSX.Element {
   const { slides, currentSlideIndex, goToSlide, addSlide, deleteSlide, reorderSlide, renameSlide, setSlideTransition, setSlideLayout, toggleSkipSlide, updateMarkdownContent, saveSlideContent, presentation } =
@@ -47,6 +48,8 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
   const dragRef = useRef<number | null>(null)
 
   const [showAddSlideMenu, setShowAddSlideMenu] = useState(false)
+  const [addSlideFormat, setAddSlideFormat] = useState<'md' | 'mdx'>('md')
+  const [addSlideLayout, setAddSlideLayout] = useState('default')
   const addBtnRef = useRef<HTMLDivElement>(null)
   const [isBeautifying, setIsBeautifying] = useState(false)
   const [beautifyReview, setBeautifyReview] = useState<{
@@ -397,22 +400,45 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
           </button>
           {showAddSlideMenu && (addBtnRef as any).current && (() => {
             const rect = (addBtnRef as any).current.getBoundingClientRect()
+            const createWithLayout = async () => {
+              const id = `slide-${slides.length + 1}`
+              setShowAddSlideMenu(false)
+              // addSlide inserts after the current slide and navigates to it,
+              // so the picked layout applies to wherever we land.
+              await addSlide(id, addSlideFormat === 'mdx' ? 'mdx' : undefined)
+              if (addSlideLayout !== 'default') {
+                await setSlideLayout(addSlideLayout)
+              }
+            }
             return (
               <>
                 <div className="fixed inset-0 z-[9998]" onClick={() => setShowAddSlideMenu(false)} />
-                <div className="fixed z-[9999] w-40 bg-gray-900 border border-gray-700 rounded-lg shadow-xl py-1"
-                  style={{ left: rect.left, top: rect.top - 80 }}>
+                <div className="fixed z-[9999] w-56 bg-gray-900 border border-gray-700 rounded-lg shadow-xl p-2 space-y-2"
+                  style={{ left: Math.min(rect.left, window.innerWidth - 240), top: Math.max(8, rect.top - 220) }}>
+                  <div className="flex gap-1" role="radiogroup" aria-label="Slide format">
+                    {(['md', 'mdx'] as const).map((f) => (
+                      <button
+                        key={f}
+                        role="radio"
+                        aria-checked={addSlideFormat === f}
+                        onClick={() => setAddSlideFormat(f)}
+                        className={`flex-1 px-2 py-1 text-[11px] rounded transition-colors ${
+                          addSlideFormat === f ? 'bg-white text-black font-medium' : 'bg-gray-800 text-gray-400 hover:text-gray-200'
+                        }`}
+                      >
+                        {f === 'md' ? 'Markdown' : 'MDX'}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-gray-500 flex-1">Layout</span>
+                    <LayoutPicker value={addSlideLayout} onChange={setAddSlideLayout} label="New slide layout" />
+                  </div>
                   <button
-                    onClick={() => { addSlide(`slide-${slides.length + 1}`); setShowAddSlideMenu(false) }}
-                    className="w-full text-left px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
+                    onClick={() => void createWithLayout()}
+                    className="w-full py-1.5 text-xs font-medium rounded bg-white hover:bg-gray-200 text-black transition-colors"
                   >
-                    Markdown (.md)
-                  </button>
-                  <button
-                    onClick={() => { addSlide(`slide-${slides.length + 1}`, 'mdx'); setShowAddSlideMenu(false) }}
-                    className="w-full text-left px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
-                  >
-                    MDX (.mdx)
+                    Add slide
                   </button>
                 </div>
               </>

@@ -234,6 +234,8 @@ const api = {
     options?: {
       tone?: string; webSearch?: boolean
       verbosity?: string
+      language?: string
+      temperature?: number
       outline?: { id: string; title: string; layout: string; keyPoints: string[] }[] | null
     }
   ): Promise<{ slides: { id: string; markdown: string; layout: string }[]; title: string }> => {
@@ -250,7 +252,7 @@ const api = {
     title: string,
     sourceContent: string | null,
     slideCount: number,
-    options?: { tone?: string; verbosity?: string; webSearch?: boolean }
+    options?: { tone?: string; verbosity?: string; language?: string; temperature?: number; webSearch?: boolean }
   ): Promise<{ id: string; title: string; layout: string; keyPoints: string[] }[]> =>
     ipcRenderer.invoke('ai:generate-outline', prompt, title, sourceContent, slideCount, options ?? {}),
   readSourceFile: (filePath: string): Promise<string> =>

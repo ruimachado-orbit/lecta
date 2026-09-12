@@ -6,6 +6,7 @@ import { useUIStore, COLOR_PALETTES } from '../../stores/ui-store'
 import { requireAI } from '../ai/AIAlert'
 import { Button } from '../../design-system'
 import { GRADIENT_PRESETS } from './style-presets'
+import { IconPicker } from './IconPicker'
 import { CANVAS_H, CANVAS_W, serializeElement } from './element-model'
 import { applySlideBackground, patchSlideBackground } from './slide-background'
 
@@ -114,6 +115,7 @@ export function SlideEditToolbar({ editorRef }: SlideEditToolbarProps): JSX.Elem
             saveSlideContent(currentSlideIndex)
           }
         }}>🖼</Btn>
+        <IconPicker onInsert={insertAtCursor} />
         <BackgroundPicker />
         <Sep />
         <Button

@@ -20,6 +20,9 @@ export const SettingsSchema = z.object({
   ollamaBaseUrl: z.string().default(''),
   imageProvider: z.string().default('openai'),
   mcpServerEnabled: z.boolean().default(false),
+  defaultTone: z.string().default('default'),
+  defaultVerbosity: z.string().default('standard'),
+  defaultGenerationMode: z.enum(['structured', 'fast']).default('structured'),
   /** Notebook mode is experimental and hidden until this is turned on. */
   experimentalNotebook: z.boolean().default(false),
   recentDecks: z.array(z.unknown()).default([]),

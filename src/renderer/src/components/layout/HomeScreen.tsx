@@ -10,7 +10,7 @@ import { TonePills, VerbosityPills } from '../ai/GenerationPicks'
 import { SupportingDocs, type SupportingDoc } from '../ai/SupportingDocs'
 import { OutlineEditor, TemplateGallery, type OutlineItem } from '../ai/WizardSteps'
 import { loadDefaultThemeId } from '../slides/ThemePicker'
-import { GENERATION_MODES, type GenerationModeId } from '../../../../../packages/shared/src/constants'
+import { GENERATION_MODES, GENERATION_LANGUAGES, GENERATION_TONES, GENERATION_VERBOSITIES, type GenerationModeId } from '../../../../../packages/shared/src/constants'
 import { MyPresentations } from '../library/MyPresentations'
 import { Dialog } from '../common/Dialog'
 import { OnboardingDialog, isOnboarded } from './OnboardingDialog'
@@ -587,6 +587,9 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
   const [slideCount, setSlideCount] = useState(10)
   const [tone, setTone] = useState('default')
   const [verbosity, setVerbosity] = useState('standard')
+  const [language, setLanguage] = useState<string>('English')
+  /** Creativity (temperature). Null = provider default (Auto). */
+  const [temperature, setTemperature] = useState<number | null>(null)
   const [webSearch, setWebSearch] = useState(false)
   const perplexityReady = providerStatuses.some((p) => p.id === 'perplexity' && p.hasKey)
   const [theme, setThemeId] = useState(loadDefaultThemeId)
@@ -607,6 +610,21 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
       useUIStore.getState().setPendingGeneratePrompt(null)
     }
   }, [pendingPrompt])
+
+  // Prefill from Settings → Generation defaults (fresh panel per open).
+  useEffect(() => {
+    window.electronAPI.getAppSettings().then((s: Record<string, unknown>) => {
+      if (typeof s.defaultTone === 'string' && GENERATION_TONES.some((t) => t.id === s.defaultTone)) {
+        setTone(s.defaultTone as string)
+      }
+      if (typeof s.defaultVerbosity === 'string' && GENERATION_VERBOSITIES.some((v) => v.id === s.defaultVerbosity)) {
+        setVerbosity(s.defaultVerbosity as string)
+      }
+      if (s.defaultGenerationMode === 'fast' || s.defaultGenerationMode === 'structured') {
+        setMode(s.defaultGenerationMode)
+      }
+    }).catch(() => { /* defaults stand */ })
+  }, [])
 
   const hasGrounding = prompt.trim() || docs.length > 0 || sourceFolder
 
@@ -644,7 +662,7 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
     try {
       const sourceContent = await readGrounding()
       const items = await window.electronAPI.generateOutline(
-        prompt, finalTitle, sourceContent, slideCount, { tone, verbosity, webSearch }
+        prompt, finalTitle, sourceContent, slideCount, { tone, verbosity, webSearch, language, temperature: temperature ?? undefined }
       )
       setOutline(items)
       setStep('outline')
@@ -653,7 +671,7 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
     } finally {
       setIsOutlining(false)
     }
-  }, [hasGrounding, isOutlining, readGrounding, prompt, finalTitle, slideCount, tone, verbosity, webSearch])
+  }, [hasGrounding, isOutlining, readGrounding, prompt, finalTitle, slideCount, tone, verbosity, webSearch, language, temperature])
 
   /** Step 2 → 3: write the deck from the (possibly edited) outline. */
   const handleGenerate = useCallback(async () => {
@@ -674,7 +692,7 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
         sourceContent,
         slideCount,
         (data: { status: string; slideIndex: number; total: number }) => setProgress(data),
-        { tone, verbosity, webSearch, outline }
+        { tone, verbosity, webSearch, language, temperature: temperature ?? undefined, outline }
       )
 
       if (!result.slides || result.slides.length === 0) {
@@ -716,7 +734,7 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
       setIsGenerating(false)
       setStep(outline ? 'outline' : 'prompt')
     }
-  }, [prompt, docs, sourceFolder, isGenerating, readGrounding, finalTitle, slideCount, tone, verbosity, webSearch, outline, theme, onGenerated])
+  }, [prompt, docs, sourceFolder, isGenerating, readGrounding, finalTitle, slideCount, tone, verbosity, webSearch, language, temperature, outline, theme, onGenerated])
 
   return (
     <div className="h-screen flex flex-col bg-gray-950 text-white" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
@@ -915,6 +933,52 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
             <ModelSelector direction="down" />
           </div>
 
+          {/* Language */}
+          <div className="flex items-center justify-between">
+            <label className="text-sm text-gray-300" htmlFor="gen-language">Language</label>
+            <select
+              id="gen-language"
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              disabled={isOutlining || isGenerating}
+              className="text-sm bg-gray-900 text-gray-300 rounded-lg border border-gray-700 px-2 py-1.5 focus:outline-none focus:border-indigo-500 disabled:opacity-30"
+            >
+              {GENERATION_LANGUAGES.map((l) => (
+                <option key={l} value={l}>{l}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Creativity (temperature). Auto = provider default. */}
+          <div className="flex items-center justify-between gap-4">
+            <label className="text-sm text-gray-300" htmlFor="gen-creativity">
+              Creativity {temperature === null ? <span className="text-gray-500">(Auto)</span> : <span className="text-gray-400">({temperature.toFixed(1)})</span>}
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                id="gen-creativity"
+                type="range"
+                min={0}
+                max={1}
+                step={0.1}
+                value={temperature ?? 0.7}
+                onChange={(e) => setTemperature(Number(e.target.value))}
+                disabled={isOutlining || isGenerating}
+                className="w-28 accent-indigo-500 disabled:opacity-30"
+              />
+              {temperature !== null && (
+                <button
+                  onClick={() => setTemperature(null)}
+                  disabled={isOutlining || isGenerating}
+                  className="text-[11px] text-gray-500 hover:text-gray-300 transition-colors disabled:opacity-30"
+                  title="Back to provider default"
+                >
+                  Auto
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* Slide count */}
           <div className="flex items-center justify-between">
             <label className="text-sm text-gray-300">Number of slides</label>
@@ -954,16 +1018,17 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
             <label className="text-[11px] text-gray-400 uppercase tracking-wider block mb-2">Quick templates</label>
             <div className="flex flex-wrap gap-1.5">
               {[
-                { label: 'Business Review', prompt: 'Quarterly business review with revenue metrics, team updates, key risks, and next quarter priorities', count: 12 },
-                { label: 'Product Launch', prompt: 'Product launch presentation covering the problem, solution, market opportunity, competitive landscape, go-to-market strategy, and timeline', count: 10 },
-                { label: 'Technical Architecture', prompt: 'Technical architecture deep-dive covering system design, data flow, infrastructure, scalability, security, and monitoring', count: 10 },
-                { label: 'Team Standup', prompt: 'Team status update: what was done, what is in progress, blockers, and priorities for the week', count: 6 },
-                { label: 'Investor Pitch', prompt: 'Startup pitch deck: problem, solution, market size, business model, traction, team, financial projections, and ask', count: 12 },
+                { label: 'Business Review', prompt: 'Quarterly business review with revenue metrics, team updates, key risks, and next quarter priorities', count: 12, theme: 'executive' },
+                { label: 'Product Launch', prompt: 'Product launch presentation covering the problem, solution, market opportunity, competitive landscape, go-to-market strategy, and timeline', count: 10, theme: 'creative' },
+                { label: 'Technical Architecture', prompt: 'Technical architecture deep-dive covering system design, data flow, infrastructure, scalability, security, and monitoring', count: 10, theme: 'dark' },
+                { label: 'Team Standup', prompt: 'Team status update: what was done, what is in progress, blockers, and priorities for the week', count: 6, theme: 'minimal' },
+                { label: 'Investor Pitch', prompt: 'Startup pitch deck: problem, solution, market size, business model, traction, team, financial projections, and ask', count: 12, theme: 'corporate' },
               ].map((preset) => (
                 <button
                   key={preset.label}
-                  onClick={() => { setPrompt(preset.prompt); setSlideCount(preset.count); setOutline(null); if (!title) setTitle(preset.label) }}
+                  onClick={() => { setPrompt(preset.prompt); setSlideCount(preset.count); setThemeId(preset.theme); setOutline(null); if (!title) setTitle(preset.label) }}
                   disabled={isOutlining}
+                  title={`Starts with the ${preset.theme} template`}
                   className="px-2.5 py-1 text-[11px] rounded-full bg-gray-800 hover:bg-gray-700 text-gray-500
                              hover:text-gray-300 transition-colors border border-gray-700 disabled:opacity-30"
                 >
@@ -1179,6 +1244,9 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
   const [apiCopied, setApiCopied] = useState(false)
   const [brandName, setBrandName] = useState('')
   const [brandVoice, setBrandVoice] = useState('')
+  const [defaultTone, setDefaultTone] = useState('default')
+  const [defaultVerbosity, setDefaultVerbosity] = useState('standard')
+  const [defaultMode, setDefaultMode] = useState<'structured' | 'fast'>('structured')
   const [externalServers, setExternalServers] = useState<{ name: string; command: string; args?: string[] }[]>([])
   const [dsName, setDsName] = useState('')
   const [dsCommand, setDsCommand] = useState('')
@@ -1237,6 +1305,11 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
       setCodexBinPath(typeof settings.codexBinPath === 'string' ? settings.codexBinPath : '')
       setBrandName(typeof settings.brandName === 'string' ? settings.brandName : '')
       setBrandVoice(typeof settings.brandVoice === 'string' ? settings.brandVoice : '')
+      if (typeof settings.defaultTone === 'string') setDefaultTone(settings.defaultTone)
+      if (typeof settings.defaultVerbosity === 'string') setDefaultVerbosity(settings.defaultVerbosity)
+      if (settings.defaultGenerationMode === 'fast' || settings.defaultGenerationMode === 'structured') {
+        setDefaultMode(settings.defaultGenerationMode)
+      }
       // Load configured-key flags (settings:get redacts secrets and returns configuredKeys booleans)
       const flags = (settings.configuredKeys as Record<string, boolean> | undefined) ?? {}
       const loaded: Record<string, boolean> = {}
@@ -1640,6 +1713,65 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
                 await window.electronAPI.setAppSettings({ experimentalNotebook: next })
               }}
             />
+          </section>
+
+          {/* Generation defaults */}
+          <section>
+            <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-4">Generation Defaults</h3>
+            <p className="text-[11px] text-gray-400 mb-3">
+              Prefill the AI generation wizard — every deck starts here, and you can still change each one per deck.
+            </p>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-4">
+                <label className="text-sm text-gray-300" htmlFor="settings-default-tone">Default tone</label>
+                <select
+                  id="settings-default-tone"
+                  value={GENERATION_TONES.some((t) => t.id === defaultTone) ? defaultTone : 'default'}
+                  onChange={async (e) => {
+                    setDefaultTone(e.target.value)
+                    await window.electronAPI.setAppSettings({ defaultTone: e.target.value })
+                  }}
+                  className="text-sm bg-gray-900 text-gray-300 rounded-lg border border-gray-700 px-2 py-1.5 focus:outline-none focus:border-indigo-500"
+                >
+                  {GENERATION_TONES.map((t) => (
+                    <option key={t.id} value={t.id}>{t.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <label className="text-sm text-gray-300" htmlFor="settings-default-verbosity">Default density</label>
+                <select
+                  id="settings-default-verbosity"
+                  value={GENERATION_VERBOSITIES.some((v) => v.id === defaultVerbosity) ? defaultVerbosity : 'standard'}
+                  onChange={async (e) => {
+                    setDefaultVerbosity(e.target.value)
+                    await window.electronAPI.setAppSettings({ defaultVerbosity: e.target.value })
+                  }}
+                  className="text-sm bg-gray-900 text-gray-300 rounded-lg border border-gray-700 px-2 py-1.5 focus:outline-none focus:border-indigo-500"
+                >
+                  {GENERATION_VERBOSITIES.map((v) => (
+                    <option key={v.id} value={v.id}>{v.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <label className="text-sm text-gray-300" htmlFor="settings-default-mode">Default mode</label>
+                <select
+                  id="settings-default-mode"
+                  value={defaultMode}
+                  onChange={async (e) => {
+                    const next = e.target.value === 'fast' ? 'fast' : 'structured'
+                    setDefaultMode(next)
+                    await window.electronAPI.setAppSettings({ defaultGenerationMode: next })
+                  }}
+                  className="text-sm bg-gray-900 text-gray-300 rounded-lg border border-gray-700 px-2 py-1.5 focus:outline-none focus:border-indigo-500"
+                >
+                  {GENERATION_MODES.map((m) => (
+                    <option key={m.id} value={m.id}>{m.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </section>
 
           {/* Brand kit */}

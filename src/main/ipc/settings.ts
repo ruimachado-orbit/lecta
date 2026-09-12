@@ -31,6 +31,9 @@ const DEFAULTS: Record<string, unknown> = {
   imageProvider: 'openai',
   mcpServerEnabled: false,
   localApiEnabled: false,
+  defaultTone: 'default',
+  defaultVerbosity: 'standard',
+  defaultGenerationMode: 'structured',
   experimentalNotebook: false,
   recentDecks: []
 }

@@ -263,3 +263,17 @@ export const GENERATION_MODES = [
 ] as const
 
 export type GenerationModeId = (typeof GENERATION_MODES)[number]['id']
+
+/** Output language for generated decks (Presenton language selector). */
+export const GENERATION_LANGUAGES = [
+  'English',
+  'Português',
+  'Español',
+  'Français',
+  'Deutsch',
+  'Italiano',
+  'Nederlands',
+  '日本語',
+  '中文',
+  '한국어',
+] as const

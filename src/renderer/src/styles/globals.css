@@ -264,6 +264,18 @@ html[data-theme="light"] .presenter-slide-frame {
    VISUAL MARKDOWN COMPONENTS — enhanced rendering
    ============================================================ */
 
+/* Inline icons ({{icon:name}}) — inherit surrounding text color and size */
+.slide-icon {
+  display: inline-flex;
+  width: 1.1em;
+  height: 1.1em;
+  vertical-align: -0.15em;
+}
+.slide-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
 /* Click-to-edit overlay (Presenton-style): hover outline + pointer on pickable blocks */
 .cte-target {
   cursor: pointer;

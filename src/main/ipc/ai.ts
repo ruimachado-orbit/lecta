@@ -428,7 +428,7 @@ export function registerAiHandlers(): void {
       // Backwards compatible: old renderer sent progressChannel as the 5th arg.
       const options =
         typeof optionsOrChannel === 'string' ? {} : (optionsOrChannel as {
-          tone?: string; verbosity?: string; webSearch?: boolean
+          tone?: string; verbosity?: string; language?: string; temperature?: number; webSearch?: boolean
           outline?: { id: string; title: string; layout: string; keyPoints: string[] }[] | null
         })
       const progressChannel = typeof optionsOrChannel === 'string' ? optionsOrChannel : (maybeChannel as string)
@@ -466,7 +466,7 @@ export function registerAiHandlers(): void {
       title: string,
       sourceContent: string | null,
       slideCount: number,
-      options?: { tone?: string; verbosity?: string; webSearch?: boolean }
+      options?: { tone?: string; verbosity?: string; language?: string; temperature?: number; webSearch?: boolean }
     ): Promise<{ id: string; title: string; layout: string; keyPoints: string[] }[]> => {
       const service = getAIService()
       return service.generatePresentationOutline(prompt, title, sourceContent, slideCount, undefined, options)

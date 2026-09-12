@@ -5,6 +5,7 @@ import rehypeRaw from 'rehype-raw'
 import type { SlideBackground } from '@shared/types/presentation'
 import { FlowDiagram } from '../common/FlowDiagram'
 import { resolveImageSrc, preprocessImageGrids } from './slide-utils'
+import { expandIcons } from './icons'
 import { parseElements, stripElements, zOf } from './element-model'
 import { PinnedLayer } from './PinnedElements'
 
@@ -284,7 +285,7 @@ export function SlideRenderer({ markdown, rootPath, clickStep = -1, onClickSteps
             },
           }}
         >
-          {enhanceVisualPatterns(preprocessColumns(body))}
+          {expandIcons(enhanceVisualPatterns(preprocessColumns(body)))}
         </ReactMarkdown>
       </div>
       <PinnedLayer elements={pinned} rootPath={rootPath} />

@@ -52,6 +52,10 @@ async function saveLibrary(library: StoredSlide[]): Promise<void> {
   })
 }
 
+export async function getSlideLibrary(): Promise<StoredSlide[]> {
+  return loadLibrary()
+}
+
 export function registerSlideLibraryHandlers(): void {
   ipcMain.handle(
     'library:save-slide',

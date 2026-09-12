@@ -5,6 +5,8 @@ import { homedir } from 'os'
 import { DECK_CONFIG_FILE } from '../../../packages/shared/src/constants'
 import { atomicWriteFile, withLock } from '../services/safe-fs'
 import { isInsideOpenDeck, isInsideRoot } from '../services/deck-roots'
+import { rankDocuments, type SearchableDoc } from '../services/search'
+import { getSlideLibrary } from './slide-library'
 
 // ── Types ──
 
@@ -317,6 +319,46 @@ export function registerLibraryHandlers(): void {
     await loadLibrary()
     await scanLectaDocumentsFolder()
     return library
+  })
+
+  // ── Search across the slide library and the presentation library ──
+
+  ipcMain.handle('library:search', async (_event, query: unknown) => {
+    const q = typeof query === 'string' ? query.trim() : ''
+    if (!q) return []
+    await loadLibrary()
+    const slides = await getSlideLibrary()
+
+    const docs: SearchableDoc[] = [
+      ...slides.map((s) => ({
+        id: s.id,
+        text: `${s.markdown ?? ''}\n${s.codeContent ?? ''}`,
+        title: s.name,
+        tags: s.tags ?? []
+      })),
+      ...library.entries.map((e) => ({
+        id: e.id,
+        text: `${e.firstSlideContent ?? ''}\n${e.firstSlidePreview ?? ''}`,
+        title: e.title,
+        tags: e.tags ?? []
+      }))
+    ]
+
+    const slideIds = new Set(slides.map((s) => s.id))
+    const entryByPath = new Map(library.entries.map((e) => [e.id, e]))
+
+    return rankDocuments(docs, q, 30).map((r) => {
+      const entry = entryByPath.get(r.doc.id)
+      return {
+        id: r.doc.id,
+        type: slideIds.has(r.doc.id) ? 'slide' : 'presentation',
+        title: r.doc.title ?? '',
+        snippet: r.snippet,
+        tags: r.doc.tags ?? [],
+        path: entry ? entry.path : undefined,
+        score: Math.round(r.score * 100) / 100
+      }
+    })
   })
 
   // ── Folders ──

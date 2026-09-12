@@ -12,6 +12,7 @@ import { createOpenAICompatibleAdapter } from './ai/openai-compatible'
 import { createCodexAdapter } from './ai/codex'
 import { runToolLoop, type LoopTool } from './ai/tool-loop'
 import type { GenerateRequest, LLMAdapter } from './ai/types'
+import { getCachedSettings } from '../ipc/settings'
 
 /** OpenAI reasoning models reject a `system` message and `tool_choice`. */
 const REASONING_MODEL_PATTERN = /^(o[1-9]|o\d+-mini)/
@@ -615,6 +616,138 @@ Rules:
     return result.text.slice(0, 300)
   }
 
+  /**
+   * LLM-as-judge critique of the whole deck: narrative arc, redundancy,
+   * density and consistency. Read-only — returns an actionable Markdown review.
+   */
+  async reviewDeck(
+    slides: { index: number; id: string; markdown: string; layout: string }[],
+    deckTitle: string,
+    signal?: AbortSignal
+  ): Promise<string> {
+    const slideDump = slides
+      .map((s) => `--- Slide ${s.index + 1} (id: ${s.id}, layout: ${s.layout}) ---\n${s.markdown}`)
+      .join('\n\n')
+
+    const result = await this.generate({
+      system: `You are a senior presentation design reviewer. Review a deck and return an actionable critique in Markdown.
+
+Structure your review exactly as:
+## Overall — one short paragraph verdict and a score out of 10.
+## Narrative & flow — does it tell a story? Where does it sag or jump?
+## Per-slide issues — one bullet per slide, each citing its slide number and a concrete fix.
+## Prioritized fixes — the 3-5 highest-impact changes first.
+
+Rules:
+- Be specific: reference slide numbers and quote the offending text.
+- Flag redundancy, over-dense slides (7×7 rule), orphan titles, missing takeaways, and inconsistent tone.
+- Prefer concrete rewrites over vague advice.
+- Do not invent content the deck does not have.`,
+      userMessage: `Deck: "${deckTitle}"\n\n${slideDump}`,
+      maxTokens: 4096,
+      signal
+    })
+    return result.text
+  }
+
+  /**
+   * Vision critique of a rendered slide screenshot. Returns a written critique
+   * plus, when the model is confident it can fix the slide, corrected markdown.
+   * Only Anthropic, Google and OpenAI (API-key mode) support image input; the
+   * OpenAI-compatible providers and Codex fall back to a text-only note.
+   */
+  async reviewSlideVisual(
+    imageBase64: string,
+    mimeType: string,
+    slideMarkdown: string,
+    deckTitle: string,
+    signal?: AbortSignal
+  ): Promise<{ critique: string; improvedMarkdown: string | null }> {
+    const prompt = `You are reviewing a rendered presentation slide (image) and its markdown source. Return a JSON object with exactly this shape:
+{
+  "issues": ["short issue", "short issue"],
+  "improved_markdown": "full corrected markdown, or empty string if no change is needed"
+}
+
+Check for: text overflowing or clipped, elements overlapping, too-dense slides, poor hierarchy, misaligned columns, and anything that looks broken on screen. If there are no problems, return an empty issues array and an empty improved_markdown. When you do fix, output the FULL corrected markdown (never a fragment).`
+
+    const provider = await this.resolveProvider(this.model)
+
+    if (provider === 'google') {
+      const client = await this.getGeminiClient()
+      const response = await client.models.generateContent({
+        model: this.model,
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: prompt }, { inlineData: { mimeType, data: imageBase64 } }]
+          }
+        ],
+        config: {
+          maxOutputTokens: 4096,
+          ...(signal ? { abortSignal: signal } : {})
+        }
+      })
+      return this.parseVisualResponse(response.text ?? '')
+    }
+
+    if (provider === 'anthropic') {
+      const client = await this.getAnthropicClient()
+      const response = await client.messages.create({
+        model: this.model,
+        max_tokens: 4096,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'image', source: { type: 'base64', media_type: mimeType as 'image/png', data: imageBase64 } },
+              { type: 'text', text: prompt }
+            ]
+          }
+        ],
+        ...(signal ? { signal } : {})
+      })
+      const text = response.content.map((b) => (b.type === 'text' ? b.text : '')).join('')
+      return this.parseVisualResponse(text)
+    }
+
+    if (provider === 'openai') {
+      const client = await this.getOpenAIClient()
+      const response = await client.chat.completions.create({
+        model: this.model,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageBase64}` } }
+            ]
+          }
+        ],
+        max_completion_tokens: 4096
+      })
+      return this.parseVisualResponse(response.choices?.[0]?.message?.content ?? '')
+    }
+
+    return {
+      critique: 'The selected model/provider does not support image input for visual review. Switch to Claude, Gemini, or an OpenAI API-key model to use this.',
+      improvedMarkdown: null
+    }
+  }
+
+  /** Parse the JSON a vision critique returns; degrade to text-only on failure. */
+  private parseVisualResponse(text: string): { critique: string; improvedMarkdown: string | null } {
+    const parsed = this.extractJSON(text) as { issues?: string[]; improved_markdown?: string } | null
+    if (parsed && Array.isArray(parsed.issues)) {
+      const improved = typeof parsed.improved_markdown === 'string' && parsed.improved_markdown.trim()
+        ? parsed.improved_markdown.trim()
+        : null
+      const critique = parsed.issues.length > 0 ? parsed.issues.map((i) => `- ${i}`).join('\n') : 'The slide renders correctly — no layout issues found.'
+      return { critique, improvedMarkdown: improved }
+    }
+    return { critique: text.trim() || 'No visual feedback was returned.', improvedMarkdown: null }
+  }
+
   async runPrompt(
     prompt: string,
     _slideContent: string,
@@ -631,25 +764,74 @@ Rules:
     })
   }
 
-  async generateFullPresentation(
+  /**
+   * Inline the source material in a user message (bounded), or '' when absent.
+   */
+  private sourceBlock(sourceContent: string | null): string {
+    if (!sourceContent) return ''
+    return `\n\nSOURCE DOCUMENT — THIS IS YOUR PRIMARY INPUT:\n\`\`\`\n${sourceContent.slice(0, 30000)}\n\`\`\`\n\nYou MUST base the presentation content on the source document above. Extract real facts, data points, names, figures, and structure directly from it. Do NOT invent information that is not in the source document.`
+  }
+
+  /** Grounding rule appended to system prompts when source material is present. */
+  private sourceSystemRule(sourceContent: string | null): string {
+    if (!sourceContent) return ''
+    return `\n\nCRITICAL RULE — SOURCE MATERIAL PROVIDED: The user has uploaded source material. You MUST ground ALL slide content in it. Extract actual data, facts, quotes, and structure. Do NOT hallucinate or fabricate information that is not present in the source. If the source does not contain enough for a slide, state what is available rather than making things up.`
+  }
+
+  /**
+   * Brand-kit context from Settings: the user's brand name and voice, injected
+   * into every generation prompt so decks stay on-brand without re-prompting.
+   */
+  private brandContext(): string {
+    const s = getCachedSettings()
+    const name = typeof s.brandName === 'string' ? s.brandName.trim() : ''
+    const voice = typeof s.brandVoice === 'string' ? s.brandVoice.trim() : ''
+    if (!name && !voice) return ''
+    const lines: string[] = []
+    if (name) lines.push(`- Brand/company name: ${name}`)
+    if (voice) lines.push(`- Voice and tone: ${voice}`)
+    return `\n\nBRAND GUIDELINES — follow these whenever you write slide content, speaker notes or articles:\n${lines.join('\n')}`
+  }
+
+  /**
+   * Phase 1 of deck generation: produce a slide outline grounded in the source.
+   * Returns the outline slides, or null if the model produced nothing usable.
+   */
+  private async generateOutline(
     prompt: string,
     title: string,
     sourceContent: string | null,
     slideCount: number,
-    onProgress: (status: string, slideIndex: number, total: number) => void,
     signal?: AbortSignal
-  ): Promise<{ slides: { id: string; markdown: string; layout: string }[]; title: string }> {
-    const sourceContext = sourceContent
-      ? `\n\nSOURCE DOCUMENT — THIS IS YOUR PRIMARY INPUT:\n\`\`\`\n${sourceContent.slice(0, 30000)}\n\`\`\`\n\nYou MUST base the presentation content on the source document above. Extract real facts, data points, names, figures, and structure directly from it. Do NOT invent information that is not in the source document. The user's prompt provides additional instructions on how to present the source material.`
-      : ''
+  ): Promise<{ id: string; title: string; layout: string; keyPoints: string[] }[] | null> {
+    const result = await this.generate({
+      system: `You are a technical presentation architect. Produce a slide outline for a ${slideCount}-slide deck.${this.sourceSystemRule(sourceContent)}
 
-    onProgress('Designing presentation structure...', 0, slideCount)
+OUTPUT FORMAT: a valid JSON array of exactly ${slideCount} objects, no markdown, no explanation:
+[
+  { "id": "kebab-case-id", "title": "Slide heading", "layout": "default", "key_points": ["short bullet", "short bullet"] }
+]
 
-    const sourceSystemRule = sourceContent
-      ? `\n\nCRITICAL RULE — SOURCE MATERIAL PROVIDED: The user has uploaded a source document. You MUST ground ALL slide content in the source material. Extract actual data, facts, quotes, and structure from it. Do NOT hallucinate or fabricate information that is not present in the source document. If the source document does not contain enough information for a slide, state what is available rather than making things up.`
-      : ''
+RULES:
+- One entry per slide, in presentation order. Slide 1 is a title slide (layout "title"), the last slide closes with recommendations/next steps.
+- Each entry has 2-5 key points. Layouts: title, center, section, two-col, three-col, top-bottom, big-number, quote, default.
+- Ground every key point in the source material when present — no invented facts.
+- Use a logical narrative arc: context → problem → solution → evidence → recommendation.`,
+      userMessage: `Topic/instructions: ${prompt}\n\nSuggested title: "${title}"${this.sourceBlock(sourceContent)}\n\nGenerate exactly ${slideCount} outline entries as a JSON array.`,
+      maxTokens: 4096,
+      signal
+    })
 
-    const systemPrompt = `You are a McKinsey-level presentation designer. You create executive-quality presentations that are rich in content, data-driven, and visually structured.${sourceSystemRule}
+    const parsed = this.extractJSON(result.text)
+    if (Array.isArray(parsed) && parsed.length > 0) return parsed as { id: string; title: string; layout: string; keyPoints: string[] }[]
+    const obj = parsed as { slides?: { id: string; title: string; layout: string; keyPoints: string[] }[] } | null
+    if (obj && Array.isArray(obj.slides) && obj.slides.length > 0) return obj.slides
+    return null
+  }
+
+  /** The write-phase system prompt (moved out of the orchestrator). */
+  private buildPresentationSystemPrompt(slideCount: number, sourceContent: string | null): string {
+    return `You are a McKinsey-level presentation designer. You create executive-quality presentations that are rich in content, data-driven, and visually structured.${this.sourceSystemRule(sourceContent)}${this.brandContext()}
 
 OUTPUT FORMAT: A valid JSON object with this exact structure:
 {
@@ -709,17 +891,34 @@ STRUCTURE for ${slideCount} slides:
 - Slide ${slideCount}: Recommendations or next steps (layout: "default")
 
 Generate exactly ${slideCount} slides.`
+  }
 
-    const userMessage = sourceContent
-      ? `Create a complete ${slideCount}-slide presentation based on the following source document and instructions.${sourceContext}\n\nAdditional instructions from the user: ${prompt}\n\nPresentation title suggestion: "${title}"\n\nGenerate the full presentation as a JSON object. Remember: ALL content must come from the source document above.`
-      : `Create a complete ${slideCount}-slide presentation.\n\nTopic/instructions: ${prompt}\n\nPresentation title suggestion: "${title}"\n\nGenerate the full presentation as a JSON object.`
+  /**
+   * Phase 2: expand the outline into full markdown slides.
+   */
+  private async generateSlidesFromOutline(
+    prompt: string,
+    title: string,
+    sourceContent: string | null,
+    outline: { id: string; title: string; layout: string; keyPoints: string[] }[] | null,
+    slideCount: number,
+    onProgress: (status: string, slideIndex: number, total: number) => void,
+    signal?: AbortSignal
+  ): Promise<{ slides: { id: string; markdown: string; layout: string }[]; title: string }> {
+    const outlineText = outline
+      ? `\n\nOUTLINE TO FOLLOW (use these ids, titles and layouts exactly):\n${outline
+          .map((s) => `- ${s.id} [${s.layout}] — "${s.title}": ${(s.keyPoints || []).join(' | ')}`)
+          .join('\n')}`
+      : ''
+
+    const userMessage = `Create a complete ${slideCount}-slide presentation.${outlineText}${this.sourceBlock(sourceContent)}\n\nTopic/instructions: ${prompt}\n\nPresentation title suggestion: "${title}"\n\nGenerate the full presentation as a JSON object.${sourceContent ? ' Remember: ALL content must come from the source document above.' : ''}`
 
     let raw = ''
     let slidesFound = 0
 
     // Provider errors propagate to the caller — a failed request must not become a "successful" empty deck.
     await this.streamGenerate({
-      system: systemPrompt,
+      system: this.buildPresentationSystemPrompt(slideCount, sourceContent),
       userMessage,
       maxTokens: 16384,
       signal,
@@ -739,18 +938,20 @@ Generate exactly ${slideCount} slides.`
       throw new Error('The model returned no content for the presentation.')
     }
 
-    onProgress('Finalizing presentation...', slideCount, slideCount)
-
     const parsed = this.extractJSON(raw)
 
-    let slides: any[] | null = null
+    let slides: { id: string; markdown: string; layout: string }[] | null = null
     let finalTitle = title
 
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && parsed.slides) {
       slides = parsed.slides
       finalTitle = parsed.title || title
     } else if (Array.isArray(parsed) && parsed.length > 0) {
-      slides = parsed.map((s: any) => ({ ...s, layout: s.layout || 'default' }))
+      slides = parsed.map((s: { id?: string; markdown?: string; layout?: string }) => ({
+        id: s.id ?? 'generated',
+        markdown: s.markdown ?? '',
+        layout: s.layout || 'default'
+      }))
     }
 
     if (slides && slides.length > 0) {
@@ -759,7 +960,6 @@ Generate exactly ${slideCount} slides.`
         if (!slide.markdown) continue
         const lines = slide.markdown.split('\n').filter((l: string) => l.trim())
         const layout = slide.layout || 'default'
-        // If a default/center slide only has a heading (1-2 lines), convert to section
         if (['default', 'center'].includes(layout) && lines.length <= 2) {
           const hasOnlyHeading = lines.every((l: string) => l.startsWith('#') || l.trim() === '')
           if (hasOnlyHeading) {
@@ -768,14 +968,96 @@ Generate exactly ${slideCount} slides.`
           }
         }
       }
-
-      onProgress('Generation complete', slideCount, slideCount)
       return { slides, title: finalTitle }
     }
 
     // Fallback — text was received but is not valid JSON: keep it as a single slide
     console.error('[generateFullPresentation] Failed to parse JSON from response. First 500 chars:', raw.slice(0, 500))
     return { slides: [{ id: 'generated', markdown: raw.replace(/```json\s*/gi, '').replace(/```/g, '').trim(), layout: 'default' }], title }
+  }
+
+  /**
+   * Phase 3: LLM-as-judge critique + one corrective pass over the generated
+   * deck. Falls back to the input slides if the model returns unusable output.
+   */
+  private async refineSlides(
+    prompt: string,
+    title: string,
+    sourceContent: string | null,
+    slides: { id: string; markdown: string; layout: string }[],
+    slideCount: number,
+    signal?: AbortSignal
+  ): Promise<{ slides: { id: string; markdown: string; layout: string }[]; title: string }> {
+    const current = slides
+      .map((s, i) => `--- Slide ${i + 1} (id: ${s.id}, layout: ${s.layout}) ---\n${s.markdown}`)
+      .join('\n\n')
+
+    const result = await this.generate({
+      system: `You are a ruthless senior presentation editor. Review a generated deck and output a corrected version as JSON.${this.sourceSystemRule(sourceContent)}
+
+OUTPUT FORMAT: a valid JSON object, no markdown, no explanation:
+{
+  "title": "Presentation Title",
+  "slides": [ { "id": "same-id", "markdown": "# Title\\n\\ncorrected content", "layout": "default" } ]
+}
+
+FIX, in priority order:
+1. Remove redundant slides and repeated points; merge where two slides say the same thing.
+2. Tighten over-dense slides (7×7 rule) and fix orphan titles with no body.
+3. Sharpen vague headings into specific, outcome-oriented ones.
+4. Ensure each content slide has a clear takeaway; add **Key Takeaway:** where missing.
+5. Fix factual errors and anything not grounded in the source material.
+
+KEEP the same number of slides and their ids. Output the FULL corrected deck (every slide).`,
+      userMessage: `Topic/instructions: ${prompt}\n\nTitle: "${title}"${this.sourceBlock(sourceContent)}\n\nCurrent deck (${slideCount} slides):\n\n${current}\n\nOutput the full corrected deck as a JSON object.`,
+      maxTokens: 16384,
+      signal
+    })
+
+    const parsed = this.extractJSON(result.text)
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && Array.isArray(parsed.slides) && parsed.slides.length > 0) {
+      const cleaned = (parsed.slides as { id?: string; markdown?: string; layout?: string }[]).map((s) => ({
+        id: s.id ?? 'generated',
+        markdown: s.markdown ?? '',
+        layout: s.layout || 'default'
+      }))
+      return { slides: cleaned, title: (parsed as { title?: string }).title || title }
+    }
+
+    console.warn('[generateFullPresentation] Refine pass returned unusable output — keeping the pre-refine slides.')
+    return { slides, title }
+  }
+
+  async generateFullPresentation(
+    prompt: string,
+    title: string,
+    sourceContent: string | null,
+    slideCount: number,
+    onProgress: (status: string, slideIndex: number, total: number) => void,
+    signal?: AbortSignal
+  ): Promise<{ slides: { id: string; markdown: string; layout: string }[]; title: string }> {
+    // Phase 1 — outline (grounded in the source). A failure to outline is not
+    // fatal: the write phase works fine without it.
+    onProgress('Outlining the presentation…', 0, slideCount)
+    const outline = await this.generateOutline(prompt, title, sourceContent, slideCount, signal)
+
+    // Phase 2 — write the slides from the outline.
+    const written = await this.generateSlidesFromOutline(
+      prompt,
+      title,
+      sourceContent,
+      outline,
+      slideCount,
+      onProgress,
+      signal
+    )
+
+    // Phase 3 — critique and one corrective pass.
+    onProgress('Reviewing and refining…', slideCount, slideCount)
+    const refined = await this.refineSlides(prompt, title, sourceContent, written.slides, slideCount, signal)
+
+    onProgress('Generation complete', slideCount, slideCount)
+    return { slides: refined.slides, title: refined.title || written.title || title }
   }
 
   /**
@@ -1033,6 +1315,7 @@ Rules:
     const systemPrompt = `You are Lecta AI, an intelligent assistant embedded in the Lecta presentation app. You help users view, edit, and improve their presentations through natural conversation.
 
 ${DECK_CONTENT_NOTICE}
+${this.brandContext()}
 
 Current presentation context:
 - Title: ${wrapDeckContent('title', snapshot.title)}
@@ -1117,11 +1400,19 @@ IMPORTANT RULES FOR HTML IN MARKDOWN:
     actionMode: 'auto' | 'ask',
     onEvent: (event: ChatStreamEvent) => void,
     confirmAction?: (toolCallId: string, toolName: string, toolInput: unknown) => Promise<boolean>,
+    requestCodeRun?: (slideIndex: number) => Promise<string>,
+    captureSlide?: () => Promise<string>,
     signal?: AbortSignal
   ): Promise<Anthropic.MessageParam[]> {
     const capped = capChatHistory(messages)
     const adapter = await this.getAdapter()
-    const context: ToolExecutionContext = { snapshot, aiService: this, ...(signal ? { signal } : {}) }
+    const context: ToolExecutionContext = {
+      snapshot,
+      aiService: this,
+      ...(signal ? { signal } : {}),
+      ...(requestCodeRun ? { runCode: requestCodeRun } : {}),
+      ...(captureSlide ? { captureSlide } : {})
+    }
 
     const tools: LoopTool[] = getAllTools().map((tool) => ({
       schema: {

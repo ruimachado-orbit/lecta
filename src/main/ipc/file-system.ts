@@ -444,6 +444,15 @@ export function registerFileSystemHandlers(): void {
     return result.filePaths[0]
   })
 
+  ipcMain.handle('fs:select-folder', async (): Promise<string | null> => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openDirectory'],
+      title: 'Select Source Folder'
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+    return result.filePaths[0]
+  })
+
   // Create a new .lecta file (presentation or notebook)
   ipcMain.handle('fs:create-lecta-file', async (_event, name: string, docType?: string): Promise<string | null> => {
     const isNotebook = docType === 'notebook'

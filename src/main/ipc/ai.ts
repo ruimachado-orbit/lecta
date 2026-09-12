@@ -379,6 +379,14 @@ export function registerAiHandlers(): void {
   )
 
   ipcMain.handle(
+    'ai:read-source-folder',
+    async (_event, folderPath: string): Promise<string> => {
+      const { readSourceFolder } = await import('../services/source-ingest')
+      return readSourceFolder(folderPath)
+    }
+  )
+
+  ipcMain.handle(
     'ai:cancel',
     async (event): Promise<void> => {
       // Abort this window's SDK-backed request, then interrupt any Codex turn.

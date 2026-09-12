@@ -285,7 +285,14 @@ export const AGENT_COMMAND_PROMPTS: Partial<Record<SlashCommandName, string>> = 
   explain:
     'Explain the code on the current slide and what its most recent run produced. ' +
     'Use get_slide_content for the code and get_last_output for the output; if there is ' +
-    'no output yet, say so and explain what the code would do.'
+    'no output yet, say so and explain what the code would do.',
+  review:
+    'Review this whole deck and give me an actionable critique. ' +
+    'Call review_deck and present its findings: summarize the overall score, ' +
+    'the narrative issues, and the 3-5 highest-impact fixes.',
+  check:
+    'Look at the current slide and check it for visual/layout problems. ' +
+    'Call check_slide_visuals to screenshot the rendered slide and apply any fixes it finds.'
 }
 
 /** The agent prompt a command expands to, if it is one of those shorthands. */
@@ -338,5 +345,9 @@ export async function runSlashCommand(
       return runExecute()
     case 'explain':
       return { kind: 'agent', prompt: AGENT_COMMAND_PROMPTS.explain as string }
+    case 'review':
+      return { kind: 'agent', prompt: AGENT_COMMAND_PROMPTS.review as string }
+    case 'check':
+      return { kind: 'agent', prompt: AGENT_COMMAND_PROMPTS.check as string }
   }
 }

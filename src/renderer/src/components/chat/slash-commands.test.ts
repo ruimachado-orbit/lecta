@@ -13,6 +13,7 @@ describe('SLASH_COMMANDS metadata', () => {
     expect(SLASH_COMMANDS.map((c) => c.name).sort()).toEqual(
       [
         'chart',
+        'check',
         'code',
         'deck',
         'explain',
@@ -21,6 +22,7 @@ describe('SLASH_COMMANDS metadata', () => {
         'inline',
         'notes',
         'prettify',
+        'review',
         'run',
         'slide'
       ].sort()

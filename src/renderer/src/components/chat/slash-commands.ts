@@ -18,6 +18,8 @@ export type SlashCommandName =
   | 'explain'
   | 'slide'
   | 'deck'
+  | 'review'
+  | 'check'
 
 export interface SlashCommand {
   /** Command word, without the leading slash. */
@@ -89,6 +91,14 @@ export const SLASH_COMMANDS: readonly SlashCommand[] = [
     description: 'Open the deck generator with this prompt',
     argsHint: '<prompt>',
     requiresArgs: true
+  },
+  {
+    name: 'review',
+    description: 'Critique the whole deck — flow, density, consistency'
+  },
+  {
+    name: 'check',
+    description: 'Screenshot the slide and fix layout issues visually'
   }
 ] as const
 

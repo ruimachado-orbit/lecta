@@ -1,10 +1,6 @@
 import { create } from 'zustand'
 import type { ChatStreamEvent, PresentationSnapshot, SlideSnapshot } from '../../../../packages/shared/src/types/chat'
-import {
-  formatRunOutcome,
-  getLastExecution,
-  requestCodeRun
-} from '../components/chat/code-run-bridge'
+import { getLastExecution } from '../components/chat/code-run-bridge'
 import { agentPromptFor, runSlashCommand } from '../components/chat/slash-actions'
 import { parseSlashCommand, type SlashCommandName } from '../components/chat/slash-commands'
 import { usePresentationStore } from './presentation-store'
@@ -229,9 +225,6 @@ function dispatchRendererAction(action: string, params: Record<string, unknown>)
       }
       break
     }
-    case 'runCode':
-      void runCodeForAgent()
-      break
     case 'insertChartInSlide': {
       const idx = params.slideIndex as number
       const svg = params.svg as string
@@ -339,76 +332,6 @@ async function runLocalSlashCommand(
 /* -------------------------------------------------------------------------- */
 /* Running the deck's code for the agent                                       */
 /* -------------------------------------------------------------------------- */
-
-/** Marks the turn that reports a run back to the model, so it is not counted twice. */
-const RUN_RESULT_PREFIX = 'Execution result —'
-
-/**
- * A `run_code` tool call cannot answer the model in the same turn: the run
- * happens in the renderer, after the tool result has already been sent. So the
- * renderer runs the code and, once the turn is idle, reports the output back as
- * one follow-up message. Capped so a model that keeps re-running cannot loop.
- */
-const MAX_AUTO_RUN_FOLLOWUPS = 2
-let autoRunFollowUps = 0
-
-/** Resolves once the given tab is no longer streaming (or has gone away). */
-function whenTabIdle(tabId: string): Promise<void> {
-  return new Promise((resolve) => {
-    let unsubscribe: (() => void) | null = null
-    let done = false
-    const settle = (): void => {
-      if (done) return
-      done = true
-      unsubscribe?.()
-      resolve()
-    }
-    const check = (state: ChatState): void => {
-      const tab = state.tabs.find((t) => t.id === tabId)
-      if (!tab || !tab.isStreaming) settle()
-    }
-    unsubscribe = useChatStore.subscribe(check)
-    check(useChatStore.getState())
-    if (done) unsubscribe()
-  })
-}
-
-/** Append a message to a tab without touching the streaming assistant bubble. */
-function appendMessage(tabId: string, role: 'user' | 'assistant', content: string): void {
-  useChatStore.setState((s) => ({
-    tabs: s.tabs.map((t) =>
-      t.id === tabId
-        ? {
-            ...t,
-            messages: [
-              ...t.messages,
-              { id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, role, content, timestamp: Date.now() }
-            ]
-          }
-        : t
-    )
-  }))
-}
-
-async function runCodeForAgent(): Promise<void> {
-  const tabId = useChatStore.getState().activeTabId
-  if (!tabId) return
-
-  let report: string
-  try {
-    report = formatRunOutcome(await requestCodeRun())
-  } catch (err) {
-    report = `The code could not be run: ${err instanceof Error ? err.message : String(err)}`
-  }
-
-  await whenTabIdle(tabId)
-  if (autoRunFollowUps >= MAX_AUTO_RUN_FOLLOWUPS) {
-    appendMessage(tabId, 'assistant', report)
-    return
-  }
-  autoRunFollowUps += 1
-  await useChatStore.getState().sendMessage(`${RUN_RESULT_PREFIX} ${report}`)
-}
 
 /**
  * Cap on the history sent to the model. The main process caps again, but doing
@@ -574,9 +497,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const state = get()
     const tab = getActiveTab(state)
     if (!tab) return
-
-    // A fresh user message ends the run-report budget of the previous one.
-    if (!rawText.startsWith(RUN_RESULT_PREFIX)) autoRunFollowUps = 0
 
     // A quoted selection (from "Ask AI" on selected text) rides along once.
     const attachment = state.attachment

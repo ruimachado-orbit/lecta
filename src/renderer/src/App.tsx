@@ -3,6 +3,7 @@ import { usePresentationStore } from './stores/presentation-store'
 import { useNotebookStore } from './stores/notebook-store'
 import { useUIStore, COLOR_PALETTES } from './stores/ui-store'
 import { useChatStore } from './stores/chat-store'
+import { installAgentCodeRunHandler } from './components/chat/code-run-bridge'
 import { AppShell } from './components/layout/AppShell'
 import { HomeScreen } from './components/layout/HomeScreen'
 import { AudienceView } from './components/presenter/AudienceView'
@@ -15,6 +16,11 @@ export default function App(): JSX.Element {
   const notebook = useNotebookStore((s) => s.notebook)
   const showFullChat = useChatStore((s) => s.showFullChat)
   const { setTheme, setPalette, setFontSize, checkAiEnabled } = useUIStore()
+
+  // Answer the agent's run_code tool: run the slide's code and report back.
+  useEffect(() => {
+    installAgentCodeRunHandler()
+  }, [])
 
   // Titlebar gutter: only macOS draws window controls over the page content.
   // `platform` comes from the preload bridge when it exposes it; otherwise sniff the UA.

@@ -154,3 +154,29 @@ export function formatRunOutcome(outcome: CodeRunOutcome): string {
   const exit = outcome.exitCode === null ? '' : `, exit ${outcome.exitCode}`
   return `Ran slide ${outcome.slideIndex + 1} (${outcome.language}) — ${outcome.status}${exit}, ${outcome.durationMs}ms\n\n\`\`\`\n${outcome.output}\n\`\`\``
 }
+
+let agentHandlerInstalled = false
+
+/**
+ * Answer the agent's `run_code` tool directly: main sends
+ * `chat:run-code-request` while the tool is executing, and this runs the code
+ * and reports the output back so the model can read it in the same turn.
+ *
+ * Idempotent — install once, wherever the chat surface is first mounted.
+ */
+export function installAgentCodeRunHandler(): void {
+  if (agentHandlerInstalled) return
+  agentHandlerInstalled = true
+
+  window.electronAPI.onChatRunCodeRequest((requestId) => {
+    void (async () => {
+      let report: string
+      try {
+        report = formatRunOutcome(await requestCodeRun())
+      } catch (err) {
+        report = `The code could not be run: ${err instanceof Error ? err.message : String(err)}`
+      }
+      window.electronAPI.reportCodeRunResult(requestId, report)
+    })()
+  })
+}

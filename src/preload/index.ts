@@ -241,6 +241,10 @@ const api = {
     ipcRenderer.invoke('ai:read-source-file', filePath),
   selectFile: (filters?: { name: string; extensions: string[] }[]): Promise<string | null> =>
     ipcRenderer.invoke('fs:select-file', filters),
+  selectFolder: (): Promise<string | null> =>
+    ipcRenderer.invoke('fs:select-folder'),
+  readSourceFolder: (folderPath: string): Promise<string> =>
+    ipcRenderer.invoke('ai:read-source-folder', folderPath),
   streamArticle: (
     deckTitle: string,
     author: string,
@@ -411,6 +415,16 @@ const api = {
   mcpRemoveFromClaude: (): Promise<{ success: boolean; message: string }> =>
     ipcRenderer.invoke('mcp:remove-from-claude'),
 
+  // External MCP servers — live data sources the chat agent can query.
+  mcpListExternalServers: (): Promise<{ name: string; command: string; args?: string[] }[]> =>
+    ipcRenderer.invoke('mcp:list-external-servers'),
+  mcpAddExternalServer: (server: { name: string; command: string; args?: string[] }): Promise<{ success: boolean; message: string }> =>
+    ipcRenderer.invoke('mcp:add-external-server', server),
+  mcpRemoveExternalServer: (name: string): Promise<{ success: boolean; message: string }> =>
+    ipcRenderer.invoke('mcp:remove-external-server', name),
+  mcpTestExternalServer: (server: { name: string; command: string; args?: string[] }): Promise<{ success: boolean; message: string; tools?: string[] }> =>
+    ipcRenderer.invoke('mcp:test-external-server', server),
+
   // Notebook
   loadNotebook: (folderPath: string): Promise<any> =>
     ipcRenderer.invoke('nb:load', folderPath),
@@ -496,6 +510,8 @@ const api = {
     ipcRenderer.invoke('library:get-tag-colors'),
   setTagColor: (tag: string, color: string): Promise<void> =>
     ipcRenderer.invoke('library:set-tag-color', tag, color),
+  librarySearch: (query: string): Promise<{ id: string; type: 'slide' | 'presentation'; title: string; snippet: string; tags: string[]; path?: string; score: number }[]> =>
+    ipcRenderer.invoke('library:search', query),
   deleteFolderWithEntries: (folderId: string, deleteEntries: boolean): Promise<void> =>
     ipcRenderer.invoke('library:delete-folder-with-entries', folderId, deleteEntries),
 
@@ -534,6 +550,19 @@ const api = {
     ipcRenderer.invoke('ai:cancel'),
   chatConfirmAction: (toolCallId: string, approved: boolean): Promise<void> =>
     ipcRenderer.invoke('chat:confirm-action', toolCallId, approved),
+
+  // run_code agent tool: main asks the renderer to run the slide's code and
+  // report the output back in the same turn.
+  onChatRunCodeRequest: (
+    callback: (requestId: string, slideIndex: number) => void
+  ): (() => void) =>
+    subscribe('chat:run-code-request', (payload) => {
+      const { requestId, slideIndex } = payload as { requestId: string; slideIndex: number }
+      callback(requestId, slideIndex)
+    }),
+  reportCodeRunResult: (requestId: string, result: string): void => {
+    ipcRenderer.send('chat:report-code-run-result', requestId, result)
+  },
 
   // Window management
   newWindow: (): Promise<void> =>

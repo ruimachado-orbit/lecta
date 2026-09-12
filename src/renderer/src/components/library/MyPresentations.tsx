@@ -82,6 +82,9 @@ export function MyPresentations({ onBack }: { onBack: () => void }): JSX.Element
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [allTags, setAllTags] = useState<string[]>([])
+  const [searchResults, setSearchResults] = useState<
+    { id: string; type: 'slide' | 'presentation'; title: string; snippet: string; tags: string[]; path?: string; score: number }[]
+  >([])
 
   // Context menu
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; entry?: LibraryEntry; folder?: LibraryFolder } | null>(null)
@@ -116,6 +119,26 @@ export function MyPresentations({ onBack }: { onBack: () => void }): JSX.Element
   }, [])
 
   useEffect(() => { refresh() }, [refresh])
+
+  // Semantic search: query the slide library + presentation library by meaning,
+  // debounced so typing does not flood the IPC channel.
+  useEffect(() => {
+    const q = search.trim()
+    if (q.length < 2) {
+      setSearchResults([])
+      return
+    }
+    let cancelled = false
+    const timer = setTimeout(() => {
+      window.electronAPI.librarySearch(q).then((results) => {
+        if (!cancelled) setSearchResults(results)
+      })
+    }, 150)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [search])
 
   useEffect(() => {
     if (!contextMenu) return
@@ -452,6 +475,37 @@ export function MyPresentations({ onBack }: { onBack: () => void }): JSX.Element
 
           {/* Grid */}
           <div className="flex-1 overflow-y-auto px-4 pb-6">
+            {search.trim().length >= 2 && (
+              <div className="mb-3 space-y-1.5">
+                {searchResults.length === 0 ? (
+                  <p className="text-xs text-gray-600 py-2">No matches for "{search.trim()}".</p>
+                ) : (
+                  <>
+                    <p className="text-[10px] uppercase tracking-wider text-gray-500">Search results</p>
+                    {searchResults.map((r) => (
+                      <div
+                        key={`${r.type}-${r.id}`}
+                        onClick={() => { if (r.type === 'presentation' && r.path) { void window.electronAPI.openLectaPath(r.path.endsWith('.lecta') ? r.path : r.path).then((p) => loadPresentation(p)) } }}
+                        className={`w-full text-left px-3 py-2 rounded-lg border border-gray-800 bg-gray-900 transition-colors ${
+                          r.type === 'presentation' && r.path ? 'cursor-pointer hover:border-gray-600' : ''
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[9px] px-1.5 py-0.5 rounded-full flex-shrink-0 ${
+                            r.type === 'slide' ? 'bg-indigo-500/20 text-indigo-300' : 'bg-green-500/20 text-green-300'
+                          }`}>
+                            {r.type === 'slide' ? 'Slide' : 'Deck'}
+                          </span>
+                          <span className="text-xs font-medium text-gray-200 truncate">{r.title || '(untitled)'}</span>
+                          <span className="text-[10px] text-gray-600 ml-auto flex-shrink-0">{r.score.toFixed(1)}</span>
+                        </div>
+                        {r.snippet && <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-2">{r.snippet}</p>}
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+            )}
             {filtered.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-gray-600">
                 <svg className="w-12 h-12 mb-3 opacity-30" fill="none" viewBox="0 0 24 24" strokeWidth={1} stroke="currentColor">

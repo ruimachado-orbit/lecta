@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useChatStore } from '../../stores/chat-store'
 import { usePresentationStore } from '../../stores/presentation-store'
 import { useUIStore } from '../../stores/ui-store'
+import { useSpeechRecognition } from '../../hooks/useSpeechRecognition'
 import { ModelSelector } from '../ai/ModelSelector'
 import {
   completeSlashCommand,
@@ -93,6 +94,27 @@ export function ChatComposer({ compact = false }: { compact?: boolean }): JSX.El
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const [highlight, setHighlight] = useState(0)
   const [dismissed, setDismissed] = useState(false)
+
+  // Voice dictation: transcribe speech into the composer, prefixed with whatever
+  // was already typed when the mic was pressed.
+  const speech = useSpeechRecognition()
+  const dictationBaseRef = useRef('')
+
+  useEffect(() => {
+    if (!speech.listening) return
+    const base = dictationBaseRef.current
+    const addition = speech.transcript.trim()
+    setDraft(addition ? (base ? `${base} ${addition}` : addition) : base)
+  }, [speech.transcript, speech.listening, setDraft])
+
+  const toggleDictation = (): void => {
+    if (speech.listening) {
+      speech.stop()
+    } else {
+      dictationBaseRef.current = draft
+      speech.start()
+    }
+  }
 
   const query = slashAutocompleteQuery(draft)
   const matches = useMemo(() => (query === null ? [] : matchSlashCommands(query)), [query])
@@ -276,17 +298,34 @@ export function ChatComposer({ compact = false }: { compact?: boolean }): JSX.El
                 </svg>
               </button>
             ) : (
-              <button
-                onClick={handleSend}
-                disabled={!draft.trim() || isDisabled}
-                className={`${compact ? 'w-8 h-8 rounded-lg' : 'w-9 h-9 rounded-full'} bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800 disabled:text-gray-600 text-white flex items-center justify-center transition-colors flex-shrink-0`}
-                title="Send"
-                aria-label="Send"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
-                </svg>
-              </button>
+              <>
+                {speech.supported && (
+                  <button
+                    onClick={toggleDictation}
+                    className={`${compact ? 'w-8 h-8 rounded-lg' : 'w-9 h-9 rounded-full'} flex items-center justify-center transition-colors flex-shrink-0 ${
+                      speech.listening ? 'bg-red-600 hover:bg-red-500 text-white' : 'bg-gray-800 hover:bg-gray-700 text-gray-300'
+                    }`}
+                    title={speech.listening ? 'Stop dictation' : 'Dictate — speak to type'}
+                    aria-label={speech.listening ? 'Stop dictation' : 'Start dictation'}
+                    aria-pressed={speech.listening}
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" />
+                    </svg>
+                  </button>
+                )}
+                <button
+                  onClick={handleSend}
+                  disabled={!draft.trim() || isDisabled}
+                  className={`${compact ? 'w-8 h-8 rounded-lg' : 'w-9 h-9 rounded-full'} bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800 disabled:text-gray-600 text-white flex items-center justify-center transition-colors flex-shrink-0`}
+                  title="Send"
+                  aria-label="Send"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+                  </svg>
+                </button>
+              </>
             )}
           </div>
         </div>

@@ -13,6 +13,7 @@ import { WebPanel } from '../web/WebPanel'
 import { VideoPanel } from '../video/VideoPanel'
 import { Popover } from '../common/Popover'
 import { useSubSlides } from '../../hooks/useSubSlides'
+import { summarizeSlideTimes, formatDuration, type RehearsalSummary } from './rehearsal'
 
 type ArtifactType = 'code' | 'video' | 'webapp' | 'artifact'
 
@@ -78,6 +79,15 @@ export function PresenterView(): JSX.Element {
   const [audienceOpen, setAudienceOpen] = useState(false)
   const timerRef = useRef<ReturnType<typeof setInterval>>(null)
 
+  // Rehearsal: teleprompter + per-slide timing + delivery summary
+  const [teleprompt, setTeleprompt] = useState(false)
+  const [telepromptSpeed, setTelepromptSpeed] = useState(28)
+  const notesRef = useRef<HTMLDivElement>(null)
+  const [rehearsing, setRehearsing] = useState(false)
+  const [slideTimes, setSlideTimes] = useState<number[]>([])
+  const currentIdxRef = useRef(currentSlideIndex)
+  currentIdxRef.current = currentSlideIndex
+
   // Listen for audience window being closed externally
   useEffect(() => {
     if (typeof window.electronAPI.onPresenterAudienceClosed === 'function') {
@@ -96,6 +106,41 @@ export function PresenterView(): JSX.Element {
     }
     return () => { if (timerRef.current) clearInterval(timerRef.current) }
   }, [timerRunning])
+
+  // Rehearsal per-slide clock: ticks the current slide's seconds once a second.
+  useEffect(() => {
+    if (!rehearsing) return
+    const id = setInterval(() => {
+      setSlideTimes((prev) => {
+        const next = [...prev]
+        const idx = currentIdxRef.current
+        if (idx >= 0 && idx < next.length) next[idx] = (next[idx] ?? 0) + 1
+        return next
+      })
+    }, 1000)
+    return () => clearInterval(id)
+  }, [rehearsing])
+
+  // Teleprompter: auto-scroll the speaker notes at a steady pace.
+  useEffect(() => {
+    if (!teleprompt) return
+    const id = setInterval(() => {
+      const el = notesRef.current
+      if (el && el.scrollTop + el.clientHeight < el.scrollHeight) {
+        el.scrollTop += telepromptSpeed / 10
+      }
+    }, 100)
+    return () => clearInterval(id)
+  }, [teleprompt, telepromptSpeed])
+
+  const startRehearsal = (): void => {
+    setSlideTimes(new Array(slides.length).fill(0))
+    setRehearsing(true)
+  }
+  const stopRehearsal = (): void => setRehearsing(false)
+  const rehearsalSummary = rehearsing
+    ? summarizeSlideTimes(slideTimes, currentSlideIndex)
+    : null
 
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60)
@@ -325,6 +370,17 @@ export function PresenterView(): JSX.Element {
             {audienceOpen ? 'Audience On' : 'Audience'}
           </button>
           <RemoteControlButton />
+          <button onClick={() => { void (rehearsing ? stopRehearsal() : startRehearsal()) }}
+            className={`px-2 py-1 text-[11px] rounded transition-colors flex items-center gap-1.5 ${
+              rehearsing ? 'bg-white text-black' : 'bg-gray-800 text-gray-200 hover:bg-gray-700 hover:text-white'
+            }`}
+            title={rehearsing ? 'Stop rehearsal and show the summary' : 'Rehearse — track time per slide'}
+            aria-label={rehearsing ? 'Stop rehearsal' : 'Start rehearsal'}>
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" />
+            </svg>
+            {rehearsing ? 'Rehearsing' : 'Rehearse'}
+          </button>
           <button onClick={endPresentation}
             title="End the presentation (Esc)" aria-label="End the presentation (Esc)"
             className="px-3 py-1 text-xs bg-red-600 hover:bg-red-500 text-white rounded font-medium transition-colors">
@@ -462,8 +518,30 @@ export function PresenterView(): JSX.Element {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
               </svg>
               <span className="text-[11px] text-gray-500 uppercase tracking-wider font-medium">Speaker Notes</span>
+              <div className="flex-1" />
+              {/* Teleprompter */}
+              <button
+                onClick={() => setTeleprompt((v) => !v)}
+                className={`px-1.5 py-0.5 text-[10px] rounded transition-colors ${
+                  teleprompt ? 'bg-white text-black' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
+                }`}
+                title="Auto-scroll notes like a teleprompter"
+                aria-label="Toggle teleprompter auto-scroll"
+                aria-pressed={teleprompt}
+              >
+                Auto-scroll
+              </button>
+              {teleprompt && (
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setTelepromptSpeed((s) => Math.max(8, s - 5))}
+                    className="px-1 text-[10px] text-gray-400 hover:text-gray-200" title="Slower">−</button>
+                  <span className="text-[10px] text-gray-500 font-mono">{telepromptSpeed}</span>
+                  <button onClick={() => setTelepromptSpeed((s) => Math.min(80, s + 5))}
+                    className="px-1 text-[10px] text-gray-400 hover:text-gray-200" title="Faster">+</button>
+                </div>
+              )}
             </div>
-            <div className="flex-1 min-h-0 overflow-y-auto px-5 pb-4 pt-3">
+            <div ref={notesRef} className="flex-1 min-h-0 overflow-y-auto px-5 pb-4 pt-3">
               {currentSlide?.notesContent ? (
                 <p className="text-gray-200 text-lg leading-relaxed whitespace-pre-wrap">{currentSlide.notesContent}</p>
               ) : (
@@ -506,25 +584,31 @@ export function PresenterView(): JSX.Element {
           </Panel>
           <PanelResizeHandle className="h-1.5 bg-gray-800 hover:bg-indigo-500 transition-colors cursor-row-resize" />
           <Panel defaultSize={25} minSize={10}>
-          {/* Timer + clock */}
+          {/* Timer + clock (+ rehearsal summary while rehearsing) */}
           <div className="h-full flex flex-col items-center justify-center px-4">
-            <button
-              onClick={() => setTimerRunning(!timerRunning)}
-              className="text-white font-mono text-4xl font-bold tracking-wider hover:text-gray-300 transition-colors cursor-pointer"
-              title={timerRunning ? 'Pause timer' : 'Resume timer'}
-              aria-label={timerRunning ? 'Pause timer' : 'Resume timer'}
-            >
-              {formatTime(timer)}
-            </button>
-            <div className="text-gray-500 text-xs font-mono mt-2">
-              <CurrentTime />
-            </div>
-            <button
-              onClick={() => { setTimer(0); setTimerRunning(true) }}
-              className="mt-2 text-[11px] text-gray-400 hover:text-gray-400 uppercase tracking-wider transition-colors"
-            >
-              Reset
-            </button>
+            {rehearsalSummary ? (
+              <RehearsalSummaryPanel summary={rehearsalSummary} />
+            ) : (
+              <>
+                <button
+                  onClick={() => setTimerRunning(!timerRunning)}
+                  className="text-white font-mono text-4xl font-bold tracking-wider hover:text-gray-300 transition-colors cursor-pointer"
+                  title={timerRunning ? 'Pause timer' : 'Resume timer'}
+                  aria-label={timerRunning ? 'Pause timer' : 'Resume timer'}
+                >
+                  {formatTime(timer)}
+                </button>
+                <div className="text-gray-500 text-xs font-mono mt-2">
+                  <CurrentTime />
+                </div>
+                <button
+                  onClick={() => { setTimer(0); setTimerRunning(true) }}
+                  className="mt-2 text-[11px] text-gray-400 hover:text-gray-400 uppercase tracking-wider transition-colors"
+                >
+                  Reset
+                </button>
+              </>
+            )}
           </div>
           </Panel>
           <PanelResizeHandle className="h-1.5 bg-gray-800 hover:bg-indigo-500 transition-colors cursor-row-resize" />
@@ -833,8 +917,32 @@ function RemoteControlButton(): JSX.Element {
   )
 }
 
-function CurrentTime(): JSX.Element {
-  const [now, setNow] = useState(new Date())
+function RehearsalSummaryPanel({ summary }: { summary: RehearsalSummary }): JSX.Element {
+  return (
+    <div className="w-full flex flex-col gap-1.5">
+      <div className="text-center">
+        <div className="text-white font-mono text-2xl font-bold">{formatDuration(summary.totalSeconds)}</div>
+        <div className="text-gray-500 text-[10px] uppercase tracking-wider">Total</div>
+      </div>
+      <div className="text-gray-400 text-[10px] text-center">
+        avg {Math.round(summary.averageSeconds)}s / slide
+        {summary.slowestSlide !== null && (
+          <> · slowest slide {summary.slowestSlide + 1}</>
+        )}
+      </div>
+      <div className="max-h-24 overflow-y-auto text-[10px] font-mono text-gray-400 space-y-0.5">
+        {summary.perSlide.map((sec, i) => (
+          <div key={i} className="flex justify-between">
+            <span>Slide {i + 1}</span>
+            <span className={sec > summary.averageSeconds * 1.5 && sec > 0 ? 'text-amber-400' : ''}>{formatDuration(sec)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function CurrentTime(): JSX.Element {  const [now, setNow] = useState(new Date())
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000)
     return () => clearInterval(id)

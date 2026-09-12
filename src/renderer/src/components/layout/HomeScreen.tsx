@@ -163,7 +163,7 @@ export function HomeScreen(): JSX.Element {
             style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontStyle: 'italic', fontWeight: 700 }}
           >
             lecta
-            <sup className="text-[11px] font-sans not-italic font-semibold tracking-widest uppercase ml-1.5 align-super bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-400 bg-clip-text text-transparent">beta</sup>
+            <sup className="text-[11px] font-sans not-italic font-semibold tracking-widest uppercase ml-1.5 align-super bg-gradient-to-r from-signal-400 via-signal-500 to-ice-400 bg-clip-text text-transparent">beta</sup>
           </h1>
         </div>
 
@@ -194,9 +194,9 @@ export function HomeScreen(): JSX.Element {
             <button
               onClick={() => setShowCreate(true)}
               aria-expanded={showCreate}
-              className="flex-1 py-2.5 px-4 bg-gray-900 hover:bg-gray-800
-                         text-gray-200 font-medium rounded-full transition-colors text-sm
-                         flex items-center justify-center gap-2 border border-gray-700"
+              className="flex-1 py-2.5 px-4 bg-signal-500 hover:bg-signal-400
+                         text-ink-950 font-semibold rounded-full transition-colors text-sm
+                         flex items-center justify-center gap-2 shadow-glow"
             >
               <PlusIcon />
               New
@@ -277,8 +277,8 @@ export function HomeScreen(): JSX.Element {
                   className="flex-1 px-3 py-2 bg-gray-900 text-white text-sm rounded-full border border-gray-700
                              focus:border-gray-900 focus:outline-none placeholder-gray-400" />
                 <button onClick={handleCreateLecta} disabled={!newName.trim()}
-                  className="px-4 py-2 bg-gray-900 hover:bg-gray-800 disabled:opacity-30
-                             text-white text-sm font-medium rounded-full transition-colors">
+                  className="px-4 py-2 bg-signal-500 hover:bg-signal-400 disabled:opacity-30
+                             text-ink-950 text-sm font-semibold rounded-full transition-colors">
                   Create
                 </button>
               </div>
@@ -540,6 +540,8 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
   const [slideCount, setSlideCount] = useState(10)
   const [sourceFile, setSourceFile] = useState<string | null>(null)
   const [sourceFileName, setSourceFileName] = useState<string | null>(null)
+  const [sourceFolder, setSourceFolder] = useState<string | null>(null)
+  const [sourceFolderName, setSourceFolderName] = useState<string | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [progress, setProgress] = useState<{ status: string; slideIndex: number; total: number } | null>(null)
   const [genError, setGenError] = useState<string | null>(null)
@@ -560,19 +562,31 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
     }
   }, [])
 
+  const handleSelectFolder = useCallback(async () => {
+    const folderPath = await window.electronAPI.selectFolder()
+    if (folderPath) {
+      setSourceFolder(folderPath)
+      setSourceFolderName(folderPath.split('/').pop() || folderPath)
+    }
+  }, [])
+
   const handleGenerate = useCallback(async () => {
-    if (!prompt.trim() && !sourceFile) return
+    if (!prompt.trim() && !sourceFile && !sourceFolder) return
 
     setIsGenerating(true)
     setGenError(null)
     setProgress({ status: 'Preparing...', slideIndex: 0, total: slideCount })
 
     try {
-      // Read source file content if provided
-      let sourceContent: string | null = null
+      // Read source content: a file, a folder, or both combined.
+      const sourceParts: string[] = []
       if (sourceFile) {
-        sourceContent = await window.electronAPI.readSourceFile(sourceFile)
+        sourceParts.push(await window.electronAPI.readSourceFile(sourceFile))
       }
+      if (sourceFolder) {
+        sourceParts.push(await window.electronAPI.readSourceFolder(sourceFolder))
+      }
+      const sourceContent = sourceParts.length > 0 ? sourceParts.join('\n\n') : null
 
       const finalTitle = title.trim() || prompt.trim().slice(0, 60)
 
@@ -616,7 +630,7 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
       setGenError((err as Error).message)
       setIsGenerating(false)
     }
-  }, [prompt, title, slideCount, sourceFile, onGenerated])
+  }, [prompt, title, slideCount, sourceFile, sourceFolder, onGenerated])
 
   return (
     <div className="h-screen flex flex-col bg-gray-950 text-white" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
@@ -722,6 +736,40 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
                 </svg>
                 Choose file...
+              </button>
+            )}
+          </div>
+
+          {/* Source folder */}
+          <div>
+            <label className="text-sm text-gray-300 block mb-1.5">Source folder (optional)</label>
+            <p className="text-[11px] text-gray-400 mb-2">Point at a project or repo — Lecta reads the text files and grounds the deck in them.</p>
+            {sourceFolder ? (
+              <div className="flex items-center gap-2 px-3 py-2 bg-gray-900 rounded-lg border border-gray-700">
+                <svg className="w-4 h-4 text-indigo-400 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
+                </svg>
+                <span className="text-sm text-gray-300 truncate flex-1">{sourceFolderName}</span>
+                <button onClick={() => { setSourceFolder(null); setSourceFolderName(null) }}
+                  disabled={isGenerating}
+                  className="p-0.5 rounded hover:bg-gray-800 text-gray-500 hover:text-gray-300 disabled:opacity-30">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={handleSelectFolder}
+                disabled={isGenerating}
+                className="w-full px-3 py-3 bg-gray-900 hover:bg-gray-800 text-gray-500 hover:text-gray-300
+                           text-sm rounded-lg border border-dashed border-gray-700 hover:border-gray-500
+                           transition-colors flex items-center justify-center gap-2 disabled:opacity-30"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
+                </svg>
+                Choose folder...
               </button>
             )}
           </div>
@@ -918,6 +966,13 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
   const [mcpRunning, setMcpRunning] = useState(false)
   const [mcpInClaude, setMcpInClaude] = useState(false)
   const [mcpMessage, setMcpMessage] = useState<string | null>(null)
+  const [brandName, setBrandName] = useState('')
+  const [brandVoice, setBrandVoice] = useState('')
+  const [externalServers, setExternalServers] = useState<{ name: string; command: string; args?: string[] }[]>([])
+  const [dsName, setDsName] = useState('')
+  const [dsCommand, setDsCommand] = useState('')
+  const [dsArgs, setDsArgs] = useState('')
+  const [dsMessage, setDsMessage] = useState<string | null>(null)
 
   useEffect(() => {
     window.electronAPI.mcpStatus().then((status: { enabled: boolean; running: boolean; inClaudeDesktop: boolean }) => {
@@ -925,7 +980,31 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
       setMcpRunning(status.running)
       setMcpInClaude(status.inClaudeDesktop)
     })
+    window.electronAPI.mcpListExternalServers().then((servers) => setExternalServers(servers))
   }, [])
+
+  const handleAddDataSource = async () => {
+    setDsMessage(null)
+    if (!dsName.trim() || !dsCommand.trim()) {
+      setDsMessage('A data source needs both a name and a command.')
+      return
+    }
+    const args = dsArgs.trim() ? dsArgs.trim().split(/\s+/) : undefined
+    const server = { name: dsName.trim(), command: dsCommand.trim(), args }
+    const res = await window.electronAPI.mcpTestExternalServer(server)
+    if (!res.success) {
+      setDsMessage(`Could not connect: ${res.message}`)
+      return
+    }
+    const added = await window.electronAPI.mcpAddExternalServer(server)
+    setDsMessage(added.success ? `Connected — ${(res.tools ?? []).length} tools available.` : added.message)
+    if (added.success) {
+      setExternalServers(await window.electronAPI.mcpListExternalServers())
+      setDsName('')
+      setDsCommand('')
+      setDsArgs('')
+    }
+  }
 
   useEffect(() => {
     window.electronAPI.getAppSettings().then((settings: Record<string, unknown>) => {
@@ -939,6 +1018,8 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
       setOpenaiAuthMode(settings.openaiAuthMode === 'codex' ? 'codex' : 'apiKey')
       setExperimentalNotebook(settings.experimentalNotebook === true)
       setCodexBinPath(typeof settings.codexBinPath === 'string' ? settings.codexBinPath : '')
+      setBrandName(typeof settings.brandName === 'string' ? settings.brandName : '')
+      setBrandVoice(typeof settings.brandVoice === 'string' ? settings.brandVoice : '')
       // Load configured-key flags (settings:get redacts secrets and returns configuredKeys booleans)
       const flags = (settings.configuredKeys as Record<string, boolean> | undefined) ?? {}
       const loaded: Record<string, boolean> = {}
@@ -965,7 +1046,9 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
       palette: palette.name,
       aiModel,
       openaiAuthMode,
-      codexBinPath
+      codexBinPath,
+      brandName,
+      brandVoice
     })
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
@@ -1320,6 +1403,36 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
             />
           </section>
 
+          {/* Brand kit */}
+          <section>
+            <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-4">Brand Kit</h3>
+            <p className="text-[11px] text-gray-400 mb-3">
+              The AI assistant applies this to every deck, slide and article it writes — no need to restate your brand.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm text-gray-300 block mb-1.5">Brand / company name</label>
+                <input
+                  type="text"
+                  value={brandName}
+                  onChange={(e) => setBrandName(e.target.value)}
+                  placeholder="e.g. Acme Labs"
+                  className="w-full px-3 py-2 bg-gray-900 text-gray-300 text-sm rounded-lg border border-gray-700 focus:border-indigo-500 focus:outline-none placeholder-gray-500"
+                />
+              </div>
+              <div>
+                <label className="text-sm text-gray-300 block mb-1.5">Voice and tone</label>
+                <textarea
+                  value={brandVoice}
+                  onChange={(e) => setBrandVoice(e.target.value)}
+                  placeholder="e.g. Direct and technical, minimal jargon, data-first, optimistic but honest"
+                  rows={2}
+                  className="w-full px-3 py-2 bg-gray-900 text-gray-300 text-sm rounded-lg border border-gray-700 focus:border-indigo-500 focus:outline-none placeholder-gray-500 resize-none"
+                />
+              </div>
+            </div>
+          </section>
+
           {/* Claude Integration (MCP) */}
           <section>
             <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-4">Claude Integration</h3>
@@ -1381,6 +1494,74 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
                   <p className="text-[11px] text-gray-400 mt-1">Writes the Lecta MCP config to Claude Desktop so you can create slides from Claude.</p>
                 )}
               </div>
+            </div>
+          </section>
+
+          {/* Data Sources (external MCP servers for the AI agent) */}
+          <section>
+            <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-4">Data Sources</h3>
+            <p className="text-[11px] text-gray-400 mb-3">
+              Connect MCP servers (a database, Notion, a company API…) so the AI assistant can pull live data into your slides.
+              The command runs locally, same as Claude Desktop.
+            </p>
+
+            {externalServers.length > 0 && (
+              <div className="space-y-2 mb-3">
+                {externalServers.map((srv) => (
+                  <div key={srv.name} className="flex items-center gap-2 px-3 py-2 bg-gray-900 rounded-lg border border-gray-700">
+                    <svg className="w-4 h-4 text-indigo-400 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 5.625c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
+                    </svg>
+                    <span className="text-sm text-gray-300 flex-1 truncate">{srv.name}</span>
+                    <span className="text-[11px] text-gray-500 truncate max-w-[180px]">{srv.command}</span>
+                    <button
+                      onClick={async () => {
+                        const res = await window.electronAPI.mcpRemoveExternalServer(srv.name)
+                        setDsMessage(res.message)
+                        if (res.success) setExternalServers(await window.electronAPI.mcpListExternalServers())
+                      }}
+                      className="p-1 rounded hover:bg-gray-800 text-gray-500 hover:text-red-400 shrink-0"
+                      title={`Remove ${srv.name}`}
+                      aria-label={`Remove ${srv.name}`}
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <input
+                type="text"
+                value={dsName}
+                onChange={(e) => setDsName(e.target.value)}
+                placeholder="Name (e.g. company-db)"
+                className="w-full px-3 py-2 bg-gray-900 text-gray-300 text-sm rounded-lg border border-gray-700 focus:border-indigo-500 focus:outline-none placeholder-gray-500"
+              />
+              <input
+                type="text"
+                value={dsCommand}
+                onChange={(e) => setDsCommand(e.target.value)}
+                placeholder="Command (e.g. npx -y @modelcontextprotocol/server-postgres)"
+                className="w-full px-3 py-2 bg-gray-900 text-gray-300 text-sm rounded-lg border border-gray-700 focus:border-indigo-500 focus:outline-none placeholder-gray-500"
+              />
+              <input
+                type="text"
+                value={dsArgs}
+                onChange={(e) => setDsArgs(e.target.value)}
+                placeholder="Arguments (optional, space-separated)"
+                className="w-full px-3 py-2 bg-gray-900 text-gray-300 text-sm rounded-lg border border-gray-700 focus:border-indigo-500 focus:outline-none placeholder-gray-500"
+              />
+              <button
+                onClick={handleAddDataSource}
+                className="w-full py-2 rounded-lg text-sm font-medium bg-gray-800 text-white hover:bg-gray-700 border border-gray-700 transition-colors"
+              >
+                Connect data source
+              </button>
+              {dsMessage && <p className="text-[11px] text-gray-500">{dsMessage}</p>}
             </div>
           </section>
 

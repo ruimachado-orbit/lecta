@@ -823,10 +823,25 @@ RULES:
     })
 
     const parsed = this.extractJSON(result.text)
-    if (Array.isArray(parsed) && parsed.length > 0) return parsed as { id: string; title: string; layout: string; keyPoints: string[] }[]
-    const obj = parsed as { slides?: { id: string; title: string; layout: string; keyPoints: string[] }[] } | null
-    if (obj && Array.isArray(obj.slides) && obj.slides.length > 0) return obj.slides
-    return null
+    const rawSlides = Array.isArray(parsed)
+      ? parsed
+      : parsed && Array.isArray((parsed as { slides?: unknown[] }).slides)
+        ? (parsed as { slides: unknown[] }).slides
+        : null
+    if (!rawSlides || rawSlides.length === 0) return null
+
+    // Sanitize: a local model may return key_points as a string, or omit fields.
+    return rawSlides.map((s) => {
+      const o = (s && typeof s === 'object' ? s : {}) as Record<string, unknown>
+      return {
+        id: typeof o.id === 'string' && o.id ? o.id : 'generated',
+        title: typeof o.title === 'string' ? o.title : 'Slide',
+        layout: typeof o.layout === 'string' ? o.layout : 'default',
+        keyPoints: Array.isArray(o.keyPoints)
+          ? o.keyPoints.filter((k): k is string => typeof k === 'string')
+          : []
+      }
+    })
   }
 
   /** The write-phase system prompt (moved out of the orchestrator). */
@@ -1036,12 +1051,19 @@ KEEP the same number of slides and their ids. Output the FULL corrected deck (ev
     onProgress: (status: string, slideIndex: number, total: number) => void,
     signal?: AbortSignal
   ): Promise<{ slides: { id: string; markdown: string; layout: string }[]; title: string }> {
-    // Phase 1 — outline (grounded in the source). A failure to outline is not
-    // fatal: the write phase works fine without it.
-    onProgress('Outlining the presentation…', 0, slideCount)
-    const outline = await this.generateOutline(prompt, title, sourceContent, slideCount, signal)
+    // Phase 1 — outline (optional). A failure here must not kill generation:
+    // the write phase produces a full deck without an outline.
+    let outline: { id: string; title: string; layout: string; keyPoints: string[] }[] | null = null
+    try {
+      onProgress('Outlining the presentation…', 0, slideCount)
+      outline = await this.generateOutline(prompt, title, sourceContent, slideCount, signal)
+    } catch (err) {
+      console.warn('[generateFullPresentation] outline step failed; writing slides without it:', (err as Error).message)
+    }
 
-    // Phase 2 — write the slides from the outline.
+    // Phase 2 — write the slides from the outline. This is the required step;
+    // provider errors still propagate so a failed request never becomes an
+    // empty deck.
     const written = await this.generateSlidesFromOutline(
       prompt,
       title,
@@ -1052,9 +1074,15 @@ KEEP the same number of slides and their ids. Output the FULL corrected deck (ev
       signal
     )
 
-    // Phase 3 — critique and one corrective pass.
-    onProgress('Reviewing and refining…', slideCount, slideCount)
-    const refined = await this.refineSlides(prompt, title, sourceContent, written.slides, slideCount, signal)
+    // Phase 3 — critique + one corrective pass (optional). Fall back to the
+    // already-generated slides if this fails.
+    let refined = written
+    try {
+      onProgress('Reviewing and refining…', slideCount, slideCount)
+      refined = await this.refineSlides(prompt, title, sourceContent, written.slides, slideCount, signal)
+    } catch (err) {
+      console.warn('[generateFullPresentation] refine step failed; keeping the generated slides:', (err as Error).message)
+    }
 
     onProgress('Generation complete', slideCount, slideCount)
     return { slides: refined.slides, title: refined.title || written.title || title }

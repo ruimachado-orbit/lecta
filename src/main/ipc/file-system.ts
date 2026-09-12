@@ -470,6 +470,10 @@ export function registerFileSystemHandlers(): void {
     const lectaFilePath = result.filePath
     const workspaceDir = await createLectaFile(lectaFilePath, name, isNotebook ? 'notebook' : 'presentation')
     registerWorkspace(workspaceDir, lectaFilePath)
+    // `createLectaFile` writes a valid lecta.yaml, so the workspace is a real
+    // deck immediately — register it so fs:* (e.g. add-bulk-slides from the
+    // AI generate flow) can mutate it before the renderer loads it.
+    registerDeckRoot(workspaceDir)
     return workspaceDir
   })
 

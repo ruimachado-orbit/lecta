@@ -108,15 +108,17 @@ export function FormatPanel({
       {selectedCount > 1 && (
         <p className="text-[11px] text-indigo-300">{selectedCount} blocks selected — ⌫ deletes all.</p>
       )}
-      {sectionLabel && selectedCount <= 1 && (
+      {sectionLabel && (
         <div className="space-y-1">
-          <button
-            onClick={onSelectSection}
-            title="Select the whole section"
-            className="w-full rounded-md bg-gray-800 px-2 py-1.5 text-left text-[11px] text-gray-300 transition-colors hover:bg-gray-700"
-          >
-            § {sectionLabel} — select all
-          </button>
+          {selectedCount <= 1 && (
+            <button
+              onClick={onSelectSection}
+              title="Select the whole section"
+              className="w-full rounded-md bg-gray-800 px-2 py-1.5 text-left text-[11px] text-gray-300 transition-colors hover:bg-gray-700"
+            >
+              § {sectionLabel} — select all
+            </button>
+          )}
           <div className="grid grid-cols-2 gap-1">
             <FmtBtn onClick={onAddSectionBefore} title="Add section before this one">+↑ Section</FmtBtn>
             <FmtBtn onClick={onAddSectionAfter} title="Add section after this one">+↓ Section</FmtBtn>

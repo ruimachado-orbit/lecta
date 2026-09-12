@@ -6,7 +6,7 @@ import { ContentRenderer } from './ContentRenderer'
 import { prefetchMdx } from './MdxRenderer'
 import { SlideNavigator } from './SlideNavigator'
 import { SlideEditToolbar } from './SlideEditToolbar'
-import { WysiwygEditor } from './WysiwygEditor'
+import { SubSlideEditor } from './SubSlideEditor'
 import { AIGeneratePanel, AIImproveBar, AIChangeBar } from './AISlidePanel'
 import { ArtifactBar } from '../artifacts/ArtifactBar'
 import { useSubSlides } from '../../hooks/useSubSlides'
@@ -240,24 +240,24 @@ export function SlidePanel(): JSX.Element {
           <div className="h-7 bg-gray-900 border-b border-gray-800 flex items-center px-3 gap-2">
             <button
               onClick={() => { setEditorMode('wysiwyg'); setDrawingMode(false); setShowMarkdown(false) }}
-              className={`text-[10px] px-2 py-0.5 rounded transition-colors ${
-                editorMode === 'wysiwyg' && !drawingMode ? 'bg-white text-black' : 'text-gray-500 hover:text-gray-300'
+              className={`text-[10px] px-2 py-0.5 rounded transition-colors font-medium ${
+                editorMode === 'wysiwyg' && !drawingMode ? 'bg-signal-500 text-ink-950' : 'text-gray-500 hover:text-gray-300'
               }`}
             >
-              Visual
+              Preview
             </button>
             <button
               onClick={() => { setEditorMode('markdown'); setDrawingMode(false) }}
-              className={`text-[10px] px-2 py-0.5 rounded transition-colors ${
-                editorMode === 'markdown' && !drawingMode ? 'bg-white text-black' : 'text-gray-500 hover:text-gray-300'
+              className={`text-[10px] px-2 py-0.5 rounded transition-colors font-medium ${
+                editorMode === 'markdown' && !drawingMode ? 'bg-signal-500 text-ink-950' : 'text-gray-500 hover:text-gray-300'
               }`}
             >
-              Editor
+              Edit
             </button>
             <button
               onClick={() => setDrawingMode(!drawingMode)}
-              className={`text-[10px] px-2 py-0.5 rounded transition-colors flex items-center gap-1 ${
-                drawingMode ? 'bg-white text-black' : 'text-gray-500 hover:text-gray-300'
+              className={`text-[10px] px-2 py-0.5 rounded transition-colors font-medium flex items-center gap-1 ${
+                drawingMode ? 'bg-signal-500 text-ink-950' : 'text-gray-500 hover:text-gray-300'
               }`}
             >
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -396,7 +396,7 @@ export function SlidePanel(): JSX.Element {
           /* Non-MDX Editor mode: WYSIWYG editing + optional resizable markdown panel */
           <div className="flex-1 min-h-0 flex flex-col">
             <div className="flex-1 min-h-0">
-              <SubSlideStackEditor
+              <SubSlideEditor
                 subSlides={subSlides}
                 currentSubSlide={currentSubSlide}
                 setCurrentSubSlide={setCurrentSubSlide}
@@ -472,8 +472,8 @@ export function SlidePanel(): JSX.Element {
         )}
       </div>
 
-      {/* Sub-slide pagination */}
-      {subSlides.length > 1 && (
+      {/* Sub-slide pagination (hidden in Edit mode — the filmstrip takes over) */}
+      {subSlides.length > 1 && !(editingSlide && editorMode === 'markdown' && !isMdxSlide) && (
         <div className="h-8 bg-gray-900 border-t border-gray-800 flex items-center justify-center gap-1.5 px-4 shrink-0">
           {subSlides.map((_, i) => (
             <button

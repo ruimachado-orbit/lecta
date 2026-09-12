@@ -13,7 +13,17 @@
     "composite": true,
     "rootDir": "../shared/src",
     "outDir": "./dist/shared",
-    "tsBuildInfoFile": "./dist/shared.tsbuildinfo"
+    "tsBuildInfoFile": "./dist/shared.tsbuildinfo",
+    // The shared sources live outside this package, so tsc would resolve their `yaml` /
+    // `zod` imports by walking up from packages/shared and never look in this package's
+    // node_modules (CI installs only these). Point them here explicitly; the emitted JS in
+    // dist/shared resolves the same packages at runtime by walking up to ./node_modules.
+    "baseUrl": ".",
+    "paths": {
+      "yaml": ["./node_modules/yaml/dist/index.d.ts"],
+      "zod": ["./node_modules/zod/index.d.ts"]
+    },
+    "typeRoots": ["./node_modules/@types"]
   },
   "include": [
     "../shared/src/constants.ts",

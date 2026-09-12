@@ -70,6 +70,8 @@ const api = {
     ipcRenderer.invoke('fs:open-lecta-path', lectaFilePath),
   loadPresentation: (folderPath: string): Promise<LoadedPresentation> =>
     ipcRenderer.invoke('fs:load-presentation', folderPath),
+  closePresentation: (rootPath: string): Promise<void> =>
+    ipcRenderer.invoke('fs:close-presentation', rootPath),
   readFile: (filePath: string): Promise<string> =>
     ipcRenderer.invoke('fs:read-file', filePath),
   getRecentDecks: (): Promise<string[]> =>
@@ -260,6 +262,17 @@ const api = {
 
   exportHtml: (rootPath: string, slideContents: { content: string; isPreRendered: boolean }[] | string[], title: string, theme: string): Promise<string | null> =>
     ipcRenderer.invoke('export:html', rootPath, slideContents, title, theme),
+  exportPptx: (deck: {
+    title: string
+    author?: string
+    theme?: string
+    rootPath: string
+    slides: { id: string; layout?: string; markdownContent: string; codeContent?: string | null; codeLanguage?: string | null; codeFile?: string | null; notesContent?: string | null; isMdx?: boolean; skip?: boolean }[]
+  }): Promise<{ path: string; slideCount: number; warnings: string[] } | null> =>
+    ipcRenderer.invoke('export:pptx', deck),
+  showItemInFolder: (filePath: string): Promise<void> =>
+    ipcRenderer.invoke('shell:show-item-in-folder', filePath),
+  platform: process.platform as string,
 
   // Presenter sync listeners (for audience/presenter windows).
   // Every `on*` helper returns an unsubscribe function — call it on unmount
@@ -301,9 +314,9 @@ const api = {
     subscribe('presenter:artifact-frame', (base64) => callback(base64 as string)),
 
   // File watcher
-  onFileChanged: (callback: (filePath: string, content: string) => void): (() => void) =>
-    subscribe('fs:file-changed', (filePath, content) =>
-      callback(filePath as string, content as string)
+  onFileChanged: (callback: (filePath: string, content: string, relativePath?: string) => void): (() => void) =>
+    subscribe('fs:file-changed', (filePath, content, relativePath) =>
+      callback(filePath as string, content as string, relativePath as string | undefined)
     ),
 
   // Native execution streaming

@@ -1,4 +1,5 @@
-import { ipcMain, dialog, BrowserWindow } from 'electron'
+import { ipcMain, dialog, BrowserWindow, shell } from 'electron'
+import { stat } from 'fs/promises'
 import { basename, join } from 'path'
 import { isInsideOpenDeck } from '../services/deck-roots'
 import { atomicWriteFile } from '../services/safe-fs'
@@ -11,6 +12,15 @@ import { buildPptx, type PptxDeckInput } from '../services/pptx-exporter'
  * image paths stay confined to it.
  */
 export function registerPptxExportHandlers(): void {
+  // Reveal a file the app produced (export result). Only existing regular
+  // files are revealed; never directories, never non-existent paths.
+  ipcMain.handle('shell:show-item-in-folder', async (_event, filePath: string): Promise<void> => {
+    if (typeof filePath !== 'string' || !filePath) throw new Error('Invalid path')
+    const st = await stat(filePath)
+    if (!st.isFile()) throw new Error('Not a file')
+    shell.showItemInFolder(filePath)
+  })
+
   ipcMain.handle(
     'export:pptx',
     async (event, deck: PptxDeckInput): Promise<{ path: string; slideCount: number; warnings: string[] } | null> => {

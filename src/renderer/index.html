@@ -4,12 +4,6 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Lecta</title>
-    <script>
-      var p = { env: { NODE_ENV: 'production', IS_PREACT: '' }, platform: '', version: '', browser: true };
-      if (typeof window.process === 'undefined') window.process = p;
-      else Object.assign(window.process, p);
-      if (typeof globalThis.process === 'undefined') globalThis.process = window.process;
-    </script>
   </head>
   <body class="bg-gray-950 text-gray-100 overflow-hidden">
     <div id="root"></div>

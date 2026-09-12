@@ -5,8 +5,42 @@ if (typeof globalThis.process === 'undefined') {
 
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import * as monaco from 'monaco-editor'
+import { loader } from '@monaco-editor/react'
+import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker'
+import JsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker'
+import CssWorker from 'monaco-editor/esm/vs/language/css/css.worker?worker'
+import HtmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker'
+import TsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker'
 import App from './App'
 import './styles/globals.css'
+
+// Monaco is bundled with the app — never fetched from a CDN. Every `Editor`
+// from @monaco-editor/react goes through this one global loader, so the editor
+// works offline and under the app CSP (which has no jsDelivr script source).
+;(self as unknown as { MonacoEnvironment: monaco.Environment }).MonacoEnvironment = {
+  getWorker(_workerId: string, label: string): Worker {
+    switch (label) {
+      case 'json':
+        return new JsonWorker()
+      case 'css':
+      case 'scss':
+      case 'less':
+        return new CssWorker()
+      case 'html':
+      case 'handlebars':
+      case 'razor':
+        return new HtmlWorker()
+      case 'typescript':
+      case 'javascript':
+        return new TsWorker()
+      default:
+        return new EditorWorker()
+    }
+  }
+}
+
+loader.config({ monaco })
 
 // Catch unhandled errors that escape React's error boundary
 window.onerror = (msg, src, line, col, err) => {

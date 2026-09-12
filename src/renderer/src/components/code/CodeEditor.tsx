@@ -16,7 +16,7 @@ export function CodeEditor(): JSX.Element {
   const { slides, currentSlideIndex, updateCodeContent, saveSlideContent } = usePresentationStore()
   const { fontSize } = useUIStore()
   const currentSlide = slides[currentSlideIndex]
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const prevSlideIndexRef = useRef<number>(currentSlideIndex)
 
   const language = currentSlide?.codeLanguage

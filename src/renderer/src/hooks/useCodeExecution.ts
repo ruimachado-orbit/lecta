@@ -3,59 +3,197 @@ import { usePresentationStore } from '../stores/presentation-store'
 import { useExecutionStore } from '../stores/execution-store'
 import type { CodeBlockConfig } from '../../../../packages/shared/src/types/presentation'
 
-// Pyodide singleton (lazy loaded)
-let pyodideInstance: any = null
-let pyodideLoading = false
+/* -------------------------------------------------------------------------- */
+/* Runtime status                                                              */
+/* -------------------------------------------------------------------------- */
 
-async function loadPyodide(): Promise<any> {
-  if (pyodideInstance) return pyodideInstance
-  if (pyodideLoading) {
-    // Wait for the other load to finish
-    while (pyodideLoading) {
-      await new Promise((r) => setTimeout(r, 100))
+export type RuntimeId = 'javascript' | 'pyodide' | 'sqljs'
+export type RuntimeState = 'idle' | 'loading' | 'ready' | 'error'
+
+export interface RuntimeStatusEntry {
+  id: RuntimeId
+  label: string
+  state: RuntimeState
+  /** Human-readable reason, set when `state === 'error'`. */
+  message?: string
+}
+
+export type RuntimeStatus = Record<RuntimeId, RuntimeStatusEntry>
+
+const runtimeStatus: RuntimeStatus = {
+  javascript: { id: 'javascript', label: 'JavaScript', state: 'idle' },
+  pyodide: { id: 'pyodide', label: 'Python', state: 'idle' },
+  sqljs: { id: 'sqljs', label: 'SQL', state: 'idle' }
+}
+
+const runtimeStatusListeners = new Set<(status: RuntimeStatus) => void>()
+
+function setRuntimeStatus(id: RuntimeId, state: RuntimeState, message?: string): void {
+  runtimeStatus[id] = { ...runtimeStatus[id], state, message }
+  const snapshot = getRuntimeStatus()
+  runtimeStatusListeners.forEach((listener) => {
+    try {
+      listener(snapshot)
+    } catch {
+      /* a bad listener must not break execution */
     }
-    return pyodideInstance
-  }
+  })
+}
 
-  pyodideLoading = true
-  try {
-    // Dynamic import from CDN
-    const { loadPyodide: load } = await import(
-      /* @vite-ignore */ 'https://cdn.jsdelivr.net/pyodide/v0.27.5/full/pyodide.mjs'
-    )
-    pyodideInstance = await load()
-    return pyodideInstance
-  } finally {
-    pyodideLoading = false
+/** Snapshot of every embedded runtime's load state (no store dependency). */
+export function getRuntimeStatus(): RuntimeStatus {
+  return {
+    javascript: { ...runtimeStatus.javascript },
+    pyodide: { ...runtimeStatus.pyodide },
+    sqljs: { ...runtimeStatus.sqljs }
   }
 }
 
-// sql.js singleton (lazy loaded)
+/** Subscribe to runtime load-state changes. Returns an unsubscribe function. */
+export function subscribeRuntimeStatus(listener: (status: RuntimeStatus) => void): () => void {
+  runtimeStatusListeners.add(listener)
+  return () => {
+    runtimeStatusListeners.delete(listener)
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Locally bundled runtime assets                                              */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Directory URL of a bundled runtime, resolved against the renderer document so
+ * it works under `file://` (packaged) and `http://localhost` (dev server).
+ * The assets are emitted to `out/renderer/runtimes/*` by the `lecta-runtimes`
+ * plugin in electron-vite.config.ts and served by its dev middleware.
+ */
+function runtimeDir(name: 'pyodide' | 'sqljs'): string {
+  return new URL(`runtimes/${name}/`, document.baseURI).href
+}
+
+function missingRuntimeError(name: string, url: string, cause: unknown): Error {
+  const detail = cause instanceof Error ? cause.message : String(cause)
+  return new Error(
+    `${name} runtime is not available locally (expected at ${url}). ` +
+      `Re-run the build so out/renderer/runtimes is regenerated. [${detail}]`
+  )
+}
+
+/* --- Pyodide (Python) ----------------------------------------------------- */
+
+let pyodideInstance: any = null
+let pyodidePromise: Promise<any> | null = null
+
+/** Loads (and caches) the bundled Pyodide runtime. Exported so the UI can warm it up and tests can drive it. */
+export async function loadPyodide(): Promise<any> {
+  if (pyodideInstance) return pyodideInstance
+  if (pyodidePromise) return pyodidePromise
+
+  const indexURL = runtimeDir('pyodide')
+  const entry = `${indexURL}pyodide.mjs`
+
+  setRuntimeStatus('pyodide', 'loading')
+  pyodidePromise = (async () => {
+    let mod: any
+    try {
+      mod = await import(/* @vite-ignore */ entry)
+    } catch (err) {
+      throw missingRuntimeError('Python (Pyodide)', entry, err)
+    }
+    // `indexURL` makes Pyodide resolve pyodide.asm.wasm / python_stdlib.zip
+    // next to the module instead of falling back to the jsDelivr CDN.
+    return mod.loadPyodide({ indexURL })
+  })()
+
+  try {
+    pyodideInstance = await pyodidePromise
+    setRuntimeStatus('pyodide', 'ready')
+    return pyodideInstance
+  } catch (err) {
+    setRuntimeStatus('pyodide', 'error', err instanceof Error ? err.message : String(err))
+    throw err
+  } finally {
+    pyodidePromise = null
+  }
+}
+
+/* --- sql.js (SQL) --------------------------------------------------------- */
+
 let sqlJsInstance: any = null
+let sqlJsPromise: Promise<any> | null = null
 
-async function loadSqlJs(): Promise<any> {
-  if (sqlJsInstance) return sqlJsInstance
-
-  // sql.js UMD script sets window.initSqlJs — dynamic import().default doesn't work reliably
-  await new Promise<void>((resolve, reject) => {
+function loadScript(src: string): Promise<void> {
+  return new Promise((resolve, reject) => {
     const script = document.createElement('script')
-    script.src = 'https://cdn.jsdelivr.net/npm/sql.js@1.12.0/dist/sql-wasm.js'
+    script.src = src
     script.onload = () => resolve()
-    script.onerror = () => reject(new Error('Failed to load sql.js'))
+    script.onerror = () => reject(new Error(`script did not load: ${src}`))
     document.head.appendChild(script)
   })
+}
 
-  const initSqlJs = (window as any).initSqlJs
-  if (typeof initSqlJs !== 'function') {
-    throw new Error('sql.js failed to initialize — initSqlJs not found on window')
+/** Loads (and caches) the bundled sql.js runtime. Exported so the UI can warm it up and tests can drive it. */
+export async function loadSqlJs(): Promise<any> {
+  if (sqlJsInstance) return sqlJsInstance
+  if (sqlJsPromise) return sqlJsPromise
+
+  const dir = runtimeDir('sqljs')
+  const entry = `${dir}sql-wasm.js`
+
+  setRuntimeStatus('sqljs', 'loading')
+  sqlJsPromise = (async () => {
+    // sql.js ships a UMD bundle that assigns window.initSqlJs.
+    try {
+      await loadScript(entry)
+    } catch (err) {
+      throw missingRuntimeError('SQL (sql.js)', entry, err)
+    }
+
+    const initSqlJs = (window as any).initSqlJs
+    if (typeof initSqlJs !== 'function') {
+      throw missingRuntimeError('SQL (sql.js)', entry, 'initSqlJs was not defined')
+    }
+
+    // Emscripten refuses to fetch its .wasm when the page is on file:// (its
+    // isFileURI() guard) and then has no XHR fallback in a browser build, so
+    // the packaged app aborts with "both async and sync fetching of the wasm
+    // failed". fetch() itself works there, so hand sql.js the bytes directly.
+    let wasmBinary: ArrayBuffer | undefined
+    try {
+      const res = await fetch(`${dir}sql-wasm.wasm`)
+      if (res.ok) wasmBinary = await res.arrayBuffer()
+    } catch {
+      /* fall back to locateFile below */
+    }
+
+    return initSqlJs({ wasmBinary, locateFile: (file: string) => `${dir}${file}` })
+  })()
+
+  try {
+    sqlJsInstance = await sqlJsPromise
+    setRuntimeStatus('sqljs', 'ready')
+    return sqlJsInstance
+  } catch (err) {
+    setRuntimeStatus('sqljs', 'error', err instanceof Error ? err.message : String(err))
+    throw err
+  } finally {
+    sqlJsPromise = null
   }
+}
 
-  sqlJsInstance = await initSqlJs({
-    locateFile: (file: string) =>
-      `https://cdn.jsdelivr.net/npm/sql.js@1.12.0/dist/${file}`
-  })
+/* -------------------------------------------------------------------------- */
+/* Hook                                                                        */
+/* -------------------------------------------------------------------------- */
 
-  return sqlJsInstance
+/** Cancels the in-flight in-renderer run (JS worker), if any. */
+let cancelActiveJsRun: (() => void) | null = null
+
+const NATIVE_DISABLED_HINT = 'Enable native execution in Settings'
+
+/** IPC rejections arrive as "Error invoking remote method 'x': Error: msg". */
+function cleanIpcError(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err)
+  return raw.replace(/^Error invoking remote method '[^']*':\s*/, '').replace(/^Error:\s*/, '')
 }
 
 export function useCodeExecution() {
@@ -65,13 +203,13 @@ export function useCodeExecution() {
 
   // Listen for native execution streaming
   useEffect(() => {
-    window.electronAPI.onExecutionOutput((data) => {
+    window.electronAPI.onExecutionOutput((data: string) => {
       appendOutput(data, 'stdout')
     })
-    window.electronAPI.onExecutionError((data) => {
+    window.electronAPI.onExecutionError((data: string) => {
       appendOutput(data, 'stderr')
     })
-    window.electronAPI.onExecutionDone((result) => {
+    window.electronAPI.onExecutionDone((result: any) => {
       setResult(result)
     })
 
@@ -93,7 +231,7 @@ export function useCodeExecution() {
         switch (config.execution) {
           case 'sandpack':
             // Sandpack handles its own execution in-component
-            // For simple JS, we can eval in a sandboxed iframe
+            // For simple JS, we run in a sandboxed worker
             await runJavaScript(code, appendOutput)
             setResult({
               stdout: '',
@@ -130,11 +268,18 @@ export function useCodeExecution() {
           case 'native':
             if (!presentation) throw new Error('No presentation loaded')
             // Native execution is handled via IPC streaming
-            await window.electronAPI.executeNative(
-              config.command || 'node',
-              config.args || [config.file],
-              presentation.rootPath
-            )
+            try {
+              await window.electronAPI.executeNative(
+                config.command || 'node',
+                config.args || [config.file],
+                presentation.rootPath
+              )
+            } catch (err) {
+              // The main process refuses when native execution is disabled in
+              // Settings or the command is not allowed — show its reason plus
+              // the actionable hint.
+              throw new Error(`${cleanIpcError(err)}\n${NATIVE_DISABLED_HINT}.`)
+            }
             break
 
           default:
@@ -142,7 +287,7 @@ export function useCodeExecution() {
         }
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err)
-        appendOutput(errorMsg, 'stderr')
+        appendOutput(errorMsg + '\n', 'stderr')
         setResult({
           stdout: '',
           stderr: errorMsg,
@@ -156,6 +301,7 @@ export function useCodeExecution() {
   )
 
   const cancelCode = useCallback(async () => {
+    cancelActiveJsRun?.()
     await window.electronAPI.cancelExecution()
     setExecuting(false)
   }, [setExecuting])
@@ -182,68 +328,133 @@ export function useCodeExecution() {
 
 // --- Execution Engine Implementations ---
 
-async function runJavaScript(
+const JS_TIMEOUT_MS = 30000
+
+/**
+ * Runs user JavaScript inside a Worker created from a `blob:` URL.
+ *
+ * A sandboxed iframe cannot be used: Chromium refuses to load a `blob:`
+ * document (or a `blob:` script) into an opaque-origin frame — `sandbox`
+ * without `allow-same-origin` — with "Not allowed to load local resource",
+ * and `srcdoc` inherits the app CSP, which has no `'unsafe-inline'`.
+ * `worker-src 'self' blob:` is already allowed, a worker has no DOM and no
+ * handle on the parent window, and `terminate()` gives a hard timeout/cancel.
+ *
+ * Exported so the sandbox can be exercised directly by tests.
+ */
+export async function runJavaScript(
   code: string,
   onOutput: (text: string, stream: 'stdout' | 'stderr') => void
 ): Promise<void> {
-  // Create a sandboxed iframe for safe JS execution
-  const iframe = document.createElement('iframe')
-  iframe.style.display = 'none'
-  iframe.sandbox.add('allow-scripts')
-  document.body.appendChild(iframe)
+  // Split so the user's code line numbers can be recovered from worker errors.
+  const prologue = `
+const __send = (type, data) => {
+  try { self.postMessage({ __lecta: 1, type, data }) }
+  catch (e) { self.postMessage({ __lecta: 1, type: 'error', data: '[value could not be sent to the output panel]' }) }
+};
+const __fmt = (v) => {
+  if (typeof v === 'string') return v;
+  if (v instanceof Error) return v.stack || String(v);
+  try { return typeof v === 'object' && v !== null ? JSON.stringify(v, null, 2) : String(v) }
+  catch (e) { return String(v) }
+};
+const __join = (args) => Array.prototype.map.call(args, __fmt).join(' ');
+const __log = function () { __send('console', __join(arguments)) };
+self.console.log = __log;
+self.console.info = __log;
+self.console.debug = __log;
+self.console.warn = __log;
+self.console.dir = __log;
+self.console.error = function () { __send('error', __join(arguments)) };
+self.addEventListener('unhandledrejection', (e) => {
+  const r = e.reason;
+  __send('error', (r && r.stack) || String(r));
+});
+Promise.resolve()
+  .then(async () => {
+`
+  const epilogue = `
+  })
+  .then(() => __send('done'))
+  .catch((err) => {
+    __send('error', (err && err.stack) || String(err));
+    __send('done');
+  });
+`
+  // Lines of generated code that precede the user's first line.
+  const prologueLines = prologue.split('\n').length - 1
+  const workerSource = prologue + code + epilogue
+
+  const blobUrl = URL.createObjectURL(new Blob([workerSource], { type: 'text/javascript' }))
+
+  let worker: Worker
+  try {
+    worker = new Worker(blobUrl)
+  } catch (err) {
+    URL.revokeObjectURL(blobUrl)
+    setRuntimeStatus('javascript', 'error', err instanceof Error ? err.message : String(err))
+    throw new Error(
+      `JavaScript sandbox could not start: ${err instanceof Error ? err.message : String(err)}`
+    )
+  }
+  setRuntimeStatus('javascript', 'ready')
 
   return new Promise<void>((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      document.body.removeChild(iframe)
-      reject(new Error('Execution timed out (30s)'))
-    }, 30000)
+    let settled = false
 
-    // Listen for messages from the iframe
-    const handler = (event: MessageEvent) => {
-      if (event.source === iframe.contentWindow) {
-        const { type, data } = event.data
-        if (type === 'console') {
-          onOutput(data + '\n', 'stdout')
-        } else if (type === 'error') {
-          onOutput(data + '\n', 'stderr')
-        } else if (type === 'done') {
-          clearTimeout(timeout)
-          window.removeEventListener('message', handler)
-          document.body.removeChild(iframe)
-          resolve()
-        }
+    const cleanup = (): void => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      worker.onmessage = null
+      worker.onerror = null
+      worker.onmessageerror = null
+      worker.terminate()
+      URL.revokeObjectURL(blobUrl)
+      if (cancelActiveJsRun === cancel) cancelActiveJsRun = null
+    }
+
+    const finish = (): void => {
+      cleanup()
+      resolve()
+    }
+
+    const cancel = (): void => {
+      if (settled) return
+      onOutput('Execution cancelled.\n', 'stderr')
+      finish()
+    }
+
+    const timer = setTimeout(() => {
+      cleanup()
+      reject(new Error('Execution timed out (30s)'))
+    }, JS_TIMEOUT_MS)
+
+    worker.onmessage = (event: MessageEvent) => {
+      const data = event.data
+      if (!data || data.__lecta !== 1) return
+      if (data.type === 'console') {
+        onOutput(data.data + '\n', 'stdout')
+      } else if (data.type === 'error') {
+        onOutput(data.data + '\n', 'stderr')
+      } else if (data.type === 'done') {
+        finish()
       }
     }
 
-    window.addEventListener('message', handler)
+    // Fires when the worker script itself fails to parse (a syntax error in
+    // the user's code) — still resolve so the run completes.
+    worker.onerror = (event: ErrorEvent) => {
+      const line = event.lineno ? event.lineno - prologueLines : 0
+      const where = line > 0 ? ` (line ${line})` : ''
+      onOutput((event.message || 'Script error') + where + '\n', 'stderr')
+      finish()
+    }
+    worker.onmessageerror = () => {
+      onOutput('A value from your code could not be transferred to the output panel.\n', 'stderr')
+    }
 
-    // Inject the code into the iframe
-    const wrappedCode = `
-      <script>
-        const originalLog = console.log;
-        const originalError = console.error;
-        const originalWarn = console.warn;
-
-        console.log = (...args) => {
-          parent.postMessage({ type: 'console', data: args.map(a =>
-            typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)
-          ).join(' ') }, '*');
-        };
-        console.error = (...args) => {
-          parent.postMessage({ type: 'error', data: args.map(a => String(a)).join(' ') }, '*');
-        };
-        console.warn = console.log;
-
-        try {
-          ${code}
-          parent.postMessage({ type: 'done' }, '*');
-        } catch (e) {
-          parent.postMessage({ type: 'error', data: e.message }, '*');
-          parent.postMessage({ type: 'done' }, '*');
-        }
-      </script>
-    `
-    iframe.srcdoc = wrappedCode
+    cancelActiveJsRun = cancel
   })
 }
 
@@ -258,7 +469,13 @@ async function runPython(
   // Install packages if needed
   if (packages && packages.length > 0) {
     onOutput(`Installing packages: ${packages.join(', ')}...\n`, 'stdout')
-    await pyodide.loadPackagesFromImports(code)
+    try {
+      // Bundled Pyodide packages resolve locally; anything else is fetched
+      // from the Pyodide CDN the first time it is used.
+      await pyodide.loadPackagesFromImports(code)
+    } catch (err) {
+      onOutput(`Warning: could not resolve imports offline (${String(err)})\n`, 'stderr')
+    }
     for (const pkg of packages) {
       try {
         await pyodide.runPythonAsync(`import micropip; await micropip.install("${pkg}")`)
@@ -266,8 +483,8 @@ async function runPython(
         // Try loading from pyodide packages
         try {
           await pyodide.loadPackage(pkg)
-        } catch (e) {
-          onOutput(`Warning: Could not install ${pkg}\n`, 'stderr')
+        } catch {
+          onOutput(`Package ${pkg} needs internet on first use.\n`, 'stderr')
         }
       }
     }

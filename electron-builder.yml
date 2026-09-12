@@ -6,6 +6,13 @@ directories:
   buildResources: build
   output: release
 
+# `files` contains only negations, so electron-builder keeps its default
+# "**/*" include. That is what ships out/ — including the offline runtimes
+# emitted to out/renderer/runtimes/{pyodide,sqljs} by the `lecta-runtimes`
+# plugin in electron.vite.config.ts (verified present in app.asar and
+# loadable from inside it).
+# Do NOT add a positive glob here (e.g. "out/**"): the first positive pattern
+# replaces the default include and would drop package.json and node_modules.
 files:
   - "!**/.vscode/*"
   - "!src/*"

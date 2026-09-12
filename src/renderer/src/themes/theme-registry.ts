@@ -114,10 +114,26 @@ export function loadThemeFonts(theme: PresentationTheme): void {
     })
     .join('&')
 
+  // Google Fonts are a progressive enhancement: every theme also declares a
+  // local fallback stack. Load the stylesheet without blocking first paint
+  // (media="print" until it arrives) and swallow failures so an offline app —
+  // or the CSP, which does not allow fonts.googleapis.com — never throws here.
   const link = document.createElement('link')
   link.rel = 'stylesheet'
+  link.media = 'print'
   link.href = `https://fonts.googleapis.com/css2?${families}&display=swap`
-  document.head.appendChild(link)
+  link.onload = () => {
+    link.media = 'all'
+  }
+  link.onerror = () => {
+    link.remove()
+    fontsToLoad.forEach((f) => loadedFonts.delete(f.googleFont!))
+  }
+  try {
+    document.head.appendChild(link)
+  } catch {
+    /* never let font loading break theme application */
+  }
 
   fontsToLoad.forEach((f) => loadedFonts.add(f.googleFont!))
 }

@@ -109,13 +109,13 @@ export function StatusBar(): JSX.Element {
 
       {/* Engine info */}
       {executionEngine && executionEngine !== 'none' && (
-        <span className="text-gray-600">
+        <span className="text-gray-400">
           {language} ({executionEngine})
         </span>
       )}
 
       {/* Slide info */}
-      <span className="text-gray-600">
+      <span className="text-gray-400">
         Slide {currentSlideIndex + 1} of {slides.length}
       </span>
     </div>

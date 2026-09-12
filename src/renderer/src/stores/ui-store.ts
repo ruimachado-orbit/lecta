@@ -41,6 +41,14 @@ interface UIState {
   showRightPane: boolean
   showSlideMap: boolean
   showAIGenerate: boolean
+  /** Cmd/Ctrl+K palette. */
+  showCommandPalette: boolean
+  /** `?` shortcuts overlay. */
+  showShortcuts: boolean
+  /** Open the audience window on a second display automatically when presenting starts. */
+  autoAudience: boolean
+  /** Experimental Notebook mode; mirrors the `experimentalNotebook` app setting. */
+  experimentalNotebook: boolean
   editingSlide: boolean
   editorMode: 'markdown' | 'wysiwyg'
   splitRatio: number
@@ -71,6 +79,12 @@ interface UIState {
   toggleRightPane: () => void
   toggleSlideMap: () => void
   toggleAIGenerate: () => void
+  toggleCommandPalette: () => void
+  setCommandPalette: (open: boolean) => void
+  toggleShortcuts: () => void
+  setShortcuts: (open: boolean) => void
+  setAutoAudience: (enabled: boolean) => void
+  setExperimentalNotebook: (enabled: boolean) => void
   toggleEditingSlide: () => void
   setEditingSlide: (editing: boolean) => void
   setEditorMode: (mode: 'markdown' | 'wysiwyg') => void
@@ -104,6 +118,25 @@ function persistGroups(groups: SlideGroup[]) {
   })
 }
 
+const AUTO_AUDIENCE_KEY = 'lecta.autoAudience'
+
+/** Read the "auto-open the audience window" preference. Defaults to on. */
+function readAutoAudience(): boolean {
+  try {
+    return window.localStorage.getItem(AUTO_AUDIENCE_KEY) !== 'false'
+  } catch {
+    return true
+  }
+}
+
+function writeAutoAudience(enabled: boolean): void {
+  try {
+    window.localStorage.setItem(AUTO_AUDIENCE_KEY, enabled ? 'true' : 'false')
+  } catch {
+    // Private mode / storage disabled — the in-memory value still applies this session.
+  }
+}
+
 function applyPalette(palette: ColorPalette) {
   const root = document.documentElement
   root.style.setProperty('--color-brand', palette.accent)
@@ -121,6 +154,10 @@ export const useUIStore = create<UIState>((set, get) => ({
   showRightPane: false,
   showSlideMap: false,
   showAIGenerate: false,
+  showCommandPalette: false,
+  showShortcuts: false,
+  autoAudience: readAutoAudience(),
+  experimentalNotebook: false,
   editingSlide: true,
   editorMode: 'wysiwyg' as const,
   splitRatio: 40,
@@ -177,6 +214,15 @@ export const useUIStore = create<UIState>((set, get) => ({
   toggleRightPane: () => set((s) => ({ showRightPane: !s.showRightPane })),
   toggleSlideMap: () => set((s) => ({ showSlideMap: !s.showSlideMap })),
   toggleAIGenerate: () => set((s) => ({ showAIGenerate: !s.showAIGenerate })),
+  toggleCommandPalette: () => set((s) => ({ showCommandPalette: !s.showCommandPalette, showShortcuts: false })),
+  setCommandPalette: (open) => set({ showCommandPalette: open }),
+  toggleShortcuts: () => set((s) => ({ showShortcuts: !s.showShortcuts, showCommandPalette: false })),
+  setShortcuts: (open) => set({ showShortcuts: open }),
+  setAutoAudience: (enabled) => {
+    writeAutoAudience(enabled)
+    set({ autoAudience: enabled })
+  },
+  setExperimentalNotebook: (enabled) => set({ experimentalNotebook: enabled }),
   toggleEditingSlide: () => set((s) => ({ editingSlide: !s.editingSlide })),
   setEditingSlide: (editing) => set({ editingSlide: editing }),
   setEditorMode: (mode) => set({ editorMode: mode }),
@@ -238,6 +284,7 @@ export const useUIStore = create<UIState>((set, get) => ({
       if (typeof settings.aiModel === 'string' && settings.aiModel) {
         set({ aiModel: settings.aiModel })
       }
+      set({ experimentalNotebook: settings.experimentalNotebook === true })
       const currentModel = get().aiModel
       const activeProvider = getProviderForModel(currentModel)?.id
       const activeProviderStatus = statuses.find((s: { id: string; hasKey: boolean }) => s.id === activeProvider)

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import { usePresentationStore, syncPresenterState } from '../../stores/presentation-store'
@@ -11,10 +11,10 @@ import { ExecutionOutput } from '../code/ExecutionOutput'
 import { MarkdownPreview } from '../code/MarkdownPreview'
 import { WebPanel } from '../web/WebPanel'
 import { VideoPanel } from '../video/VideoPanel'
-import { PromptPanel } from '../prompt/PromptPanel'
+import { Popover } from '../common/Popover'
 import { useSubSlides } from '../../hooks/useSubSlides'
 
-type ArtifactType = 'code' | 'video' | 'webapp' | 'prompt' | 'artifact'
+type ArtifactType = 'code' | 'video' | 'webapp' | 'artifact'
 
 export function PresenterView(): JSX.Element {
   const { slides, currentSlideIndex, nextSlide, prevSlide, goToSlide, presentation } =
@@ -69,7 +69,7 @@ export function PresenterView(): JSX.Element {
   const [artifactExpanded, setArtifactExpanded] = useState(false)
   const [panelSize, setPanelSize] = useState(34)
   const artifactMemory = useRef<Record<number, { type: ArtifactType; expanded: boolean; panelSize: number }>>({})
-  const typeSizeMemory = useRef<Record<string, number>>({ code: 34, video: 34, webapp: 34, prompt: 34, artifact: 34 })
+  const typeSizeMemory = useRef<Record<string, number>>({ code: 34, video: 34, webapp: 34, artifact: 34 })
 
   // Save artifact state before slide change, restore on return
   const prevSlideRef = useRef(currentSlideIndex)
@@ -107,11 +107,10 @@ export function PresenterView(): JSX.Element {
   const hasCode = !!currentSlide?.config.code
   const hasVideo = !!currentSlide?.config.video
   const hasWebApp = !!currentSlide?.config.webapp
-  const hasPrompts = (currentSlide?.config.prompts?.length ?? 0) > 0
   const hasArtifacts = (currentSlide?.config.artifacts?.length ?? 0) > 0
   const isMarkdown = currentSlide?.config.code?.language === 'markdown'
   const layout = currentSlide?.config.layout
-  const hasAnyArtifact = hasCode || hasVideo || hasWebApp || hasPrompts || hasArtifacts
+  const hasAnyArtifact = hasCode || hasVideo || hasWebApp || hasArtifacts
 
   useEffect(() => {
     // Save current artifact state for the slide we're leaving
@@ -221,23 +220,47 @@ export function PresenterView(): JSX.Element {
     ? currentGroup.slideIds.indexOf(currentSlide?.config.id ?? '') + 1
     : 0
 
-  // Open audience window
-  const openAudience = async () => {
+  // Open audience window. Main puts it fullscreen on the second display when there is
+  // one, and fullscreens this window on the primary; it reports back which happened.
+  const openAudience = useCallback(async (auto = false): Promise<boolean> => {
     if (presentation?.rootPath) {
       window.electronAPI.sendPresenterPath(presentation.rootPath)
     }
-    await window.electronAPI.openAudienceWindow()
+    const result = (await window.electronAPI.openAudienceWindow()) as unknown as
+      { opened?: boolean; external?: boolean } | void
+    const external = !!(result && result.external)
+
+    // Auto-open is a second-display feature: on a single screen the audience window
+    // would cover the presenter view, so back out again before it is ever shown.
+    if (auto && !external) {
+      await window.electronAPI.closeAudienceWindow()
+      return false
+    }
+
     // No timer: the audience window sends `presenter:audience-ready` once it has loaded the deck,
     // and the handshake above replies with the full state.
     syncPresenterState()
     window.electronAPI.syncPresenterArtifact(activeArtifact)
     setAudienceOpen(true)
-  }
+    return true
+  }, [presentation?.rootPath, activeArtifact])
 
-  const closeAudience = async () => {
+  const closeAudience = async (): Promise<void> => {
     await window.electronAPI.closeAudienceWindow()
     setAudienceOpen(false)
   }
+
+  // One-click present: with a second display connected, starting a presentation puts the
+  // audience view fullscreen there and this window fullscreen on the primary. `End` (and
+  // Escape, which shares `endPresentation`) closes the audience window, which restores both.
+  const autoAudience = useUIStore((s) => s.autoAudience)
+  const autoOpenedRef = useRef(false)
+  useEffect(() => {
+    if (!autoAudience || autoOpenedRef.current) return
+    autoOpenedRef.current = true
+    // Deliberately runs once per presentation, not on every artifact change.
+    void openAudience(true)
+  }, [autoAudience, openAudience])
 
   // Same single exit path as the Escape shortcut: closes the audience window and restores the theme
   const endPresentation = endPresentationAction
@@ -249,6 +272,7 @@ export function PresenterView(): JSX.Element {
            style={{ WebkitAppRegion: 'drag', paddingLeft: 'var(--titlebar-inset)' } as React.CSSProperties}>
         <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           <button onClick={prevSlide} disabled={currentSlideIndex === 0}
+            title="Previous slide" aria-label="Previous slide"
             className="p-1 rounded hover:bg-gray-800 disabled:opacity-30 transition-colors">
             <svg className="w-3.5 h-3.5 text-gray-300" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
@@ -270,6 +294,7 @@ export function PresenterView(): JSX.Element {
             </div>
           )}
           <button onClick={nextSlide} disabled={currentSlideIndex === slides.length - 1}
+            title="Next slide" aria-label="Next slide"
             className="p-1 rounded hover:bg-gray-800 disabled:opacity-30 transition-colors">
             <svg className="w-3.5 h-3.5 text-gray-300" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
@@ -289,9 +314,9 @@ export function PresenterView(): JSX.Element {
 
         <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           {/* Audience window toggle */}
-          <button onClick={audienceOpen ? closeAudience : openAudience}
+          <button onClick={() => { void (audienceOpen ? closeAudience() : openAudience()) }}
             className={`px-2 py-1 text-[11px] rounded transition-colors flex items-center gap-1.5 ${
-              audienceOpen ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
+              audienceOpen ? 'bg-white text-black' : 'bg-gray-800 text-gray-200 hover:bg-gray-700 hover:text-white'
             }`}
             title={audienceOpen ? 'Close audience window' : 'Open audience window on external display'} aria-label={audienceOpen ? 'Close audience window' : 'Open audience window on external display'}>
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -301,7 +326,8 @@ export function PresenterView(): JSX.Element {
           </button>
           <RemoteControlButton />
           <button onClick={endPresentation}
-            className="px-3 py-1 text-xs bg-red-500 hover:bg-red-400 text-white rounded font-medium transition-colors">
+            title="End the presentation (Esc)" aria-label="End the presentation (Esc)"
+            className="px-3 py-1 text-xs bg-red-600 hover:bg-red-500 text-white rounded font-medium transition-colors">
             End
           </button>
         </div>
@@ -388,17 +414,6 @@ export function PresenterView(): JSX.Element {
                     </svg>
                   </SidebarBtn>
                 )}
-                {hasPrompts && (
-                  <SidebarBtn active={activeArtifact === 'prompt'} onClick={() => {
-                    const opening = activeArtifact !== 'prompt'
-                    setActiveArtifact(opening ? 'prompt' : null); setArtifactExpanded(false)
-                    if (opening) setPanelSize(typeSizeMemory.current.prompt)
-                  }} title="AI Prompt">
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
-                    </svg>
-                  </SidebarBtn>
-                )}
                 {hasArtifacts && (
                   <SidebarBtn active={activeArtifact === 'artifact'} onClick={() => {
                     const opening = activeArtifact !== 'artifact'
@@ -446,13 +461,13 @@ export function PresenterView(): JSX.Element {
               <svg className="w-3.5 h-3.5 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
               </svg>
-              <span className="text-[10px] text-gray-500 uppercase tracking-wider font-medium">Speaker Notes</span>
+              <span className="text-[11px] text-gray-500 uppercase tracking-wider font-medium">Speaker Notes</span>
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto px-5 pb-4 pt-3">
               {currentSlide?.notesContent ? (
                 <p className="text-gray-200 text-lg leading-relaxed whitespace-pre-wrap">{currentSlide.notesContent}</p>
               ) : (
-                <p className="text-gray-600 text-sm italic">No notes for this slide</p>
+                <p className="text-gray-400 text-sm italic">No notes for this slide</p>
               )}
             </div>
           </div>
@@ -467,9 +482,9 @@ export function PresenterView(): JSX.Element {
           {/* Next slide preview */}
           <div className="h-full flex flex-col">
             <div className="px-3 py-1.5 flex items-center gap-2 flex-shrink-0">
-              <span className="text-[10px] text-gray-500 uppercase tracking-wider font-medium">Next</span>
+              <span className="text-[11px] text-gray-500 uppercase tracking-wider font-medium">Next</span>
               {nextSlideData && (
-                <span className="text-[10px] text-gray-600 font-mono">{currentSlideIndex + 2}/{slides.length}</span>
+                <span className="text-[11px] text-gray-400 font-mono">{currentSlideIndex + 2}/{slides.length}</span>
               )}
             </div>
             <div className="flex-1 min-h-0 px-3 pb-3 flex items-center justify-center">
@@ -483,7 +498,7 @@ export function PresenterView(): JSX.Element {
                 />
               ) : (
                 <div className="w-full aspect-video rounded bg-gray-900 flex items-center justify-center">
-                  <span className="text-gray-600 text-xs">End of presentation</span>
+                  <span className="text-gray-400 text-xs">End of presentation</span>
                 </div>
               )}
             </div>
@@ -506,7 +521,7 @@ export function PresenterView(): JSX.Element {
             </div>
             <button
               onClick={() => { setTimer(0); setTimerRunning(true) }}
-              className="mt-2 text-[10px] text-gray-600 hover:text-gray-400 uppercase tracking-wider transition-colors"
+              className="mt-2 text-[11px] text-gray-400 hover:text-gray-400 uppercase tracking-wider transition-colors"
             >
               Reset
             </button>
@@ -520,7 +535,7 @@ export function PresenterView(): JSX.Element {
               <svg className="w-3 h-3 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Z" />
               </svg>
-              <span className="text-[10px] text-gray-500 uppercase tracking-wider font-medium">Action Notes</span>
+              <span className="text-[11px] text-gray-500 uppercase tracking-wider font-medium">Action Notes</span>
             </div>
             <PresenterLiveNotes />
           </div>
@@ -652,12 +667,14 @@ function ArtifactPanel({ activeArtifact, currentSlide, presentation, isExecuting
     return (
       <div className="h-full flex flex-col bg-gray-950">
         <div className="h-8 bg-gray-900 border-b border-gray-800 flex items-center px-3 gap-2 flex-shrink-0">
-          <span className="text-gray-500 text-[10px] font-mono flex-1 truncate">{currentSlide.config.code.file}</span>
-          <span className="text-[9px] uppercase px-1.5 py-0.5 bg-gray-800 text-gray-400 rounded">{currentSlide.config.code.language}</span>
+          <span className="text-gray-500 text-[11px] font-mono flex-1 truncate">{currentSlide.config.code.file}</span>
+          <span className="text-[11px] uppercase px-1.5 py-0.5 bg-gray-800 text-gray-400 rounded">{currentSlide.config.code.language}</span>
           {isExecuting ? (
-            <button onClick={onCancel} className="px-2 py-0.5 bg-red-500 hover:bg-red-400 text-white text-[10px] rounded">Stop</button>
+            <button onClick={onCancel} title="Stop execution" aria-label="Stop execution"
+              className="px-2 py-0.5 bg-red-600 hover:bg-red-500 text-white text-[11px] font-medium rounded">Stop</button>
           ) : (
-            <button onClick={onRun} className="px-2 py-0.5 bg-green-600 hover:bg-green-500 text-white text-[10px] rounded">Run</button>
+            <button onClick={onRun} title="Run the slide code" aria-label="Run the slide code"
+              className="px-2 py-0.5 bg-green-600 hover:bg-green-500 text-white text-[11px] font-medium rounded">Run</button>
           )}
         </div>
         <PanelGroup direction="vertical" className="flex-1">
@@ -676,17 +693,6 @@ function ArtifactPanel({ activeArtifact, currentSlide, presentation, isExecuting
   if (activeArtifact === 'webapp' && currentSlide?.config.webapp) {
     return <div className="h-full bg-gray-950"><WebPanel key={idx} webapp={currentSlide.config.webapp} /></div>
   }
-  if (activeArtifact === 'prompt' && currentSlide?.config.prompts?.length > 0) {
-    return (
-      <div className="h-full flex flex-col bg-gray-950">
-        {currentSlide.config.prompts.map((p: any, i: number) => (
-          <div key={i} className="flex-1 min-h-0">
-            <PromptPanel prompt={p} promptIndex={i} />
-          </div>
-        ))}
-      </div>
-    )
-  }
   if (activeArtifact === 'artifact' && currentSlide?.config.artifacts?.length > 0) {
     return (
       <div className="h-full bg-gray-950 p-3 overflow-y-auto">
@@ -704,7 +710,7 @@ function ArtifactPanel({ activeArtifact, currentSlide, presentation, isExecuting
             </svg>
             <div className="min-w-0">
               <div className="text-gray-300 text-xs truncate">{a.label || a.path}</div>
-              <div className="text-gray-600 text-[10px] truncate">{a.path}</div>
+              <div className="text-gray-400 text-[11px] truncate">{a.path}</div>
             </div>
           </button>
         ))}
@@ -719,95 +725,110 @@ function SidebarBtn({ active, onClick, title, children }: {
 }): JSX.Element {
   return (
     <button onClick={onClick} title={title}
-      className={`w-7 h-7 rounded flex items-center justify-center text-[9px] transition-colors ${
+      className={`w-7 h-7 rounded flex items-center justify-center text-[11px] transition-colors ${
         active ? 'bg-white text-black' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
       }`}
       aria-label={title}>{children}</button>
   )
 }
 
+/**
+ * Phone remote. The button lives in the presenter header at all times so the QR code
+ * is one click away mid-talk; the panel itself is a `Popover` (Escape, click-outside,
+ * focus restore) rather than a hand-rolled overlay.
+ */
 function RemoteControlButton(): JSX.Element {
   const [remoteUrl, setRemoteUrl] = useState<string | null>(null)
   const [showQR, setShowQR] = useState(false)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
-
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
-    if (showQR && remoteUrl) {
-      import('qrcode').then((QRCode) => {
-        QRCode.toDataURL(remoteUrl, {
-          width: 220,
-          margin: 2,
-          errorCorrectionLevel: 'M',
-          type: 'image/png',
-          color: { dark: '#000000', light: '#ffffff' },
-        }).then((dataUrl) => setQrDataUrl(dataUrl))
-      })
-    } else {
+    if (!showQR || !remoteUrl) {
       setQrDataUrl(null)
+      return
     }
+    let cancelled = false
+    void import('qrcode').then((QRCode) =>
+      QRCode.toDataURL(remoteUrl, {
+        width: 220,
+        margin: 2,
+        errorCorrectionLevel: 'M',
+        type: 'image/png',
+        color: { dark: '#000000', light: '#ffffff' }
+      }).then((dataUrl) => { if (!cancelled) setQrDataUrl(dataUrl) })
+    )
+    return () => { cancelled = true }
   }, [showQR, remoteUrl])
 
-  const toggleRemote = async () => {
+  const toggleRemote = async (): Promise<void> => {
     if (remoteUrl) {
-      if (!showQR) {
-        setShowQR(true)
-      } else {
-        await window.electronAPI.stopRemote()
-        setRemoteUrl(null)
-        setShowQR(false)
-      }
-    } else {
-      const url = await window.electronAPI.startRemote()
-      setRemoteUrl(url)
-      setShowQR(true)
+      setShowQR((open) => !open)
+      return
     }
+    const url = await window.electronAPI.startRemote()
+    setRemoteUrl(url)
+    setShowQR(true)
+  }
+
+  const stopRemote = async (): Promise<void> => {
+    await window.electronAPI.stopRemote()
+    setRemoteUrl(null)
+    setShowQR(false)
   }
 
   return (
     <div className="relative">
       <button
-        onClick={toggleRemote}
+        onClick={() => { void toggleRemote() }}
         className={`px-2 py-1 text-[11px] rounded transition-colors flex items-center gap-1 ${
-          remoteUrl ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
+          remoteUrl ? 'bg-white text-black' : 'bg-gray-800 text-gray-200 hover:bg-gray-700 hover:text-white'
         }`}
-        title={remoteUrl ? `Remote: ${remoteUrl}` : 'Start remote control'}
-        aria-label={remoteUrl ? `Remote: ${remoteUrl}` : 'Start remote control'}
+        title={remoteUrl ? `Phone remote is on — ${remoteUrl}` : 'Show the phone remote QR code'}
+        aria-label={remoteUrl ? `Phone remote is on at ${remoteUrl}` : 'Show the phone remote QR code'}
+        aria-haspopup="dialog"
+        aria-expanded={showQR}
       >
-        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
           <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 0 0 6 3.75v16.5a2.25 2.25 0 0 0 2.25 2.25h7.5A2.25 2.25 0 0 0 18 20.25V3.75a2.25 2.25 0 0 0-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3" />
         </svg>
-        {remoteUrl ? 'Remote On' : 'Remote'}
+        {remoteUrl ? 'Remote on' : 'Remote'}
       </button>
-      {showQR && remoteUrl && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setShowQR(false)} />
-          <div className="absolute top-full right-0 mt-2 z-50 bg-white border border-gray-200 rounded-xl shadow-2xl p-4 w-64">
-            <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-3">Scan to control</div>
-            <div className="flex justify-center mb-3">
-              {qrDataUrl
-                ? <img src={qrDataUrl} alt="QR Code" className="rounded-lg" width={220} height={220} />
-                : <div className="w-[220px] h-[220px] bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs">Generating…</div>
-              }
-            </div>
-            <div className="text-[9px] text-gray-400 font-mono break-all mb-3 text-center leading-relaxed">{remoteUrl}</div>
-            <div className="flex gap-1.5">
-              <button
-                onClick={() => { navigator.clipboard.writeText(remoteUrl) }}
-                className="flex-1 px-2 py-1.5 text-[10px] bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
-              >
-                Copy URL
-              </button>
-              <button
-                onClick={async () => { await window.electronAPI.stopRemote(); setRemoteUrl(null); setShowQR(false) }}
-                className="px-2 py-1.5 text-[10px] bg-red-50 hover:bg-red-100 text-red-500 rounded-lg transition-colors"
-              >
-                Stop
-              </button>
-            </div>
+
+      <Popover
+        open={showQR && !!remoteUrl}
+        onClose={() => setShowQR(false)}
+        label="Phone remote"
+        widthClass="w-64"
+      >
+        <div className="p-4">
+          <div className="text-[11px] text-gray-300 uppercase tracking-wider mb-3">Scan to control</div>
+          <div className="flex justify-center mb-3">
+            {qrDataUrl
+              ? <img src={qrDataUrl} alt={`QR code for ${remoteUrl}`} className="rounded-lg bg-white" width={220} height={220} />
+              : <div className="w-[220px] h-[220px] bg-gray-800 rounded-lg flex items-center justify-center text-gray-300 text-xs">Generating…</div>}
           </div>
-        </>
-      )}
+          <div className="text-[11px] text-gray-300 font-mono break-all mb-3 text-center leading-relaxed">{remoteUrl}</div>
+          <div className="flex gap-1.5">
+            <button
+              onClick={() => {
+                if (remoteUrl) void navigator.clipboard.writeText(remoteUrl)
+                setCopied(true)
+                setTimeout(() => setCopied(false), 1500)
+              }}
+              className="flex-1 px-2 py-1.5 text-[11px] bg-gray-800 hover:bg-gray-700 text-gray-100 rounded-lg transition-colors"
+            >
+              {copied ? 'Copied' : 'Copy URL'}
+            </button>
+            <button
+              onClick={() => { void stopRemote() }}
+              className="px-2.5 py-1.5 text-[11px] bg-red-600 hover:bg-red-500 text-white font-medium rounded-lg transition-colors"
+            >
+              Stop
+            </button>
+          </div>
+        </div>
+      </Popover>
     </div>
   )
 }
@@ -913,13 +934,13 @@ function PresenterLiveNotes(): JSX.Element {
       {/* Quick-add buttons */}
       <div className="flex items-center gap-1 px-2 py-1 flex-shrink-0">
         <button onClick={() => addLine('- [ ] ')}
-          className="px-1.5 py-0.5 text-[9px] text-gray-600 hover:text-gray-300 hover:bg-gray-800 rounded transition-colors"
+          className="px-1.5 py-0.5 text-[11px] text-gray-400 hover:text-gray-300 hover:bg-gray-800 rounded transition-colors"
           title="Add todo" aria-label="Add todo">☑ Todo</button>
         <button onClick={() => addLine('- ')}
-          className="px-1.5 py-0.5 text-[9px] text-gray-600 hover:text-gray-300 hover:bg-gray-800 rounded transition-colors"
+          className="px-1.5 py-0.5 text-[11px] text-gray-400 hover:text-gray-300 hover:bg-gray-800 rounded transition-colors"
           title="Add bullet" aria-label="Add bullet">• Bullet</button>
         <button onClick={() => addLine('')}
-          className="px-1.5 py-0.5 text-[9px] text-gray-600 hover:text-gray-300 hover:bg-gray-800 rounded transition-colors"
+          className="px-1.5 py-0.5 text-[11px] text-gray-400 hover:text-gray-300 hover:bg-gray-800 rounded transition-colors"
           title="Add text" aria-label="Add text">+ Text</button>
       </div>
       {/* Lines */}
@@ -938,7 +959,7 @@ function PresenterLiveNotes(): JSX.Element {
                       <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                     </svg>
                   ) : (
-                    <svg className="w-3.5 h-3.5 text-gray-600" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <svg className="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                     </svg>
                   )}
@@ -952,8 +973,8 @@ function PresenterLiveNotes(): JSX.Element {
                 onChange={(e) => handleContentChange(i, e.target.value)}
                 onKeyDown={(e) => handleKeyDown(i, e)}
                 className={`flex-1 min-w-0 bg-transparent text-xs outline-none ${
-                  isChecked ? 'text-gray-600 line-through' : 'text-gray-300'
-                } placeholder-gray-700`}
+                  isChecked ? 'text-gray-400 line-through' : 'text-gray-300'
+                } placeholder-gray-500`}
                 placeholder={isChecked || isUnchecked ? 'Action item...' : isBullet ? 'Note...' : 'Text...'}
               />
             </div>

@@ -29,6 +29,7 @@ const DEFAULTS: Record<string, unknown> = {
   ollamaBaseUrl: '',
   imageProvider: 'openai',
   mcpServerEnabled: false,
+  experimentalNotebook: false,
   recentDecks: []
 }
 

@@ -169,7 +169,7 @@ export function AudienceView(): JSX.Element {
 
   if (!currentSlide) {
     return (
-      <div className="h-screen w-screen bg-black flex items-center justify-center text-gray-600 text-lg">
+      <div className="h-screen w-screen bg-black flex items-center justify-center text-gray-400 text-lg">
         Loading presentation...
       </div>
     )
@@ -206,8 +206,8 @@ export function AudienceView(): JSX.Element {
               <Panel defaultSize={executionOutput ? 55 : 100} minSize={20}>
                 <div className="h-full flex flex-col">
                   <div className="h-8 bg-gray-900 border-b border-gray-800 flex items-center px-3 gap-2 flex-shrink-0">
-                    <span className="text-gray-500 text-[10px] font-mono flex-1 truncate">{currentSlide.config.code!.file}</span>
-                    <span className="text-[9px] uppercase px-1.5 py-0.5 bg-gray-800 text-gray-400 rounded">{codeLanguage}</span>
+                    <span className="text-gray-500 text-[11px] font-mono flex-1 truncate">{currentSlide.config.code!.file}</span>
+                    <span className="text-[11px] uppercase px-1.5 py-0.5 bg-gray-800 text-gray-400 rounded">{codeLanguage}</span>
                   </div>
                   <div className="flex-1 min-h-0">
                     <Editor
@@ -241,7 +241,7 @@ export function AudienceView(): JSX.Element {
                   <Panel defaultSize={45} minSize={10}>
                     <div className="h-full flex flex-col bg-gray-950">
                       <div className="h-7 bg-gray-900 border-b border-gray-800 flex items-center px-3 flex-shrink-0">
-                        <span className="text-[10px] text-gray-500 uppercase tracking-wider">Output</span>
+                        <span className="text-[11px] text-gray-500 uppercase tracking-wider">Output</span>
                       </div>
                       <div className="flex-1 min-h-0 overflow-auto p-3">
                         <pre className="text-sm text-gray-300 font-mono whitespace-pre-wrap leading-relaxed">{executionOutput}</pre>
@@ -262,7 +262,7 @@ export function AudienceView(): JSX.Element {
               {artifactFrame ? (
                 <img src={artifactFrame} alt="Presenter web app" className="max-w-full max-h-full object-contain" />
               ) : (
-                <div className="text-gray-600 text-sm">Loading web app...</div>
+                <div className="text-gray-400 text-sm">Loading web app...</div>
               )}
             </div>
           )}

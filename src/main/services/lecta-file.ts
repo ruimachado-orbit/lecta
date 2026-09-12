@@ -172,9 +172,49 @@ export async function createLectaFile(lectaFilePath: string, title: string, docT
     await mkdir(join(workspaceDir, 'slides'), { recursive: true })
     await mkdir(join(workspaceDir, 'code'), { recursive: true })
 
+    // A new deck opens on something that already demonstrates what Lecta is for:
+    // a title, a slide whose code actually runs, and a closing slide.
     await writeFile(
-      join(workspaceDir, 'slides', '01-welcome.md'),
-      `# ${title}\n\nWelcome to your new presentation!\n`,
+      join(workspaceDir, 'slides', '01-title.md'),
+      `# ${title}\n\nA presentation that runs its own code.\n`,
+      'utf-8'
+    )
+
+    await writeFile(
+      join(workspaceDir, 'slides', '02-live-code.md'),
+      [
+        '## Live code',
+        '',
+        'The snippet on the right runs inside the slide. Edit it and press',
+        '`Cmd/Ctrl + Enter` — the output updates while you present.',
+        '',
+        '- Runs in a sandboxed worker',
+        '- Output is mirrored to the audience window',
+        '- Python, SQL and shell engines work the same way',
+        ''
+      ].join('\n'),
+      'utf-8'
+    )
+
+    await writeFile(
+      join(workspaceDir, 'code', 'hello.js'),
+      [
+        "const audience = 'everyone'",
+        '',
+        'console.log(`Hello, ${audience}!`)',
+        '',
+        'const squares = [1, 2, 3, 4, 5].map((n) => n * n)',
+        "console.log('Squares:', squares.join(', '))",
+        '',
+        '// Change something and run it again — the slide updates live.',
+        ''
+      ].join('\n'),
+      'utf-8'
+    )
+
+    await writeFile(
+      join(workspaceDir, 'slides', '03-closing.md'),
+      `# Thank you\n\nQuestions?\n`,
       'utf-8'
     )
 
@@ -184,8 +224,26 @@ export async function createLectaFile(lectaFilePath: string, title: string, docT
       theme: 'dark',
       slides: [
         {
-          id: 'welcome',
-          content: 'slides/01-welcome.md',
+          id: 'title',
+          content: 'slides/01-title.md',
+          layout: 'title',
+          artifacts: []
+        },
+        {
+          id: 'live-code',
+          content: 'slides/02-live-code.md',
+          layout: 'two-col',
+          code: {
+            file: 'code/hello.js',
+            language: 'javascript',
+            execution: 'sandpack'
+          },
+          artifacts: []
+        },
+        {
+          id: 'closing',
+          content: 'slides/03-closing.md',
+          layout: 'center',
           artifacts: []
         }
       ]

@@ -7,6 +7,10 @@ import { useChatStore } from '../../stores/chat-store'
 import { useTabsStore } from '../../stores/tabs-store'
 import { ModelSelector } from '../ai/ModelSelector'
 import { MyPresentations } from '../library/MyPresentations'
+import { Dialog } from '../common/Dialog'
+import { ShortcutTable, ShortcutsOverlay } from '../common/ShortcutsOverlay'
+import { CommandPalette } from '../common/CommandPalette'
+import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
 import { AI_PROVIDERS, CODEX_MODELS, DEFAULT_CODEX_MODEL, OPENAI_API_MODELS, getProviderForModel } from '../../../../../packages/shared/src/constants'
 
 interface RecentDeck {
@@ -35,6 +39,17 @@ export function HomeScreen(): JSX.Element {
   const [showHelp, setShowHelp] = useState(false)
   const [newName, setNewName] = useState('')
   const [createError, setCreateError] = useState<string | null>(null)
+  const [demoBusy, setDemoBusy] = useState(false)
+  const [recentsLoaded, setRecentsLoaded] = useState(false)
+  const experimentalNotebook = useUIStore((s) => s.experimentalNotebook)
+
+  // Cmd/Ctrl+K and `?` work on the home screen too.
+  useKeyboardShortcuts()
+
+  // Notebook mode is experimental: never leave the picker on it while it is hidden.
+  useEffect(() => {
+    if (!experimentalNotebook && createType === 'notebook') setCreateType('presentation')
+  }, [experimentalNotebook, createType])
 
   // Auto-open AI Generate panel when a pending prompt arrives from the chat
   useEffect(() => {
@@ -56,6 +71,7 @@ export function HomeScreen(): JSX.Element {
 
   const refreshRecentDecks = useCallback(() => {
     window.electronAPI.getRecentDecks().then((decks: any[]) => {
+      setRecentsLoaded(true)
       // Handle both old string[] and new object[] formats
       setRecentDecks(decks.map((d) =>
         typeof d === 'string'
@@ -93,20 +109,26 @@ export function HomeScreen(): JSX.Element {
     }
   }
 
-  const handleCreateFolder = async () => {
-    const trimmed = newName.trim()
-    if (!trimmed) return
-
+  /**
+   * First run has something to open: copy the bundled example deck into
+   * ~/Documents/Lecta/Hello Lecta (once) and open it.
+   */
+  const handleOpenDemoDeck = useCallback(async () => {
     setCreateError(null)
+    setDemoBusy(true)
     try {
-      const folderPath = await window.electronAPI.createPresentation(trimmed)
-      if (folderPath) {
-        await loadPresentation(folderPath)
+      const path = await window.electronAPI.openDemoDeck()
+      if (!path) {
+        setCreateError('The demo deck is not bundled with this build.')
+        return
       }
+      await loadPresentation(path)
     } catch (err) {
       setCreateError((err as Error).message)
+    } finally {
+      setDemoBusy(false)
     }
-  }
+  }, [loadPresentation])
 
   if (showLibrary) {
     return <MyPresentations onBack={() => setShowLibrary(false)} />
@@ -117,7 +139,7 @@ export function HomeScreen(): JSX.Element {
   }
 
   if (showHelp) {
-    return <HelpPanel onBack={() => setShowHelp(false)} />
+    return <HelpPanel onBack={() => setShowHelp(false)} onOpenDemoDeck={handleOpenDemoDeck} demoBusy={demoBusy} />
   }
 
   if (showAIGenerate) {
@@ -141,7 +163,7 @@ export function HomeScreen(): JSX.Element {
             style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontStyle: 'italic', fontWeight: 700 }}
           >
             lecta
-            <sup className="text-[10px] font-sans not-italic font-semibold tracking-widest uppercase ml-1.5 align-super bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-400 bg-clip-text text-transparent">beta</sup>
+            <sup className="text-[11px] font-sans not-italic font-semibold tracking-widest uppercase ml-1.5 align-super bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-400 bg-clip-text text-transparent">beta</sup>
           </h1>
         </div>
 
@@ -168,34 +190,42 @@ export function HomeScreen(): JSX.Element {
               )}
             </button>
 
-          {!showCreate ? (
             <button
               onClick={() => setShowCreate(true)}
+              aria-expanded={showCreate}
               className="flex-1 py-2.5 px-4 bg-gray-900 hover:bg-gray-800
-                         text-gray-300 font-medium rounded-full transition-colors text-sm
+                         text-gray-200 font-medium rounded-full transition-colors text-sm
                          flex items-center justify-center gap-2 border border-gray-700"
             >
               <PlusIcon />
               New
             </button>
-          ) : (
+          </div>
+
+          {/* First run has nowhere to go without this. */}
+          {recentsLoaded && recentDecks.length === 0 && (
             <button
-              onClick={() => setShowCreate(true)}
-              className="flex-1 py-2.5 px-4 bg-gray-900 hover:bg-gray-800
-                         text-gray-300 font-medium rounded-full transition-colors text-sm
-                         flex items-center justify-center gap-2 border border-gray-700"
+              onClick={handleOpenDemoDeck}
+              disabled={demoBusy}
+              className="w-full py-2.5 px-4 rounded-full text-sm font-medium border border-dashed border-gray-600
+                         text-gray-200 hover:text-white hover:border-gray-400 hover:bg-gray-900
+                         transition-colors flex items-center justify-center gap-2 disabled:opacity-40"
             >
-              <PlusIcon />
-              New
+              {demoBusy ? <LoadingSpinner /> : (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 9.75 15 12l-5.25 2.25v-4.5Z" />
+                </svg>
+              )}
+              Open the demo deck
             </button>
           )}
-          </div>
 
           {/* Secondary actions */}
           <div className="flex items-center justify-center gap-4 mt-1">
             <button
               onClick={() => setShowAIGenerate(true)}
-              className="text-xs text-gray-400 hover:text-gray-300 transition-colors flex items-center gap-1.5"
+              className="text-xs text-gray-300 hover:text-white transition-colors flex items-center gap-1.5"
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
@@ -204,7 +234,7 @@ export function HomeScreen(): JSX.Element {
             </button>
 <button
               onClick={() => setShowLibrary(true)}
-              className="text-xs text-gray-400 hover:text-gray-300 transition-colors flex items-center gap-1.5"
+              className="text-xs text-gray-300 hover:text-white transition-colors flex items-center gap-1.5"
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
@@ -215,17 +245,21 @@ export function HomeScreen(): JSX.Element {
 
           {showCreate && (
             <div className="space-y-2">
-              {/* Type toggle — inline pills */}
-              <div className="flex gap-1 justify-center">
-                <button onClick={() => setCreateType('presentation')}
-                  className={`px-3 py-1 text-[11px] rounded-full transition-colors ${
-                    createType === 'presentation' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-300'
-                  }`}>Presentation</button>
-                <button onClick={() => setCreateType('notebook')}
-                  className={`px-3 py-1 text-[11px] rounded-full transition-colors ${
-                    createType === 'notebook' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-300'
-                  }`}>Notebook</button>
-              </div>
+              {/* Type toggle — Notebook only appears when the experimental flag is on */}
+              {experimentalNotebook && (
+                <div className="flex gap-1 justify-center">
+                  <button onClick={() => setCreateType('presentation')}
+                    aria-pressed={createType === 'presentation'}
+                    className={`px-3 py-1 text-xs rounded-full transition-colors ${
+                      createType === 'presentation' ? 'bg-gray-900 text-white' : 'text-gray-400 hover:text-gray-200'
+                    }`}>Presentation</button>
+                  <button onClick={() => setCreateType('notebook')}
+                    aria-pressed={createType === 'notebook'}
+                    className={`px-3 py-1 text-xs rounded-full transition-colors ${
+                      createType === 'notebook' ? 'bg-gray-900 text-white' : 'text-gray-400 hover:text-gray-200'
+                    }`}>Notebook</button>
+                </div>
+              )}
               {/* Inline input + create */}
               <div className="flex gap-2">
                 <input type="text" value={newName}
@@ -331,7 +365,7 @@ export function HomeScreen(): JSX.Element {
       <div className="fixed bottom-6 left-6 z-50 flex items-center gap-1" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         <button
           onClick={() => setShowSettings(true)}
-          className="p-2 rounded-lg text-gray-600 hover:text-gray-300 hover:bg-gray-800 transition-colors"
+          className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
           title="Settings"
           aria-label="Settings"
         >
@@ -342,7 +376,7 @@ export function HomeScreen(): JSX.Element {
         </button>
         <button
           onClick={() => setShowHelp(true)}
-          className="p-2 rounded-lg text-gray-600 hover:text-gray-300 hover:bg-gray-800 transition-colors"
+          className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
           title="Help"
           aria-label="Help"
         >
@@ -352,6 +386,10 @@ export function HomeScreen(): JSX.Element {
         </button>
       </div>
       </div>
+
+      {/* App-wide overlays — the palette and the shortcut sheet work from Home too */}
+      <CommandPalette />
+      <ShortcutsOverlay />
     </div>
   )
 }
@@ -405,7 +443,7 @@ function HomeTabBar(): JSX.Element {
       {/* Add new tab */}
       <button
         onClick={newHomeTab}
-        className="h-full px-2 text-gray-600 hover:text-gray-400 hover:bg-gray-800 transition-colors flex items-center"
+        className="h-full px-2 text-gray-400 hover:text-gray-400 hover:bg-gray-800 transition-colors flex items-center"
         title="New tab"
         aria-label="New tab"
       >
@@ -417,7 +455,7 @@ function HomeTabBar(): JSX.Element {
       {/* New window button */}
       <button
         onClick={() => window.electronAPI.newWindow()}
-        className="h-full px-2 text-gray-600 hover:text-gray-400 hover:bg-gray-800 transition-colors flex items-center"
+        className="h-full px-2 text-gray-400 hover:text-gray-400 hover:bg-gray-800 transition-colors flex items-center"
         title="New window"
         aria-label="New window"
       >
@@ -443,9 +481,20 @@ function ChatInput(): JSX.Element {
   }
 
   return (
-    <div className={`mb-6 space-y-2 ${noProviders ? 'opacity-50' : ''}`}>
-      <div className={`flex items-center gap-2 bg-gray-900 border border-gray-800 rounded-full px-4 py-2.5 shadow-sm transition-colors ${noProviders ? 'cursor-not-allowed' : 'focus-within:border-gray-700'}`}>
-        <svg className={`w-4 h-4 flex-shrink-0 ${noProviders ? 'text-gray-500' : 'text-gray-500'}`} fill="currentColor" viewBox="0 0 24 24">
+    <div className="mb-6 space-y-2">
+      {noProviders && (
+        <div className="flex items-center gap-3 px-4 py-2 rounded-full bg-gray-900 border border-gray-700">
+          <p className="text-xs text-gray-200 flex-1">No AI provider is configured yet.</p>
+          <button
+            onClick={() => useUIStore.getState().openSettings()}
+            className="text-xs font-medium px-2.5 py-1 rounded-full bg-white text-black hover:bg-gray-200 transition-colors"
+          >
+            Open Settings
+          </button>
+        </div>
+      )}
+      <div className={`flex items-center gap-2 bg-gray-900 border border-gray-800 rounded-full px-4 py-2.5 shadow-sm transition-colors ${noProviders ? 'opacity-60 cursor-not-allowed' : 'focus-within:border-gray-700'}`}>
+        <svg className="w-4 h-4 flex-shrink-0 text-gray-400" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
         </svg>
         <input
@@ -453,15 +502,18 @@ function ChatInput(): JSX.Element {
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') handleSend() }}
-          placeholder={noProviders ? 'Configure an AI provider in Settings to use chat' : 'Ask Lecta AI...'}
-          className="flex-1 bg-transparent text-sm text-gray-300 placeholder-gray-500 focus:outline-none disabled:cursor-not-allowed"
+          placeholder={noProviders ? 'Configure an AI provider in Settings to use chat' : 'Ask Lecta AI…'}
+          aria-label="Ask Lecta AI"
+          className="flex-1 bg-transparent text-sm text-gray-200 placeholder-gray-400 focus:outline-none disabled:cursor-not-allowed"
           disabled={noProviders}
         />
         <ModelSelector compact />
         <button
           onClick={handleSend}
           disabled={!value.trim() || noProviders}
-          className="w-7 h-7 rounded-full bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800 disabled:text-gray-600 text-white flex items-center justify-center transition-colors flex-shrink-0"
+          title="Send"
+          aria-label="Send message"
+          className="w-7 h-7 rounded-full bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800 disabled:text-gray-400 text-white flex items-center justify-center transition-colors flex-shrink-0"
         >
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
@@ -474,6 +526,8 @@ function ChatInput(): JSX.Element {
 
 function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenerated: (workspaceDir: string) => void }): JSX.Element {
   const pendingPrompt = useUIStore((s) => s.pendingGeneratePrompt)
+  const providerStatuses = useUIStore((s) => s.providerStatuses)
+  const noProviders = !providerStatuses.some((p) => p.hasKey)
   const [prompt, setPrompt] = useState('')
   const [title, setTitle] = useState('')
   const [slideCount, setSlideCount] = useState(10)
@@ -564,7 +618,9 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
         <button
           onClick={onBack}
           disabled={isGenerating}
-          className="p-1.5 rounded hover:bg-gray-800 text-gray-400 hover:text-gray-300 transition-colors disabled:opacity-30"
+          title="Back"
+          aria-label="Back to Home"
+          className="p-1.5 rounded hover:bg-gray-800 text-gray-300 hover:text-white transition-colors disabled:opacity-30"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
@@ -582,6 +638,25 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
       <div className="flex-1 overflow-y-auto px-6 pb-8" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         <div className="max-w-lg mx-auto space-y-6">
 
+          {/* No AI configured — the screen used to be a dead end */}
+          {noProviders && (
+            <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-gray-900 border border-amber-500/40">
+              <svg className="w-5 h-5 text-amber-300 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+              </svg>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-gray-100">No AI provider is configured.</p>
+                <p className="text-xs text-gray-300 mt-0.5">Add an API key, or sign in with the Codex CLI, to generate a deck.</p>
+              </div>
+              <button
+                onClick={() => useUIStore.getState().openSettings()}
+                className="flex-shrink-0 px-2.5 py-1 text-xs font-medium rounded-lg bg-amber-400 text-black hover:bg-amber-300 transition-colors"
+              >
+                Open Settings
+              </button>
+            </div>
+          )}
+
           {/* Title */}
           <div>
             <label className="text-sm text-gray-300 block mb-1.5">Presentation title</label>
@@ -592,7 +667,7 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
               placeholder="e.g. Q1 2026 Business Review"
               disabled={isGenerating}
               className="w-full px-3 py-2 bg-gray-900 text-gray-300 text-sm rounded-lg border border-gray-700
-                         focus:border-indigo-500 focus:outline-none placeholder-gray-600 disabled:opacity-50"
+                         focus:border-indigo-500 focus:outline-none placeholder-gray-500 disabled:opacity-50"
             />
           </div>
 
@@ -606,14 +681,14 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
               disabled={isGenerating}
               rows={6}
               className="w-full px-3 py-2 bg-gray-900 text-gray-300 text-sm rounded-lg border border-gray-700
-                         focus:border-indigo-500 focus:outline-none placeholder-gray-600 resize-none disabled:opacity-50"
+                         focus:border-indigo-500 focus:outline-none placeholder-gray-500 resize-none disabled:opacity-50"
             />
           </div>
 
           {/* Source file */}
           <div>
             <label className="text-sm text-gray-300 block mb-1.5">Source file (optional)</label>
-            <p className="text-[10px] text-gray-600 mb-2">Upload a document to generate slides from its content — supports .txt, .md, .pdf, .csv, .json</p>
+            <p className="text-[11px] text-gray-400 mb-2">Upload a document to generate slides from its content — supports .txt, .md, .pdf, .csv, .json</p>
             {sourceFile ? (
               <div className="flex items-center gap-2 px-3 py-2 bg-gray-900 rounded-lg border border-gray-700">
                 <svg className="w-4 h-4 text-indigo-400 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -683,7 +758,7 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
 
           {/* Quick presets */}
           <div>
-            <label className="text-[10px] text-gray-600 uppercase tracking-wider block mb-2">Quick templates</label>
+            <label className="text-[11px] text-gray-400 uppercase tracking-wider block mb-2">Quick templates</label>
             <div className="flex flex-wrap gap-1.5">
               {[
                 { label: 'Business Review', prompt: 'Quarterly business review with revenue metrics, team updates, key risks, and next quarter priorities', count: 12 },
@@ -734,7 +809,7 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
           {/* Generate button */}
           <button
             onClick={handleGenerate}
-            disabled={isGenerating || (!prompt.trim() && !sourceFile)}
+            disabled={isGenerating || noProviders || (!prompt.trim() && !sourceFile)}
             className="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500
                        disabled:from-gray-700 disabled:to-gray-700 disabled:text-gray-500
                        text-white font-medium rounded-lg transition-all text-sm flex items-center justify-center gap-2"
@@ -786,8 +861,41 @@ const PROVIDER_KEY_FIELDS: Record<string, string> = {
 
 const ALL_PROVIDER_IDS = ['anthropic', 'openai', 'google', 'mistral', 'meta', 'xai', 'perplexity', 'ollama']
 
+/** Labelled on/off switch used throughout Settings. */
+function SettingToggle({ label, description, checked, onChange }: {
+  label: string
+  description: string
+  checked: boolean
+  onChange: (next: boolean) => void | Promise<void>
+}): JSX.Element {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <div className="min-w-0">
+        <span className="text-sm text-gray-200 block">{label}</span>
+        <p className="text-xs text-gray-400">{description}</p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-label={label}
+        onClick={() => { void onChange(!checked) }}
+        className={`w-10 h-6 rounded-full transition-colors relative flex-shrink-0 ${checked ? 'bg-white' : 'bg-gray-700'}`}
+      >
+        <div className={`w-4 h-4 rounded-full transition-transform absolute top-1 ${
+          checked ? 'translate-x-5 bg-black' : 'translate-x-1 bg-gray-300'
+        }`} />
+      </button>
+    </div>
+  )
+}
+
 function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
   const { theme, setTheme, palette, setPalette, fontSize, setFontSize, refreshProviderStatuses, providerStatuses, aiModel, setAiModel } = useUIStore()
+  const autoAudience = useUIStore((s) => s.autoAudience)
+  const setAutoAudience = useUIStore((s) => s.setAutoAudience)
+  const experimentalNotebook = useUIStore((s) => s.experimentalNotebook)
+  const setExperimentalNotebook = useUIStore((s) => s.setExperimentalNotebook)
   const activeProviderId = getProviderForModel(aiModel)?.id ?? 'anthropic'
   const [nativeExec, setNativeExec] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -822,6 +930,7 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
         setFontSize(settings.fontSize)
       }
       setOpenaiAuthMode(settings.openaiAuthMode === 'codex' ? 'codex' : 'apiKey')
+      setExperimentalNotebook(settings.experimentalNotebook === true)
       setCodexBinPath(typeof settings.codexBinPath === 'string' ? settings.codexBinPath : '')
       // Load configured-key flags (settings:get redacts secrets and returns configuredKeys booleans)
       const flags = (settings.configuredKeys as Record<string, boolean> | undefined) ?? {}
@@ -898,7 +1007,9 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
       <div className="flex items-center gap-3 px-6 pt-12 pb-6" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         <button
           onClick={onBack}
-          className="p-1.5 rounded hover:bg-gray-800 text-gray-400 hover:text-gray-300 transition-colors"
+          title="Back"
+          aria-label="Back to Home"
+          className="p-1.5 rounded hover:bg-gray-800 text-gray-300 hover:text-white transition-colors"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
@@ -979,12 +1090,12 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
           {/* AI Providers */}
           <section>
             <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-4">AI Providers</h3>
-            <p className="text-[10px] text-gray-600 mb-3">Configure the AI accounts you want Lecta to use. OpenAI can use either an API key or your local Codex ChatGPT sign-in.</p>
+            <p className="text-[11px] text-gray-400 mb-3">Configure the AI accounts you want Lecta to use. OpenAI can use either an API key or your local Codex ChatGPT sign-in.</p>
             <div className="mb-4 rounded-xl border border-gray-800 bg-gray-900 p-3">
               <div className="flex items-center justify-between gap-3 mb-3">
                 <div>
                   <label className="text-sm text-gray-300 block">OpenAI account</label>
-                  <p className="text-[10px] text-gray-600">Choose how Lecta connects to OpenAI models.</p>
+                  <p className="text-[11px] text-gray-400">Choose how Lecta connects to OpenAI models.</p>
                 </div>
                 <div className="flex gap-1 bg-gray-950 rounded-lg p-0.5 border border-gray-800">
                   <button
@@ -1009,18 +1120,18 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
               {openaiAuthMode === 'codex' && (
                 <div className="space-y-3">
                   <div>
-                    <label className="text-[10px] text-gray-500 block mb-1">Codex command</label>
+                    <label className="text-[11px] text-gray-500 block mb-1">Codex command</label>
                     <input
                       type="text"
                       value={codexBinPath}
                       onChange={(e) => setCodexBinPath(e.target.value)}
                       placeholder="codex"
-                      className="w-full px-3 py-2 bg-gray-950 text-gray-300 text-xs rounded-lg border border-gray-700 focus:border-indigo-500 focus:outline-none placeholder-gray-600"
+                      className="w-full px-3 py-2 bg-gray-950 text-gray-300 text-xs rounded-lg border border-gray-700 focus:border-indigo-500 focus:outline-none placeholder-gray-500"
                     />
-                    <p className="text-[10px] text-gray-600 mt-1">Leave blank to use the Codex CLI on PATH. Lecta selects {CODEX_MODELS[0].name} by default.</p>
+                    <p className="text-[11px] text-gray-400 mt-1">Leave blank to use the Codex CLI on PATH. Lecta selects {CODEX_MODELS[0].name} by default.</p>
                   </div>
                   <div className="flex items-center justify-between gap-3">
-                    <p className={`text-[10px] ${codexConnected ? 'text-green-400' : 'text-gray-500'}`}>
+                    <p className={`text-[11px] ${codexConnected ? 'text-green-400' : 'text-gray-500'}`}>
                       {validating ? 'Checking Codex...' : codexConnected ? `Signed in: ${codexAccount}${isCodexModelSelected ? '' : ' · model will switch to Codex'}` : 'Install Codex, then run codex login with ChatGPT.'}
                     </p>
                     <button
@@ -1051,7 +1162,7 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
 
                 const labelColor = providerStatus === 'connected' ? 'text-green-400'
                   : providerStatus === 'invalid' ? 'text-yellow-400'
-                  : 'text-gray-600'
+                  : 'text-gray-400'
 
                 const labelText = providerStatus === 'connected' ? 'Connected'
                   : providerStatus === 'invalid' ? 'Invalid key'
@@ -1141,8 +1252,8 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
                       )}
                       <span className={`w-2 h-2 rounded-full flex-shrink-0 ${validating ? 'bg-gray-500 animate-pulse' : dotColor}`} />
                     </div>
-                    <p className="text-[10px] text-gray-500 leading-tight">{providerDescription}</p>
-                    <p className={`text-[10px] mt-1 ${validating ? 'text-gray-500' : labelColor}`}>
+                    <p className="text-[11px] text-gray-500 leading-tight">{providerDescription}</p>
+                    <p className={`text-[11px] mt-1 ${validating ? 'text-gray-500' : labelColor}`}>
                       {validating ? 'Validating...' : (
                         <>
                           {isActive && 'Selected · '}
@@ -1168,23 +1279,38 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
 
           {/* Execution */}
           <section>
-            <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-4">Code Execution</h3>
-            <div className="flex items-center justify-between">
-              <div>
-                <label className="text-sm text-gray-300 block">Native execution</label>
-                <p className="text-[10px] text-gray-600">Run code with system interpreters (Node, Python, etc.)</p>
-              </div>
-              <button
-                onClick={() => setNativeExec(!nativeExec)}
-                className={`w-10 h-6 rounded-full transition-colors relative ${
-                  nativeExec ? 'bg-white' : 'bg-gray-700'
-                }`}
-              >
-                <div className={`w-4 h-4 rounded-full transition-transform absolute top-1 ${
-                  nativeExec ? 'translate-x-5 bg-black' : 'translate-x-1 bg-gray-400'
-                }`} />
-              </button>
-            </div>
+            <h3 className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-4">Code Execution</h3>
+            <SettingToggle
+              label="Native execution"
+              description="Run code with system interpreters (Node, Python, etc.)"
+              checked={nativeExec}
+              onChange={setNativeExec}
+            />
+          </section>
+
+          {/* Presenting */}
+          <section>
+            <h3 className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-4">Presenting</h3>
+            <SettingToggle
+              label="Open the audience window automatically"
+              description="When a second display is connected, presenting opens the audience view fullscreen there."
+              checked={autoAudience}
+              onChange={setAutoAudience}
+            />
+          </section>
+
+          {/* Experimental */}
+          <section>
+            <h3 className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-4">Experimental</h3>
+            <SettingToggle
+              label="Experimental: Notebook mode"
+              description="Shows Notebook in the New menu. Existing notebooks always open, flag or not."
+              checked={experimentalNotebook}
+              onChange={async (next) => {
+                setExperimentalNotebook(next)
+                await window.electronAPI.setAppSettings({ experimentalNotebook: next })
+              }}
+            />
           </section>
 
           {/* Claude Integration (MCP) */}
@@ -1195,7 +1321,7 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
               <div className="flex items-center justify-between">
                 <div>
                   <label className="text-sm text-gray-300 block">MCP Server</label>
-                  <p className="text-[10px] text-gray-600">
+                  <p className="text-[11px] text-gray-400">
                     Let Claude Desktop create and edit presentations
                     {mcpRunning && <span className="text-green-500 ml-1">Enabled</span>}
                   </p>
@@ -1242,10 +1368,10 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
                   {mcpInClaude ? 'Remove from Claude Desktop' : 'Add to Claude Desktop'}
                 </button>
                 {mcpMessage && (
-                  <p className="text-[10px] text-gray-500 mt-2">{mcpMessage}</p>
+                  <p className="text-[11px] text-gray-500 mt-2">{mcpMessage}</p>
                 )}
                 {!mcpInClaude && (
-                  <p className="text-[10px] text-gray-600 mt-1">Writes the Lecta MCP config to Claude Desktop so you can create slides from Claude.</p>
+                  <p className="text-[11px] text-gray-400 mt-1">Writes the Lecta MCP config to Claude Desktop so you can create slides from Claude.</p>
                 )}
               </div>
             </div>
@@ -1263,66 +1389,61 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
         </div>
       </div>
 
-      {/* API Key Modal */}
-      {editingProvider && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-          onClick={() => setEditingProvider(null)}
-          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-        >
-          <div
-            className="w-full max-w-md mx-4 bg-gray-900 border border-gray-800 rounded-xl p-6 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-8 h-8 rounded-lg bg-gray-800 flex items-center justify-center text-sm font-bold text-gray-600">
-                {PROVIDER_META[editingProvider]?.icon}
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-white">
-                  {editingProvider === 'ollama' ? `${PROVIDER_META[editingProvider]?.name} Base URL` : `${PROVIDER_META[editingProvider]?.name} API Key`}
-                </h3>
-                <p className="text-[10px] text-gray-500">{PROVIDER_META[editingProvider]?.description}</p>
-              </div>
-            </div>
-
-            <input
-              type={editingProvider === 'ollama' ? 'url' : 'password'}
-              value={editingKey}
-              onChange={(e) => setEditingKey(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleSaveKey(editingProvider, editingKey) }}
-              placeholder={editingProvider !== 'ollama' && configuredKeys[editingProvider]
-                ? 'Key saved — enter a new key to replace it'
-                : PROVIDER_META[editingProvider]?.placeholder}
-              autoFocus
-              className="w-full px-3 py-2.5 bg-gray-950 text-gray-300 text-sm rounded-lg border border-gray-700
-                         focus:border-indigo-500 focus:outline-none placeholder-gray-600 mb-4"
-            />
-
-            <div className="flex gap-2">
+      {/* API key / base URL — one Dialog primitive: focus trap, Escape, focus restore */}
+      <Dialog
+        open={!!editingProvider}
+        onClose={() => setEditingProvider(null)}
+        title={
+          editingProvider === 'ollama'
+            ? `${PROVIDER_META[editingProvider]?.name} base URL`
+            : `${editingProvider ? PROVIDER_META[editingProvider]?.name : ''} API key`
+        }
+        description={editingProvider ? PROVIDER_META[editingProvider]?.description : undefined}
+        widthClass="max-w-md"
+        footer={
+          <>
+            <button
+              onClick={() => setEditingProvider(null)}
+              className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-200 font-medium rounded-lg transition-colors text-sm"
+            >
+              Cancel
+            </button>
+            {editingProvider && configuredKeys[editingProvider] && (
               <button
-                onClick={() => handleSaveKey(editingProvider, editingKey)}
-                className="flex-1 py-2 bg-white hover:bg-gray-200 text-black font-medium rounded-lg transition-colors text-sm"
+                onClick={() => handleSaveKey(editingProvider, '')}
+                className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-medium rounded-lg transition-colors text-sm"
               >
-                {editingProvider === 'ollama' ? 'Save URL' : 'Save Key'}
+                Remove
               </button>
-              {configuredKeys[editingProvider] && (
-                <button
-                  onClick={() => handleSaveKey(editingProvider, '')}
-                  className="px-4 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 font-medium rounded-lg transition-colors text-sm border border-red-600/30"
-                >
-                  Remove
-                </button>
-              )}
-              <button
-                onClick={() => setEditingProvider(null)}
-                className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium rounded-lg transition-colors text-sm"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
+            )}
+            <button
+              onClick={() => editingProvider && handleSaveKey(editingProvider, editingKey)}
+              className="px-4 py-2 bg-white hover:bg-gray-200 text-black font-medium rounded-lg transition-colors text-sm"
+            >
+              {editingProvider === 'ollama' ? 'Save URL' : 'Save key'}
+            </button>
+          </>
+        }
+      >
+        <div className="px-5 py-4">
+          <label className="block text-xs text-gray-300 mb-1.5" htmlFor="provider-secret">
+            {editingProvider === 'ollama' ? 'Base URL' : 'API key'}
+          </label>
+          <input
+            id="provider-secret"
+            type={editingProvider === 'ollama' ? 'url' : 'password'}
+            value={editingKey}
+            onChange={(e) => setEditingKey(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && editingProvider) handleSaveKey(editingProvider, editingKey) }}
+            placeholder={editingProvider && editingProvider !== 'ollama' && configuredKeys[editingProvider]
+              ? 'Key saved — enter a new key to replace it'
+              : (editingProvider ? PROVIDER_META[editingProvider]?.placeholder : '')}
+            className="w-full px-3 py-2.5 bg-gray-950 text-gray-100 text-sm rounded-lg border border-gray-700
+                       focus:border-gray-400 focus:outline-none placeholder-gray-500"
+          />
+          <p className="text-xs text-gray-400 mt-2">Keys are encrypted on disk and never sent to the renderer.</p>
         </div>
-      )}
+      </Dialog>
     </div>
   )
 }
@@ -1396,7 +1517,7 @@ function RecentCard({ deck, onClick, onRemove }: { deck: RecentDeck; onClick: ()
             backgroundImage: 'repeating-linear-gradient(transparent, transparent 23px, rgba(255,255,255,0.04) 23px, rgba(255,255,255,0.04) 24px)',
           }}
         >
-          <span className="absolute top-2 right-2 text-[8px] px-1.5 py-0.5 rounded-full bg-gray-800 text-gray-500">
+          <span className="absolute top-2 right-2 text-[11px] px-1.5 py-0.5 rounded-full bg-gray-800 text-gray-500">
             Notebook
           </span>
           {onRemove && (
@@ -1417,14 +1538,14 @@ function RecentCard({ deck, onClick, onRemove }: { deck: RecentDeck; onClick: ()
                 const text = stripMarkdown(line)
                 return (
                   <div key={i} className={`truncate ${
-                    i === 0 ? 'text-[11px] font-semibold text-gray-200' : 'text-[9px] text-gray-500'
+                    i === 0 ? 'text-[11px] font-semibold text-gray-200' : 'text-[11px] text-gray-500'
                   }`}>{text}</div>
                 )
               })}
             </div>
           ) : (
             <div className="h-full flex items-center justify-center">
-              <svg className="w-6 h-6 text-gray-600" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
               </svg>
             </div>
@@ -1434,10 +1555,10 @@ function RecentCard({ deck, onClick, onRemove }: { deck: RecentDeck; onClick: ()
           <div className="text-sm text-gray-200 font-medium truncate group-hover:text-white">{deck.title}</div>
           <div className="flex items-center gap-2 mt-1.5">
             {deck.slideCount && (
-              <span className="text-[10px] text-gray-500">{deck.slideCount} notes</span>
+              <span className="text-[11px] text-gray-500">{deck.slideCount} notes</span>
             )}
             {deck.date && (
-              <span className="text-[10px] text-gray-600">
+              <span className="text-[11px] text-gray-400">
                 {new Date(deck.date).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })}
               </span>
             )}
@@ -1454,7 +1575,7 @@ function RecentCard({ deck, onClick, onRemove }: { deck: RecentDeck; onClick: ()
                  hover:bg-gray-800 transition-all overflow-hidden"
     >
       <div className="border-b border-gray-800 overflow-hidden relative">
-        <span className="absolute top-2 right-2 z-10 text-[8px] px-1.5 py-0.5 rounded-full bg-gray-800 text-gray-400">
+        <span className="absolute top-2 right-2 z-10 text-[11px] px-1.5 py-0.5 rounded-full bg-gray-800 text-gray-400">
           Slides
         </span>
         {onRemove && (
@@ -1480,15 +1601,15 @@ function RecentCard({ deck, onClick, onRemove }: { deck: RecentDeck; onClick: ()
         <div className="text-sm text-gray-200 font-medium truncate group-hover:text-white">{deck.title}</div>
         <div className="flex items-center gap-2 mt-1.5">
           {deck.artifacts?.map((a) => (
-            <span key={a} className="text-[8px] text-gray-400">
+            <span key={a} className="text-[11px] text-gray-400">
               {a === 'code' ? '{ }' : a === 'video' ? '▶' : a === 'webapp' ? '◎' : '📎'}
             </span>
           ))}
           {deck.slideCount && (
-            <span className="text-[10px] text-gray-600">{deck.slideCount} slides</span>
+            <span className="text-[11px] text-gray-400">{deck.slideCount} slides</span>
           )}
           {deck.date && (
-            <span className="text-[10px] text-gray-600">
+            <span className="text-[11px] text-gray-400">
               {new Date(deck.date).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })}
             </span>
           )}
@@ -1500,14 +1621,20 @@ function RecentCard({ deck, onClick, onRemove }: { deck: RecentDeck; onClick: ()
 
 // ── Help Panel ──
 
-function HelpPanel({ onBack }: { onBack: () => void }): JSX.Element {
+function HelpPanel({ onBack, onOpenDemoDeck, demoBusy }: {
+  onBack: () => void
+  onOpenDemoDeck: () => void | Promise<void>
+  demoBusy: boolean
+}): JSX.Element {
   return (
     <div className="h-screen flex flex-col bg-gray-950 text-white" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
       {/* Header */}
       <div className="flex items-center gap-3 px-6 pt-12 pb-6" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         <button
           onClick={onBack}
-          className="p-1.5 rounded hover:bg-gray-800 text-gray-400 hover:text-gray-300 transition-colors"
+          title="Back"
+          aria-label="Back to Home"
+          className="p-1.5 rounded hover:bg-gray-800 text-gray-300 hover:text-white transition-colors"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
@@ -1522,7 +1649,21 @@ function HelpPanel({ onBack }: { onBack: () => void }): JSX.Element {
 
           {/* Getting Started */}
           <section>
-            <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-4">Getting Started</h3>
+            <h3 className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-4">Getting Started</h3>
+            <button
+              onClick={() => { void onOpenDemoDeck() }}
+              disabled={demoBusy}
+              className="w-full mb-3 px-3 py-2.5 rounded-lg bg-gray-900 border border-gray-700 hover:border-gray-500
+                         text-left transition-colors disabled:opacity-40"
+            >
+              <span className="text-sm font-medium text-gray-100 block">
+                {demoBusy ? 'Opening the demo deck…' : 'Open the demo deck'}
+              </span>
+              <span className="text-xs text-gray-400">
+                Copies “Hello Lecta” into your Documents folder and opens it — runnable JavaScript,
+                Python, SQL and MDX slides.
+              </span>
+            </button>
             <div className="space-y-3">
               <HelpStep num="1" title="Create" desc="Click New on the home screen. Give your presentation a name and pick a theme." />
               <HelpStep num="2" title="Write" desc="Add slides with Markdown or the visual editor. Attach code files, images, and PDFs." />
@@ -1530,21 +1671,10 @@ function HelpPanel({ onBack }: { onBack: () => void }): JSX.Element {
             </div>
           </section>
 
-          {/* Keyboard Shortcuts */}
+          {/* Keyboard Shortcuts — rendered from the same binding table the app runs on */}
           <section>
-            <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-4">Keyboard Shortcuts</h3>
-            <div className="space-y-1">
-              <ShortcutRow keys="← / →" action="Previous / Next slide" />
-              <ShortcutRow keys="⌘ + Enter" action="Run code" />
-              <ShortcutRow keys="F5" action="Enter presenter mode" />
-              <ShortcutRow keys="Esc" action="Exit presenter mode" />
-              <ShortcutRow keys="Shift + S" action="Toggle speaker notes" />
-              <ShortcutRow keys="Shift + N" action="Add new slide" />
-              <ShortcutRow keys="⌘ + S" action="Save the current slide" />
-              <ShortcutRow keys="⌘ + Z" action="Undo slide edit" />
-              <ShortcutRow keys="⌘ + ⇧ + Z" action="Redo slide edit" />
-              <ShortcutRow keys="⌘ + /" action="Toggle chat agent" />
-            </div>
+            <h3 className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-4">Keyboard Shortcuts</h3>
+            <ShortcutTable />
           </section>
 
           {/* Themes */}
@@ -1678,15 +1808,6 @@ function HelpStep({ num, title, desc }: { num: string; title: string; desc: stri
         <div className="text-sm font-medium text-gray-200">{title}</div>
         <div className="text-xs text-gray-500 mt-0.5">{desc}</div>
       </div>
-    </div>
-  )
-}
-
-function ShortcutRow({ keys, action }: { keys: string; action: string }): JSX.Element {
-  return (
-    <div className="flex items-center gap-3 px-3 py-1.5 rounded-lg hover:bg-gray-900 transition-colors">
-      <kbd className="text-xs font-mono text-gray-300 bg-gray-800 px-2 py-0.5 rounded border border-gray-700 min-w-[80px] text-center">{keys}</kbd>
-      <span className="text-sm text-gray-400">{action}</span>
     </div>
   )
 }

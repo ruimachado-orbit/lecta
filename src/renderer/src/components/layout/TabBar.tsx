@@ -64,7 +64,7 @@ export function TabBar(): JSX.Element {
       {/* New tab button */}
       <button
         onClick={newHomeTab}
-        className="h-full px-2 text-gray-600 hover:text-gray-400 hover:bg-gray-800 transition-colors flex items-center"
+        className="h-full px-2 text-gray-400 hover:text-gray-400 hover:bg-gray-800 transition-colors flex items-center"
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         title="New tab"
         aria-label="New tab"
@@ -77,7 +77,7 @@ export function TabBar(): JSX.Element {
       {/* New window button */}
       <button
         onClick={() => window.electronAPI.newWindow()}
-        className="h-full px-2 text-gray-600 hover:text-gray-400 hover:bg-gray-800 transition-colors flex items-center"
+        className="h-full px-2 text-gray-400 hover:text-gray-400 hover:bg-gray-800 transition-colors flex items-center"
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         title="New window"
         aria-label="New window"

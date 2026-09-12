@@ -23,6 +23,12 @@ files:
   - "!{tsconfig.json,tsconfig.*.json}"
 
 extraResources:
+  # First-run demo deck. `files` excludes example-decks from the asar, so it ships
+  # here instead and `src/main/ipc/demo.ts` copies it into ~/Documents on demand.
+  - from: example-decks/hello-world
+    to: example-decks/hello-world
+    filter:
+      - "**/*"
   - from: packages/mcp-server/dist
     to: mcp-server/dist
     filter:

@@ -16,7 +16,12 @@ export function AIAlert(): JSX.Element | null {
   if (!aiAlert) return null
 
   return (
-    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999]" style={{ animation: 'aiAlertIn 0.25s ease-out' }}>
+    <div
+      role="alert"
+      aria-live="assertive"
+      className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999]"
+      style={{ animation: 'aiAlertIn 0.25s ease-out' }}
+    >
       <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-900 border border-amber-500/30 shadow-2xl shadow-black/40 max-w-md">
         <div className="flex-shrink-0 w-8 h-8 rounded-full bg-amber-500/15 flex items-center justify-center">
           <svg className="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -25,7 +30,7 @@ export function AIAlert(): JSX.Element | null {
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm text-gray-200 leading-snug">{aiAlert}</p>
-          <p className="text-xs text-gray-500 mt-0.5">Configure AI credentials in Settings</p>
+          <p className="text-xs text-gray-300 mt-0.5">Configure AI credentials in Settings</p>
         </div>
         <button
           onClick={openSettings}
@@ -37,7 +42,7 @@ export function AIAlert(): JSX.Element | null {
           onClick={() => setAiAlert(null)}
           aria-label="Dismiss"
           title="Dismiss"
-          className="flex-shrink-0 p-1 rounded-lg hover:bg-gray-800 text-gray-500 hover:text-gray-300 transition-colors"
+          className="flex-shrink-0 p-1 rounded-lg hover:bg-gray-800 text-gray-300 hover:text-white transition-colors"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />

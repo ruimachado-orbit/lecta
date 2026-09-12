@@ -99,6 +99,7 @@ export function NotebookShell(): React.ReactElement {
     return (
       <div className="h-screen flex flex-col bg-gray-950">
         <TabBar />
+        <ExperimentalNotebookBanner />
         <JupyterView />
         <NotebookStatusBar />
       </div>
@@ -108,6 +109,7 @@ export function NotebookShell(): React.ReactElement {
   return (
     <div className="h-screen flex flex-col bg-gray-950">
       <TabBar />
+      <ExperimentalNotebookBanner />
       <NotebookToolbar showAgenda={activeView === 'agenda'} onToggleAgenda={() => setActiveView(activeView === 'agenda' ? 'notes' : 'agenda')} />
 
       <div className="flex-1 min-h-0 flex">
@@ -414,4 +416,32 @@ function formatTimeAgo(date: Date): string {
   const hours = Math.floor(minutes / 60)
   if (hours < 24) return `${hours}h ago`
   return date.toLocaleDateString()
+}
+
+
+/**
+ * Notebook mode is experimental (Settings → Experimental). Existing notebooks always
+ * open — the flag only controls whether new ones can be created — so a notebook opened
+ * with the flag off says so instead of silently pretending to be a supported surface.
+ */
+function ExperimentalNotebookBanner(): JSX.Element | null {
+  const enabled = useUIStore((s) => s.experimentalNotebook)
+  if (enabled) return null
+  return (
+    <div
+      role="status"
+      className="flex items-center gap-3 px-4 py-1.5 bg-amber-500/10 border-b border-amber-500/30 flex-shrink-0"
+    >
+      <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-300">Experimental</span>
+      <p className="text-xs text-gray-200 flex-1 min-w-0 truncate">
+        Notebook mode is turned off in Settings. This notebook still opens and saves normally.
+      </p>
+      <button
+        onClick={() => useUIStore.getState().openSettings()}
+        className="text-xs font-medium px-2.5 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-100 transition-colors flex-shrink-0"
+      >
+        Open Settings
+      </button>
+    </div>
+  )
 }

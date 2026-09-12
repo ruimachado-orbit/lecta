@@ -16,6 +16,44 @@ export interface PresenterState {
   mdxTrusted?: boolean
 }
 let pendingState: PresenterState | null = null
+/** True while the audience window occupies a second display. */
+let usingExternalDisplay = false
+/**
+ * The presenting window's geometry before we fullscreened it, so `End` puts the
+ * user back exactly where they were.
+ */
+let presenterLayout: {
+  window: BrowserWindow
+  bounds: Electron.Rectangle
+  wasFullScreen: boolean
+} | null = null
+
+function rememberPresenterLayout(win: BrowserWindow | null): void {
+  if (!win || win.isDestroyed() || presenterLayout) return
+  presenterLayout = { window: win, bounds: win.getBounds(), wasFullScreen: win.isFullScreen() }
+}
+
+function fullscreenOnDisplay(win: BrowserWindow | null, display: Electron.Display): void {
+  if (!win || win.isDestroyed()) return
+  if (!win.isFullScreen()) {
+    // Move onto the target display first: fullscreen applies to whichever screen the
+    // window currently sits on.
+    win.setBounds(display.workArea)
+  }
+  win.setFullScreen(true)
+}
+
+/** Undo `fullscreenOnDisplay`. Safe to call when nothing was changed. */
+function restorePresenterLayout(): void {
+  usingExternalDisplay = false
+  const saved = presenterLayout
+  presenterLayout = null
+  if (!saved || saved.window.isDestroyed()) return
+  if (!saved.wasFullScreen && saved.window.isFullScreen()) {
+    saved.window.setFullScreen(false)
+  }
+  saved.window.setBounds(saved.bounds)
+}
 let artifactCaptureInterval: ReturnType<typeof setInterval> | null = null
 let captureInProgress = false
 
@@ -128,21 +166,34 @@ export function registerPresenterHandlers(): void {
 
     if (audienceWindow && !audienceWindow.isDestroyed()) {
       audienceWindow.focus()
-      return
+      return { opened: true, external: usingExternalDisplay }
     }
 
     const displays = screen.getAllDisplays()
     const primaryDisplay = screen.getPrimaryDisplay()
     const externalDisplay = displays.find((d) => d.id !== primaryDisplay.id)
     const targetDisplay = externalDisplay || primaryDisplay
+    usingExternalDisplay = !!externalDisplay
+
+    // One-click present: with a second screen, the audience view goes fullscreen there and
+    // the presenter window goes fullscreen on the primary. Both are restored when the
+    // audience window closes, which is the single exit path from presenting.
+    if (externalDisplay) {
+      rememberPresenterLayout(sourceWindow)
+      fullscreenOnDisplay(sourceWindow, primaryDisplay)
+    }
 
     audienceWindow = new BrowserWindow({
-      x: targetDisplay.bounds.x + 50,
-      y: targetDisplay.bounds.y + 50,
-      width: Math.min(1280, Math.round(targetDisplay.bounds.width * 0.75)),
-      height: Math.min(780, Math.round(targetDisplay.bounds.height * 0.75)),
+      x: targetDisplay.bounds.x + (externalDisplay ? 0 : 50),
+      y: targetDisplay.bounds.y + (externalDisplay ? 0 : 50),
+      width: externalDisplay ? targetDisplay.bounds.width : Math.min(1280, Math.round(targetDisplay.bounds.width * 0.75)),
+      height: externalDisplay ? targetDisplay.bounds.height : Math.min(780, Math.round(targetDisplay.bounds.height * 0.75)),
       minWidth: 640,
       minHeight: 400,
+      // Shown once the deck has loaded: an auto-open on a single display is closed again
+      // before it ever appears.
+      show: false,
+      fullscreen: !!externalDisplay,
       title: 'Lecta — Presentation',
       backgroundColor: '#000000',
       webPreferences: {
@@ -152,6 +203,10 @@ export function registerPresenterHandlers(): void {
         nodeIntegration: false,
         webviewTag: true
       }
+    })
+
+    audienceWindow.once('ready-to-show', () => {
+      if (audienceWindow && !audienceWindow.isDestroyed()) audienceWindow.show()
     })
 
     if (process.env['ELECTRON_RENDERER_URL']) {
@@ -173,10 +228,13 @@ export function registerPresenterHandlers(): void {
     audienceWindow.on('closed', () => {
       audienceWindow = null
       stopArtifactCapture()
+      restorePresenterLayout()
       if (sourceWindow && !sourceWindow.isDestroyed()) {
         sourceWindow.webContents.send('presenter:audience-closed')
       }
     })
+
+    return { opened: true, external: usingExternalDisplay }
   })
 
   ipcMain.handle('presenter:close-audience', async () => {
@@ -184,6 +242,9 @@ export function registerPresenterHandlers(): void {
       audienceWindow.close()
       audienceWindow = null
     }
+    // `closed` normally does this; run it here too so a already-gone window still
+    // restores the presenting window's size and screen.
+    restorePresenterLayout()
   })
 
   ipcMain.on('presenter:send-path', (_event, rootPath: string) => {

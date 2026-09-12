@@ -153,6 +153,56 @@ Keys are loaded using a fallback chain:
 
 ## Creating a Presentation
 
+There are two ways to write a deck: **one markdown file** (the quickest way in) or the **folder format** (canonical — every feature lives there). Opening a single file turns it into a folder, so you never have to choose up front.
+
+### The Single-File Form
+
+Write the whole deck in one `.md` file and open it with **Open**. Lecta materializes it into a deck folder of the same name next to the file (`my-talk.md` → `my-talk/`) and opens that; the file is left untouched. If a folder of that name already exists, Lecta refuses rather than writing into it.
+
+````markdown
+---
+title: My Talk
+author: Your Name
+theme: executive
+---
+# Slide one
+
+Body text.
+
+---
+layout: two-col
+transition: left
+---
+# Slide two
+
+```python file=demo.py execution=pyodide packages=[numpy]
+print("hi")
+```
+
+<!-- notes -->
+Speaker notes for this slide.
+````
+
+The rules, in full:
+
+| Element | What it does |
+|---------|--------------|
+| A line that is exactly `---` | Starts a new slide. `----` (or longer) is an ordinary horizontal rule and splits nothing, and a `---` inside a code fence is left alone |
+| The first block, when the file opens with `---` | Deck frontmatter: `title`, `author`, `theme`, `presenterNotes`, `ai`. Unknown keys are carried into `lecta.yaml` |
+| A YAML block between two `---` lines whose keys are *all* slide options | Configures the slide that follows: `id`, `title`, `layout`, `transition`, `notes`, `skip`, `background`. To configure the very first slide, put this block right after the frontmatter |
+| A fenced code block with `file=` in its info string | Becomes the slide's code file. Also accepts `execution=`, `packages=[a, b]`, `dependencies=[…]`, `seedData=`, `command=`, `args=[…]`. A bare name lands in `code/`; `file=code/demo.py` is used as given. Fences without `file=` stay inline |
+| `<!-- notes -->` on its own line | Everything after it, to the end of the slide, becomes speaker notes |
+
+Defaults match the rest of the app: the engine follows the language (`javascript`/`typescript` → `sandpack`, `python` → `pyodide`, `sql` → `sql`, anything else → `native` with the usual interpreter), and slide ids are slugged from each slide's first heading (deduped with `-2`, `-3`, …).
+
+Two things a single file cannot express: MDX slides (materialized slides are always `.md`), and a setext heading underlined with `---` (it reads as a slide separator — use `#` headings).
+
+Going the other way, **Deck → Export as single Markdown file** writes an open deck back out as one file, frontmatter, code fences and notes included.
+
+A working example lives in [`example-decks/single-file-demo.md`](example-decks/single-file-demo.md).
+
+### The Folder Format
+
 A presentation is a **folder** with a `lecta.yaml` manifest, markdown slides, code files, and optional artifacts. All paths in `lecta.yaml` (`content`, `code.file`, `notes`, `artifacts[].path`) must be relative to the folder and stay inside it (no `..`, no absolute paths). Unknown top-level keys are preserved when the deck is saved.
 
 ```

@@ -75,6 +75,12 @@ const api = {
     ipcRenderer.invoke('fs:open-folder'),
   openLectaPath: (lectaFilePath: string): Promise<string> =>
     ipcRenderer.invoke('fs:open-lecta-path', lectaFilePath),
+  /** Materialize a single-file (`.md`) deck into a sibling folder and return that folder. */
+  openSingleFile: (mdPath: string): Promise<string> =>
+    ipcRenderer.invoke('fs:open-single-file', mdPath),
+  /** Export an open deck back to one markdown file; returns the saved path, or null if cancelled. */
+  exportSingleFile: (rootPath: string): Promise<string | null> =>
+    ipcRenderer.invoke('fs:export-single-file', rootPath),
   loadPresentation: (folderPath: string): Promise<LoadedPresentation> =>
     ipcRenderer.invoke('fs:load-presentation', folderPath),
   closePresentation: (rootPath: string): Promise<void> =>

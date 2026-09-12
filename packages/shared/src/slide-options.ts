@@ -3,8 +3,9 @@
  *
  * These arrays back both the TypeScript unions in `types/presentation.ts` and the
  * `z.enum(...)` validators in `utils/yaml-parser.ts`, so a new layout/theme/engine
- * only ever has to be added here. The MCP server mirrors the same lists — see
- * `packages/mcp-server/src/lib/presentation-io.ts`.
+ * only ever has to be added here. The MCP server consumes these same arrays — its build
+ * compiles this file into `packages/mcp-server/dist/shared` and its tool schemas are
+ * `z.enum(SLIDE_LAYOUTS)` and friends — so there is no second list to keep in step.
  */
 
 /** Slide layouts, in the order they are offered in the UI. */
@@ -87,4 +88,71 @@ export function isExecutionEngine(value: unknown): value is ExecutionEngine {
 
 export function isSupportedLanguage(value: unknown): value is SupportedLanguage {
   return typeof value === 'string' && (CODE_LANGUAGES as readonly string[]).includes(value)
+}
+
+// ── Per-language defaults ──
+//
+// A code block's engine, file extension and native command are all derived from its
+// language. Keeping the three maps next to `CODE_LANGUAGES` is what makes adding a
+// language a single-file change; the app (`src/main/ipc/file-system.ts`) and the MCP
+// server both read them instead of carrying their own copies.
+
+/**
+ * Engine a new code block gets when the author does not pick one. Languages without an
+ * in-app runtime fall through to `native`, which shells out to `nativeCommandForLanguage`.
+ */
+export const LANGUAGE_DEFAULT_ENGINES: Partial<Record<SupportedLanguage, ExecutionEngine>> = {
+  javascript: 'sandpack',
+  typescript: 'sandpack',
+  python: 'pyodide',
+  sql: 'sql',
+}
+
+export function defaultEngineForLanguage(language: SupportedLanguage): ExecutionEngine {
+  return LANGUAGE_DEFAULT_ENGINES[language] ?? 'native'
+}
+
+/**
+ * Extension a new code file gets, the inverse of `detectLanguage` in `utils/path-resolver`.
+ * Every language maps to exactly one extension so a round trip through
+ * `extensionForLanguage → detectLanguage` returns the language it started from.
+ */
+export const LANGUAGE_FILE_EXTENSIONS: Record<SupportedLanguage, string> = {
+  javascript: '.js',
+  typescript: '.ts',
+  python: '.py',
+  sql: '.sql',
+  html: '.html',
+  css: '.css',
+  json: '.json',
+  bash: '.sh',
+  rust: '.rs',
+  go: '.go',
+  java: '.java',
+  csharp: '.cs',
+  ruby: '.rb',
+  php: '.php',
+  markdown: '.md',
+}
+
+export function extensionForLanguage(language: SupportedLanguage): string {
+  return LANGUAGE_FILE_EXTENSIONS[language] ?? '.txt'
+}
+
+/**
+ * Interpreter/compiler used for `execution: native`. A language that is absent has no
+ * sensible single command — the caller leaves `command` unset rather than guessing.
+ */
+export const LANGUAGE_NATIVE_COMMANDS: Partial<Record<SupportedLanguage, string>> = {
+  javascript: 'node',
+  bash: 'bash',
+  python: 'python3',
+  rust: 'rustc',
+  go: 'go',
+  ruby: 'ruby',
+  php: 'php',
+}
+
+export function nativeCommandForLanguage(language: SupportedLanguage): string | undefined {
+  return LANGUAGE_NATIVE_COMMANDS[language]
 }

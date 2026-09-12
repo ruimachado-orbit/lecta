@@ -173,6 +173,7 @@ export function HomeScreen(): JSX.Element {
             <button
               onClick={openFolder}
               disabled={isLoading}
+              title="Open a deck folder, a .lecta file, or a single Markdown (.md) deck"
               className="flex-1 py-2.5 px-4 bg-gray-900 hover:bg-gray-800 disabled:bg-gray-300 disabled:text-gray-500
                          text-white font-medium rounded-full transition-colors text-sm
                          flex items-center justify-center gap-2"
@@ -201,6 +202,12 @@ export function HomeScreen(): JSX.Element {
               New
             </button>
           </div>
+
+          {/* Single-file decks are the fastest way in — say so where Open lives. */}
+          <p className="text-[11px] text-gray-500 text-center -mt-2">
+            Open a deck folder, a <span className="text-gray-400">.lecta</span> file — or a single{' '}
+            <span className="text-gray-400">.md</span> file, which Lecta turns into a deck folder beside it.
+          </p>
 
           {/* First run has nowhere to go without this. */}
           {recentsLoaded && recentDecks.length === 0 && (

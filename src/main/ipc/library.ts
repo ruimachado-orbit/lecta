@@ -260,7 +260,13 @@ export async function upsertLibraryEntry(item: {
   await saveLibrary()
 }
 
-/** Scan ~/Documents/Lecta for .lecta files and auto-add missing ones to the library */
+/**
+ * Scan ~/Documents/Lecta for .lecta files and auto-add missing ones to the library.
+ *
+ * Only `.lecta` archives are picked up. A bare `deck.md` is NOT a deck — a single-file
+ * deck becomes one when it is opened (`fs:open-single-file` materializes it into a
+ * sibling folder), and the folder is what lands in the library from there.
+ */
 async function scanLectaDocumentsFolder(): Promise<void> {
   const lectaDir = getLectaDocumentsDir()
   let files: string[]

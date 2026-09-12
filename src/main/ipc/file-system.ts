@@ -1,10 +1,16 @@
 import { ipcMain, dialog, app } from 'electron'
-import { readFile, writeFile, mkdir, access, copyFile } from 'fs/promises'
+import { readFile, writeFile, mkdir, access, copyFile, stat } from 'fs/promises'
 import { join, basename, dirname, extname, resolve } from 'path'
 import { homedir } from 'os'
 import { stringify as stringifyYaml } from 'yaml'
 import { parsePresentationYaml, serializePresentation } from '../../../packages/shared/src/utils/yaml-parser'
 import { DECK_CONFIG_FILE } from '../../../packages/shared/src/constants'
+import {
+  parseSingleFileDeck,
+  materializeToFolder,
+  folderToSingleFile,
+  toSafeSlug
+} from '../../../packages/shared/src/utils/single-file'
 import { startWatching, stopWatching, addFileToWatch, markOwnWrite } from '../services/file-watcher'
 import { setAIDeckPath } from './ai'
 import {
@@ -24,7 +30,8 @@ import {
   registerWorkspace,
   unregisterWorkspace,
   autoSave,
-  flushAutoSave
+  flushAutoSave,
+  getLectaFilePath
 } from '../services/lecta-file'
 import { importPptx } from '../services/pptx-importer'
 import { importIpynb } from '../services/ipynb-importer'
@@ -208,15 +215,92 @@ const LANGUAGE_TO_ENGINE: Partial<Record<SupportedLanguage, ExecutionEngine>> = 
   sql: 'sql'
 }
 
+/** Extensions we accept as a single-file deck (see packages/shared/src/utils/single-file.ts). */
+const SINGLE_FILE_EXTENSIONS = new Set(['.md', '.markdown'])
+
+/** A "single file deck" this big is not a deck; refuse before parsing it. */
+const MAX_SINGLE_FILE_BYTES = 8 * 1024 * 1024
+
+/** Is this path one we would open as a single-file deck? */
+function isSingleFileDeckPath(filePath: string): boolean {
+  return SINGLE_FILE_EXTENSIONS.has(extname(filePath).toLowerCase())
+}
+
+/**
+ * Materialize a single markdown file into a real deck folder next to it and open that.
+ * The folder format stays canonical — the markdown file is only an on-ramp.
+ *
+ * Refuses when the sibling folder already exists (the `mkdir` without `recursive` is the
+ * atomic check) so an existing deck can never be half-overwritten, and code files are
+ * written with `writeFileIfMissing` so authored code is never truncated.
+ * Returns the folder path for the renderer to load as usual.
+ */
+async function openSingleFileDeck(mdPath: string): Promise<string> {
+  if (typeof mdPath !== 'string' || mdPath.length === 0) {
+    throw new Error('No Markdown file given')
+  }
+  const source = resolve(mdPath)
+  if (!isSingleFileDeckPath(source)) {
+    throw new Error(`Not a Markdown file: ${basename(source)}`)
+  }
+
+  const info = await stat(source).catch(() => null)
+  if (!info || !info.isFile()) {
+    throw new Error(`Cannot read ${source}`)
+  }
+  if (info.size > MAX_SINGLE_FILE_BYTES) {
+    throw new Error(`${basename(source)} is too large to open as a single-file deck (limit 8 MB)`)
+  }
+
+  const parsed = parseSingleFileDeck(await readFile(source, 'utf-8'))
+  for (const warning of parsed.warnings) {
+    console.warn(`[single-file] ${basename(source)}: ${warning}`)
+  }
+  if (parsed.slides.length === 0) {
+    throw new Error(
+      `${basename(source)} has no slides. Separate slides with a line containing only "---".`
+    )
+  }
+
+  const folderPath = join(dirname(source), basename(source, extname(source)))
+  try {
+    await mkdir(folderPath)
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'EEXIST') {
+      throw new Error(
+        `"${folderPath}" already exists — rename or move it, then open ${basename(source)} again.`
+      )
+    }
+    throw err
+  }
+
+  const { files } = materializeToFolder(folderPath, parsed)
+  for (const file of files) {
+    const target = resolveInsideDeck(folderPath, file.relativePath)
+    await mkdir(dirname(target), { recursive: true })
+    if (file.kind === 'code') {
+      // Never truncate code that is already there (a re-open into a fresh folder still
+      // creates it; this only matters if something else got there first).
+      await writeFileIfMissing(target, file.content)
+    } else {
+      await atomicWriteFile(target, file.content)
+    }
+  }
+
+  // The deck is on disk and parses — let fs:* and lecta-file:// serve it.
+  return registerDeckRoot(folderPath)
+}
+
 export function registerFileSystemHandlers(): void {
-  // Open a folder, .lecta file, or .pptx file
+  // Open a deck folder, a .lecta / .pptx / .ipynb file, or a single-file (.md) deck
   ipcMain.handle('fs:open-folder', async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openDirectory', 'openFile'],
       defaultPath: getLectaDocumentsDir(),
       filters: [
-        { name: 'All Supported', extensions: ['lecta', 'pptx', 'ipynb'] },
+        { name: 'All Supported', extensions: ['lecta', 'md', 'markdown', 'pptx', 'ipynb'] },
         { name: 'Lecta Presentations', extensions: ['lecta'] },
+        { name: 'Markdown Deck', extensions: ['md', 'markdown'] },
         { name: 'PowerPoint', extensions: ['pptx'] },
         { name: 'Jupyter Notebook', extensions: ['ipynb'] },
         { name: 'All Files', extensions: ['*'] }
@@ -258,8 +342,46 @@ export function registerFileSystemHandlers(): void {
       return workspaceDir
     }
 
+    // Handle a single markdown file — materialize it into a sibling deck folder
+    if (SINGLE_FILE_EXTENSIONS.has(ext)) {
+      return openSingleFileDeck(selected)
+    }
+
     // Regular folder
     return selected
+  })
+
+  /**
+   * Open a single-file deck by path (drag-and-drop, a recent entry, the CLI).
+   * Same trust model as `fs:open-lecta-path`: the path names a file the user already
+   * has, and the only thing written is a NEW sibling folder — an existing one is
+   * refused rather than merged into.
+   */
+  ipcMain.handle('fs:open-single-file', async (_event, mdPath: string): Promise<string> =>
+    openSingleFileDeck(mdPath)
+  )
+
+  /**
+   * Export an open deck back to one markdown file, via a save dialog. The deck itself is
+   * untouched; the chosen destination is written atomically.
+   */
+  ipcMain.handle('fs:export-single-file', async (_event, rootPath: string): Promise<string | null> => {
+    const root = assertInsideOpenDeck(rootPath)
+    const config = await readPresentationConfig(root)
+    const slides = await loadAllSlides(config, root)
+
+    // For a .lecta deck the workspace lives in a temp dir — offer the archive's folder.
+    const lectaPath = getLectaFilePath(root)
+    const defaultDir = lectaPath ? dirname(lectaPath) : dirname(root)
+    const result = await dialog.showSaveDialog({
+      title: 'Export as single Markdown file',
+      defaultPath: join(defaultDir, `${toSafeSlug(config.title, 'deck')}.md`),
+      filters: [{ name: 'Markdown', extensions: ['md'] }]
+    })
+    if (result.canceled || !result.filePath) return null
+
+    await atomicWriteFile(result.filePath, folderToSingleFile(config, slides))
+    return result.filePath
   })
 
   // Open a .lecta file by path — extract to workspace and return workspace dir

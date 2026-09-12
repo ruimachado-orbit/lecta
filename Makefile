@@ -2,7 +2,7 @@
 
 # 🚀 Full setup + launch (first time or any time)
 dev: setup
-	cd "$(CURDIR)" && bun dev
+	cd "$(CURDIR)" && bun run dev
 
 # Install dependencies (requires bun: curl -fsSL https://bun.sh/install | bash, or brew install oven-sh/bun/bun)
 install:
@@ -24,7 +24,7 @@ build:
 
 # Package as distributable (macOS DMG, etc.)
 package: build
-	cd "$(CURDIR)" && bun package
+	cd "$(CURDIR)" && bun run package
 
 dmg: build
 	cd "$(CURDIR)" && bun run package:mac

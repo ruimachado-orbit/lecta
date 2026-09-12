@@ -102,7 +102,7 @@ Users can save reusable slides to a personal library. Before building from scrat
 5. Add remaining slides one by one with add_slide (format: "mdx"), reusing saved components
 6. Use generate_ai_image to create images with DALL-E, Gemini, or Nano Banana
 7. Use add_image to embed local images into slides
-8. Use customize_theme to override colors/fonts if needed
+8. Pick the closest built-in theme with set_theme — per-deck color/font overrides are not supported yet
 9. Use list_slides to review the deck
 10. **Save good elements**: save_design_element for reusable components, save_slide_to_library for reusable slides
 11. Do NOT export — the user views it in the Lecta app`
@@ -243,7 +243,7 @@ RIGHT (pure JSX — full control over layout and styling, title is a styled div)
       title: z.string().describe('Presentation title'),
       theme: z.enum(['dark', 'light', 'executive', 'minimal', 'corporate', 'creative', 'keynote-dark', 'paper']).optional().describe('Visual theme (default: dark)'),
       author: z.string().optional().describe('Author name'),
-      slide_count: z.number().min(1).max(50).optional().describe('Number of starter slides (default: 1)'),
+      slide_count: z.number().int().min(1).max(50).optional().describe('Number of starter slides (default: 1)'),
       slide_titles: z.array(z.string()).optional().describe('Titles for each starter slide'),
       path: z.string().optional().describe('Parent directory (default: ~/Documents/Lecta). Only set if the user specifies a custom location.'),
       format: z.enum(['md', 'mdx']).optional().describe('Slide file format (default: mdx). Use mdx for rich slides with inline JSX/React styling. Fall back to md if you are not comfortable with JSX/React.'),
@@ -323,7 +323,7 @@ RIGHT (pure JSX — full control over layout and styling, title is a styled div)
     `Edit an existing slide in a Lecta presentation.${SLIDE_CONTENT_GUIDE}`,
     {
       presentation_path: z.string().describe('Root path of the presentation'),
-      slide_index: z.number().describe('0-based slide index'),
+      slide_index: z.number().int().nonnegative().describe('0-based slide index'),
       title: z.string().optional().describe('New slide title for the navigation bar (not rendered on the slide)'),
       content: z.string().optional().describe('New markdown content (replaces entire slide)'),
       layout: z.enum(['default', 'center', 'title', 'section', 'two-col', 'two-col-wide-left', 'two-col-wide-right', 'three-col', 'top-bottom', 'big-number', 'quote', 'blank']).optional().describe('New layout'),
@@ -359,7 +359,7 @@ RIGHT (pure JSX — full control over layout and styling, title is a styled div)
     'Delete a slide (cannot delete the last one)',
     {
       presentation_path: z.string().describe('Root path of the presentation'),
-      slide_index: z.number().describe('0-based slide index'),
+      slide_index: z.number().int().nonnegative().describe('0-based slide index'),
     },
     async (params) => {
       const result = await deleteSlide(params.presentation_path, params.slide_index)
@@ -420,7 +420,7 @@ RIGHT (pure JSX — full control over layout and styling, title is a styled div)
     'Attach a non-image file (PDF, document, spreadsheet) to a slide as a downloadable artifact. Do NOT use this for images — use the add_image tool instead to embed images directly into slide content. Only use add_artifact for images if the user explicitly asks for it as an attachment.',
     {
       presentation_path: z.string().describe('Root path of the presentation'),
-      slide_index: z.number().describe('0-based slide index'),
+      slide_index: z.number().int().nonnegative().describe('0-based slide index'),
       file_path: z.string().describe('Absolute path to the file'),
       label: z.string().optional().describe('Display label'),
     },
@@ -447,7 +447,7 @@ RIGHT (pure JSX — full control over layout and styling, title is a styled div)
     {
       presentation_path: z.string().describe('Root path of the presentation (returned by create_presentation)'),
       file_path: z.string().describe('Absolute path to the local image file to add'),
-      slide_index: z.number().optional().describe('0-based slide index to insert the image into. If omitted, the image is only copied to images/ without inserting into any slide.'),
+      slide_index: z.number().int().nonnegative().optional().describe('0-based slide index to insert the image into. If omitted, the image is only copied to images/ without inserting into any slide.'),
       alt_text: z.string().optional().describe('Alt text for the image (used in markdown ![alt](...) syntax)'),
       position: z.object({
         x: z.number().describe('X position in pixels from left'),
@@ -488,7 +488,7 @@ RIGHT (pure JSX — full control over layout and styling, title is a styled div)
       prompt: z.string().describe('Detailed description of the image to generate. Be specific about subject, style, colors, composition, and mood.'),
       provider: z.enum(['openai', 'gemini', 'nanobanana']).optional().describe('Image generation provider. "openai" uses DALL-E 3, "gemini" uses Google Gemini ImageFX, "nanobanana" uses Nano Banana Pro (best for text in images, 4K HD). Default: uses the configured provider.'),
       aspect_ratio: z.enum(['1:1', '16:9', '9:16']).optional().describe('Aspect ratio for the generated image. Default: "16:9" (landscape, ideal for slides).'),
-      slide_index: z.number().optional().describe('0-based slide index to insert the image into. If omitted, the image is saved to images/ without inserting into any slide.'),
+      slide_index: z.number().int().nonnegative().optional().describe('0-based slide index to insert the image into. If omitted, the image is saved to images/ without inserting into any slide.'),
       alt_text: z.string().optional().describe('Alt text for the image when inserted into a slide'),
     },
     async (params) => {
@@ -532,7 +532,7 @@ RIGHT (pure JSX — full control over layout and styling, title is a styled div)
   // ── customize_theme ──
   server.tool(
     'customize_theme',
-    'Customize the presentation theme colors and fonts. Overrides are saved in lecta.yaml and applied on top of the base theme.',
+    'NOT SUPPORTED YET. Per-deck color and font overrides are ignored by the Lecta renderer, so this tool always fails with an explanation. Use set_theme to pick one of the built-in themes instead.',
     {
       presentation_path: z.string().describe('Root path of the presentation'),
       accent_color: z.string().optional().describe('Accent color hex (e.g., "#ff6b35")'),
@@ -542,19 +542,25 @@ RIGHT (pure JSX — full control over layout and styling, title is a styled div)
       body_font: z.string().optional().describe('Body font family'),
     },
     async (params) => {
-      const result = await customizeTheme({
-        rootPath: params.presentation_path,
-        accentColor: params.accent_color,
-        bgColor: params.bg_color,
-        textColor: params.text_color,
-        headingFont: params.heading_font,
-        bodyFont: params.body_font,
-      })
-      return {
-        content: [{
-          type: 'text',
-          text: JSON.stringify(result, null, 2),
-        }],
+      try {
+        await customizeTheme({
+          rootPath: params.presentation_path,
+          accentColor: params.accent_color,
+          bgColor: params.bg_color,
+          textColor: params.text_color,
+          headingFont: params.heading_font,
+          bodyFont: params.body_font,
+        })
+        // customizeTheme always throws — this line exists only for exhaustiveness.
+        return { content: [{ type: 'text', text: JSON.stringify({ success: false }, null, 2) }] }
+      } catch (err) {
+        return {
+          isError: true,
+          content: [{
+            type: 'text',
+            text: JSON.stringify({ success: false, error: (err as Error).message }, null, 2),
+          }],
+        }
       }
     }
   )
@@ -760,7 +766,7 @@ Use descriptive tags so elements can be found later (e.g. "card", "stats", "head
     {
       presentation_path: z.string().describe('Root path of the presentation'),
       slide_id: z.string().describe('The ID of the saved slide to insert (from list_library_slides)'),
-      after_index: z.number().optional().describe('Insert after this 0-based slide index. If omitted, appends at the end.'),
+      after_index: z.number().int().nonnegative().optional().describe('Insert after this 0-based slide index. If omitted, appends at the end.'),
       format: z.enum(['md', 'mdx']).optional().describe('Override the file format (default: mdx)'),
     },
     async (params) => {
@@ -798,7 +804,7 @@ Use descriptive tags so elements can be found later (e.g. "card", "stats", "head
     'Save a slide from the current presentation to the user\'s reusable slide library. The slide can then be inserted into any future presentation via insert_library_slide.',
     {
       presentation_path: z.string().describe('Root path of the presentation'),
-      slide_index: z.number().describe('0-based index of the slide to save'),
+      slide_index: z.number().int().nonnegative().describe('0-based index of the slide to save'),
       name: z.string().describe('Name for the saved slide (e.g. "Company Intro", "Q&A Slide")'),
       tags: z.array(z.string()).optional().describe('Tags for categorization'),
     },

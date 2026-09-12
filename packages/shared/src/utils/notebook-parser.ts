@@ -1,6 +1,8 @@
 import { parse as parseYaml } from 'yaml'
 import { z } from 'zod'
 import type { Notebook, NoteConfig } from '../types/notebook'
+import { NOTEBOOK_KERNELS } from '../types/notebook'
+import { CODE_LANGUAGES, EXECUTION_ENGINES } from '../slide-options'
 
 const ArtifactConfigSchema = z.object({
   path: z.string(),
@@ -9,11 +11,8 @@ const ArtifactConfigSchema = z.object({
 
 const CodeBlockConfigSchema = z.object({
   file: z.string(),
-  language: z.enum([
-    'javascript', 'typescript', 'python', 'sql', 'html', 'css',
-    'json', 'bash', 'rust', 'go', 'java', 'csharp', 'ruby', 'php', 'markdown'
-  ]),
-  execution: z.enum(['sandpack', 'pyodide', 'sql', 'native', 'none']),
+  language: z.enum(CODE_LANGUAGES),
+  execution: z.enum(EXECUTION_ENGINES),
   dependencies: z.array(z.string()).optional(),
   packages: z.array(z.string()).optional(),
   seedData: z.string().optional(),
@@ -71,7 +70,7 @@ const NotebookSchema = z.object({
   lastViewedIndex: z.number().optional(),
   pages: z.array(NoteConfigSchema),
   sourceFormat: z.enum(['native', 'jupyter']).optional(),
-  kernel: z.enum(['python', 'javascript', 'typescript', 'sql', 'bash', 'go', 'rust']).optional()
+  kernel: z.enum(NOTEBOOK_KERNELS).optional()
 })
 
 export function parseNotebookYaml(yamlContent: string, rootPath: string): Notebook {

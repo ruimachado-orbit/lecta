@@ -25,6 +25,13 @@ describe('resolveRelativePath', () => {
   it('throws on parent references that escape root', () => {
     expect(() => resolveRelativePath('/root/sub', '../file.txt')).toThrow('Path traversal')
   })
+
+  it('allows file names that merely begin with dots', () => {
+    // Regression: a naive `rel.startsWith('..')` check rejected these.
+    expect(resolveRelativePath('/root', '..notes.md')).toBe('/root/..notes.md')
+    expect(resolveRelativePath('/root', 'slides/..notes.md')).toBe('/root/slides/..notes.md')
+    expect(resolveRelativePath('/root', '...hidden')).toBe('/root/...hidden')
+  })
 })
 
 describe('detectLanguage', () => {

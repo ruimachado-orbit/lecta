@@ -2,6 +2,10 @@ title: Hello Lecta
 author: Lecta Team
 theme: dark
 slides:
+  - id: welcome
+    content: slides/01-welcome.md
+    layout: title
+    artifacts: []
   - id: javascript-demo
     content: slides/02-javascript.md
     code:

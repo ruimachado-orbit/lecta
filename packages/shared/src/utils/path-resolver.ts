@@ -1,10 +1,13 @@
-import { join, extname, resolve, relative, isAbsolute } from 'path'
+import { extname, resolve, relative, isAbsolute, sep } from 'path'
 import type { SupportedLanguage } from '../types/presentation'
 
 export function resolveRelativePath(rootPath: string, relativePath: string): string {
   const resolved = resolve(rootPath, relativePath)
   const rel = relative(rootPath, resolved)
-  if (rel.startsWith('..') || isAbsolute(rel)) {
+  // `rel.startsWith('..')` alone is a false positive for legitimate names such as
+  // `..notes.md`; only a `..` *segment* actually escapes the root.
+  const escapes = rel === '..' || rel.startsWith('..' + sep) || rel.startsWith('../')
+  if (escapes || isAbsolute(rel)) {
     throw new Error(`Path traversal detected: ${relativePath}`)
   }
   return resolved

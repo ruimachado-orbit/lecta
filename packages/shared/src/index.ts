@@ -1,4 +1,7 @@
 export * from './types'
+export * from './types/notebook'
 export * from './constants'
+export * from './slide-options'
 export * from './utils/yaml-parser'
+export * from './utils/notebook-parser'
 export * from './utils/path-resolver'

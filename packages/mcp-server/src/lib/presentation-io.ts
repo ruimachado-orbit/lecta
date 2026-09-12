@@ -3,8 +3,9 @@
  * Extracted from the Electron IPC handlers so it works headless.
  */
 
-import { readFile, writeFile, mkdir, access, copyFile, rename, stat as fsStat } from 'fs/promises'
-import { join, basename, extname } from 'path'
+import { readFile, writeFile, mkdir, access, copyFile, rename, unlink, stat as fsStat } from 'fs/promises'
+import { join, basename, dirname, extname, isAbsolute, relative, resolve, sep } from 'path'
+import { homedir } from 'os'
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
 import { z } from 'zod'
 
@@ -120,9 +121,146 @@ export function getDefaultPresentationsPath(): string {
   return join(home, 'Documents', 'Lecta')
 }
 
-/** Generate a kebab-case slug from text */
+/**
+ * Generate a kebab-case slug from text. Unicode-aware: any letter or number in any
+ * script is kept, so a non-Latin title does not slug to the empty string.
+ */
 export function toSlug(text: string): string {
-  return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+  return text
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+/** Longest slug we will put in a file or directory name. */
+const MAX_SLUG_LENGTH = 60
+
+/**
+ * A slug that is always usable as a file or directory name. Falls back to a stable
+ * code-point-derived name when the text has nothing slug-able in it (emoji, punctuation).
+ */
+export function toSafeSlug(text: string, fallback = 'untitled'): string {
+  const slug = toSlug(text).slice(0, MAX_SLUG_LENGTH).replace(/-+$/, '')
+  if (slug) return slug
+  const codes = Array.from(text.trim())
+    .map((c) => c.codePointAt(0)!.toString(16))
+    .join('')
+    .slice(0, 12)
+  return codes ? `${fallback}-${codes}` : fallback
+}
+
+/** Expand a leading `~` to the current user's home directory. */
+export function expandHome(inputPath: string): string {
+  if (inputPath === '~') return homedir()
+  if (inputPath.startsWith('~/') || inputPath.startsWith('~\\')) {
+    return join(homedir(), inputPath.slice(2))
+  }
+  return inputPath
+}
+
+/**
+ * Resolve a deck-relative path, refusing anything that escapes the deck folder.
+ * The app does the same in `packages/shared/src/utils/path-resolver.ts`.
+ */
+export function resolveInsideDeck(rootPath: string, relativePath: string): string {
+  const root = resolve(rootPath)
+  const resolved = resolve(root, relativePath)
+  const rel = relative(root, resolved)
+  const escapes = rel === '..' || rel.startsWith('..' + sep) || rel.startsWith('../')
+  if (escapes || isAbsolute(rel)) {
+    throw new Error(`Path "${relativePath}" escapes the presentation folder`)
+  }
+  return resolved
+}
+
+async function pathExists(p: string): Promise<boolean> {
+  try {
+    await access(p)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Pick a deck-relative path that collides with neither an existing file nor one of
+ * `taken`, by appending `-2`, `-3`, … before the extension.
+ */
+async function uniqueDeckPath(rootPath: string, candidate: string, taken: Set<string> = new Set()): Promise<string> {
+  const ext = extname(candidate)
+  const stem = candidate.slice(0, candidate.length - ext.length)
+  let attempt = candidate
+  let n = 2
+  while (taken.has(attempt) || (await pathExists(join(rootPath, attempt)))) {
+    attempt = `${stem}-${n}${ext}`
+    n += 1
+  }
+  return attempt
+}
+
+/** Append `-2`, `-3`, … until the id is not already used by another slide. */
+function uniqueSlideId(baseId: string, taken: Set<string>): string {
+  if (!taken.has(baseId)) return baseId
+  let n = 2
+  while (taken.has(`${baseId}-${n}`)) n += 1
+  return `${baseId}-${n}`
+}
+
+/**
+ * Escape text interpolated into generated MDX. MDX treats `{`/`}` as expressions and
+ * `<`/`>` as tags, so an unescaped title turns a slide into a syntax error.
+ */
+export function escapeMdx(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\{/g, '&#123;')
+    .replace(/\}/g, '&#125;')
+    .replace(/"/g, '&quot;')
+}
+
+// ── JSON side-car files (settings, design system, slide library) ──
+
+/**
+ * Read a JSON side-car. A missing file starts fresh; a file we cannot read or parse
+ * throws, so the caller never silently overwrites data it failed to understand.
+ */
+async function readJsonSidecar<T>(path: string, fallback: T): Promise<T> {
+  let raw: string
+  try {
+    raw = await readFile(path, 'utf-8')
+  } catch (err: any) {
+    if (err?.code === 'ENOENT') return fallback
+    throw new Error(`Cannot read ${path}: ${err?.message ?? err}`)
+  }
+  if (raw.trim() === '') return fallback
+  try {
+    return JSON.parse(raw) as T
+  } catch (err: any) {
+    throw new Error(
+      `${path} is not valid JSON (${err?.message ?? err}). ` +
+      `Refusing to overwrite it — repair or move the file and retry.`
+    )
+  }
+}
+
+/** Write via a temp file + rename so a crash mid-write cannot truncate the original. */
+async function writeFileAtomic(path: string, contents: string): Promise<void> {
+  await mkdir(dirname(path), { recursive: true })
+  const tmp = `${path}.${process.pid}.${Date.now()}.tmp`
+  await writeFile(tmp, contents, 'utf-8')
+  try {
+    await rename(tmp, path)
+  } catch (err) {
+    await unlink(tmp).catch(() => {})
+    throw err
+  }
+}
+
+async function writeJsonSidecar(path: string, data: unknown): Promise<void> {
+  await writeFileAtomic(path, JSON.stringify(data, null, 2))
 }
 
 const VALID_THEMES = ['dark', 'light', 'executive', 'minimal', 'corporate', 'creative', 'keynote-dark', 'paper']
@@ -153,10 +291,23 @@ const NATIVE_COMMAND_MAP: Partial<Record<SupportedLanguage, string>> = {
 
 // ── Zod Schema (mirrors packages/shared/src/utils/yaml-parser.ts) ──
 
-const ArtifactConfigSchema = z.object({ path: z.string(), label: z.string() })
+/** Deck manifest paths must be relative and must not escape the deck folder. */
+function deckRelativePath(field: string) {
+  return z
+    .string()
+    .min(1, `${field} must not be empty`)
+    .refine((p) => !/^([a-zA-Z]:[\\/]|[\\/]|~)/.test(p), {
+      message: `${field} must be a relative path inside the deck folder`
+    })
+    .refine((p) => !p.split(/[\\/]/).includes('..'), {
+      message: `${field} must not contain ".." path segments`
+    })
+}
+
+const ArtifactConfigSchema = z.object({ path: deckRelativePath('artifacts[].path'), label: z.string() })
 
 const CodeBlockConfigSchema = z.object({
-  file: z.string(),
+  file: deckRelativePath('code.file'),
   language: z.enum([
     'javascript', 'typescript', 'python', 'sql', 'html', 'css',
     'json', 'bash', 'rust', 'go', 'java', 'csharp', 'ruby', 'php', 'markdown'
@@ -169,21 +320,27 @@ const CodeBlockConfigSchema = z.object({
   args: z.array(z.string()).optional()
 })
 
+const ThemeSchema = z.string().default('dark').transform((theme) => {
+  if (VALID_THEMES.includes(theme)) return theme
+  console.warn(`[lecta-mcp] Unknown theme "${theme}" — falling back to "dark".`)
+  return 'dark'
+})
+
 const PresentationSchema = z.object({
   title: z.string(),
   author: z.string(),
-  theme: z.string().default('dark'),
-  lastViewedIndex: z.number().optional(),
+  theme: ThemeSchema,
+  lastViewedIndex: z.number().int().nonnegative().optional(),
   slides: z.array(z.object({
-    id: z.string(),
+    id: z.string().min(1, 'slide id must not be empty'),
     title: z.string().optional(),
-    content: z.string(),
+    content: deckRelativePath('content'),
     code: CodeBlockConfigSchema.optional(),
     video: z.object({ url: z.string(), label: z.string().optional() }).optional(),
     webapp: z.object({ url: z.string(), label: z.string().optional() }).optional(),
     prompts: z.array(z.object({ prompt: z.string(), label: z.string().optional(), response: z.string().optional() })).default([]),
     artifacts: z.array(ArtifactConfigSchema).default([]),
-    notes: z.string().optional(),
+    notes: deckRelativePath('notes').optional(),
     transition: z.enum(['none', 'left', 'right', 'top', 'bottom']).optional(),
     layout: z.enum([
       'default', 'center', 'title', 'section', 'two-col', 'two-col-wide-left',
@@ -204,7 +361,12 @@ const PresentationSchema = z.object({
     color: z.string().optional()
   })).optional(),
   presenterNotes: z.string().optional()
-})
+}).passthrough()
+
+/** Top-level keys the serializer writes itself, in this order. */
+const KNOWN_TOP_LEVEL_KEYS = new Set([
+  'title', 'author', 'theme', 'lastViewedIndex', 'slides', 'ai', 'groups', 'presenterNotes'
+])
 
 // ── Parse & Serialize ──
 
@@ -245,8 +407,11 @@ export function serializePresentationYaml(presentation: Presentation): string {
       return group
     })
   }
-  if ((presentation as any).customStyles) {
-    toSerialize.customStyles = (presentation as any).customStyles
+  // Unknown top-level keys (hand-written by the user, or written by a newer app
+  // version) survive a read/write round trip instead of being silently dropped.
+  for (const [key, value] of Object.entries(presentation as unknown as Record<string, unknown>)) {
+    if (KNOWN_TOP_LEVEL_KEYS.has(key) || key === 'rootPath' || value === undefined) continue
+    toSerialize[key] = value
   }
   return stringifyYaml(toSerialize, { lineWidth: 120 })
 }
@@ -258,7 +423,21 @@ const configCache = new Map<string, { config: Presentation; mtimeMs: number }>()
 /**
  * Load only the YAML config (no slide content). Uses mtime-based cache.
  */
-export async function loadPresentationConfig(rootPath: string): Promise<Presentation> {
+export async function assertPresentationDir(inputPath: string): Promise<string> {
+  const rootPath = expandHome(inputPath)
+  try {
+    await access(join(rootPath, DECK_CONFIG_FILE))
+  } catch {
+    throw new Error(
+      `"${inputPath}" is not a Lecta presentation — no ${DECK_CONFIG_FILE} found there. ` +
+      `Pass the presentation's root folder (the one returned by create_presentation).`
+    )
+  }
+  return rootPath
+}
+
+export async function loadPresentationConfig(inputPath: string): Promise<Presentation> {
+  const rootPath = await assertPresentationDir(inputPath)
   const configPath = join(rootPath, DECK_CONFIG_FILE)
   const st = await fsStat(configPath)
   const cached = configCache.get(rootPath)
@@ -274,18 +453,19 @@ export async function loadPresentationConfig(rootPath: string): Promise<Presenta
 
 // ── Core I/O Functions ──
 
-export async function loadPresentation(rootPath: string): Promise<LoadedPresentation> {
+export async function loadPresentation(inputPath: string): Promise<LoadedPresentation> {
+  const rootPath = await assertPresentationDir(inputPath)
   const configPath = join(rootPath, DECK_CONFIG_FILE)
-  await access(configPath)
   const yamlContent = await readFile(configPath, 'utf-8')
   const config = parsePresentationYaml(yamlContent, rootPath)
 
   const slides: LoadedSlide[] = await Promise.all(
     config.slides.map(async (slideConfig) => {
-      const markdownPath = join(rootPath, slideConfig.content)
+      // Every path is confined to the deck folder — a manifest must never make the
+      // server read (and hand to the model) a file outside the presentation.
       let markdownContent: string
       try {
-        markdownContent = await readFile(markdownPath, 'utf-8')
+        markdownContent = await readFile(resolveInsideDeck(rootPath, slideConfig.content), 'utf-8')
       } catch {
         markdownContent = `# ${slideConfig.id}`
       }
@@ -293,7 +473,7 @@ export async function loadPresentation(rootPath: string): Promise<LoadedPresenta
       let codeContent: string | null = null
       if (slideConfig.code) {
         try {
-          codeContent = await readFile(join(rootPath, slideConfig.code.file), 'utf-8')
+          codeContent = await readFile(resolveInsideDeck(rootPath, slideConfig.code.file), 'utf-8')
         } catch {
           codeContent = ''
         }
@@ -302,7 +482,7 @@ export async function loadPresentation(rootPath: string): Promise<LoadedPresenta
       let notesContent: string | null = null
       if (slideConfig.notes) {
         try {
-          notesContent = await readFile(join(rootPath, slideConfig.notes), 'utf-8')
+          notesContent = await readFile(resolveInsideDeck(rootPath, slideConfig.notes), 'utf-8')
         } catch {
           notesContent = null
         }
@@ -324,7 +504,7 @@ export async function loadPresentation(rootPath: string): Promise<LoadedPresenta
 
 export async function savePresentationYaml(presentation: Presentation): Promise<void> {
   const configPath = join(presentation.rootPath, DECK_CONFIG_FILE)
-  await writeFile(configPath, serializePresentationYaml(presentation), 'utf-8')
+  await writeFileAtomic(configPath, serializePresentationYaml(presentation))
   // Update cache with fresh mtime
   const st = await fsStat(configPath)
   configCache.set(presentation.rootPath, { config: presentation, mtimeMs: st.mtimeMs })
@@ -343,9 +523,16 @@ export async function createPresentation(opts: {
   const author = opts.author ?? ''
   const slideCount = Math.max(1, Math.min(opts.slideCount ?? 1, 50))
 
-  const basePath = opts.path || getDefaultPresentationsPath()
-  const slug = toSlug(opts.title)
-  const projectDir = join(basePath, slug)
+  const basePath = resolve(expandHome(opts.path || getDefaultPresentationsPath()))
+  const slug = toSafeSlug(opts.title)
+  const projectDir = resolve(basePath, slug)
+  if (projectDir === basePath) {
+    // A title that slugs to nothing must never turn the parent directory into the deck.
+    throw new Error(
+      `Cannot derive a folder name from the title "${opts.title}". ` +
+      `Pass an explicit "path" ending in the folder you want the presentation created in.`
+    )
+  }
 
   // Create the full directory tree — if the parent path doesn't exist or isn't writable, fail with a clear message
   try {
@@ -363,12 +550,16 @@ export async function createPresentation(opts: {
   }
 
   const slides: SlideConfig[] = []
+  const usedIds = new Set<string>()
+  const usedPaths = new Set<string>()
   for (let i = 0; i < slideCount; i++) {
     const num = String(i + 1).padStart(2, '0')
     const title = opts.slideTitles?.[i] ?? (i === 0 ? opts.title : `Slide ${i + 1}`)
-    const slideId = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+    const slideId = uniqueSlideId(toSafeSlug(title, `slide-${i + 1}`), usedIds)
+    usedIds.add(slideId)
     const slideExt = opts.format === 'md' ? '.md' : '.mdx'
-    const contentPath = `slides/${num}-${slideId}${slideExt}`
+    const contentPath = await uniqueDeckPath(projectDir, `slides/${num}-${slideId}${slideExt}`, usedPaths)
+    usedPaths.add(contentPath)
 
     const layout: SlideLayout | undefined = i === 0 ? 'title' : undefined
     const isMdx = opts.format !== 'md'
@@ -376,12 +567,12 @@ export async function createPresentation(opts: {
     if (isMdx) {
       if (i === 0) {
         markdown = `<div style={{width:'100%',height:'100%',background:'linear-gradient(135deg,#0a0e1a,#0f1729)',display:'flex',flexDirection:'column',justifyContent:'center',alignItems:'center',textAlign:'center',padding:'60px 80px'}}>
-  <div style={{fontSize:'56px',fontWeight:800,color:'#fff',marginBottom:'24px'}}>${opts.title}</div>
-  <div style={{fontSize:'24px',color:'#94a3b8'}}>${author || 'Welcome to your new presentation!'}</div>
+  <div style={{fontSize:'56px',fontWeight:800,color:'#fff',marginBottom:'24px'}}>${escapeMdx(opts.title)}</div>
+  <div style={{fontSize:'24px',color:'#94a3b8'}}>${escapeMdx(author) || 'Welcome to your new presentation!'}</div>
 </div>\n`
       } else {
         markdown = `<div style={{width:'100%',height:'100%',background:'linear-gradient(135deg,#0a0e1a,#0f1729)',padding:'60px 80px',position:'relative',overflow:'hidden'}}>
-  <div style={{fontSize:'44px',fontWeight:800,color:'#fff',marginBottom:'40px'}}>${title}</div>
+  <div style={{fontSize:'44px',fontWeight:800,color:'#fff',marginBottom:'40px'}}>${escapeMdx(title)}</div>
 </div>\n`
       }
     } else {
@@ -433,20 +624,24 @@ export async function addSlide(opts: {
   notes?: string
   format?: 'md' | 'mdx'
 }): Promise<{ slideIndex: number; slideCount: number }> {
-  const config = await loadPresentationConfig(opts.rootPath)
+  const rootPath = await assertPresentationDir(opts.rootPath)
+  const config = await loadPresentationConfig(rootPath)
   const insertAt = opts.afterIndex != null ? opts.afterIndex + 1 : config.slides.length
 
-  // Auto-generate slideId from the first heading in content, or fall back to slide number
+  // Auto-generate slideId from the first heading in content, or fall back to slide number.
+  // Ids must be unique: index-derived ids repeat after a delete and would otherwise let a
+  // new slide overwrite a live one's files.
   const headingMatch = opts.content.match(/^#\s+(.+)$/m)?.[1]
-  const autoId = opts.slideId
-    || toSlug(headingMatch || `slide-${config.slides.length + 1}`)
+  const usedIds = new Set(config.slides.map((s) => s.id))
+  const baseId = toSafeSlug(opts.slideId || headingMatch || '', `slide-${config.slides.length + 1}`)
+  const autoId = uniqueSlideId(baseId, usedIds)
   const slideTitle = opts.title || headingMatch || autoId.replace(/-/g, ' ')
   const slideNum = String(config.slides.length + 1).padStart(2, '0')
   const ext = opts.format === 'md' ? '.md' : '.mdx'
-  const contentPath = `slides/${slideNum}-${autoId}${ext}`
+  const contentPath = await uniqueDeckPath(rootPath, `slides/${slideNum}-${autoId}${ext}`)
 
-  await mkdir(join(opts.rootPath, 'slides'), { recursive: true })
-  await writeFile(join(opts.rootPath, contentPath), opts.content, 'utf-8')
+  await mkdir(join(rootPath, 'slides'), { recursive: true })
+  await writeFile(join(rootPath, contentPath), opts.content, 'utf-8')
 
   const newSlide: SlideConfig = {
     id: autoId,
@@ -459,10 +654,10 @@ export async function addSlide(opts: {
 
   // Handle code block
   if (opts.code) {
-    const ext = LANGUAGE_TO_EXT[opts.code.language] || '.txt'
-    const codeFile = `code/${opts.slideId}${ext}`
-    await mkdir(join(opts.rootPath, 'code'), { recursive: true })
-    await writeFile(join(opts.rootPath, codeFile), opts.code.content, 'utf-8')
+    const codeExt = LANGUAGE_TO_EXT[opts.code.language] || '.txt'
+    const codeFile = await uniqueDeckPath(rootPath, `code/${autoId}${codeExt}`)
+    await mkdir(join(rootPath, 'code'), { recursive: true })
+    await writeFile(join(rootPath, codeFile), opts.code.content, 'utf-8')
 
     const engine = opts.code.execution ?? LANGUAGE_TO_ENGINE[opts.code.language] ?? 'native'
     newSlide.code = { file: codeFile, language: opts.code.language, execution: engine }
@@ -478,8 +673,8 @@ export async function addSlide(opts: {
 
   // Handle notes
   if (opts.notes) {
-    const notesPath = `slides/${autoId}.notes.md`
-    await writeFile(join(opts.rootPath, notesPath), opts.notes, 'utf-8')
+    const notesPath = await uniqueDeckPath(rootPath, `slides/${autoId}.notes.md`)
+    await writeFile(join(rootPath, notesPath), opts.notes, 'utf-8')
     newSlide.notes = notesPath
   }
 
@@ -502,6 +697,7 @@ export async function editSlide(opts: {
   format?: 'md' | 'mdx'
 }): Promise<{ slideId: string }> {
   const config = await loadPresentationConfig(opts.rootPath)
+  const rootPath = config.rootPath
   const slide = config.slides[opts.slideIndex]
   if (!slide) throw new Error(`Slide at index ${opts.slideIndex} not found`)
 
@@ -514,15 +710,15 @@ export async function editSlide(opts: {
     const currentExt = slide.content.endsWith('.mdx') ? '.mdx' : '.md'
     const targetExt = opts.format === 'mdx' ? '.mdx' : '.md'
     if (currentExt !== targetExt) {
-      const oldPath = join(opts.rootPath, slide.content)
+      const oldPath = resolveInsideDeck(rootPath, slide.content)
       const newContentPath = slide.content.replace(/\.(mdx?|md)$/, targetExt)
-      await rename(oldPath, join(opts.rootPath, newContentPath))
+      await rename(oldPath, resolveInsideDeck(rootPath, newContentPath))
       slide.content = newContentPath
     }
   }
 
   if (opts.content !== undefined) {
-    await writeFile(join(opts.rootPath, slide.content), opts.content, 'utf-8')
+    await writeFile(resolveInsideDeck(rootPath, slide.content), opts.content, 'utf-8')
   }
 
   if (opts.layout !== undefined) {
@@ -537,8 +733,15 @@ export async function editSlide(opts: {
     slide.transition = opts.transition
   }
 
-  if (opts.codeContent !== undefined && slide.code) {
-    await writeFile(join(opts.rootPath, slide.code.file), opts.codeContent, 'utf-8')
+  if (opts.codeContent !== undefined) {
+    if (!slide.code) {
+      // Silently dropping the edit made the tool report success while changing nothing.
+      throw new Error(
+        `Slide ${opts.slideIndex} ("${slide.id}") has no code block, so code_content cannot be edited. ` +
+        `Add the slide again with a code block, or edit the slide content instead.`
+      )
+    }
+    await writeFile(resolveInsideDeck(rootPath, slide.code.file), opts.codeContent, 'utf-8')
   }
 
   if (opts.codeLanguage !== undefined && slide.code) {
@@ -551,8 +754,8 @@ export async function editSlide(opts: {
       const notesPath = `slides/${slide.id}.notes.md`
       slide.notes = notesPath
     }
-    await mkdir(join(opts.rootPath, 'slides'), { recursive: true })
-    await writeFile(join(opts.rootPath, slide.notes), opts.notes, 'utf-8')
+    await mkdir(join(rootPath, 'slides'), { recursive: true })
+    await writeFile(resolveInsideDeck(rootPath, slide.notes), opts.notes, 'utf-8')
   }
 
   await savePresentationYaml(config)
@@ -618,8 +821,20 @@ export async function listSlides(rootPath: string, includeContent: boolean = fal
     }
   }
 
-  // Config-only load — no slide file reads
+  // Config-only load — slide bodies are not returned, but the heading is read from the
+  // slide file so `heading` means the same thing with and without `include_content`.
   const config = await loadPresentationConfig(rootPath)
+  const headings = await Promise.all(
+    config.slides.map(async (s) => {
+      if (s.title) return s.title
+      try {
+        const body = await readFile(resolveInsideDeck(config.rootPath, s.content), 'utf-8')
+        return body.match(/^#\s+(.+)$/m)?.[1]?.trim()
+      } catch {
+        return undefined
+      }
+    })
+  )
   return {
     title: config.title,
     author: config.author,
@@ -631,7 +846,7 @@ export async function listSlides(rootPath: string, includeContent: boolean = fal
         id: s.id,
         title: s.title,
         format: s.content.endsWith('.mdx') ? 'mdx' : 'md',
-        heading: s.title || s.id.replace(/-/g, ' '),
+        heading: headings[i] || s.title || s.id.replace(/-/g, ' '),
         artifactCount: s.artifacts.length
       }
       if (s.layout && s.layout !== 'default') entry.layout = s.layout
@@ -670,10 +885,10 @@ export async function addArtifact(opts: {
   const slide = config.slides[opts.slideIndex]
   if (!slide) throw new Error(`Slide at index ${opts.slideIndex} not found`)
 
-  await mkdir(join(opts.rootPath, 'artifacts'), { recursive: true })
+  await mkdir(join(config.rootPath, 'artifacts'), { recursive: true })
 
   const fileName = basename(opts.filePath)
-  const destPath = join(opts.rootPath, 'artifacts', fileName)
+  const destPath = resolveInsideDeck(config.rootPath, join('artifacts', fileName))
   await copyFile(opts.filePath, destPath)
 
   const label = opts.label ?? fileName.replace(extname(fileName), '')
@@ -698,8 +913,9 @@ export async function addImage(opts: {
   }
 
   await access(opts.filePath)
+  const deckRoot = await assertPresentationDir(opts.rootPath)
 
-  const imagesDir = join(opts.rootPath, 'images')
+  const imagesDir = join(deckRoot, 'images')
   await mkdir(imagesDir, { recursive: true })
 
   const destName = `${Date.now()}-${basename(opts.filePath)}`
@@ -709,18 +925,18 @@ export async function addImage(opts: {
   let inserted = false
 
   if (opts.slideIndex != null) {
-    const config = await loadPresentationConfig(opts.rootPath)
+    const config = await loadPresentationConfig(deckRoot)
     const slide = config.slides[opts.slideIndex]
     if (!slide) throw new Error(`Slide at index ${opts.slideIndex} not found`)
 
-    const slidePath = join(opts.rootPath, slide.content)
+    const slidePath = resolveInsideDeck(config.rootPath, slide.content)
     let content = await readFile(slidePath, 'utf-8')
 
     const isMdx = slide.content.endsWith('.mdx')
     if (opts.position) {
       content += `\n<!-- image x=${opts.position.x} y=${opts.position.y} w=${opts.position.w} src=${imagePath} -->\n`
     } else if (isMdx) {
-      const alt = opts.altText || basename(opts.filePath, ext)
+      const alt = escapeMdx(opts.altText || basename(opts.filePath, ext))
       const imgTag = `  <img src="${imagePath}" alt="${alt}" style={{maxWidth:'100%',borderRadius:'8px'}} />`
       // Insert before the last closing </div> so the image stays inside the root container
       const lastClosingDiv = content.lastIndexOf('</div>')
@@ -743,30 +959,24 @@ export async function addImage(opts: {
 
 // ── Theme Customization ──
 
-export async function customizeTheme(opts: {
+/**
+ * Per-deck colour/font overrides are not read by the Lecta renderer, so writing them to
+ * lecta.yaml would change nothing while reporting success. Fail loudly instead until the
+ * app grows support for it.
+ */
+export async function customizeTheme(_opts: {
   rootPath: string
   accentColor?: string
   bgColor?: string
   textColor?: string
   headingFont?: string
   bodyFont?: string
-}): Promise<{ success: boolean; customStyles: Record<string, string> }> {
-  const config = await loadPresentationConfig(opts.rootPath)
-
-  const customStyles: Record<string, string> = {}
-  if (opts.accentColor) customStyles.accentColor = opts.accentColor
-  if (opts.bgColor) customStyles.bgColor = opts.bgColor
-  if (opts.textColor) customStyles.textColor = opts.textColor
-  if (opts.headingFont) customStyles.headingFont = opts.headingFont
-  if (opts.bodyFont) customStyles.bodyFont = opts.bodyFont
-
-  const existing = (config as any).customStyles || {}
-  const merged = { ...existing, ...customStyles }
-
-  ;(config as any).customStyles = merged
-  await savePresentationYaml(config)
-
-  return { success: true, customStyles: merged }
+}): Promise<never> {
+  throw new Error(
+    'Per-deck colour and font overrides are not supported by the Lecta app yet — the renderer ' +
+    'ignores them, so saving them would silently do nothing. Use set_theme to pick one of the ' +
+    `built-in themes instead: ${VALID_THEMES.join(', ')}.`
+  )
 }
 
 // ── Lecta App Integration ──
@@ -792,13 +1002,9 @@ function getLectaSettingsPath(): string {
 export async function registerInRecentDecks(rootPath: string, title: string, slideCount: number, firstSlideContent: string, opts?: { isMdx?: boolean; theme?: string }): Promise<void> {
   const settingsPath = getLectaSettingsPath()
 
-  let settings: Record<string, any> = {}
-  try {
-    const content = await readFile(settingsPath, 'utf-8')
-    settings = JSON.parse(content)
-  } catch {
-    // Settings file might not exist yet
-  }
+  // Only a missing file starts from scratch. A settings.json we cannot read or parse is
+  // left alone — rewriting it from `{}` used to wipe the user's API keys and recent decks.
+  const settings = await readJsonSidecar<Record<string, any>>(settingsPath, {})
 
   const recentDecks: any[] = Array.isArray(settings.recentDecks) ? settings.recentDecks : []
 
@@ -828,9 +1034,7 @@ export async function registerInRecentDecks(rootPath: string, title: string, sli
   // Add to front, remove duplicates, cap at 20
   settings.recentDecks = [entry, ...recentDecks.filter((d: any) => d.path !== rootPath)].slice(0, 20)
 
-  // Ensure directory exists
-  await mkdir(join(settingsPath, '..'), { recursive: true })
-  await writeFile(settingsPath, JSON.stringify(settings, null, 2), 'utf-8')
+  await writeJsonSidecar(settingsPath, settings)
 }
 
 // ── Design System (shared across all presentations) ──
@@ -862,18 +1066,16 @@ function getDesignSystemPath(): string {
 }
 
 export async function loadDesignSystem(): Promise<DesignSystem> {
-  try {
-    const content = await readFile(getDesignSystemPath(), 'utf-8')
-    return JSON.parse(content)
-  } catch {
-    return { version: 1, elements: [] }
+  const dsPath = getDesignSystemPath()
+  const ds = await readJsonSidecar<DesignSystem>(dsPath, { version: 1, elements: [] })
+  if (!ds || typeof ds !== 'object' || !Array.isArray(ds.elements)) {
+    throw new Error(`${dsPath} does not look like a design system (no "elements" array). Refusing to overwrite it.`)
   }
+  return ds
 }
 
 async function saveDesignSystem(ds: DesignSystem): Promise<void> {
-  const dsPath = getDesignSystemPath()
-  await mkdir(join(dsPath, '..'), { recursive: true })
-  await writeFile(dsPath, JSON.stringify(ds, null, 2), 'utf-8')
+  await writeJsonSidecar(getDesignSystemPath(), ds)
 }
 
 export async function listDesignElements(opts?: {
@@ -971,17 +1173,20 @@ function getSlideLibraryPath(): string {
   return join(base, 'slide-library.json')
 }
 
+async function loadSlideLibrary(): Promise<StoredSlide[]> {
+  const libPath = getSlideLibraryPath()
+  const slides = await readJsonSidecar<StoredSlide[]>(libPath, [])
+  if (!Array.isArray(slides)) {
+    throw new Error(`${libPath} does not look like a slide library (expected a JSON array). Refusing to overwrite it.`)
+  }
+  return slides
+}
+
 export async function listSlideLibrary(opts?: {
   tags?: string[]
   search?: string
 }): Promise<StoredSlide[]> {
-  let slides: StoredSlide[]
-  try {
-    const content = await readFile(getSlideLibraryPath(), 'utf-8')
-    slides = JSON.parse(content)
-  } catch {
-    slides = []
-  }
+  let slides = await loadSlideLibrary()
 
   if (opts?.tags && opts.tags.length > 0) {
     slides = slides.filter(s => opts.tags!.some(t => (s.tags || []).includes(t)))
@@ -1011,13 +1216,7 @@ export async function saveSlideToLibrary(slide: {
   codeLanguage?: string
   tags?: string[]
 }): Promise<StoredSlide> {
-  let slides: StoredSlide[]
-  try {
-    const content = await readFile(getSlideLibraryPath(), 'utf-8')
-    slides = JSON.parse(content)
-  } catch {
-    slides = []
-  }
+  const slides = await loadSlideLibrary()
 
   const stored: StoredSlide = {
     id: `slide-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -1031,9 +1230,7 @@ export async function saveSlideToLibrary(slide: {
   }
 
   slides.unshift(stored)
-  const libPath = getSlideLibraryPath()
-  await mkdir(join(libPath, '..'), { recursive: true })
-  await writeFile(libPath, JSON.stringify(slides, null, 2), 'utf-8')
+  await writeJsonSidecar(getSlideLibraryPath(), slides)
 
   return stored
 }
@@ -1065,13 +1262,16 @@ export async function insertLibrarySlide(opts: {
 type ImageProviderType = 'openai' | 'gemini' | 'nanobanana'
 
 async function loadEnvKey(rootPath: string, key: string): Promise<string | null> {
-  // 1. Check deck's .env file
+  // 1. Check deck's .env file — line by line, so a commented-out key is not picked up
+  //    and `OTHER_OPENAI_API_KEY=` does not match `OPENAI_API_KEY`.
   try {
-    const envContent = await readFile(join(rootPath, '.env'), 'utf-8')
-    const regex = new RegExp(`${key}\\s*=\\s*(.+)`)
-    const match = envContent.match(regex)
-    if (match && match[1]) {
-      const val = match[1].trim().replace(/^["']|["']$/g, '')
+    const envContent = await readFile(join(expandHome(rootPath), '.env'), 'utf-8')
+    for (const line of envContent.split(/\r?\n/)) {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith('#')) continue
+      const match = trimmed.match(/^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/)
+      if (!match || match[1] !== key) continue
+      const val = match[2].trim().replace(/^(["'])(.*)\1$/, '$2').trim()
       if (val) return val
     }
   } catch {}
@@ -1198,6 +1398,8 @@ export async function generateAIImage(opts: {
   slideIndex?: number
   altText?: string
 }): Promise<{ imagePath: string; inserted: boolean; provider: string }> {
+  const deckRoot = await assertPresentationDir(opts.rootPath)
+
   // Determine provider
   let provider: ImageProviderType = opts.provider || 'openai'
   if (!opts.provider) {
@@ -1248,7 +1450,7 @@ export async function generateAIImage(opts: {
   // Save the image to the presentation's images/ directory
   const ext = result.mimeType === 'image/jpeg' ? '.jpg' : '.png'
   const fileName = `${Date.now()}-ai-${provider}${ext}`
-  const imagesDir = join(opts.rootPath, 'images')
+  const imagesDir = join(deckRoot, 'images')
   await mkdir(imagesDir, { recursive: true })
 
   const buffer = Buffer.from(result.base64, 'base64')
@@ -1263,12 +1465,12 @@ export async function generateAIImage(opts: {
     const slide = config.slides[opts.slideIndex]
     if (!slide) throw new Error(`Slide at index ${opts.slideIndex} not found`)
 
-    const slidePath = join(opts.rootPath, slide.content)
+    const slidePath = resolveInsideDeck(config.rootPath, slide.content)
     let content = await readFile(slidePath, 'utf-8')
 
     const isMdx = slide.content.endsWith('.mdx')
     if (isMdx) {
-      const alt = opts.altText || 'AI generated image'
+      const alt = escapeMdx(opts.altText || 'AI generated image')
       const imgTag = `  <img src="${imagePath}" alt="${alt}" style={{maxWidth:'100%',borderRadius:'8px'}} />`
       const lastClosingDiv = content.lastIndexOf('</div>')
       if (lastClosingDiv !== -1) {

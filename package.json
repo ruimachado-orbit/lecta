@@ -1,6 +1,7 @@
 {
   "name": "lecta",
   "version": "0.1.2",
+  "packageManager": "bun@1.3.11",
   "description": "Open-source technical presentation platform with executable code blocks",
   "main": "./out/main/index.js",
   "private": true,
@@ -12,11 +13,13 @@
     "package:mac": "electron-builder --mac",
     "package:win": "electron-builder --win",
     "package:linux": "electron-builder --linux",
-    "lint": "eslint . --ext .ts,.tsx",
+    "lint": "eslint . --max-warnings=1000",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:mcp": "cd packages/mcp-server && npm test",
+    "test:all": "vitest run && cd packages/mcp-server && npm test"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.39.0",

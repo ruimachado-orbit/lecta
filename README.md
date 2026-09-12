@@ -24,16 +24,17 @@ Lecta puts slides and executable code side by side — no more switching between
 - **Streaming output** — stdout/stderr displayed in real-time with duration tracking
 - **Execution controls** — run, cancel, timeout (30s default)
 
-### AI (7 Providers, 20+ Models)
-- **Anthropic** — Claude Sonnet 4, Opus 4, Haiku 4
-- **OpenAI** — GPT-5.5, GPT-5.4, GPT-5.4 Mini, GPT-5.3 Codex, GPT-5.3 Codex Spark
+### AI (8 Providers, 25+ Models)
+- **Anthropic** — Claude Sonnet 4.5, Claude Sonnet 4, Claude Opus 4.1, Claude Opus 4, Claude Haiku 4.5
+- **OpenAI** — API key: GPT-5.5, GPT-5.4, GPT-5.4 Mini · Codex CLI sign-in adds GPT-5.3 Codex and GPT-5.3 Codex Spark
 - **Google Gemini** — Gemini 2.5 Pro, 2.5 Flash, 2.0 Flash
-- **Mistral** — Large, Medium, Small
-- **Meta Llama** — Llama 4 Maverick, Scout, Llama 3.3 70B
+- **Mistral** — Mistral Large, Medium, Small
+- **Meta Llama** — Llama 4 Maverick, Llama 4 Scout, Llama 3.3 70B
 - **xAI** — Grok 3, Grok 3 Fast, Grok 3 Mini, Grok 3 Mini Fast
 - **Perplexity** — Sonar Pro, Sonar, Sonar Reasoning Pro, Sonar Reasoning
+- **Ollama** — any model installed locally, discovered from the running Ollama instance (`OLLAMA_BASE_URL`, default `http://localhost:11434`)
 
-API keys are configured per-provider in Settings with live validation, or per-deck via `.env` files. OpenAI can also use a local Codex CLI ChatGPT sign-in instead of an API key.
+API keys are configured per-provider in Settings with live validation, or per-deck via `.env` files. OpenAI can also use a local Codex CLI ChatGPT sign-in instead of an API key; the `*-codex` models are only available in that mode. A model id that is not in the catalog is rejected — prefix a local model with `ollama:` (for example `ollama:llama3.2`) to route it to Ollama explicitly.
 
 #### AI Capabilities
 - **Full presentation generation** — describe a topic, get a complete deck with configurable slide count
@@ -45,14 +46,14 @@ API keys are configured per-provider in Settings with live validation, or per-de
 - **Chart generation** — create SVG charts from descriptions
 - **Inline text** — generate text to insert at cursor position
 - **Article generation** — transform your presentation into a long-form article
-- **Image generation** — create and edit images via Google Gemini, OpenAI DALL-E, or Codex image generation
+- **Image generation** — create and edit images via Google Gemini (`gemini-2.5-flash-image`, a.k.a. Nano Banana), OpenAI DALL-E, or Codex image generation
 - **Chat agent** — multi-turn conversational AI that can read, navigate, and edit your presentation with tool use (auto or ask-first mode)
 
 ### Presenter Mode & Audience Sync
 - **Presenter window** — speaker notes, timer, slide preview
 - **Audience window** — fullscreen presentation on a second display
 - **Live sync** — slides, code changes, execution output, artifacts, and mouse pointer all synchronized in real-time
-- **Remote control** — WebSocket-based remote for controlling presentations
+- **Remote control** — phone remote over the local network (scan a QR code from presenter view)
 
 ### Export
 - **PDF** — slide-by-slide export with print-quality rendering
@@ -81,7 +82,7 @@ API keys are configured per-provider in Settings with live validation, or per-de
 ### Other
 - **File watcher** — live-reloads code and content when files change on disk
 - **Auto-save** — background persistence with change detection
-- **Spotlight search** — command palette for quick navigation
+- **Slide map** — overview of every slide with jump-to navigation
 - **Dark/light mode** — system-wide theme toggle
 - **Keyboard driven** — arrow keys to navigate, `Cmd+Enter` to run, `F5` to present
 
@@ -107,7 +108,7 @@ Both `.deb` and `.AppImage` are available on the [releases page](https://github.
 
 ### From Source
 
-Prerequisites: [Node.js](https://nodejs.org/) 20+, [pnpm](https://pnpm.io/) 9+
+Prerequisites: [Bun](https://bun.sh/) 1.3+ (app, see `packageManager` in `package.json`), [Node.js](https://nodejs.org/) 22+ (MCP server, Electron tooling)
 
 ```bash
 git clone git@github.com:ruimachado-orbit/lecta.git
@@ -115,7 +116,7 @@ cd lecta
 make dev
 ```
 
-`make dev` installs dependencies, creates a `.env` from the template, and launches the app.
+`make dev` runs `bun install` and builds the MCP server (`packages/mcp-server`, plain `npm`), creates a `.env` from the template, and launches the app. `bun.lock` is the only lockfile for the app — do not commit `package-lock.json` or `pnpm-lock.yaml` at the root.
 
 ### Configure AI Providers (Optional)
 
@@ -146,7 +147,7 @@ Keys are loaded using a fallback chain:
 
 ## Creating a Presentation
 
-A presentation is a **folder** with a `lecta.yaml` manifest, markdown slides, code files, and optional artifacts:
+A presentation is a **folder** with a `lecta.yaml` manifest, markdown slides, code files, and optional artifacts. All paths in `lecta.yaml` (`content`, `code.file`, `notes`, `artifacts[].path`) must be relative to the folder and stay inside it (no `..`, no absolute paths). Unknown top-level keys are preserved when the deck is saved.
 
 ```
 my-talk/
@@ -159,7 +160,6 @@ my-talk/
     setup.js
   artifacts/
     diagram.pdf            # Attached documents
-  notes/
     01-intro.notes.md      # Speaker notes (auto-generated or hand-written)
   .env                     # (Optional) API keys for this deck
 ```
@@ -215,6 +215,10 @@ slides:
 | `sql` | SQL | SQLite in WebAssembly via sql.js, supports seed data |
 | `native` | Any | Runs via your local toolchain (`child_process.spawn`) |
 | `none` | — | Display code without execution |
+
+### Themes
+
+`theme` is one of `dark` (default), `light`, `executive`, `minimal`, `corporate`, `creative`, `keynote-dark`, `paper`. An unknown theme is accepted and falls back to `dark` (with a warning) so older decks still open.
 
 ### Slide Layouts
 

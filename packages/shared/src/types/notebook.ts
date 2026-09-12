@@ -28,7 +28,12 @@ export interface NoteConfig {
   outputs?: CellOutput[] // Preserved/live cell outputs
 }
 
-export type NotebookKernel = 'python' | 'javascript' | 'typescript' | 'sql' | 'bash' | 'go' | 'rust'
+/** Kernels a notebook can declare. `r` and `julia` are imported but not executable yet. */
+export const NOTEBOOK_KERNELS = [
+  'python', 'javascript', 'typescript', 'sql', 'bash', 'go', 'rust', 'r', 'julia'
+] as const
+
+export type NotebookKernel = (typeof NOTEBOOK_KERNELS)[number]
 
 export interface Notebook {
   type: 'notebook'

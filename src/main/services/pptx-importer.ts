@@ -40,6 +40,8 @@ interface ParsedRun {
   underline: boolean
   strikethrough: boolean
   hyperlink: string | null
+  /** True for an `<a:br/>` — a hard line break inside the paragraph. */
+  lineBreak?: boolean
 }
 
 interface ExtractedSlide {
@@ -56,12 +58,81 @@ interface ExtractedSlide {
 
 const arrayTags = new Set(['p:sp', 'a:p', 'a:r', 'a:tc', 'a:tr', 'p:grpSp', 'a:hlinkClick'])
 
-const xmlParser = new XMLParser({
+/**
+ * `preserveOrder` is the only way fast-xml-parser reports sibling order, and order is
+ * exactly what a paragraph needs: `<a:r>`, `<a:br/>` and `<a:fld>` interleave, and a
+ * `<a:br/>` dropped or moved changes the slide's text.
+ *
+ * `parseTagValue: false` keeps `"1.10"` a string instead of the number `1.1`, and
+ * `trimValues: false` keeps the spaces that separate adjacent runs
+ * (`"This is" + " " + "bold"`), both of which the defaults silently destroy.
+ */
+const orderedParser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: '@_',
   removeNSPrefix: false,
-  isArray: (name: string) => arrayTags.has(name),
+  preserveOrder: true,
+  parseTagValue: false,
+  trimValues: false,
 })
+
+/** Non-enumerable slot holding a node's children in document order. */
+const CHILD_ORDER = Symbol('childOrder')
+
+interface OrderedChild {
+  tag: string
+  node: any
+}
+
+/**
+ * Convert fast-xml-parser's `preserveOrder` output into the flat `{ tag: node }` shape
+ * the extractors below read, while stashing the ordered child list on each node so
+ * paragraph parsing can still see where the `<a:br/>`s were.
+ */
+function denormalize(nodes: any[]): any {
+  const obj: any = {}
+  const order: OrderedChild[] = []
+
+  for (const entry of nodes) {
+    const attrs = entry[':@'] as Record<string, unknown> | undefined
+    for (const tag of Object.keys(entry)) {
+      if (tag === ':@') continue
+      if (tag === '#text') {
+        const text = String(entry[tag])
+        obj['#text'] = (obj['#text'] ?? '') + text
+        order.push({ tag: '#text', node: text })
+        continue
+      }
+      const child = denormalize(entry[tag] as any[])
+      if (attrs) Object.assign(child, attrs)
+
+      const existing = obj[tag]
+      if (existing === undefined) obj[tag] = arrayTags.has(tag) ? [child] : child
+      else if (Array.isArray(existing)) existing.push(child)
+      else obj[tag] = [existing, child]
+
+      order.push({ tag, node: child })
+    }
+  }
+
+  Object.defineProperty(obj, CHILD_ORDER, { value: order, enumerable: false })
+  return obj
+}
+
+function childOrder(node: any): OrderedChild[] {
+  return (node?.[CHILD_ORDER] as OrderedChild[] | undefined) ?? []
+}
+
+function parseXml(xml: string): any {
+  return denormalize(orderedParser.parse(xml))
+}
+
+/** Read the text of an `<a:t>` node, which may be a string or a `{ '#text' }` object. */
+function nodeText(value: any): string {
+  if (value == null) return ''
+  if (typeof value === 'object') return String(value['#text'] ?? '')
+  return String(value)
+}
 
 // ── Relationship Parsing ─────────────────────────────────────────────────────
 
@@ -72,7 +143,7 @@ interface RelEntry {
 
 function parseRelationships(xml: string): Map<string, RelEntry> {
   const rels = new Map<string, RelEntry>()
-  const parsed = xmlParser.parse(xml)
+  const parsed = parseXml(xml)
   const relationships = parsed?.Relationships?.Relationship
   if (!relationships) return rels
 
@@ -119,14 +190,34 @@ function extractPosition(spPr: any): { x: number; y: number; cx: number; cy: num
   }
 }
 
+function plainRun(text: string, lineBreak = false): ParsedRun {
+  return { text, bold: false, italic: false, underline: false, strikethrough: false, hyperlink: null, lineBreak }
+}
+
+/**
+ * Walk the paragraph's children in document order so runs, field codes and `<a:br/>`
+ * line breaks come out in the order PowerPoint wrote them, with their whitespace intact.
+ */
 function parseRuns(paragraph: any, rels: Map<string, RelEntry>): ParsedRun[] {
   const runs: ParsedRun[] = []
 
-  // Handle regular runs
-  for (const run of safeArray(paragraph['a:r'])) {
-    const rPr = run['a:rPr'] ?? {}
-    const text = run['a:t'] ?? ''
-    const textStr = typeof text === 'object' ? (text['#text'] ?? '') : String(text)
+  for (const { tag, node } of childOrder(paragraph)) {
+    if (tag === 'a:br') {
+      runs.push(plainRun('\n', true))
+      continue
+    }
+
+    if (tag === 'a:fld') {
+      // Field codes (slide number, date) carry their last rendered value in a:t.
+      const textStr = nodeText(node?.['a:t'])
+      if (textStr.trim()) runs.push(plainRun(textStr))
+      continue
+    }
+
+    if (tag !== 'a:r') continue
+
+    const rPr = node['a:rPr'] ?? {}
+    const textStr = nodeText(node['a:t'])
 
     // Resolve hyperlink
     let hyperlink: string | null = null
@@ -147,23 +238,6 @@ function parseRuns(paragraph: any, rels: Map<string, RelEntry>): ParsedRun[] {
       strikethrough: rPr['@_strike'] != null && rPr['@_strike'] !== 'noStrike',
       hyperlink,
     })
-  }
-
-  // Handle field codes (e.g. slide number, date) — extract text from a:fld
-  const fields = safeArray(paragraph['a:fld'])
-  for (const fld of fields) {
-    const text = fld?.['a:t'] ?? ''
-    const textStr = typeof text === 'object' ? (text['#text'] ?? '') : String(text)
-    if (textStr.trim()) {
-      runs.push({
-        text: textStr,
-        bold: false,
-        italic: false,
-        underline: false,
-        strikethrough: false,
-        hyperlink: null,
-      })
-    }
   }
 
   return runs
@@ -234,12 +308,6 @@ function extractShapes(slideObj: any, rels: Map<string, RelEntry>): ShapeContent
 function extractTablesFromTree(spTree: any, rels: Map<string, RelEntry>): string[] {
   const tables: string[] = []
 
-  for (const sp of safeArray(spTree?.['p:sp'])) {
-    const txBody = sp['p:txBody']
-    // Tables can also appear in graphicFrame
-    if (txBody) continue // regular shape, not a table
-  }
-
   // Tables live inside p:graphicFrame > a:graphic > a:graphicData > a:tbl
   const graphicFrames = safeArray(spTree?.['p:graphicFrame'])
   for (const gf of graphicFrames) {
@@ -255,6 +323,11 @@ function extractTablesFromTree(spTree: any, rels: Map<string, RelEntry>): string
   }
 
   return tables
+}
+
+/** A literal `|` would end the cell, and a newline would end the row. */
+function escapeTableCell(text: string): string {
+  return text.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\r?\n/g, '<br>')
 }
 
 function extractTable(tblObj: any, rels: Map<string, RelEntry>): string {
@@ -275,7 +348,7 @@ function extractTable(tblObj: any, rels: Map<string, RelEntry>): string {
           if (text.trim()) cellTexts.push(text.trim())
         }
       }
-      cells.push(cellTexts.join(' '))
+      cells.push(escapeTableCell(cellTexts.join(' ')))
     }
     matrix.push(cells)
   }
@@ -310,6 +383,9 @@ function extractTable(tblObj: any, rels: Map<string, RelEntry>): string {
 function formatRun(run: ParsedRun): string {
   let text = run.text
   if (!text) return ''
+  if (run.lineBreak) return '\n'
+  // Emphasis markers around whitespace-only runs would leak literal `**` into the slide.
+  if (!text.trim()) return text
 
   if (run.strikethrough) text = `~~${text}~~`
   if (run.bold && run.italic) text = `***${text}***`
@@ -322,10 +398,17 @@ function formatRun(run: ParsedRun): string {
 }
 
 function paragraphToMarkdown(para: ParsedParagraph): string {
-  const text = para.runs.map(formatRun).join('')
-  if (!text.trim()) return ''
+  const raw = para.runs.map(formatRun).join('')
+  if (!raw.trim()) return ''
 
   const indent = '  '.repeat(para.indentLevel)
+  // Continuation lines of a list item must stay indented under the marker.
+  const continuation = para.bulletType === 'none' ? '' : `${indent}  `
+  // `<a:br/>` becomes a markdown hard break (two trailing spaces + newline).
+  const text = raw
+    .split('\n')
+    .map((line) => line.replace(/\s+$/, ''))
+    .join(`  \n${continuation}`)
 
   if (para.bulletType === 'bullet') {
     return `${indent}- ${text}`
@@ -498,8 +581,21 @@ function collectEmbedRefs(obj: any, refs: Set<string>): void {
 
 // ── Notes Extraction ─────────────────────────────────────────────────────────
 
+/** Resolve an OPC relationship target (`../notesSlides/notesSlide2.xml`) against its part. */
+function resolveRelTarget(partPath: string, target: string): string {
+  if (target.startsWith('/')) return target.slice(1)
+  const segments = [...partPath.split('/').slice(0, -1), ...target.split('/')]
+  const out: string[] = []
+  for (const segment of segments) {
+    if (segment === '' || segment === '.') continue
+    if (segment === '..') out.pop()
+    else out.push(segment)
+  }
+  return out.join('/')
+}
+
 function extractNotesText(noteXml: string): string | null {
-  const parsed = xmlParser.parse(noteXml)
+  const parsed = parseXml(noteXml)
   const spTree = parsed?.['p:notes']?.['p:cSld']?.['p:spTree']
   if (!spTree) return null
 
@@ -520,12 +616,9 @@ function extractNotesText(noteXml: string): string | null {
     if (!txBody) continue
 
     for (const para of safeArray(txBody['a:p'])) {
-      const runs = safeArray(para['a:r'])
-      const text = runs.map((r: any) => {
-        const t = r['a:t'] ?? ''
-        return typeof t === 'object' ? (t['#text'] ?? '') : String(t)
-      }).join('')
-      if (text.trim()) lines.push(text.trim())
+      // Reuse the run walker so `<a:br/>` and field codes survive into the notes too.
+      const text = parseRuns(para, new Map()).map((r) => r.text).join('')
+      if (text.trim()) lines.push(text.replace(/\s+$/, ''))
     }
   }
 
@@ -639,7 +732,7 @@ export async function importPptx(pptxPath: string, workspaceDir: string): Promis
 
     // Parse slide XML
     const slideXml = await zip.files[slideFilePath].async('text')
-    const slideObj = xmlParser.parse(slideXml)
+    const slideObj = parseXml(slideXml)
 
     // Parse slide relationships
     const relsPath = `ppt/slides/_rels/slide${slideNum}.xml.rels`
@@ -696,9 +789,21 @@ export async function importPptx(pptxPath: string, workspaceDir: string): Promis
       .filter((img) => usedRefs.has(img.rId) && extractedMediaNames.has(img.fileName))
       .map((img) => ({ fileName: img.fileName }))
 
-    // Find notes — use endsWith to match correctly
+    // Find notes via the slide's own notesSlide relationship. Matching by file number
+    // is only a fallback — PowerPoint does not guarantee slideN ↔ notesSlideN.
     let notes: string | null = null
-    const noteFile = noteFiles.find((f) => f.endsWith(`notesSlide${slideNum}.xml`))
+    let noteFile: string | undefined
+    for (const rel of rels.values()) {
+      if (!rel.type.endsWith('/notesSlide')) continue
+      const resolved = resolveRelTarget(slideFilePath, rel.target)
+      if (zip.files[resolved]) {
+        noteFile = resolved
+        break
+      }
+    }
+    if (!noteFile) {
+      noteFile = noteFiles.find((f) => f.endsWith(`notesSlide${slideNum}.xml`))
+    }
     if (noteFile && zip.files[noteFile]) {
       const noteXml = await zip.files[noteFile].async('text')
       notes = extractNotesText(noteXml)

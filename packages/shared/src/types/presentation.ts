@@ -1,3 +1,12 @@
+import type {
+  ExecutionEngine,
+  SlideLayout,
+  SlideTransition,
+  SupportedLanguage,
+} from '../slide-options'
+
+export type { ExecutionEngine, SlideLayout, SlideTheme, SlideTransition, SupportedLanguage } from '../slide-options'
+
 export interface SlideGroupConfig {
   id: string
   name: string
@@ -32,22 +41,6 @@ export interface PromptConfig {
   label?: string
   response?: string
 }
-
-export type SlideTransition = 'none' | 'left' | 'right' | 'top' | 'bottom'
-
-export type SlideLayout =
-  | 'default'          // Standard top-down flow
-  | 'center'           // Everything centered vertically + horizontally
-  | 'title'            // Big centered title with subtitle below
-  | 'section'          // Section break — bold heading, accent bar
-  | 'two-col'          // Two equal columns
-  | 'two-col-wide-left'  // 60/40 left-heavy columns
-  | 'two-col-wide-right' // 40/60 right-heavy columns
-  | 'three-col'        // Three equal columns
-  | 'top-bottom'       // Content split top and bottom
-  | 'big-number'       // Large stat/number with context below
-  | 'quote'            // Blockquote-style centered quote
-  | 'blank'            // No padding, full canvas
 
 export interface SlideConfig {
   id: string
@@ -86,25 +79,6 @@ export interface AIConfig {
   autoGenerateNotes?: boolean
   context?: 'slide' | 'code' | 'slide+code'
 }
-
-export type SupportedLanguage =
-  | 'javascript'
-  | 'typescript'
-  | 'python'
-  | 'sql'
-  | 'html'
-  | 'css'
-  | 'json'
-  | 'bash'
-  | 'rust'
-  | 'go'
-  | 'java'
-  | 'csharp'
-  | 'ruby'
-  | 'php'
-  | 'markdown'
-
-export type ExecutionEngine = 'sandpack' | 'pyodide' | 'sql' | 'native' | 'none'
 
 export interface LoadedSlide {
   config: SlideConfig

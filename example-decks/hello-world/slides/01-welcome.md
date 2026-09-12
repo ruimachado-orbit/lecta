@@ -5,7 +5,7 @@ The open-source platform for **technical presentations** with live code executio
 ## Features
 
 - **Slides + Code** side by side
-- **4 execution engines**: JavaScript, Python, SQL, and native
+- **5 execution engines**: JavaScript (Sandpack), Python (Pyodide), SQL (sql.js), native, and display-only
 - **Artifacts**: Attach PDFs, Excel files, images to any slide
 - **AI Speaker Notes**: Generate with Claude
 - **File-based**: Author in your favorite editor, present in Lecta

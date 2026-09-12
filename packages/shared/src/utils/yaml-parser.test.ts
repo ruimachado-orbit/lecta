@@ -1,5 +1,8 @@
-import { describe, it, expect } from 'vitest'
-import { parsePresentationYaml, validatePresentationYaml } from './yaml-parser'
+import { describe, it, expect, vi } from 'vitest'
+import { parsePresentationYaml, serializePresentation, validatePresentationYaml } from './yaml-parser'
+import { SLIDE_THEMES } from '../slide-options'
+import { existsSync, readFileSync } from 'fs'
+import { dirname, resolve } from 'path'
 
 const MINIMAL_YAML = `
 title: Test Deck
@@ -202,5 +205,161 @@ slides:
     const result = validatePresentationYaml(yaml)
     expect(result.valid).toBe(false)
     expect(result.errors.some(e => e.includes('title'))).toBe(true)
+  })
+})
+
+describe('parsePresentationYaml — schema hardening', () => {
+  const deck = (slideBody: string, extra = '') => `
+title: Deck
+author: Test
+${extra}slides:
+  - id: s1
+${slideBody}
+`
+
+  it('falls back to the default theme and warns on an unknown theme', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const result = parsePresentationYaml(
+        deck('    content: slides/s1.md\n    artifacts: []', 'theme: neon-vaporwave\n'),
+        '/root'
+      )
+      expect(result.theme).toBe('dark')
+      expect(warn).toHaveBeenCalledOnce()
+      expect(String(warn.mock.calls[0][0])).toContain('neon-vaporwave')
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it('accepts every known theme unchanged', () => {
+    for (const theme of SLIDE_THEMES) {
+      const result = parsePresentationYaml(
+        deck('    content: slides/s1.md\n    artifacts: []', `theme: ${theme}\n`),
+        '/root'
+      )
+      expect(result.theme).toBe(theme)
+    }
+  })
+
+  it('rejects an empty slide id', () => {
+    expect(() =>
+      parsePresentationYaml(
+        `
+title: Deck
+author: Test
+slides:
+  - id: ""
+    content: slides/s1.md
+    artifacts: []
+`,
+        '/root'
+      )
+    ).toThrow()
+  })
+
+  it('rejects a negative or fractional lastViewedIndex', () => {
+    const body = '    content: slides/s1.md\n    artifacts: []'
+    expect(() => parsePresentationYaml(deck(body, 'lastViewedIndex: -1\n'), '/root')).toThrow()
+    expect(() => parsePresentationYaml(deck(body, 'lastViewedIndex: 1.5\n'), '/root')).toThrow()
+    expect(parsePresentationYaml(deck(body, 'lastViewedIndex: 0\n'), '/root').lastViewedIndex).toBe(0)
+  })
+
+  it.each([
+    ['content', '    content: ../../etc/passwd\n    artifacts: []'],
+    ['absolute content', '    content: /etc/passwd\n    artifacts: []'],
+    ['home-relative content', '    content: ~/secrets.md\n    artifacts: []'],
+    ['notes', '    content: slides/s1.md\n    notes: ../../.zshrc\n    artifacts: []'],
+    [
+      'code.file',
+      '    content: slides/s1.md\n    artifacts: []\n    code:\n      file: ../../.ssh/id_rsa\n      language: bash\n      execution: none',
+    ],
+    [
+      'artifact path',
+      '    content: slides/s1.md\n    artifacts:\n      - path: ../../secret.pdf\n        label: Nope',
+    ],
+  ])('rejects an escaping %s path', (_label, body) => {
+    expect(() => parsePresentationYaml(deck(body), '/root')).toThrow()
+  })
+
+  it('accepts a file name that merely starts with dots', () => {
+    const result = parsePresentationYaml(
+      deck('    content: slides/s1.md\n    notes: slides/..notes.md\n    artifacts: []'),
+      '/root'
+    )
+    expect(result.slides[0].notes).toBe('slides/..notes.md')
+  })
+})
+
+describe('serializePresentation', () => {
+  const YAML_WITH_EXTRAS = `
+title: Round Trip
+author: Test
+theme: paper
+lastViewedIndex: 3
+customBranding:
+  logo: images/logo.png
+  accent: "#ff6b35"
+sponsors:
+  - Acme
+  - Globex
+slides:
+  - id: s1
+    title: One
+    content: slides/s1.md
+    layout: title
+    artifacts: []
+  - id: s2
+    content: slides/s2.md
+    notes: slides/s2.notes.md
+    artifacts:
+      - path: artifacts/deck.pdf
+        label: Handout
+`
+
+  it('round-trips known and unknown top-level keys', () => {
+    const parsed = parsePresentationYaml(YAML_WITH_EXTRAS, '/root')
+    const reparsed = parsePresentationYaml(serializePresentation(parsed), '/root')
+
+    expect(reparsed.title).toBe('Round Trip')
+    expect(reparsed.theme).toBe('paper')
+    expect(reparsed.lastViewedIndex).toBe(3)
+    expect(reparsed.slides).toHaveLength(2)
+    expect(reparsed.slides[0].layout).toBe('title')
+    expect(reparsed.slides[1].notes).toBe('slides/s2.notes.md')
+    expect(reparsed.slides[1].artifacts[0]).toEqual({ path: 'artifacts/deck.pdf', label: 'Handout' })
+
+    const extras = reparsed as unknown as Record<string, unknown>
+    expect(extras.customBranding).toEqual({ logo: 'images/logo.png', accent: '#ff6b35' })
+    expect(extras.sponsors).toEqual(['Acme', 'Globex'])
+  })
+
+  it('is stable across two serialize passes', () => {
+    const parsed = parsePresentationYaml(YAML_WITH_EXTRAS, '/root')
+    const once = serializePresentation(parsed)
+    const twice = serializePresentation(parsePresentationYaml(once, '/root'))
+    expect(twice).toBe(once)
+  })
+
+  it('never writes the runtime-only rootPath back to disk', () => {
+    const parsed = parsePresentationYaml(YAML_WITH_EXTRAS, '/some/where')
+    expect(serializePresentation(parsed)).not.toContain('rootPath')
+  })
+})
+
+describe('shipped example decks', () => {
+  it('example-decks/hello-world/lecta.yaml satisfies the schema', () => {
+    const yamlPath = resolve(__dirname, '../../../../example-decks/hello-world/lecta.yaml')
+    const result = validatePresentationYaml(readFileSync(yamlPath, 'utf-8'))
+    expect(result.errors).toEqual([])
+
+    const parsed = parsePresentationYaml(readFileSync(yamlPath, 'utf-8'), '/decks/hello-world')
+    expect(parsed.slides[0]).toMatchObject({ id: 'welcome', content: 'slides/01-welcome.md', layout: 'title' })
+    // Every referenced file must actually exist in the shipped deck.
+    for (const slide of parsed.slides) {
+      for (const path of [slide.content, slide.code?.file, slide.notes].filter(Boolean) as string[]) {
+        expect(existsSync(resolve(dirname(yamlPath), path)), `missing ${path}`).toBe(true)
+      }
+    }
   })
 })

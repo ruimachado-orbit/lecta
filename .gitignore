@@ -1,5 +1,9 @@
 # Dependencies
 node_modules/
+# bun.lock is the only lockfile for the app (packages/mcp-server keeps its own package-lock.json)
+/package-lock.json
+/pnpm-lock.yaml
+/yarn.lock
 
 # Build output
 dist/

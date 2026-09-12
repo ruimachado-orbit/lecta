@@ -1,4 +1,4 @@
-.PHONY: dev setup install clean build package dmg lint format release bump-patch bump-minor bump-major
+.PHONY: dev setup install clean build package dmg lint format typecheck test test-watch test-mcp test-all release bump-patch bump-minor bump-major
 
 # 🚀 Full setup + launch (first time or any time)
 dev: setup
@@ -40,14 +40,14 @@ package-linux: build
 
 # Lint and format
 lint:
-	cd "$(CURDIR)" && bun lint
+	cd "$(CURDIR)" && bun run lint
 
 format:
-	cd "$(CURDIR)" && bun format
+	cd "$(CURDIR)" && bun run format
 
 # Type check
 typecheck:
-	cd "$(CURDIR)" && bun typecheck
+	cd "$(CURDIR)" && bun run typecheck
 
 # ── Release ──────────────────────────────────────────────
 # Usage:
@@ -111,11 +111,17 @@ release: build
 	@echo "✅ Released v$(VERSION) → https://github.com/$(REPO)/releases/tag/v$(VERSION)"
 
 # ── Testing ──────────────────────────────────────────────
+# Note: `bun test` would run Bun's own test runner — always go through the npm scripts.
 test:
-	cd "$(CURDIR)" && bun test
+	cd "$(CURDIR)" && bun run test
 
 test-watch:
-	cd "$(CURDIR)" && bun test:watch
+	cd "$(CURDIR)" && bun run test:watch
+
+test-mcp:
+	cd "$(CURDIR)/packages/mcp-server" && npm test
+
+test-all: test test-mcp
 
 # Clean build artifacts
 clean:

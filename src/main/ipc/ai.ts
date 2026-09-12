@@ -1,4 +1,6 @@
 import { ipcMain, type IpcMainInvokeEvent, type WebContents } from 'electron'
+import JSZip from 'jszip'
+import { XMLParser } from 'fast-xml-parser'
 import { getSharedAIService } from '../services/ai-singleton'
 import { CANCELLED_MESSAGE } from '../services/ai/types'
 
@@ -141,6 +143,96 @@ async function extractPdfText(filePath: string): Promise<string> {
   } finally {
     await doc.destroy()
   }
+}
+
+/**
+ * Office text extraction (docx / xlsx / pptx are zipped XML). Uses jszip +
+ * fast-xml-parser — both already dependencies — so no new native modules.
+ * Falls back to a clear error naming the file, never a placeholder string.
+ */
+async function readZipXml(filePath: string, entryName: string): Promise<string> {
+  const { readFile } = await import('fs/promises')
+  const buf = await readFile(filePath)
+  const zip = await JSZip.loadAsync(buf)
+  const entry = zip.file(entryName)
+  if (!entry) throw new Error(`${filePath}: missing ${entryName} (not a valid Office file?)`)
+  return entry.async('string')
+}
+
+function xmlTexts(xml: string): string[] {
+  const parser = new XMLParser({ ignoreAttributes: false, removeNSPrefix: true })
+  const out: string[] = []
+  const walk = (node: unknown): void => {
+    if (typeof node === 'string') {
+      if (node.trim()) out.push(node.trim())
+      return
+    }
+    if (Array.isArray(node)) {
+      for (const v of node) walk(v)
+      return
+    }
+    if (node && typeof node === 'object') {
+      for (const v of Object.values(node)) walk(v)
+    }
+  }
+  try {
+    walk(parser.parse(xml))
+  } catch {
+    // Malformed XML part — return what we have.
+  }
+  return out
+}
+
+async function extractDocxText(filePath: string): Promise<string> {
+  const xml = await readZipXml(filePath, 'word/document.xml').catch((err) => {
+    throw new Error(`Could not read Word document: ${(err as Error).message}`)
+  })
+  const texts = xmlTexts(xml)
+  if (texts.length === 0) throw new Error('No readable text found in this Word document.')
+  return texts.join(' ')
+}
+
+async function extractXlsxText(filePath: string): Promise<string> {
+  const { readFile } = await import('fs/promises')
+  const buf = await readFile(filePath)
+  const zip = await JSZip.loadAsync(buf).catch((err) => {
+    throw new Error(`Could not read spreadsheet: ${(err as Error).message}`)
+  })
+  const names = Object.keys(zip.files).filter((n) => /^xl\/worksheets\/sheet\d+\.xml$/.test(n)).sort()
+  if (names.length === 0) throw new Error('No worksheets found in this spreadsheet.')
+  let shared: string[] = []
+  const sharedEntry = zip.file('xl/sharedStrings.xml')
+  if (sharedEntry) {
+    try {
+      shared = xmlTexts(await sharedEntry.async('string'))
+    } catch { /* inline strings only */ }
+  }
+  const rows: string[] = []
+  for (const name of names.slice(0, 12)) {
+    const xml = await zip.file(name)!.async('string')
+    const cellTexts = xmlTexts(xml).map((t) => (/^\d+$/.test(t) && shared[Number(t)] ? shared[Number(t)] : t))
+    if (cellTexts.length > 0) rows.push(`${name.split('/').pop()}: ${cellTexts.join(' | ').slice(0, 8000)}`)
+  }
+  if (rows.length === 0) throw new Error('No readable text found in this spreadsheet.')
+  return rows.join('\n')
+}
+
+async function extractPptxText(filePath: string): Promise<string> {
+  const { readFile } = await import('fs/promises')
+  const buf = await readFile(filePath)
+  const zip = await JSZip.loadAsync(buf).catch((err) => {
+    throw new Error(`Could not read PowerPoint file: ${(err as Error).message}`)
+  })
+  const names = Object.keys(zip.files).filter((n) => /^ppt\/slides\/slide\d+\.xml$/.test(n)).sort()
+  if (names.length === 0) throw new Error('No slides found in this PowerPoint file.')
+  const slides: string[] = []
+  for (const name of names.slice(0, 60)) {
+    const xml = await zip.file(name)!.async('string')
+    const texts = xmlTexts(xml)
+    if (texts.length > 0) slides.push(`Slide ${slides.length + 1}: ${texts.join(' ').slice(0, 4000)}`)
+  }
+  if (slides.length === 0) throw new Error('No readable text found in this PowerPoint file.')
+  return slides.join('\n')
 }
 
 export async function setAIDeckPath(deckPath: string): Promise<void> {
@@ -329,9 +421,17 @@ export function registerAiHandlers(): void {
       title: string,
       sourceContent: string | null,
       slideCount: number,
-      progressChannel: string
+      optionsOrChannel: Record<string, unknown> | string,
+      maybeChannel?: string
     ): Promise<{ slides: { id: string; markdown: string; layout: string }[]; title: string }> => {
       const service = getAIService()
+      // Backwards compatible: old renderer sent progressChannel as the 5th arg.
+      const options =
+        typeof optionsOrChannel === 'string' ? {} : (optionsOrChannel as {
+          tone?: string; verbosity?: string
+          outline?: { id: string; title: string; layout: string; keyPoints: string[] }[] | null
+        })
+      const progressChannel = typeof optionsOrChannel === 'string' ? optionsOrChannel : (maybeChannel as string)
       const sendProgress = makeSender(event, progressChannel)
 
       console.log('[ai:generate-full-presentation] prompt length:', prompt.length, 'sourceContent length:', sourceContent?.length ?? 0, 'slideCount:', slideCount)
@@ -345,7 +445,8 @@ export function registerAiHandlers(): void {
             (status: string, slideIndex: number, total: number) => {
               sendProgress({ status, slideIndex, total })
             },
-            signal
+            signal,
+            options
           )
         )
         console.log('[ai:generate-full-presentation] result slides:', result.slides?.length ?? 0)
@@ -354,6 +455,21 @@ export function registerAiHandlers(): void {
         console.error('[ai:generate-full-presentation] error:', err)
         throw err
       }
+    }
+  )
+
+  ipcMain.handle(
+    'ai:generate-outline',
+    async (
+      _event,
+      prompt: string,
+      title: string,
+      sourceContent: string | null,
+      slideCount: number,
+      options?: { tone?: string; verbosity?: string }
+    ): Promise<{ id: string; title: string; layout: string; keyPoints: string[] }[]> => {
+      const service = getAIService()
+      return service.generatePresentationOutline(prompt, title, sourceContent, slideCount, undefined, options)
     }
   )
 
@@ -370,6 +486,18 @@ export function registerAiHandlers(): void {
           `Reading the PDF timed out after ${PDF_EXTRACTION_TIMEOUT_MS / 1000}s.`
         )
         return text.trim().slice(0, 50000)
+      }
+
+      if (ext === 'docx') {
+        return extractDocxText(filePath).then((t) => t.slice(0, 50000))
+      }
+
+      if (ext === 'xlsx' || ext === 'xls') {
+        return extractXlsxText(filePath).then((t) => t.slice(0, 50000))
+      }
+
+      if (ext === 'pptx') {
+        return extractPptxText(filePath).then((t) => t.slice(0, 50000))
       }
 
       // For text-based files (md, txt, csv, json, etc.)

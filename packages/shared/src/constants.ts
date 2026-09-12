@@ -210,3 +210,44 @@ export function getProviderForModel(modelId: string): AIProviderDef | undefined 
 export function getModelDef(modelId: string): AIModelDef | undefined {
   return getAllModels().find((m) => m.id === modelId)
 }
+
+// ── Generation preferences (Presenton-style tone / verbosity) ──
+
+export const GENERATION_TONES = [
+  { id: 'default', label: 'Default' },
+  { id: 'casual', label: 'Casual' },
+  { id: 'professional', label: 'Professional' },
+  { id: 'funny', label: 'Funny' },
+  { id: 'educational', label: 'Educational' },
+  { id: 'sales_pitch', label: 'Sales pitch' },
+] as const
+
+export type GenerationToneId = (typeof GENERATION_TONES)[number]['id']
+
+export const GENERATION_VERBOSITIES = [
+  { id: 'concise', label: 'Concise' },
+  { id: 'standard', label: 'Standard' },
+  { id: 'text-heavy', label: 'Text-heavy' },
+] as const
+
+export type GenerationVerbosityId = (typeof GENERATION_VERBOSITIES)[number]['id']
+
+export interface GenerationOptions {
+  tone?: GenerationToneId
+  verbosity?: GenerationVerbosityId
+  theme?: string
+}
+
+export interface OutlineSlide {
+  id: string
+  title: string
+  layout: string
+  keyPoints: string[]
+}
+
+/** Supporting-doc allowlist for grounded generation (Presenton-style, capped at 8). */
+export const SUPPORTING_DOC_EXTENSIONS = [
+  'pdf', 'docx', 'pptx', 'xlsx', 'csv', 'md', 'txt', 'json', 'html',
+] as const
+
+export const MAX_SUPPORTING_DOCS = 8

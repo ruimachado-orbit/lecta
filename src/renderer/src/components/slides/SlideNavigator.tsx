@@ -41,6 +41,8 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [groupContextMenu, setGroupContextMenu] = useState<{ x: number; y: number; groupId: string } | null>(null)
   const [dropTarget, setDropTarget] = useState<number | null>(null)
+  /** Insertion side within the drop target (Presenton-style positional indicator). */
+  const [dropBefore, setDropBefore] = useState(true)
   const [dropGroupId, setDropGroupId] = useState<string | null>(null)
   const dragRef = useRef<number | null>(null)
 
@@ -171,13 +173,42 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
 
   // Drag
   const handleDragStart = (e: React.DragEvent, i: number) => { dragRef.current = i; setDragIndex(i); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(i)) }
-  const handleDragOverSlide = (e: React.DragEvent, i: number) => { e.preventDefault(); setDropTarget(i); setDropGroupId(null) }
-  const handleDropOnSlide = async (e: React.DragEvent, to: number) => { e.preventDefault(); const from = dragRef.current; resetDrag(); if (from !== null && from !== to) await reorderSlide(from, to) }
+  const handleDragOverSlide = (e: React.DragEvent, i: number) => {
+    e.preventDefault()
+    setDropTarget(i)
+    setDropGroupId(null)
+    // Insertion side from pointer position inside the thumbnail
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    setDropBefore(e.clientX < rect.left + rect.width / 2)
+  }
+  const handleDropOnSlide = async (e: React.DragEvent, to: number) => {
+    e.preventDefault()
+    const from = dragRef.current
+    const before = dropBefore
+    resetDrag()
+    if (from === null || from === to) return
+    let target = before ? to : to + 1
+    // Removing `from` shifts everything after it down by one
+    if (from < target) target -= 1
+    if (target !== from) await reorderSlide(from, target)
+  }
   const handleDropOnGroup = (e: React.DragEvent, gid: string) => {
     e.preventDefault(); const from = dragRef.current; resetDrag()
     if (from !== null) { const sid = slides[from].config.id; slideGroups.forEach((g) => { if (g.slideIds.includes(sid)) removeSlideFromGroup(g.id, sid) }); addSlideToGroup(gid, sid) }
   }
   const resetDrag = () => { setDragIndex(null); setDropTarget(null); setDropGroupId(null); dragRef.current = null }
+
+  /** Keyboard reorder: Alt+Left/Right moves the focused slide (announced via title). */
+  const handleThumbKeyDown = (e: React.KeyboardEvent, index: number) => {
+    if (!e.altKey) return
+    if (e.key === 'ArrowLeft' && index > 0) {
+      e.preventDefault()
+      void reorderSlide(index, index - 1)
+    } else if (e.key === 'ArrowRight' && index < slides.length - 1) {
+      e.preventDefault()
+      void reorderSlide(index, index + 1)
+    }
+  }
 
   const slideGroupMap = new Map<string, string>()
   slideGroups.forEach((g) => g.slideIds.forEach((id) => slideGroupMap.set(id, g.id)))
@@ -301,15 +332,17 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
               )}
             <div draggable
               data-slide-nav={index}
+              tabIndex={0}
               onDragStart={(e) => handleDragStart(e, index)}
               onDragOver={(e) => handleDragOverSlide(e, index)}
               onDragLeave={() => setDropTarget(null)}
               onDrop={(e) => handleDropOnSlide(e, index)}
               onDragEnd={resetDrag}
               onClick={(e) => handleSlideClick(e, index)}
+              onKeyDown={(e) => handleThumbKeyDown(e, index)}
               onContextMenu={(e) => handleContextMenu(e, index)}
               className={`group flex-shrink-0 w-20 h-10 rounded-md border-2 transition-all text-[8px] leading-tight
-                overflow-visible px-1.5 py-1 text-left relative cursor-grab active:cursor-grabbing ${
+                overflow-visible pl-2.5 pr-1.5 py-1 text-left relative cursor-grab active:cursor-grabbing focus:outline-none focus:ring-1 focus:ring-white/60 ${
                 isDragging ? 'opacity-40 border-gray-500'
                 : isDropTgt ? 'border-gray-400 bg-white/5'
                 : isSkipped ? 'opacity-30 border-gray-700 border-dashed bg-gray-900/50 text-gray-600 [filter:blur(0.5px)]'
@@ -317,7 +350,16 @@ export function SlideNavigator({ subSlideCount, currentSubSlide }: { subSlideCou
                 : isActive ? 'border-white bg-gray-800 text-gray-200'
                 : 'border-gray-500 bg-gray-900 text-gray-300 hover:border-gray-400 hover:text-gray-200'
               }`}
-              title="Shift+click to multi-select">
+              title="Drag to reorder · Alt+←/→ to move · Shift+click to multi-select">
+              {/* Insertion indicator — Presenton-style positional drop line */}
+              {isDropTgt && (
+                <span
+                  aria-hidden
+                  className={`absolute top-[-4px] bottom-[-4px] w-[3px] rounded-full bg-white shadow-[0_0_6px_rgba(255,255,255,0.8)] ${dropBefore ? 'left-[-5px]' : 'right-[-5px]'}`}
+                />
+              )}
+              {/* Drag grip affordance */}
+              <span aria-hidden className="absolute left-[3px] top-1/2 -translate-y-1/2 text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity text-[8px] leading-none select-none">⋮⋮</span>
               {group && <span className="absolute -top-2.5 left-1 text-[7px] px-1.5 py-px rounded leading-none font-medium" style={{ backgroundColor: group.color || '#4b5563', color: '#fff' }}>{group.name}</span>}
               {isSelected && selectedIndices.size > 1 && <span className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-white text-black text-[8px] font-bold rounded-full flex items-center justify-center z-10">✓</span>}
               <span className="block truncate font-medium">{index + 1}. {slide.config.title || slide.config.id}</span>

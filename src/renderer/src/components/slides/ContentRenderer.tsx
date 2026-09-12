@@ -23,6 +23,9 @@ interface ContentRendererProps {
   background?: SlideBackground
   /** Suppress the read-only pinned-element layer (the editable canvas draws its own). */
   hidePinned?: boolean
+  /** Click-to-edit overlay: hover outline + block pick. Markdown slides only. */
+  clickToEdit?: boolean
+  onPickBlock?: (blockText: string) => void
 }
 
 /**
@@ -36,14 +39,14 @@ interface ContentRendererProps {
  * `interactiveMdx` — currently no caller does; the prop exists for the
  * follow-up that adds a per-deck "allow interactive components" toggle.
  */
-export function ContentRenderer({ isMdx, preview, mdxTrusted, slideId, background, hidePinned, interactiveMdx, ...props }: ContentRendererProps & { interactiveMdx?: boolean }): JSX.Element {
+export function ContentRenderer({ isMdx, preview, mdxTrusted, slideId, background, hidePinned, clickToEdit, onPickBlock, interactiveMdx, ...props }: ContentRendererProps & { interactiveMdx?: boolean }): JSX.Element {
   const storeTrusted = usePresentationStore((s) => s.mdxTrusted)
   const deckBackground = usePresentationStore((s) =>
     slideId ? s.slides.find((slide) => slide.config.id === slideId)?.config.background : undefined
   )
   const slideBackground = background ?? deckBackground
 
-  if (!isMdx) return <SlideRenderer {...props} background={slideBackground} hidePinned={hidePinned} />
+  if (!isMdx) return <SlideRenderer {...props} background={slideBackground} hidePinned={hidePinned} clickToEdit={clickToEdit} onPickBlock={onPickBlock} />
 
   const trusted = mdxTrusted ?? storeTrusted
   if (preview || !trusted) {

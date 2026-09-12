@@ -83,6 +83,9 @@ const api = {
     ipcRenderer.invoke('fs:export-single-file', rootPath),
   loadPresentation: (folderPath: string): Promise<LoadedPresentation> =>
     ipcRenderer.invoke('fs:load-presentation', folderPath),
+  /** Write a lecta.yaml for a folder of loose slides so it opens as a deck; returns the folder. */
+  materializeFolder: (folderPath: string): Promise<string> =>
+    ipcRenderer.invoke('fs:materialize-folder', folderPath),
   closePresentation: (rootPath: string): Promise<void> =>
     ipcRenderer.invoke('fs:close-presentation', rootPath),
   readFile: (filePath: string): Promise<string> =>
@@ -227,20 +230,35 @@ const api = {
     title: string,
     sourceContent: string | null,
     slideCount: number,
-    onProgress: (data: { status: string; slideIndex: number; total: number }) => void
+    onProgress: (data: { status: string; slideIndex: number; total: number }) => void,
+    options?: {
+      tone?: string
+      verbosity?: string
+      outline?: { id: string; title: string; layout: string; keyPoints: string[] }[] | null
+    }
   ): Promise<{ slides: { id: string; markdown: string; layout: string }[]; title: string }> => {
     const channel = makeChannel('ai:gen-pres-progress-')
     const unsubscribe = subscribe(channel, (data) =>
       onProgress(data as { status: string; slideIndex: number; total: number })
     )
     return ipcRenderer
-      .invoke('ai:generate-full-presentation', prompt, title, sourceContent, slideCount, channel)
+      .invoke('ai:generate-full-presentation', prompt, title, sourceContent, slideCount, options ?? {}, channel)
       .finally(unsubscribe)
   },
+  generateOutline: (
+    prompt: string,
+    title: string,
+    sourceContent: string | null,
+    slideCount: number,
+    options?: { tone?: string; verbosity?: string }
+  ): Promise<{ id: string; title: string; layout: string; keyPoints: string[] }[]> =>
+    ipcRenderer.invoke('ai:generate-outline', prompt, title, sourceContent, slideCount, options ?? {}),
   readSourceFile: (filePath: string): Promise<string> =>
     ipcRenderer.invoke('ai:read-source-file', filePath),
   selectFile: (filters?: { name: string; extensions: string[] }[]): Promise<string | null> =>
     ipcRenderer.invoke('fs:select-file', filters),
+  selectFiles: (filters?: { name: string; extensions: string[] }[]): Promise<string[]> =>
+    ipcRenderer.invoke('fs:select-files', filters),
   selectFolder: (): Promise<string | null> =>
     ipcRenderer.invoke('fs:select-folder'),
   readSourceFolder: (folderPath: string): Promise<string> =>

@@ -159,6 +159,8 @@ There are two ways to write a deck: **one markdown file** (the quickest way in) 
 
 Write the whole deck in one `.md` file and open it with **Open**. Lecta materializes it into a deck folder of the same name next to the file (`my-talk.md` → `my-talk/`) and opens that; the file is left untouched. If a folder of that name already exists, Lecta refuses rather than writing into it.
 
+Opening a folder of loose `.md`/`.mdx` slides with no `lecta.yaml` offers **Import as new deck**: one slide per file (ids slugged from file names, `slides/` preferred when present), a manifest written in place, nothing else touched.
+
 ````markdown
 ---
 title: My Talk

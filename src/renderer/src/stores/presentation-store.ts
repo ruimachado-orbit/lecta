@@ -31,6 +31,8 @@ interface PresentationState {
   // Actions
   openFolder: () => Promise<void>
   loadPresentation: (folderPath: string) => Promise<void>
+  /** Write a lecta.yaml for a folder of loose slides, then load it as a deck. */
+  materializeAndLoad: (folderPath: string) => Promise<void>
   goToSlide: (index: number) => void
   nextSlide: () => void
   prevSlide: () => void
@@ -299,6 +301,19 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
         const existing = tabsState.tabs.find((t) => t.rootPath === loaded.config.rootPath)
         if (existing) useTabsStore.setState({ activeTabId: existing.id })
       }
+    } catch (error) {
+      set({
+        isLoading: false,
+        error: (error as Error).message
+      })
+    }
+  },
+
+  materializeAndLoad: async (folderPath: string) => {
+    set({ isLoading: true, error: null })
+    try {
+      const root = await window.electronAPI.materializeFolder(folderPath)
+      await get().loadPresentation(root)
     } catch (error) {
       set({
         isLoading: false,

@@ -15,7 +15,8 @@ import {
   type ElementShadow,
   type SlideElement,
 } from './element-model'
-import { SUGGESTED_GLASS_GRADIENT } from './style-presets'
+import { SUGGESTED_GLASS_GRADIENT, effectiveRadius } from './style-presets'
+import { imageStyle } from './PinnedElements'
 
 export interface InspectorProps {
   el: SlideElement
@@ -125,13 +126,15 @@ function InspectorPanel({
             {ELEMENT_STYLES.map((s) => (
               <Chip
                 key={s}
-                active={(el.style ?? 'none') === s}
-                onClick={() => onChange({ style: s === 'none' ? undefined : s })}
+                // Images render glass unless overridden — show the effective style as active.
+                active={(el.style ?? (el.kind === 'image' ? 'glass' : 'none')) === s}
+                // For images 'None' must be explicit: `undefined` means glass.
+                onClick={() => onChange({ style: s === 'none' && el.kind !== 'image' ? undefined : s })}
                 label={s === 'none' ? 'None' : s[0].toUpperCase() + s.slice(1)}
               />
             ))}
           </div>
-          {el.style === 'glass' && glassNeedsBackground && (
+          {(el.style ?? (el.kind === 'image' ? 'glass' : 'none')) === 'glass' && glassNeedsBackground && (
             <button
               onClick={onAddSuggestedBackground}
               className="mt-2 w-full text-left text-[10px] leading-snug rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 text-amber-200 hover:bg-amber-500/20 transition-colors"
@@ -158,8 +161,8 @@ function InspectorPanel({
               </Section>
             )}
 
-            <Section label={`Radius · ${el.radius ?? 0}px`}>
-              <Slider min={0} max={64} value={el.radius ?? 0} onChange={(v) => onChange({ radius: v || undefined })} />
+            <Section label={`Radius · ${el.kind === 'image' && el.radius === undefined ? `${effectiveRadius(imageStyle(el))}px (glass default)` : `${el.radius ?? 0}px`}`}>
+              <Slider min={0} max={64} value={el.radius ?? effectiveRadius(el.kind === 'image' ? imageStyle(el) : el.style)} onChange={(v) => onChange({ radius: v || undefined })} />
             </Section>
 
             <Section label={`Opacity · ${el.opacity ?? 100}%`}>

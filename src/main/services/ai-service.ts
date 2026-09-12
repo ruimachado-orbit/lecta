@@ -802,10 +802,11 @@ Check for: text overflowing or clipped, elements overlapping, too-dense slides, 
     title: string,
     sourceContent: string | null,
     slideCount: number,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    options?: { tone?: string; verbosity?: string }
   ): Promise<{ id: string; title: string; layout: string; keyPoints: string[] }[] | null> {
     const result = await this.generate({
-      system: `You are a technical presentation architect. Produce a slide outline for a ${slideCount}-slide deck.${this.sourceSystemRule(sourceContent)}
+      system: `You are a technical presentation architect. Produce a slide outline for a ${slideCount}-slide deck.${this.sourceSystemRule(sourceContent)}${this.generationStyleRule(options)}
 
 OUTPUT FORMAT: a valid JSON array of exactly ${slideCount} objects, no markdown, no explanation:
 [
@@ -844,9 +845,47 @@ RULES:
     })
   }
 
+  /** Style rule injected into generation prompts from tone / verbosity picks. */
+  private generationStyleRule(options?: { tone?: string; verbosity?: string }): string {
+    const parts: string[] = []
+    if (options?.tone && options.tone !== 'default') {
+      parts.push(`- Tone: ${options.tone.replace(/_/g, ' ')}`)
+    }
+    if (options?.verbosity) {
+      const density =
+        options.verbosity === 'concise'
+          ? 'Keep every slide tight: heading + 3-5 short bullets, no filler.'
+          : options.verbosity === 'text-heavy'
+            ? 'Write fuller slides: heading + detailed bullets, tables and takeaways where useful.'
+            : 'Follow the default 7×7 density guideline.'
+      parts.push(`- Content density: ${options.verbosity}. ${density}`)
+    }
+    if (parts.length === 0) return ''
+    return `\n\nSTYLE PREFERENCES:\n${parts.join('\n')}`
+  }
+
+  /**
+   * Public outline pass for the generation wizard: returns an editable outline
+   * without writing any slides, so the UI can let the user reorder / edit first.
+   */
+  async generatePresentationOutline(
+    prompt: string,
+    title: string,
+    sourceContent: string | null,
+    slideCount: number,
+    signal?: AbortSignal,
+    options?: { tone?: string; verbosity?: string }
+  ): Promise<{ id: string; title: string; layout: string; keyPoints: string[] }[]> {
+    const outline = await this.generateOutline(prompt, title, sourceContent, slideCount, signal, options)
+    if (!outline || outline.length === 0) {
+      throw new Error('The model returned no outline. Try rephrasing the prompt.')
+    }
+    return outline
+  }
+
   /** The write-phase system prompt (moved out of the orchestrator). */
-  private buildPresentationSystemPrompt(slideCount: number, sourceContent: string | null): string {
-    return `You are a McKinsey-level presentation designer. You create executive-quality presentations that are rich in content, data-driven, and visually structured.${this.sourceSystemRule(sourceContent)}${this.brandContext()}
+  private buildPresentationSystemPrompt(slideCount: number, sourceContent: string | null, options?: { tone?: string; verbosity?: string }): string {
+    return `You are a McKinsey-level presentation designer. You create executive-quality presentations that are rich in content, data-driven, and visually structured.${this.sourceSystemRule(sourceContent)}${this.brandContext()}${this.generationStyleRule(options)}
 
 OUTPUT FORMAT: A valid JSON object with this exact structure:
 {
@@ -918,7 +957,8 @@ Generate exactly ${slideCount} slides.`
     outline: { id: string; title: string; layout: string; keyPoints: string[] }[] | null,
     slideCount: number,
     onProgress: (status: string, slideIndex: number, total: number) => void,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    options?: { tone?: string; verbosity?: string }
   ): Promise<{ slides: { id: string; markdown: string; layout: string }[]; title: string }> {
     const outlineText = outline
       ? `\n\nOUTLINE TO FOLLOW (use these ids, titles and layouts exactly):\n${outline
@@ -933,7 +973,7 @@ Generate exactly ${slideCount} slides.`
 
     // Provider errors propagate to the caller — a failed request must not become a "successful" empty deck.
     await this.streamGenerate({
-      system: this.buildPresentationSystemPrompt(slideCount, sourceContent),
+      system: this.buildPresentationSystemPrompt(slideCount, sourceContent, options),
       userMessage,
       maxTokens: 16384,
       signal,
@@ -1049,16 +1089,19 @@ KEEP the same number of slides and their ids. Output the FULL corrected deck (ev
     sourceContent: string | null,
     slideCount: number,
     onProgress: (status: string, slideIndex: number, total: number) => void,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    options?: { tone?: string; verbosity?: string; outline?: { id: string; title: string; layout: string; keyPoints: string[] }[] | null }
   ): Promise<{ slides: { id: string; markdown: string; layout: string }[]; title: string }> {
-    // Phase 1 — outline (optional). A failure here must not kill generation:
-    // the write phase produces a full deck without an outline.
-    let outline: { id: string; title: string; layout: string; keyPoints: string[] }[] | null = null
-    try {
-      onProgress('Outlining the presentation…', 0, slideCount)
-      outline = await this.generateOutline(prompt, title, sourceContent, slideCount, signal)
-    } catch (err) {
-      console.warn('[generateFullPresentation] outline step failed; writing slides without it:', (err as Error).message)
+    // Phase 1 — outline. The wizard may supply a user-edited outline; otherwise
+    // generate one (optional — the write phase works without it).
+    let outline: { id: string; title: string; layout: string; keyPoints: string[] }[] | null = options?.outline ?? null
+    if (!outline) {
+      try {
+        onProgress('Outlining the presentation…', 0, slideCount)
+        outline = await this.generateOutline(prompt, title, sourceContent, slideCount, signal, options)
+      } catch (err) {
+        console.warn('[generateFullPresentation] outline step failed; writing slides without it:', (err as Error).message)
+      }
     }
 
     // Phase 2 — write the slides from the outline. This is the required step;
@@ -1071,7 +1114,8 @@ KEEP the same number of slides and their ids. Output the FULL corrected deck (ev
       outline,
       slideCount,
       onProgress,
-      signal
+      signal,
+      options
     )
 
     // Phase 3 — critique + one corrective pass (optional). Fall back to the

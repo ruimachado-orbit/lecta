@@ -6,6 +6,9 @@ import { useUIStore, COLOR_PALETTES, type ProviderStatus } from '../../stores/ui
 import { useChatStore } from '../../stores/chat-store'
 import { useTabsStore } from '../../stores/tabs-store'
 import { ModelSelector } from '../ai/ModelSelector'
+import { TonePills, VerbosityPills } from '../ai/GenerationPicks'
+import { SupportingDocs, type SupportingDoc } from '../ai/SupportingDocs'
+import { OutlineEditor, TemplateGallery, type OutlineItem } from '../ai/WizardSteps'
 import { MyPresentations } from '../library/MyPresentations'
 import { Dialog } from '../common/Dialog'
 import { ShortcutTable, ShortcutsOverlay } from '../common/ShortcutsOverlay'
@@ -24,6 +27,43 @@ interface RecentDeck {
   firstSlideIsMdx?: boolean
   theme?: string
   artifacts?: string[]
+}
+
+/**
+ * Load failure banner. A folder of loose slides without a manifest is recoverable —
+ * offer to materialize it in place instead of leaving a dead-end error.
+ */
+function LoadErrorBanner({ error }: { error: string }): JSX.Element {
+  const materializeAndLoad = usePresentationStore((s) => s.materializeAndLoad)
+  const [importing, setImporting] = useState(false)
+  const prefix = 'NO_MANIFEST:'
+  if (!error.startsWith(prefix)) {
+    return (
+      <div className="bg-gray-900 border border-gray-800 text-gray-300 rounded-lg px-4 py-3 text-sm">
+        {error}
+      </div>
+    )
+  }
+  const folder = error.slice(prefix.length)
+  return (
+    <div className="bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 text-sm">
+      <p className="text-gray-200 font-medium mb-1">This folder isn’t a deck yet</p>
+      <p className="text-gray-400 text-xs mb-3 break-all">
+        No lecta.yaml in {folder} — but it has markdown slides.
+      </p>
+      <button
+        disabled={importing}
+        onClick={() => {
+          setImporting(true)
+          void materializeAndLoad(folder).finally(() => setImporting(false))
+        }}
+        className="px-4 py-2 bg-signal-500 hover:bg-signal-400 disabled:opacity-50
+                   text-ink-950 text-sm font-semibold rounded-full transition-colors"
+      >
+        {importing ? 'Importing…' : 'Import as new deck'}
+      </button>
+    </div>
+  )
 }
 
 export function HomeScreen(): JSX.Element {
@@ -289,9 +329,7 @@ export function HomeScreen(): JSX.Element {
           )}
 
           {(error && !createError) && (
-            <div className="bg-gray-900 border border-gray-800 text-gray-300 rounded-lg px-4 py-3 text-sm">
-              {error}
-            </div>
+            <LoadErrorBanner error={error} />
           )}
         </div>
 
@@ -535,13 +573,20 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
   const pendingPrompt = useUIStore((s) => s.pendingGeneratePrompt)
   const providerStatuses = useUIStore((s) => s.providerStatuses)
   const noProviders = !providerStatuses.some((p) => p.hasKey)
+  // Wizard: 1) prompt + sources + style, 2) editable outline, 3) generate.
+  const [step, setStep] = useState<'prompt' | 'outline' | 'generate'>('prompt')
   const [prompt, setPrompt] = useState('')
   const [title, setTitle] = useState('')
   const [slideCount, setSlideCount] = useState(10)
-  const [sourceFile, setSourceFile] = useState<string | null>(null)
-  const [sourceFileName, setSourceFileName] = useState<string | null>(null)
+  const [tone, setTone] = useState('default')
+  const [verbosity, setVerbosity] = useState('standard')
+  const [theme, setThemeId] = useState('dark')
+  const [docs, setDocs] = useState<SupportingDoc[]>([])
   const [sourceFolder, setSourceFolder] = useState<string | null>(null)
   const [sourceFolderName, setSourceFolderName] = useState<string | null>(null)
+  const [outline, setOutline] = useState<OutlineItem[] | null>(null)
+  const [isOutlining, setIsOutlining] = useState(false)
+  const [outlineError, setOutlineError] = useState<string | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [progress, setProgress] = useState<{ status: string; slideIndex: number; total: number } | null>(null)
   const [genError, setGenError] = useState<string | null>(null)
@@ -554,13 +599,7 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
     }
   }, [pendingPrompt])
 
-  const handleSelectFile = useCallback(async () => {
-    const filePath = await window.electronAPI.selectFile()
-    if (filePath) {
-      setSourceFile(filePath)
-      setSourceFileName(filePath.split('/').pop() || filePath)
-    }
-  }, [])
+  const hasGrounding = prompt.trim() || docs.length > 0 || sourceFolder
 
   const handleSelectFolder = useCallback(async () => {
     const folderPath = await window.electronAPI.selectFolder()
@@ -570,33 +609,63 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
     }
   }, [])
 
+  /** Read every grounding source. A stale or unreadable pick is a hard error, never silent. */
+  const readGrounding = useCallback(async (): Promise<string | null> => {
+    const sourceParts: string[] = []
+    for (const d of docs) {
+      try {
+        sourceParts.push(await window.electronAPI.readSourceFile(d.path))
+      } catch (err) {
+        throw new Error(`Could not read ${d.name}: ${(err as Error).message}`)
+      }
+    }
+    if (sourceFolder) {
+      sourceParts.push(await window.electronAPI.readSourceFolder(sourceFolder))
+    }
+    return sourceParts.length > 0 ? sourceParts.join('\n\n') : null
+  }, [docs, sourceFolder])
+
+  const finalTitle = title.trim() || prompt.trim().slice(0, 60) || 'Untitled presentation'
+
+  /** Step 1 → 2: generate an editable outline, write nothing yet. */
+  const handleOutline = useCallback(async () => {
+    if (!hasGrounding || isOutlining) return
+    setIsOutlining(true)
+    setOutlineError(null)
+    try {
+      const sourceContent = await readGrounding()
+      const items = await window.electronAPI.generateOutline(
+        prompt, finalTitle, sourceContent, slideCount, { tone, verbosity }
+      )
+      setOutline(items)
+      setStep('outline')
+    } catch (err) {
+      setOutlineError((err as Error).message)
+    } finally {
+      setIsOutlining(false)
+    }
+  }, [hasGrounding, isOutlining, readGrounding, prompt, finalTitle, slideCount, tone, verbosity])
+
+  /** Step 2 → 3: write the deck from the (possibly edited) outline. */
   const handleGenerate = useCallback(async () => {
-    if (!prompt.trim() && !sourceFile && !sourceFolder) return
+    if ((!prompt.trim() && docs.length === 0 && !sourceFolder) || isGenerating) return
 
     setIsGenerating(true)
     setGenError(null)
+    setStep('generate')
     setProgress({ status: 'Preparing...', slideIndex: 0, total: slideCount })
 
     try {
-      // Read source content: a file, a folder, or both combined.
-      const sourceParts: string[] = []
-      if (sourceFile) {
-        sourceParts.push(await window.electronAPI.readSourceFile(sourceFile))
-      }
-      if (sourceFolder) {
-        sourceParts.push(await window.electronAPI.readSourceFolder(sourceFolder))
-      }
-      const sourceContent = sourceParts.length > 0 ? sourceParts.join('\n\n') : null
+      const sourceContent = await readGrounding()
 
-      const finalTitle = title.trim() || prompt.trim().slice(0, 60)
-
-      // Generate slides via AI
+      // Generate slides via AI, following the user-edited outline when present
       const result = await window.electronAPI.generateFullPresentation(
         prompt,
         finalTitle,
         sourceContent,
         slideCount,
-        (data: { status: string; slideIndex: number; total: number }) => setProgress(data)
+        (data: { status: string; slideIndex: number; total: number }) => setProgress(data),
+        { tone, verbosity, outline }
       )
 
       if (!result.slides || result.slides.length === 0) {
@@ -625,12 +694,20 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
         }
       }
 
+      // Apply the wizard's template pick
+      if (theme && theme !== 'dark') {
+        try {
+          await window.electronAPI.setTheme(workspaceDir, theme)
+        } catch { /* theme stays default */ }
+      }
+
       onGenerated(workspaceDir)
     } catch (err) {
       setGenError((err as Error).message)
       setIsGenerating(false)
+      setStep(outline ? 'outline' : 'prompt')
     }
-  }, [prompt, title, slideCount, sourceFile, sourceFolder, onGenerated])
+  }, [prompt, docs, sourceFolder, isGenerating, readGrounding, finalTitle, slideCount, tone, verbosity, outline, theme, onGenerated])
 
   return (
     <div className="h-screen flex flex-col bg-gray-950 text-white" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
@@ -678,6 +755,35 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
             </div>
           )}
 
+          {/* Stepper */}
+          <nav aria-label="Generation steps" className="flex items-center gap-1 text-[11px]">
+            {(['prompt', 'outline', 'generate'] as const).map((s, i) => {
+              const labels = ['Prompt', 'Outline', 'Generate'] as const
+              const active = step === s
+              const done = (s === 'prompt' && (step === 'outline' || step === 'generate')) || (s === 'outline' && step === 'generate')
+              const reachable = s === 'prompt' || (s === 'outline' && outline) || (s === 'generate' && false)
+              return (
+                <span key={s} className="flex items-center gap-1">
+                  {i > 0 && <span className="text-gray-700 mx-0.5">→</span>}
+                  <button
+                    onClick={() => { if (reachable && !isOutlining && !isGenerating) setStep(s) }}
+                    disabled={!reachable || isOutlining || isGenerating}
+                    aria-current={active ? 'step' : undefined}
+                    className={`px-2 py-1 rounded-full border transition-colors disabled:cursor-default ${
+                      active ? 'bg-white text-black border-white font-medium'
+                      : done ? 'text-gray-200 border-gray-600'
+                      : 'text-gray-500 border-gray-800'
+                    }`}
+                  >
+                    {i + 1}. {labels[i]}
+                  </button>
+                </span>
+              )
+            })}
+          </nav>
+
+          {step === 'prompt' && (
+          <>
           {/* Title */}
           <div>
             <label className="text-sm text-gray-300 block mb-1.5">Presentation title</label>
@@ -686,7 +792,7 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Q1 2026 Business Review"
-              disabled={isGenerating}
+              disabled={isOutlining}
               className="w-full px-3 py-2 bg-gray-900 text-gray-300 text-sm rounded-lg border border-gray-700
                          focus:border-indigo-500 focus:outline-none placeholder-gray-500 disabled:opacity-50"
             />
@@ -699,46 +805,18 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               placeholder={"e.g. Create a quarterly business review presentation covering:\n- Revenue performance and growth metrics\n- Product roadmap updates\n- Team hiring progress\n- Key risks and mitigations\n- Next quarter priorities"}
-              disabled={isGenerating}
+              disabled={isOutlining}
               rows={6}
               className="w-full px-3 py-2 bg-gray-900 text-gray-300 text-sm rounded-lg border border-gray-700
                          focus:border-indigo-500 focus:outline-none placeholder-gray-500 resize-none disabled:opacity-50"
             />
           </div>
 
-          {/* Source file */}
-          <div>
-            <label className="text-sm text-gray-300 block mb-1.5">Source file (optional)</label>
-            <p className="text-[11px] text-gray-400 mb-2">Upload a document to generate slides from its content — supports .txt, .md, .pdf, .csv, .json</p>
-            {sourceFile ? (
-              <div className="flex items-center gap-2 px-3 py-2 bg-gray-900 rounded-lg border border-gray-700">
-                <svg className="w-4 h-4 text-indigo-400 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-                </svg>
-                <span className="text-sm text-gray-300 truncate flex-1">{sourceFileName}</span>
-                <button onClick={() => { setSourceFile(null); setSourceFileName(null) }}
-                  disabled={isGenerating}
-                  className="p-0.5 rounded hover:bg-gray-800 text-gray-500 hover:text-gray-300 disabled:opacity-30">
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={handleSelectFile}
-                disabled={isGenerating}
-                className="w-full px-3 py-3 bg-gray-900 hover:bg-gray-800 text-gray-500 hover:text-gray-300
-                           text-sm rounded-lg border border-dashed border-gray-700 hover:border-gray-500
-                           transition-colors flex items-center justify-center gap-2 disabled:opacity-30"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
-                </svg>
-                Choose file...
-              </button>
-            )}
-          </div>
+          <TonePills value={tone} onChange={setTone} disabled={isOutlining} />
+          <VerbosityPills value={verbosity} onChange={setVerbosity} disabled={isOutlining} />
+          <TemplateGallery value={theme} onChange={setThemeId} disabled={isOutlining} />
+
+          <SupportingDocs docs={docs} onChange={setDocs} disabled={isOutlining} />
 
           {/* Source folder */}
           <div>
@@ -751,7 +829,8 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
                 </svg>
                 <span className="text-sm text-gray-300 truncate flex-1">{sourceFolderName}</span>
                 <button onClick={() => { setSourceFolder(null); setSourceFolderName(null) }}
-                  disabled={isGenerating}
+                  disabled={isOutlining}
+                  aria-label="Remove source folder"
                   className="p-0.5 rounded hover:bg-gray-800 text-gray-500 hover:text-gray-300 disabled:opacity-30">
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -761,7 +840,7 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
             ) : (
               <button
                 onClick={handleSelectFolder}
-                disabled={isGenerating}
+                disabled={isOutlining}
                 className="w-full px-3 py-3 bg-gray-900 hover:bg-gray-800 text-gray-500 hover:text-gray-300
                            text-sm rounded-lg border border-dashed border-gray-700 hover:border-gray-500
                            transition-colors flex items-center justify-center gap-2 disabled:opacity-30"
@@ -785,8 +864,9 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
             <label className="text-sm text-gray-300">Number of slides</label>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setSlideCount(Math.max(1, slideCount - 1))}
-                disabled={isGenerating}
+                onClick={() => { setSlideCount(Math.max(1, slideCount - 1)); setOutline(null) }}
+                disabled={isOutlining}
+                aria-label="Fewer slides"
                 className="w-7 h-7 rounded bg-gray-800 hover:bg-gray-700 text-gray-500 text-sm flex items-center justify-center disabled:opacity-30"
               >-</button>
               <input
@@ -796,16 +876,18 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
                 value={slideCount}
                 onChange={(e) => {
                   const v = parseInt(e.target.value, 10)
-                  if (!isNaN(v)) setSlideCount(Math.max(1, Math.min(50, v)))
+                  if (!isNaN(v)) { setSlideCount(Math.max(1, Math.min(50, v))); setOutline(null) }
                 }}
-                disabled={isGenerating}
+                disabled={isOutlining}
+                aria-label="Number of slides"
                 className="w-10 text-center text-sm text-gray-300 bg-gray-900 border border-gray-700 rounded py-0.5
                            focus:border-indigo-500 focus:outline-none disabled:opacity-30
                            [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               />
               <button
-                onClick={() => setSlideCount(Math.min(50, slideCount + 1))}
-                disabled={isGenerating}
+                onClick={() => { setSlideCount(Math.min(50, slideCount + 1)); setOutline(null) }}
+                disabled={isOutlining}
+                aria-label="More slides"
                 className="w-7 h-7 rounded bg-gray-800 hover:bg-gray-700 text-gray-500 text-sm flex items-center justify-center disabled:opacity-30"
               >+</button>
             </div>
@@ -824,8 +906,8 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
               ].map((preset) => (
                 <button
                   key={preset.label}
-                  onClick={() => { setPrompt(preset.prompt); setSlideCount(preset.count); if (!title) setTitle(preset.label) }}
-                  disabled={isGenerating}
+                  onClick={() => { setPrompt(preset.prompt); setSlideCount(preset.count); setOutline(null); if (!title) setTitle(preset.label) }}
+                  disabled={isOutlining}
                   className="px-2.5 py-1 text-[11px] rounded-full bg-gray-800 hover:bg-gray-700 text-gray-500
                              hover:text-gray-300 transition-colors border border-gray-700 disabled:opacity-30"
                 >
@@ -835,6 +917,80 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
             </div>
           </div>
 
+          {/* Outline error */}
+          {outlineError && (
+            <div className="bg-red-950/50 border border-red-800 text-red-300 rounded-lg px-4 py-3 text-sm">
+              {outlineError}
+            </div>
+          )}
+
+          {/* Continue button */}
+          <button
+            onClick={handleOutline}
+            disabled={isOutlining || noProviders || !hasGrounding}
+            className="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500
+                       disabled:from-gray-700 disabled:to-gray-700 disabled:text-gray-500
+                       text-white font-medium rounded-lg transition-all text-sm flex items-center justify-center gap-2"
+          >
+            {isOutlining ? (
+              <>
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Drafting outline...
+              </>
+            ) : (
+              <>Continue to outline →</>
+            )}
+          </button>
+          </>
+          )}
+
+          {step === 'outline' && outline && (
+          <>
+          <div>
+            <p className="text-sm text-gray-300 mb-1.5">Review the outline — rename, relayout, reorder or delete slides before generating.</p>
+            <p className="text-[11px] text-gray-500 mb-3">{outline.length} slides · {finalTitle}</p>
+            <OutlineEditor outline={outline} onChange={setOutline} disabled={isGenerating} />
+          </div>
+
+          {outlineError && (
+            <div className="bg-red-950/50 border border-red-800 text-red-300 rounded-lg px-4 py-3 text-sm">
+              {outlineError}
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => setStep('prompt')}
+              disabled={isGenerating}
+              className="px-4 py-3 text-sm rounded-lg border border-gray-700 text-gray-300 hover:bg-gray-800 transition-colors disabled:opacity-30"
+            >
+              ← Back
+            </button>
+            <button
+              onClick={handleOutline}
+              disabled={isOutlining || isGenerating || noProviders}
+              className="px-4 py-3 text-sm rounded-lg border border-gray-700 text-gray-300 hover:bg-gray-800 transition-colors disabled:opacity-30 flex items-center gap-2"
+            >
+              {isOutlining ? 'Redrafting...' : 'Redraft outline'}
+            </button>
+            <button
+              onClick={handleGenerate}
+              disabled={isGenerating || noProviders || outline.length === 0}
+              className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500
+                         disabled:from-gray-700 disabled:to-gray-700 disabled:text-gray-500
+                         text-white font-medium rounded-lg transition-all text-sm flex items-center justify-center gap-2"
+            >
+              Generate {outline.length} slides
+            </button>
+          </div>
+          </>
+          )}
+
+          {step === 'generate' && (
+          <>
           {/* Error */}
           {genError && (
             <div className="bg-red-950/50 border border-red-800 text-red-300 rounded-lg px-4 py-3 text-sm">
@@ -858,34 +1014,22 @@ function AIGeneratePanel({ onBack, onGenerated }: { onBack: () => void; onGenera
                   style={{ width: `${progress.total > 0 ? (progress.slideIndex / progress.total) * 100 : 0}%` }}
                 />
               </div>
+              <p className="text-[11px] text-gray-500">
+                {outline ? `Following your edited outline (${outline.length} slides)` : 'Writing slides...'}
+              </p>
             </div>
           )}
 
-          {/* Generate button */}
-          <button
-            onClick={handleGenerate}
-            disabled={isGenerating || noProviders || (!prompt.trim() && !sourceFile)}
-            className="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500
-                       disabled:from-gray-700 disabled:to-gray-700 disabled:text-gray-500
-                       text-white font-medium rounded-lg transition-all text-sm flex items-center justify-center gap-2"
-          >
-            {isGenerating ? (
-              <>
-                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                Generating...
-              </>
-            ) : (
-              <>
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
-                </svg>
-                Generate Presentation
-              </>
-            )}
-          </button>
+          {!isGenerating && genError && (
+            <button
+              onClick={() => setStep(outline ? 'outline' : 'prompt')}
+              className="w-full py-3 text-sm rounded-lg border border-gray-700 text-gray-300 hover:bg-gray-800 transition-colors"
+            >
+              ← Back to {outline ? 'outline' : 'prompt'}
+            </button>
+          )}
+          </>
+          )}
         </div>
       </div>
     </div>

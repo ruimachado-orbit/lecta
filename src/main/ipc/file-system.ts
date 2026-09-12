@@ -1,5 +1,5 @@
 import { ipcMain, dialog, app } from 'electron'
-import { readFile, writeFile, mkdir, access, copyFile, stat } from 'fs/promises'
+import { readFile, writeFile, mkdir, access, copyFile, stat, readdir } from 'fs/promises'
 import { join, basename, dirname, extname, resolve } from 'path'
 import { homedir } from 'os'
 import { stringify as stringifyYaml } from 'yaml'
@@ -10,7 +10,9 @@ import {
   parseSingleFileDeck,
   materializeToFolder,
   folderToSingleFile,
-  toSafeSlug
+  toSafeSlug,
+  planFolderDeck,
+  isLooseSlideFile
 } from '../../../packages/shared/src/utils/single-file'
 import { startWatching, stopWatching, addFileToWatch, markOwnWrite } from '../services/file-watcher'
 import { setAIDeckPath } from './ai'
@@ -285,6 +287,67 @@ async function openSingleFileDeck(mdPath: string): Promise<string> {
   return registerDeckRoot(folderPath)
 }
 
+/**
+ * Loose slide files in a folder with no manifest: a `slides/` subfolder wins when it
+ * holds markdown, otherwise the top level. Dotfiles never count. Sorted, so the deck
+ * order is stable between the probe in `fs:load-presentation` and the import itself.
+ */
+async function findLooseSlides(folderPath: string): Promise<string[]> {
+  const root = resolve(folderPath)
+  const entries = await readdir(root, { withFileTypes: true }).catch(() => null)
+  if (!entries) return []
+  const inSlides = entries.some((e) => e.isDirectory() && e.name === 'slides')
+  if (inSlides) {
+    const slides = await readdir(join(root, 'slides'), { withFileTypes: true }).catch(() => null)
+    if (slides) {
+      const files = slides
+        .filter((e) => e.isFile() && isLooseSlideFile(e.name))
+        .map((e) => `slides/${e.name}`)
+        .sort()
+      if (files.length > 0) return files
+    }
+  }
+  return entries
+    .filter((e) => e.isFile() && isLooseSlideFile(e.name))
+    .map((e) => e.name)
+    .sort()
+}
+
+/**
+ * Materialize a folder of loose slides in place: write a `lecta.yaml` that references
+ * the files where they are. Nothing else is created, moved or rewritten — one slide
+ * per file, ids slugged from file names, deck title from the folder name.
+ * Refuses when there is nothing to make slides from, or when a manifest appeared
+ * since (race with another writer — open the deck directly instead).
+ */
+async function materializeFolderDeck(folderPath: string): Promise<string> {
+  if (typeof folderPath !== 'string' || folderPath.length === 0) {
+    throw new Error('No folder given')
+  }
+  const root = resolve(folderPath)
+  const info = await stat(root).catch(() => null)
+  if (!info || !info.isDirectory()) {
+    throw new Error(`Not a folder: ${folderPath}`)
+  }
+  try {
+    await access(join(root, DECK_CONFIG_FILE))
+    throw new Error(`${DECK_CONFIG_FILE} already exists in ${root} — open the deck directly.`)
+  } catch (err) {
+    if ((err as Error).message.startsWith(DECK_CONFIG_FILE)) throw err
+    // Missing manifest is the expected case — carry on and write one.
+  }
+  const loose = await findLooseSlides(root)
+  if (loose.length === 0) {
+    throw new Error(`No markdown slides found in ${root}`)
+  }
+  const plan = planFolderDeck(basename(root), loose)
+  await atomicWriteFile(
+    join(root, DECK_CONFIG_FILE),
+    serializePresentation({ ...plan, rootPath: root } as Presentation)
+  )
+  return root
+}
+
 export function registerFileSystemHandlers(): void {
   // Open a deck folder, a .lecta / .pptx / .ipynb file, or a single-file (.md) deck
   ipcMain.handle('fs:open-folder', async () => {
@@ -435,13 +498,27 @@ export function registerFileSystemHandlers(): void {
     const result = await dialog.showOpenDialog({
       properties: ['openFile'],
       filters: filters || [
-        { name: 'Documents', extensions: ['txt', 'md', 'pdf', 'csv', 'json', 'docx', 'html'] },
+        { name: 'Documents', extensions: ['txt', 'md', 'pdf', 'csv', 'json', 'docx', 'pptx', 'xlsx', 'html'] },
         { name: 'All Files', extensions: ['*'] }
       ],
       title: 'Select Source File'
     })
     if (result.canceled || result.filePaths.length === 0) return null
     return result.filePaths[0]
+  })
+
+  // Select multiple supporting docs (wizard step 1, Presenton-style, capped in UI at 8)
+  ipcMain.handle('fs:select-files', async (_event, filters?: { name: string; extensions: string[] }[]): Promise<string[]> => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile', 'multiSelections'],
+      filters: filters || [
+        { name: 'Documents', extensions: ['txt', 'md', 'pdf', 'csv', 'json', 'docx', 'pptx', 'xlsx', 'html'] },
+        { name: 'All Files', extensions: ['*'] }
+      ],
+      title: 'Select Supporting Documents'
+    })
+    if (result.canceled) return []
+    return result.filePaths
   })
 
   ipcMain.handle('fs:select-folder', async (): Promise<string | null> => {
@@ -482,6 +559,11 @@ export function registerFileSystemHandlers(): void {
     await flushAutoSave(assertInsideOpenDeck(rootPath))
   })
 
+  // Write a lecta.yaml for a folder of loose slides so it opens as a deck.
+  ipcMain.handle('fs:materialize-folder', async (_event, folderPath: string): Promise<string> => {
+    return materializeFolderDeck(folderPath)
+  })
+
   // Close a deck: flush pending saves, stop watchers, forget the workspace and
   // drop the root from the allow-list (lecta-file:// and fs:* stop serving it).
   ipcMain.handle('fs:close-presentation', async (_event, rootPath: string): Promise<void> => {
@@ -501,6 +583,11 @@ export function registerFileSystemHandlers(): void {
     try {
       await access(configPath)
     } catch {
+      // A folder of loose slides is one click away from a deck: mark it so the UI can
+      // offer "Import as new deck" (`fs:materialize-folder`) instead of a dead end.
+      // Follows the existing `NOTEBOOK:<path>` message convention.
+      const loose = await findLooseSlides(folderPath)
+      if (loose.length > 0) throw new Error(`NO_MANIFEST:${resolve(folderPath)}`)
       throw new Error(`No ${DECK_CONFIG_FILE} found in ${folderPath}`)
     }
 
@@ -1038,12 +1125,17 @@ export function registerFileSystemHandlers(): void {
 
       const root = assertInsideOpenDeck(rootPath)
       const srcPath = result.filePaths[0]
-      const fileName = basename(srcPath)
+      // Strip to safe characters (same rule as dropped-image import): a raw name like
+      // "My Photo (1).png" would otherwise break pinned `src=` parsing and markdown links.
+      const safeBase = basename(srcPath)
+        .replace(/[^A-Za-z0-9._-]+/g, '-')
+        .replace(/^[-.]+/, '')
+        .slice(0, 60) || 'image'
       const imagesDir = join(root, 'images')
       await mkdir(imagesDir, { recursive: true })
 
       // Avoid name collisions
-      const destName = `${Date.now()}-${fileName}`
+      const destName = `${Date.now()}-${safeBase}`
       await copyFile(srcPath, resolveInsideDeck(root, `images/${destName}`))
 
       // Auto-save to .lecta if applicable

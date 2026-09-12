@@ -38,7 +38,10 @@ export function ResizableImageView({ node, updateAttributes, deleteNode, selecte
   const borderMatch = border?.match(/^(\d+)px\s+solid\s+(.+)$/)
   const currentBorderWidth = borderMatch ? parseInt(borderMatch[1]) : 0
   const currentBorderColor = borderMatch ? borderMatch[2] : '#ffffff'
-  const currentBorderRadius = borderRadius || 0
+  // Display default: images are always rounded (matches the renderer's glass frame).
+  // The attribute stays unset until the user touches the slider, so saved markdown
+  // is unchanged — the radius comes from CSS, not stored data.
+  const currentBorderRadius = borderRadius ?? 16
 
   const handleResize = useCallback((e: React.MouseEvent, direction: 'se' | 'sw' | 'ne' | 'nw') => {
     e.preventDefault()
@@ -93,7 +96,10 @@ export function ResizableImageView({ node, updateAttributes, deleteNode, selecte
       w: imgWidth,
       src: imgSrc,
       border: border ? border.replace(/\s+/g, '_') : undefined,
-      radius: currentBorderRadius || undefined,
+      // Leave unset when the user never touched the slider: pinned images render
+      // the glass default radius, and only an explicit choice is stored.
+      radius: borderRadius ?? undefined,
+      style: 'glass',
       extra: []
     })
 
@@ -281,7 +287,9 @@ export function ResizableImageView({ node, updateAttributes, deleteNode, selecte
               min="0"
               max="50"
               value={currentBorderRadius}
-              onChange={(e) => updateAttributes({ borderRadius: parseInt(e.target.value) || null })}
+              // Store 0 explicitly: `null` means "unstyled" (which displays the 16px
+              // default), so only a real 0 gives square corners.
+              onChange={(e) => updateAttributes({ borderRadius: parseInt(e.target.value) })}
               className="flex-1 h-1 accent-blue-500"
             />
             <span className="text-xs text-gray-400 w-6 text-right">{currentBorderRadius}px</span>

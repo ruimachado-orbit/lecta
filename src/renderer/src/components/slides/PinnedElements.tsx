@@ -9,6 +9,7 @@
  */
 import type { CSSProperties } from 'react'
 import {
+  type ElementStyle,
   type ImageElement,
   type ShapeElement,
   type SlideElement,
@@ -20,6 +21,15 @@ import { resolveImageSrc } from './slide-utils'
 /** Border values are stored underscore-escaped so they survive the space-separated encoding. */
 export function decodeBorder(border: string | undefined): string | undefined {
   return border ? border.replace(/_/g, ' ') : undefined
+}
+
+/**
+ * Images are glass unless the author said otherwise: rounded corners and the liquid-glass
+ * surface apply to every pinned image, including decks authored before styles existed.
+ * An explicit `style=` (even `none`) always wins.
+ */
+export function imageStyle(el: ImageElement): ElementStyle {
+  return el.style ?? 'glass'
 }
 
 /**
@@ -47,13 +57,15 @@ export function elementFrameStyle(el: SlideElement): CSSProperties {
 
   const radius = el.kind === 'textbox' ? undefined : el.radius
   const shadow = el.kind === 'textbox' ? undefined : el.shadow
-  return { ...style, ...surfaceStyle(el.style, { radius, shadow }) }
+  const preset = el.kind === 'image' ? imageStyle(el) : el.style
+  return { ...style, ...surfaceStyle(preset, { radius, shadow }) }
 }
 
 /** The `<img>` inside an image element's frame. */
 export function PinnedImageContent({ el, rootPath }: { el: ImageElement; rootPath?: string }): JSX.Element {
-  const pad = surfacePadding(el.style)
-  const outerRadius = effectiveRadius(el.style, el.radius)
+  const style = imageStyle(el)
+  const pad = surfacePadding(style)
+  const outerRadius = effectiveRadius(style, el.radius)
   return (
     <img
       src={resolveImageSrc(el.src, rootPath)}
@@ -119,7 +131,7 @@ export function textBoxPadding(el: TextElement): number | undefined {
 /** One read-only pinned element. */
 export function PinnedElement({ el, rootPath }: { el: SlideElement; rootPath?: string }): JSX.Element {
   if (el.kind === 'image') {
-    const pad = surfacePadding(el.style)
+    const pad = surfacePadding(imageStyle(el))
     return (
       <div style={{ ...elementFrameStyle(el), padding: pad || undefined, overflow: 'hidden' }}>
         <PinnedImageContent el={el} rootPath={rootPath} />

@@ -264,6 +264,19 @@ html[data-theme="light"] .presenter-slide-frame {
    VISUAL MARKDOWN COMPONENTS — enhanced rendering
    ============================================================ */
 
+/* Click-to-edit overlay (Presenton-style): hover outline + pointer on pickable blocks */
+.cte-target {
+  cursor: pointer;
+  border-radius: 0.375rem;
+  transition: outline-color 120ms ease, background-color 120ms ease;
+  outline: 1px dashed transparent;
+  outline-offset: 4px;
+}
+.cte-target:hover {
+  outline-color: rgba(129, 140, 248, 0.9);
+  background-color: rgba(99, 102, 241, 0.08);
+}
+
 /* Status badges */
 .slide-badge {
   display: inline-flex;
@@ -1093,6 +1106,49 @@ html[data-theme="light"]:not([data-slide-theme]) .slide-content td { border-bott
 }
 .slide-col > *:last-child {
   margin-bottom: 0;
+}
+
+/* Inline images — liquid-glass frame, always rounded.
+   Single images are wrapped in .slide-img-frame by the renderer; runs of 2+
+   become .slide-img-grid galleries (see preprocessImageGrids). Surfaces use the
+   same theme tokens as pinned glass elements, so light and dark themes both read. */
+.slide-img-frame {
+  display: block;
+  max-width: 100%;
+  margin: 1rem auto;
+  padding: 10px;
+  background: var(--slide-glass-bg);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  backdrop-filter: blur(24px) saturate(160%);
+  border: 1px solid var(--slide-glass-border);
+  border-radius: 18px;
+  box-shadow:
+    inset 0 1px 0 0 var(--slide-glass-border),
+    0 18px 40px -12px var(--slide-shadow-color);
+}
+.slide-img-frame > img {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 0;
+  border-radius: 12px;
+}
+.slide-img-frame > figcaption {
+  padding: 0.5rem 0.25rem 0;
+  font-size: 0.8rem;
+  text-align: center;
+  opacity: 0.75;
+}
+.slide-img-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  align-items: start;
+  margin: 1rem 0;
+}
+.slide-img-grid > .slide-img-frame {
+  margin: 0;
+  min-width: 0;
 }
 
 /* Draggable text boxes */

@@ -294,14 +294,15 @@ export function DraggableElements({
                 <DeleteBtn onDelete={(e) => { e.preventDefault(); e.stopPropagation(); remove(el) }} />
 
                 {el.kind === 'image' && (
-                  <UnpinBtn
-                    onUnpin={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      clearSelection()
-                      onUpdateMarkdown(`${removeElement(markdown, el)}\n![image](${el.src})\n`)
-                    }}
-                  />
+                    <UnpinBtn
+                      onUnpin={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        clearSelection()
+                        // Angle-bracket form so paths with spaces or parens survive the round-trip.
+                        onUpdateMarkdown(`${removeElement(markdown, el)}\n![image](<${el.src}>)\n`)
+                      }}
+                    />
                 )}
 
                 {(['nw', 'ne', 'sw', 'se'] as Corner[])

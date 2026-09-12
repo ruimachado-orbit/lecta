@@ -6,6 +6,7 @@ import { useUIStore, COLOR_PALETTES } from '../../stores/ui-store'
 import { requireAI } from '../ai/AIAlert'
 import { Button } from '../../design-system'
 import { GRADIENT_PRESETS } from './style-presets'
+import { CANVAS_H, CANVAS_W, serializeElement } from './element-model'
 import { applySlideBackground, patchSlideBackground } from './slide-background'
 
 interface SlideEditToolbarProps {
@@ -91,13 +92,26 @@ export function SlideEditToolbar({ editorRef }: SlideEditToolbarProps): JSX.Elem
         <Btn title="2 columns" onClick={() => insertAtCursor('\n<!-- columns -->\nLeft column content\n<!-- col -->\nRight column content\n<!-- /columns -->\n')}>▥</Btn>
         <Btn title="3 columns" onClick={() => insertAtCursor('\n<!-- columns -->\nColumn 1\n<!-- col -->\nColumn 2\n<!-- col -->\nColumn 3\n<!-- /columns -->\n')}>▦</Btn>
         <Btn title="Text box" onClick={() => insertAtCursor('\n<!-- textbox x=100 y=400 w=300 -->Your text here<!-- /textbox -->\n')}>T▢</Btn>
-        <Btn title="Upload image" onClick={async () => {
-          if (!presentation) return
+        <Btn title="Upload image — pinned glass, drag to place freely" onClick={async () => {
+          if (!presentation || !currentSlide) return
           const relativePath = await window.electronAPI.uploadImage(presentation.rootPath)
           if (relativePath) {
-            // Encode spaces/special chars so markdown parser doesn't break
-            const encodedPath = relativePath.split('/').map(encodeURIComponent).join('/')
-            insertAtCursor(`\n![image](${encodedPath})\n`)
+            // Pinned, not inline: the image lands centred on the canvas as a glass
+            // element the user can drag, resize and restyle freely.
+            const w = 560
+            const h = Math.round(w * 0.66)
+            const comment = serializeElement({
+              kind: 'image',
+              x: Math.round((CANVAS_W - w) / 2),
+              y: Math.round((CANVAS_H - h) / 2),
+              w,
+              src: relativePath,
+              style: 'glass',
+              extra: [],
+            })
+            const current = currentSlide?.markdownContent ?? ''
+            updateMarkdownContent(currentSlideIndex, `${current.trimEnd()}\n${comment}\n`)
+            saveSlideContent(currentSlideIndex)
           }
         }}>🖼</Btn>
         <BackgroundPicker />

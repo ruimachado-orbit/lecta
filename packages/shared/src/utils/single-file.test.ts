@@ -577,3 +577,36 @@ describe('example-decks/single-file-demo.md', () => {
     expect(reparsed.config).toEqual(parsed.config)
   })
 })
+
+describe('planFolderDeck — loose folder import', () => {
+  it('makes one slide per file with slugged, deduped ids', async () => {
+    const { planFolderDeck } = await import('./single-file.js')
+    const plan = planFolderDeck('bad-theme', ['intro.md', '01 Demo.mdx', '01-demo.md', 'notes.markdown'])
+    expect(plan.title).toBe('bad-theme')
+    expect(plan.theme).toBe('dark')
+    expect(plan.slides.map((s) => s.id)).toEqual(['intro', '01-demo', '01-demo-2', 'notes'])
+    expect(plan.slides[1]?.content).toBe('01 Demo.mdx')
+    expect(plan.slides[1]?.title).toBe('01 Demo')
+  })
+
+  it('round-trips through the real manifest parser', async () => {
+    const { planFolderDeck } = await import('./single-file.js')
+    const { serializePresentation } = await import('./yaml-parser.js')
+    const plan = planFolderDeck('mdx-deck', ['slides/01-intro.mdx'])
+    const out = serializePresentation({ ...plan, rootPath: '/tmp/mdx-deck' })
+    const back = parsePresentationYaml(out, '/tmp/mdx-deck')
+    expect(back.slides[0]?.content).toBe('slides/01-intro.mdx')
+    expect(back.slides[0]?.id).toBe('01-intro')
+  })
+
+  it('recognises loose slide files', async () => {
+    const { isLooseSlideFile } = await import('./single-file.js')
+    expect(isLooseSlideFile('intro.md')).toBe(true)
+    expect(isLooseSlideFile('talk.mdx')).toBe(true)
+    expect(isLooseSlideFile('notes.markdown')).toBe(true)
+    expect(isLooseSlideFile('.hidden.md')).toBe(false)
+    expect(isLooseSlideFile('image.png')).toBe(false)
+    expect(isLooseSlideFile('Makefile')).toBe(false)
+    expect(isLooseSlideFile('README.MD')).toBe(true)
+  })
+})

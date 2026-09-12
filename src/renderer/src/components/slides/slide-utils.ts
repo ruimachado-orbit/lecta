@@ -34,3 +34,61 @@ export function queuePinComment(comment: string): void {
 export function drainPinComments(): string[] {
   return pendingPinComments.splice(0, pendingPinComments.length)
 }
+
+function escapeHtmlAttr(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+/**
+ * Group runs of 2+ consecutive image-only lines into a responsive grid gallery.
+ *
+ * A run becomes `<div class="slide-img-grid">` of glass `<figure>`s; single images
+ * pass through untouched (the renderer's `img` component frames those instead). Only
+ * plain `![alt](src)` lines qualify — fenced code, quotes, raw HTML and comments
+ * break a run, so click-step wrappers and column markers are never crossed.
+ * Render-time only: the source markdown is unchanged, so exporters and the
+ * single-file format keep seeing the original image lines.
+ */
+export function preprocessImageGrids(md: string, rootPath?: string): string {
+  const lines = md.split('\n')
+  const out: string[] = []
+  let run: { alt: string; src: string; raw: string }[] = []
+  let inFence = false
+
+  const flush = (): void => {
+    if (run.length >= 2) {
+      const figs = run.map(({ alt, src }) => {
+        const resolved = escapeHtmlAttr(resolveImageSrc(src, rootPath))
+        const safeAlt = escapeHtmlAttr(alt)
+        const caption =
+          alt && alt.toLowerCase() !== 'image' ? `<figcaption>${safeAlt}</figcaption>` : ''
+        return `<figure class="slide-img-frame"><img src="${resolved}" alt="${safeAlt}" />${caption}</figure>`
+      })
+      out.push(`<div class="slide-img-grid">\n${figs.join('\n')}\n</div>`)
+    } else {
+      for (const item of run) out.push(item.raw)
+    }
+    run = []
+  }
+
+  for (const line of lines) {
+    const t = line.trim()
+    if (t.startsWith('```')) {
+      flush()
+      inFence = !inFence
+      out.push(line)
+      continue
+    }
+    if (!inFence && !t.startsWith('<') && !t.startsWith('>') && !t.startsWith('<!--')) {
+      const m = /^!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)$/.exec(t)
+      if (m) {
+        run.push({ alt: m[1], src: m[2], raw: line })
+        continue
+      }
+    }
+    flush()
+    out.push(line)
+  }
+  flush()
+  return out.join('\n')
+}

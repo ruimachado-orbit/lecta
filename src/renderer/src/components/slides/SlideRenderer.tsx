@@ -1,10 +1,10 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
 import type { SlideBackground } from '@shared/types/presentation'
 import { FlowDiagram } from '../common/FlowDiagram'
-import { resolveImageSrc } from './slide-utils'
+import { resolveImageSrc, preprocessImageGrids } from './slide-utils'
 import { parseElements, stripElements, zOf } from './element-model'
 import { PinnedLayer } from './PinnedElements'
 
@@ -22,6 +22,13 @@ interface SlideRendererProps {
    * (draggable) copy of the same elements, and two layers would double every element.
    */
   hidePinned?: boolean
+  /**
+   * Click-to-edit (Presenton overlay style): hovering a block shows an edit
+   * outline, clicking it reports the block text via `onPickBlock` so the caller
+   * can jump straight into editing. Render-only — markdown is untouched.
+   */
+  clickToEdit?: boolean
+  onPickBlock?: (blockText: string) => void
 }
 
 /**
@@ -139,14 +146,14 @@ export function SlideBackgroundLayer({ background, rootPath }: { background: Sli
   )
 }
 
-export function SlideRenderer({ markdown, rootPath, clickStep = -1, onClickSteps, background, hidePinned }: SlideRendererProps): JSX.Element {
+export function SlideRenderer({ markdown, rootPath, clickStep = -1, onClickSteps, background, hidePinned, clickToEdit, onPickBlock }: SlideRendererProps): JSX.Element {
   const { processed: clickProcessed, totalClicks } = processClickAnimations(markdown)
 
   // Pinned elements come out of the markdown entirely and are drawn in their own layer.
   const pinned = hidePinned
     ? []
     : parseElements(clickProcessed).slice().sort((a, b) => zOf(a) - zOf(b) || a.index - b.index)
-  const body = stripElements(clickProcessed)
+  const body = stripElements(preprocessImageGrids(clickProcessed, rootPath))
 
   // Report total click steps to parent on mount and whenever the count changes.
   // Seeded with -1 so the first presented slide (or the slide after an MDX one) initialises reveal.
@@ -160,6 +167,32 @@ export function SlideRenderer({ markdown, rootPath, clickStep = -1, onClickSteps
 
   const painted = paintsBackground(background)
 
+  // Click-to-edit wrapper: any block becomes a pick target that reports its
+  // rendered text. The caller maps it back to the markdown source.
+  const pickable = (Tag: 'h1' | 'h2' | 'h3' | 'p' | 'li' | 'blockquote') => {
+    const C = Tag as 'div'
+    function PickableBlock({ children, ...props }: { children?: ReactNode; className?: string }): JSX.Element {
+      return (
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        <C
+          {...(props as any)}
+          className={`${(props as { className?: string }).className ?? ''}${clickToEdit ? ' cte-target' : ''}`}
+          onClick={
+            clickToEdit
+              ? (e: ReactMouseEvent<HTMLElement>) => {
+                  e.stopPropagation()
+                  onPickBlock?.((e.currentTarget.innerText ?? '').trim())
+                }
+              : undefined
+          }
+        >
+          {children}
+        </C>
+      )
+    }
+    return PickableBlock
+  }
+
   return (
     <>
       {painted && <SlideBackgroundLayer background={background} rootPath={rootPath} />}
@@ -170,6 +203,12 @@ export function SlideRenderer({ markdown, rootPath, clickStep = -1, onClickSteps
           components={{
             // Renderers are minimal — all visual styling flows through CSS variables in globals.css
             // This ensures themes work without changing component code
+            h1: pickable('h1'),
+            h2: pickable('h2'),
+            h3: pickable('h3'),
+            p: pickable('p'),
+            li: pickable('li'),
+            blockquote: pickable('blockquote'),
             code: ({ className, children, ...props }) => {
               // Render mermaid diagrams
               if (className?.includes('language-mermaid')) {
@@ -200,18 +239,24 @@ export function SlideRenderer({ markdown, rootPath, clickStep = -1, onClickSteps
               const border = imgProps.dataBorder || undefined
               const radius = imgProps.dataBorderRadius || undefined
               const width = imgProps.width || undefined
+              // Every inline image gets the liquid-glass frame (rounded, blurred,
+              // theme-aware) unless it carries explicit styling, which wins.
+              // The default alt "image" is uploader noise, not a caption.
+              const showCaption = !!alt && alt.toLowerCase() !== 'image'
               return (
-                <img
-                  src={resolveImageSrc(src, rootPath)}
-                  alt={alt}
-                  className="my-4"
-                  style={{
-                    width: width ? `${width}px` : undefined,
-                    maxWidth: '100%',
-                    border: border || undefined,
-                    borderRadius: radius ? `${radius}px` : undefined,
-                  }}
-                />
+                <span className="slide-img-frame">
+                  <img
+                    src={resolveImageSrc(src, rootPath)}
+                    alt={alt}
+                    style={{
+                      width: width ? `${width}px` : undefined,
+                      maxWidth: '100%',
+                      border: border || undefined,
+                      borderRadius: radius ? `${radius}px` : undefined,
+                    }}
+                  />
+                  {showCaption ? <figcaption>{alt}</figcaption> : null}
+                </span>
               )
             },
             div: ({ node, children, ...props }) => {

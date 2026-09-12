@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Loose-folder import
+
+#### Fixed
+
+- **Opening a folder of loose slides no longer dead-ends.** A folder with `.md`/`.mdx`
+  files but no `lecta.yaml` used to fail with `No lecta.yaml found in …` and nothing to
+  do about it. The loader now throws a marked `NO_MANIFEST:<path>` error and the Home
+  screen offers **Import as new deck**: `fs:materialize-folder` writes a manifest in
+  place (one slide per file, ids slugged from file names, `slides/` preferred when
+  present) and opens it. Nothing else in the folder is created, moved or rewritten.
+
+### Images: free placement, glass defaults, grid galleries
+
+#### Added
+
+- **Grid galleries.** Runs of 2+ consecutive `![alt](src)` lines render as a responsive
+  CSS grid of glass figures (`preprocessImageGrids` in `slide-utils.ts`, styles in
+  `globals.css`). Render-time only — source markdown, exporters and the single-file format
+  still see the original image lines. Real alt text becomes a caption; the default "image"
+  alt does not.
+- **Uploads pin to the canvas.** The markdown toolbar's image button now inserts a centred
+  `<!-- image … style=glass -->` element (drag/resize/restyle immediately) instead of an
+  inline `![](…)` locked in the text flow. Drop/paste already pinned and now pins glass too.
+
+#### Fixed
+
+- **Pinned images are glass by default** (`imageStyle()` in `PinnedElements.tsx`): rounded
+  corners + liquid-glass surface for every pinned image, including old decks. Explicit
+  `style=` (even `none`) still wins; the Inspector shows the effective style and radius.
+- **Inline images are framed everywhere** — the slide renderer's `img` always renders inside
+  the glass `.slide-img-frame` (explicit border/radius still override), and the visual
+  editor previews the same 16px default radius without writing it to disk.
+- **`fs:upload-image` sanitizes filenames** like dropped-image import already did:
+  `My Photo (1).png` no longer breaks pinned `src=` parsing or markdown links.
+- **Unpin escapes the source** (`![image](<src>)`), so paths with spaces or parens survive.
+
 ### Level-up (post-wave-3)
 
 #### Fixed

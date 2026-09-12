@@ -819,3 +819,55 @@ export function folderToSingleFile(config: PresentationInput, slides: SingleFile
 
   return `${parts.join('\n\n')}\n`
 }
+
+// ── Materializing a folder of loose slides ────────────────────────────────────
+// A folder with markdown slides but no `lecta.yaml` (a scratch dir, a docs folder,
+// someone's hand-rolled slides) opens with "No lecta.yaml found". Instead of leaving
+// the user there, the app offers to materialize the folder in place: one slide per
+// loose file, manifest written, nothing else touched.
+
+/** Extensions that count as loose slides. */
+const LOOSE_SLIDE_EXTS = new Set(['.md', '.mdx', '.markdown'])
+
+/** True for `intro.md` / `talk.mdx`, false for dotfiles, extensionless names and non-markdown. */
+export function isLooseSlideFile(name: string): boolean {
+  if (name.startsWith('.')) return false
+  const dot = name.lastIndexOf('.')
+  if (dot <= 0) return false
+  return LOOSE_SLIDE_EXTS.has(name.slice(dot).toLowerCase())
+}
+
+/** Human title from a file name: `01-my-talk.md` → `01-my-talk`. */
+export function looseSlideTitle(fileName: string): string {
+  const dot = fileName.lastIndexOf('.')
+  return dot > 0 ? fileName.slice(0, dot) : fileName
+}
+
+export interface FolderDeckPlan {
+  title: string
+  author: string
+  theme: 'dark'
+  slides: SlideConfig[]
+}
+
+/**
+ * Plan a deck manifest for loose slide files. Pure: the caller lists the files
+ * (relative paths, forward slashes) and writes the manifest. Each file becomes one
+ * slide in the given order; ids slug from the file name via `toSafeSlug` and dedupe
+ * with `-2`, `-3`, … — the same rules as single-file materialization.
+ */
+export function planFolderDeck(deckTitle: string, relativePaths: string[]): FolderDeckPlan {
+  const taken = new Set<string>()
+  const slides: SlideConfig[] = relativePaths.map((content) => {
+    const fileName = content.split('/').pop() ?? content
+    const id = unique(toSafeSlug(looseSlideTitle(fileName), 'slide'), taken)
+    return {
+      id,
+      title: looseSlideTitle(fileName),
+      content,
+      prompts: [],
+      artifacts: [],
+    }
+  })
+  return { title: deckTitle, author: '', theme: 'dark', slides }
+}

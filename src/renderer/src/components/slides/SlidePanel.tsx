@@ -30,16 +30,18 @@ export function SlidePanel(): JSX.Element {
         setMdxTrusted: s.setMdxTrusted
       }))
     )
-  const { showNavigator, editingSlide, editorMode, setEditorMode, slideGroups } = useUIStore(
+  const { showNavigator, editingSlide, editorMode, setEditorMode, setEditingSlide, slideGroups } = useUIStore(
     useShallow((s) => ({
       showNavigator: s.showNavigator,
       editingSlide: s.editingSlide,
       editorMode: s.editorMode,
       setEditorMode: s.setEditorMode,
+      setEditingSlide: s.setEditingSlide,
       slideGroups: s.slideGroups
     }))
   )
   const [mdxBannerDismissed, setMdxBannerDismissed] = useState(false)
+  const [clickToEdit, setClickToEdit] = useState(false)
   const currentSlide = slides[currentSlideIndex]
   const [wysiwygHeaderSlot, setWysiwygHeaderSlot] = useState<HTMLDivElement | null>(null)
   const [showMarkdown, setShowMarkdown] = useState(false)
@@ -303,6 +305,17 @@ export function SlidePanel(): JSX.Element {
         <div className="flex items-center gap-2 px-3 py-1 border-b border-gray-800 bg-gray-900/50">
           <AIChangeBar />
           <AIImproveBar />
+          <div className="flex-1" />
+          <button
+            onClick={() => setClickToEdit((v) => !v)}
+            title="Click any block on the slide to jump into editing"
+            aria-pressed={clickToEdit}
+            className={`text-[10px] px-2 py-0.5 rounded transition-colors font-medium ${
+              clickToEdit ? 'bg-indigo-500 text-white' : 'text-gray-500 hover:text-gray-300'
+            }`}
+          >
+            Click-to-edit
+          </button>
         </div>
       )}
 
@@ -463,6 +476,13 @@ export function SlidePanel(): JSX.Element {
             editable={true}
             showGlobalLayers={true}
             isMdx={currentSlide.isMdx}
+            clickToEdit={clickToEdit && !currentSlide.isMdx}
+            onPickBlock={() => {
+              // Click-to-edit: one click on any block lands in the visual editor.
+              setClickToEdit(false)
+              setEditorMode('markdown')
+              setEditingSlide(true)
+            }}
             onUpdateMarkdown={(md) => {
               // `md` is the FULL slide markdown — DraggableElements was given fullMarkdown
               updateMarkdownContent(currentSlideIndex, md)
@@ -513,9 +533,10 @@ export function SlidePanel(): JSX.Element {
 }
 
 /** 16:9 slide canvas that auto-scales content to fit */
-function SlideCanvas({ markdown, fullMarkdown, rootPath, transition, layout, slideIndex, slideId, drawingMode, editable, onUpdateMarkdown, showGlobalLayers, isMdx }: {
+function SlideCanvas({ markdown, fullMarkdown, rootPath, transition, layout, slideIndex, slideId, drawingMode, editable, onUpdateMarkdown, showGlobalLayers, isMdx, clickToEdit, onPickBlock }: {
   markdown: string; rootPath?: string; transition?: string; layout?: string; slideIndex?: number; drawingMode?: boolean
   editable?: boolean; onUpdateMarkdown?: (md: string) => void; showGlobalLayers?: boolean; isMdx?: boolean
+  clickToEdit?: boolean; onPickBlock?: (blockText: string) => void
   /**
    * The slide's complete markdown. Draggable elements edit against this, never against the
    * displayed sub-slide — saving a sub-slide as the whole slide deletes the other sub-slides.
@@ -585,7 +606,8 @@ function SlideCanvas({ markdown, fullMarkdown, rootPath, transition, layout, sli
           const w = 480
           const x = clampToCanvas(point.x - w / 2 + placed * 24, w, CANVAS_W)
           const y = clampToCanvas(point.y - (w * 0.66) / 2 + placed * 24, w * 0.66, CANVAS_H)
-          md = appendElement(md, { kind: 'image', x, y, w, src: relative, extra: [] })
+          // Pinned images are glass by default (rounded + liquid-glass surface, like every image).
+          md = appendElement(md, { kind: 'image', x, y, w, src: relative, style: 'glass', extra: [] })
           placed++
         } catch (error) {
           usePresentationStore.setState({ error: (error as Error).message })
@@ -659,6 +681,8 @@ function SlideCanvas({ markdown, fullMarkdown, rootPath, transition, layout, sli
               slideId={slideId}
               background={background}
               hidePinned={!!(editable && onUpdateMarkdown)}
+              clickToEdit={clickToEdit}
+              onPickBlock={onPickBlock}
             />
           </div>
         </div>
@@ -701,6 +725,12 @@ function SlideCanvas({ markdown, fullMarkdown, rootPath, transition, layout, sli
           <div className="absolute inset-0 pointer-events-none border-2 border-dashed border-indigo-400/70 bg-indigo-500/10 flex items-center justify-center"
             style={{ zIndex: 50 }}>
             <span className="text-2xl font-medium text-indigo-200">Drop image to pin it here</span>
+          </div>
+        )}
+        {clickToEdit && !dropActive && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 pointer-events-none px-3 py-1 rounded-full bg-black/70 border border-indigo-400/50 text-indigo-200 text-xs font-medium whitespace-nowrap"
+            style={{ zIndex: 40 }}>
+            Click any block to edit it
           </div>
         )}
       </div>

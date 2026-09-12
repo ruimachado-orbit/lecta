@@ -5,6 +5,7 @@ import { useUIStore } from '../../stores/ui-store'
 import { ModelSelector } from '../ai/ModelSelector'
 import {
   completeSlashCommand,
+  getSlashCommand,
   matchSlashCommands,
   slashAutocompleteQuery,
   type SlashCommand
@@ -95,7 +96,10 @@ export function ChatComposer({ compact = false }: { compact?: boolean }): JSX.El
 
   const query = slashAutocompleteQuery(draft)
   const matches = useMemo(() => (query === null ? [] : matchSlashCommands(query)), [query])
-  const isOpen = !dismissed && query !== null && matches.length > 0
+  // A fully typed command that takes no argument has nothing left to complete —
+  // keeping the list open there would swallow the Enter that should send it.
+  const exact = query === null ? undefined : getSlashCommand(query)
+  const isOpen = !dismissed && query !== null && matches.length > 0 && !(exact && !exact.argsHint)
 
   // Keep the highlight in range as the list narrows.
   useEffect(() => {
@@ -113,7 +117,8 @@ export function ChatComposer({ compact = false }: { compact?: boolean }): JSX.El
 
   const applyCompletion = (command: SlashCommand): void => {
     setDraft(completeSlashCommand(command))
-    setDismissed(false)
+    // Closed until the next keystroke, so Enter now sends rather than re-completing.
+    setDismissed(true)
     requestAnimationFrame(() => {
       const el = inputRef.current
       el?.focus()

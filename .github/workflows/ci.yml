@@ -32,6 +32,8 @@ jobs:
         run: bun run test
       - name: Build
         run: bun run build
+      - name: Build Storybook (design system stays compilable)
+        run: bun run build-storybook
 
   mcp-server:
     name: MCP server (test, build)

@@ -220,3 +220,26 @@ describe('buildPptx', () => {
     expect(slides.length).toBe(layouts.length + 1)
   })
 })
+
+describe('export matrix (12 layouts × 8 themes)', () => {
+  it('renders every layout under every theme with no throw and no empty slide', async () => {
+    const { SLIDE_LAYOUTS } = await import('@shared/slide-options')
+    const { SLIDE_THEMES } = await import('@shared/slide-options')
+    for (const theme of SLIDE_THEMES) {
+      const res = await buildPptx({
+        title: `Matrix ${theme}`,
+        theme,
+        rootPath: root,
+        slides: (SLIDE_LAYOUTS as readonly string[]).map((l) => ({
+          id: `${theme}-${l}`,
+          layout: l,
+          markdownContent: `# ${l}\n\nBody for ${l}.\n\n- a\n- b\n\n> quote`,
+        })),
+      })
+      expect(res.slideCount).toBe(SLIDE_LAYOUTS.length)
+      const { slides } = await slideTexts(res.buffer)
+      expect(slides.length).toBe(SLIDE_LAYOUTS.length)
+      for (const xml of slides) expect(xml.length).toBeGreaterThan(500)
+    }
+  }, 60_000)
+})

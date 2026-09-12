@@ -1,6 +1,7 @@
 import type { SlideBackground } from '@shared/types/presentation'
 import { SlideRenderer } from './SlideRenderer'
 import { MdxRenderer, stripMdxToMarkdown } from './MdxRenderer'
+import { MdxSandbox } from './MdxSandbox'
 import { usePresentationStore } from '../../stores/presentation-store'
 
 interface ContentRendererProps {
@@ -28,8 +29,14 @@ interface ContentRendererProps {
  * Renders slide content. MDX (executable) slides only compile when the current deck has been
  * explicitly trusted by the user and we are not rendering a thumbnail; otherwise the source is
  * reduced to plain markdown and rendered by the ordinary, non-executing SlideRenderer.
+ *
+ * Trusted MDX renders inside `MdxSandbox` (opaque-origin iframe, no scripts) by
+ * default so deck JS can never reach the app bridge. Fully interactive JSX
+ * remains available through `MdxRenderer` only when the caller passes
+ * `interactiveMdx` — currently no caller does; the prop exists for the
+ * follow-up that adds a per-deck "allow interactive components" toggle.
  */
-export function ContentRenderer({ isMdx, preview, mdxTrusted, slideId, background, hidePinned, ...props }: ContentRendererProps): JSX.Element {
+export function ContentRenderer({ isMdx, preview, mdxTrusted, slideId, background, hidePinned, interactiveMdx, ...props }: ContentRendererProps & { interactiveMdx?: boolean }): JSX.Element {
   const storeTrusted = usePresentationStore((s) => s.mdxTrusted)
   const deckBackground = usePresentationStore((s) =>
     slideId ? s.slides.find((slide) => slide.config.id === slideId)?.config.background : undefined
@@ -42,5 +49,8 @@ export function ContentRenderer({ isMdx, preview, mdxTrusted, slideId, backgroun
   if (preview || !trusted) {
     return <SlideRenderer {...props} background={slideBackground} hidePinned={hidePinned} markdown={stripMdxToMarkdown(props.markdown)} />
   }
-  return <MdxRenderer {...props} slideId={slideId} />
+  if (interactiveMdx) {
+    return <MdxRenderer {...props} slideId={slideId} />
+  }
+  return <MdxSandbox markdown={props.markdown} rootPath={props.rootPath} clickStep={props.clickStep} onClickSteps={props.onClickSteps} background={slideBackground} />
 }

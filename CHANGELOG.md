@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Level-up (post-wave-3)
+
+#### Fixed
+
+- **`lecta.yaml` header comments survive a save** (#43, partial). `parsePresentationYaml`
+  captures leading `#` comments via `parseDocument` (they live on the first key's
+  `commentBefore` in `yaml` v2) and `serializePresentation` re-emits them above the
+  manifest. Inline comments are still dropped — now a documented limitation, not silent
+  loss. (`packages/shared/src/utils/yaml-parser.ts`, `yaml-parser.test.ts`)
+- **Trusted MDX renders sandboxed by default.** `ContentRenderer` now serves trusted MDX
+  through `MdxSandbox`: the source is reduced with `stripMdxToMarkdown`, rendered by the
+  ordinary non-executing `SlideRenderer` offscreen, sanitized with DOMPurify, and moved
+  into an `<iframe sandbox="">` (opaque origin, no scripts, no bridge). Fully interactive
+  JSX stays available via `MdxRenderer` behind an explicit `interactiveMdx` opt-in that no
+  caller sets yet.
+- **Remote-control trust is visible.** The phone-remote popover now warns that control runs
+  over plain HTTP on the LAN with the URL token as the only credential, for trusted Wi-Fi
+  only. (`PresenterView.tsx`)
+
+#### Added
+
+- **Design system is canonical.** `design-system/index.ts` is the single entry point
+  (`Button`, `Badge`, `Card`, `Input`, `Toggle`, `SegmentedControl`, `Kbd`,
+  `EditorShell`); `SlideEditToolbar`'s AI actions now use it instead of ad-hoc buttons.
+- **Export matrix test.** `pptx-exporter.test.ts` builds all 12 layouts under all 8 themes
+  and asserts no throw and no empty slide.
+- **Verified, not rebuilt.** The `run_code` same-turn channel (`chat:run-code-request` /
+  `chat:report-code-run-result` + `requestCodeRun`), the chat Stop button, and MCP CRUD +
+  theme + artifact coverage were re-audited and are already in place; `run_code` has no
+  MCP equivalent by design (it needs the renderer's runtimes).
+
+#### Changed
+
+- **CI builds Storybook**, so the design system cannot rot silently.
+  (`.github/workflows/ci.yml`)
+- **`make release` ships Windows too** (`--win` + `*-x64.exe` artifact), closing the
+  "Windows is not built" gap.
+
 The first hardening wave after the end-to-end review in
 [`docs/PROJECT_REVIEW.md`](docs/PROJECT_REVIEW.md). Numbers in brackets are that review's
 finding numbers; `docs/PROJECT_REVIEW.md#status-after-wave-1` maps every one of them to a

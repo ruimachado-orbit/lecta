@@ -478,3 +478,23 @@ describe('lecta.yaml contract (byte-identical in the app and the MCP server)', (
     expect(serializePresentation(parsePresentationYaml(once, '/decks/contract'))).toBe(once)
   })
 })
+
+describe('lecta.yaml header comments (#43)', () => {
+  it('preserves leading comments across parse → serialize', async () => {
+    const { parsePresentationYaml: parse, serializePresentation: serialize } = await import('./yaml-parser')
+    const src = `# My deck — do not reorder\n# Hand-edited 2026-09-12\ntitle: Commented\nauthor: Tester\ntheme: dark\nslides:\n  - id: intro\n    content: slides/01-intro.md\n    artifacts: []\n`
+    const parsed = parse(src, '/decks/commented')
+    const out = serialize(parsed)
+    expect(out).toContain('# My deck — do not reorder')
+    expect(out).toContain('# Hand-edited 2026-09-12')
+    // Still parses after the round-trip.
+    expect(parse(out, '/decks/commented').title).toBe('Commented')
+  })
+
+  it('does not leak one deck header into another deck', async () => {
+    const { parsePresentationYaml: parse, serializePresentation: serialize } = await import('./yaml-parser')
+    parse('# Header A\ntitle: A\nauthor: Tester\ntheme: dark\nslides:\n  - id: a\n    content: slides/a.md\n    artifacts: []\n', '/decks/a')
+    const plain = parse('title: B\nauthor: Tester\ntheme: dark\nslides:\n  - id: b\n    content: slides/b.md\n    artifacts: []\n', '/decks/b')
+    expect(serialize(plain)).not.toContain('Header A')
+  })
+})

@@ -887,6 +887,9 @@ function RemoteControlButton(): JSX.Element {
       >
         <div className="p-4">
           <div className="text-[11px] text-gray-300 uppercase tracking-wider mb-3">Scan to control</div>
+          <div className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-[11px] leading-relaxed text-amber-200">
+            Plain HTTP on your local network — the URL token is the only credential. Use only on trusted Wi-Fi.
+          </div>
           <div className="flex justify-center mb-3">
             {qrDataUrl
               ? <img src={qrDataUrl} alt={`QR code for ${remoteUrl}`} className="rounded-lg bg-white" width={220} height={220} />

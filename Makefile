@@ -90,13 +90,14 @@ _commit-version:
 	@git commit -m "chore: bump version to $(VERSION)"
 	@git push origin main
 
-# Build, tag, and publish a GitHub release with macOS DMGs and Linux packages
+# Build, tag, and publish a GitHub release with macOS DMGs and Linux + Windows packages
 release: build
 	@echo "🚀 Releasing v$(VERSION)..."
 	@git diff --quiet || (echo "❌ Working tree is dirty — commit first" && exit 1)
 	cd "$(CURDIR)" && bun run test && bun run typecheck && bun run lint
 	cd "$(CURDIR)" && npx electron-builder --mac --publish never
 	cd "$(CURDIR)" && npx electron-builder --linux --publish never
+	cd "$(CURDIR)" && npx electron-builder --win --publish never
 	@git tag -a "v$(VERSION)" -m "Release v$(VERSION)"
 	@git push origin "v$(VERSION)"
 	@gh release create "v$(VERSION)" \
@@ -107,7 +108,8 @@ release: build
 		release/Lecta-$(VERSION)-arm64.dmg \
 		release/Lecta-$(VERSION)-x64.dmg \
 		release/Lecta-$(VERSION)-x86_64.AppImage \
-		release/Lecta-$(VERSION)-amd64.deb; do \
+		release/Lecta-$(VERSION)-amd64.deb \
+		release/Lecta-$(VERSION)-x64.exe; do \
 		if [ -f "$$f" ]; then gh release upload "v$(VERSION)" --repo $(REPO) --clobber "$$f"; \
 		else echo "⚠️  Missing artifact: $$f"; missing=1; fi; \
 	done; \

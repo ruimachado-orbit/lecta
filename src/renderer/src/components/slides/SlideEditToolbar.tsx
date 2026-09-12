@@ -4,6 +4,7 @@ import { usePresentationStore } from '../../stores/presentation-store'
 import { useImageStore } from '../../stores/image-store'
 import { useUIStore, COLOR_PALETTES } from '../../stores/ui-store'
 import { requireAI } from '../ai/AIAlert'
+import { Button } from '../../design-system'
 import { GRADIENT_PRESETS } from './style-presets'
 import { applySlideBackground, patchSlideBackground } from './slide-background'
 
@@ -101,23 +102,25 @@ export function SlideEditToolbar({ editorRef }: SlideEditToolbarProps): JSX.Elem
         }}>🖼</Btn>
         <BackgroundPicker />
         <Sep />
-        <Btn
+        <Button
+          size="sm"
+          variant="secondary"
           title="Beautify with AI — clean up and professionalize this slide"
           onClick={handleBeautify}
-          accent
         >
           ✨ Beautify
-        </Btn>
-        <Btn
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
           title="Ask AI about this slide — opens the chat with /improve"
           onClick={() => {
             if (!requireAI()) return
             openWithPrefill('/improve ')
           }}
-          accent
         >
           Ask AI
-        </Btn>
+        </Button>
         <Sep />
         {/* Color palette picker */}
         <div className="relative">

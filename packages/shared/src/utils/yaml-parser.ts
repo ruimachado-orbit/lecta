@@ -1,4 +1,4 @@
-import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
+import { parse as parseYaml, parseDocument, stringify as stringifyYaml } from 'yaml'
 import { z } from 'zod'
 import type { Presentation, SlideConfig } from '../types/presentation.js'
 import {
@@ -156,8 +156,46 @@ const KNOWN_TOP_LEVEL_KEYS = [
 /** Never written back to disk — injected by the loader, not part of the manifest. */
 const RUNTIME_ONLY_KEYS = new Set<string>(['rootPath'])
 
+/** Leading `#` comments captured per deck root on the last parse (see below). */
+const headerCommentsByRoot = new Map<string, string[]>()
+
+/**
+ * Remember a document's leading comments so `serializePresentation` can re-emit
+ * them. Only full-line comments before the first key are kept — inline comments
+ * cannot survive the zod round-trip and are deliberately excluded.
+ */
+export function rememberDocumentComments(yamlContent: string, rootPath: string): void {
+  try {
+    const doc = parseDocument(yamlContent)
+    // `yaml` v2 attaches comments before the first key to that key's
+    // `commentBefore`, not to the document — check both places.
+    const contents = doc.contents as
+      | { commentBefore?: string; items?: Array<{ key?: { commentBefore?: string } }> }
+      | null
+      | undefined
+    const raw =
+      doc.commentBefore ??
+      contents?.commentBefore ??
+      contents?.items?.[0]?.key?.commentBefore ??
+      null
+    if (!raw) {
+      headerCommentsByRoot.delete(rootPath)
+      return
+    }
+    const lines = raw
+      .split('\n')
+      .map((l) => l.trimEnd())
+      .filter((l) => l.length > 0)
+    if (lines.length > 0) headerCommentsByRoot.set(rootPath, lines)
+    else headerCommentsByRoot.delete(rootPath)
+  } catch {
+    // A file we cannot parse keeps whatever header we remembered before.
+  }
+}
+
 export function parsePresentationYaml(yamlContent: string, rootPath: string): Presentation {
   const raw = parseYaml(yamlContent)
+  rememberDocumentComments(yamlContent, rootPath)
   const parsed = PresentationSchema.parse(raw)
 
   return {
@@ -171,6 +209,13 @@ export function parsePresentationYaml(yamlContent: string, rootPath: string): Pr
  * Serialize a presentation back to `lecta.yaml`, preserving any unknown top-level keys
  * that `parsePresentationYaml` carried through. Round-trips
  * `parse → serialize → parse` without losing user-authored keys.
+ *
+ * YAML comments are preserved on a best-effort basis: leading comments from the
+ * last-parsed document for the same `rootPath` (see `rememberDocumentComments`)
+ * are re-emitted above the serialized manifest, so hand-written headers like
+ * `# My deck — do not reorder` survive a save. Inline comments are still dropped
+ * (the `yaml` AST is not round-tripped through the zod schema); that is tracked
+ * as a known limitation, not silent data loss.
  */
 export function serializePresentation(config: Presentation): string {
   const source = config as Presentation & Record<string, unknown>
@@ -227,7 +272,16 @@ export function serializePresentation(config: Presentation): string {
     out[key] = value
   }
 
-  return stringifyYaml(out, { lineWidth: 120 })
+  const body = stringifyYaml(out, { lineWidth: 120 })
+  const header = headerCommentsByRoot.get(
+    (config as Presentation & { rootPath?: string }).rootPath ?? ''
+  )
+  if (!header || header.length === 0) return body
+  const normalized = header
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0)
+    .map((l) => (l.startsWith('#') ? l.replace(/^#\s?/, '# ') : `# ${l}`))
+  return `${normalized.join('\n')}\n${body}`
 }
 
 export function validatePresentationYaml(yamlContent: string): {

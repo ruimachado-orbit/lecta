@@ -143,6 +143,25 @@ MDX executes in the renderer behind the trust prompt rather than in a sandboxed 
 the remote control still uses a plain-HTTP LAN token (documented in
 `docs/SECURITY-MODEL.md`); Windows is not built by `make release`.
 
+### Status after the level-up pass (2026-09-12, uncommitted)
+
+- **#43 narrowed**: leading `#` header comments now round-trip (`parseDocument` +
+  per-root memory in `packages/shared/src/utils/yaml-parser.ts`, tested). Inline
+  comments are still dropped — what remains is a documented limitation.
+- **`run_code` same-turn verified already landed**: `chat:run-code-request` /
+  `chat:report-code-run-result` (`src/main/ipc/chat-agent.ts`) + `requestCodeRun` /
+  `installAgentCodeRunHandler` (`code-run-bridge.ts`) report output in the same turn.
+  The "still open" line above is stale.
+- **MDX sandboxed by default**: trusted MDX goes through `MdxSandbox`
+  (opaque-origin `<iframe sandbox="">`, no scripts, no bridge); `MdxRenderer` remains
+  only behind an explicit `interactiveMdx` opt-in no caller sets yet.
+- **Remote trust now visible in-product**: the phone-remote popover warns about
+  plain HTTP on the LAN (the `SECURITY-MODEL.md` account stands).
+- **Windows added to `make release`** (`--win` + `*-x64.exe`); **CI builds Storybook**;
+  `design-system/index.ts` is the canonical entry point and `SlideEditToolbar` uses it.
+- **Export matrix test**: 12 layouts × 8 themes in `pptx-exporter.test.ts`.
+- Gates at pass time: `tsc` clean, app tests 425 passed, MCP tests 83 passed, eslint 0 errors.
+
 ## Build health (measured)
 
 | Check | Result |

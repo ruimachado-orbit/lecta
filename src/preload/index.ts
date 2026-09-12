@@ -274,6 +274,19 @@ const api = {
     ipcRenderer.invoke('shell:show-item-in-folder', filePath),
   platform: process.platform as string,
 
+  // Full presenter state → main (main fans out to presenter + audience windows)
+  syncPresenterState: (state: { slideIndex: number; subSlide: number; clickStep: number; mdxTrusted?: boolean }): void => {
+    ipcRenderer.send('presenter:sync-state', state)
+  },
+  onPresenterState: (callback: (state: { slideIndex: number; subSlide: number; clickStep: number; mdxTrusted?: boolean }) => void): (() => void) =>
+    subscribe('presenter:sync-state', (state) => callback(state as { slideIndex: number; subSlide: number; clickStep: number; mdxTrusted?: boolean })),
+  // Handshake: audience announces it is ready; the presenting window is asked for authoritative state
+  sendAudienceReady: (): void => {
+    ipcRenderer.send('presenter:audience-ready')
+  },
+  onRequestPresenterState: (callback: () => void): (() => void) =>
+    subscribe('presenter:request-state', () => callback()),
+
   // Presenter sync listeners (for audience/presenter windows).
   // Every `on*` helper returns an unsubscribe function — call it on unmount
   // instead of `removeAllListeners`, which also kills other components' listeners.

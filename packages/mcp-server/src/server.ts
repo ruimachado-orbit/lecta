@@ -482,11 +482,11 @@ RIGHT (pure JSX — full control over layout and styling, title is a styled div)
   // ── generate_ai_image ──
   server.tool(
     'generate_ai_image',
-    'Generate an AI image from a text prompt and optionally insert it into a slide. Supports multiple image providers: "openai" (DALL-E 3), "gemini" (Google Gemini ImageFX), and "nanobanana" (Nano Banana Pro — best for text in images, 4K HD). The generated image is saved to the presentation\'s images/ directory. If slide_index is provided, the image is automatically embedded into the slide content.',
+    'Generate an AI image from a text prompt and optionally insert it into a slide. Supports two image providers: "openai" (DALL-E 3) and "gemini" (Gemini 2.5 Flash Image). The generated image is saved to the presentation\'s images/ directory. If slide_index is provided, the image is automatically embedded into the slide content.',
     {
       presentation_path: z.string().describe('Root path of the presentation (returned by create_presentation)'),
       prompt: z.string().describe('Detailed description of the image to generate. Be specific about subject, style, colors, composition, and mood.'),
-      provider: z.enum(['openai', 'gemini', 'nanobanana']).optional().describe('Image generation provider. "openai" uses DALL-E 3, "gemini" uses Google Gemini ImageFX, "nanobanana" uses Nano Banana Pro (best for text in images, 4K HD). Default: uses the configured provider.'),
+      provider: z.enum(['openai', 'gemini']).optional().describe('Image generation provider. "openai" uses DALL-E 3, "gemini" uses Gemini 2.5 Flash Image. Default: uses the configured provider.'),
       aspect_ratio: z.enum(['1:1', '16:9', '9:16']).optional().describe('Aspect ratio for the generated image. Default: "16:9" (landscape, ideal for slides).'),
       slide_index: z.number().int().nonnegative().optional().describe('0-based slide index to insert the image into. If omitted, the image is saved to images/ without inserting into any slide.'),
       alt_text: z.string().optional().describe('Alt text for the image when inserted into a slide'),

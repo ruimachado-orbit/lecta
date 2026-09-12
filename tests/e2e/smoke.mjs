@@ -70,9 +70,12 @@ try {
   const body = await win.innerText('body')
   check('deck opens', body.includes('Slide 1 of'), body.slice(0, 80).replace(/\n/g, ' | '))
 
-  // Go to the JavaScript slide (slide 2 after the welcome slide) and make sure the code panel is visible
-  await win.keyboard.press('ArrowRight')
-  await win.waitForTimeout(800)
+  // Jump to slides via the navigator thumbnails (the welcome slide has sub-slides, so arrow keys are not reliable)
+  const goTo = async (label) => {
+    await win.locator(`text=${label}`).first().click({ timeout: 10_000 })
+    await win.waitForTimeout(900)
+  }
+  await goTo('2. javascript-demo')
   const expand = win.locator('[title="Expand panel"]')
   if (await expand.count()) await expand.first().click().catch(() => {})
   await win.waitForTimeout(1500)
@@ -86,25 +89,22 @@ try {
   check('JavaScript sandbox runs and returns output', afterJs.includes('Hello from Lecta!') && afterJs.includes('engines ready'))
   check('no CSP violation during JS run', !consoleErrors.some((e) => /Content-Security-Policy|Refused to execute/.test(e)), consoleErrors.find((e) => /Refused/.test(e)) || '')
 
-  // Python: bundled Pyodide should at least start loading locally (no jsdelivr fetch)
-  await win.keyboard.press('ArrowRight')
-  await win.waitForTimeout(800)
+  // Python: bundled Pyodide (no jsdelivr fetch)
+  await goTo('3. python-demo')
   await win.keyboard.press('Control+Enter')
   await win.waitForFunction(() => /Python 3\.|Failed to|error/i.test(document.body.innerText), null, { timeout: 60_000 }).catch(() => {})
   const afterPy = await win.innerText('body')
   check('Python (Pyodide) runs from bundled runtime', /Python 3\./.test(afterPy), afterPy.includes('cdn.jsdelivr') ? 'still loading from CDN' : '')
 
   // SQL
-  await win.keyboard.press('ArrowRight')
-  await win.waitForTimeout(800)
+  await goTo('4. sql-demo')
   await win.keyboard.press('Control+Enter')
   await win.waitForFunction(() => /author|post_count|Failed to|error/i.test(document.body.innerText), null, { timeout: 30_000 }).catch(() => {})
   const afterSql = await win.innerText('body')
   check('SQL (sql.js) runs from bundled runtime', /post_count|total_views/.test(afterSql), afterSql.includes('Failed to load sql.js') ? 'sql.js failed to load' : '')
 
   // Native with the toggle OFF must be refused
-  await win.keyboard.press('ArrowRight')
-  await win.waitForTimeout(800)
+  await goTo('5. native-demo')
   await win.keyboard.press('Control+Enter')
   await win.waitForTimeout(3000)
   const afterNative = await win.innerText('body')

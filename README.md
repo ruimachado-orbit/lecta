@@ -120,7 +120,7 @@ make dev
 
 ### Configure AI Providers (Optional)
 
-Open **Settings** in the app to add API keys for any of the 7 supported providers. Keys are validated against the provider's API in real-time.
+Open **Settings** in the app to add API keys for any of the 8 supported providers. Keys are validated against the provider's API in real-time.
 
 For OpenAI without an API key, install the Codex CLI and sign in with ChatGPT:
 

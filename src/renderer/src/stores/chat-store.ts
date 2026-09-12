@@ -119,10 +119,12 @@ function dispatchRendererAction(action: string, params: Record<string, unknown>)
     case 'goToSlide':
       presStore.goToSlide(params.index as number)
       break
-    case 'updateAndSaveSlide':
-      presStore.updateMarkdownContent(params.slideIndex as number, params.content as string)
-      presStore.saveSlideContent(params.slideIndex as number)
+    case 'updateAndSaveSlide': {
+      // Refuses .mdx targets (toast shown): AI output is never written into executable slides.
+      const ok = presStore.applyAIContent(params.slideIndex as number, params.content as string)
+      if (!ok) return
       break
+    }
     case 'updateAndSaveNotes':
       presStore.updateNotesContent(params.slideIndex as number, params.content as string)
       {

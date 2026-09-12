@@ -49,8 +49,9 @@ export function AIGeneratePanel(): JSX.Element {
       )
 
       if (generated.length > 0) {
-        const marked = generated.map((s: { markdown: string }) => ({
+        const marked = generated.map((s: { id?: string; markdown: string }, i: number) => ({
           ...s,
+          id: s.id || `ai-slide-${Date.now()}-${i + 1}`,
           markdown: `<!-- ai-generated -->\n${s.markdown}`
         }))
 

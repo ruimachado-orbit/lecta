@@ -1,0 +1,158 @@
+@import "tailwindcss";
+
+/*
+  ────────────────────────────────────────────────────────────────
+  LECTA — "INK & SIGNAL" DESIGN TOKENS
+  A bold new direction for the UI. This file is intentionally
+  self-contained: it defines its own @theme namespace (ink / signal /
+  ice) so it can be previewed in Storybook without pulling in the
+  legacy grayscale palette the app currently ships.
+
+  The idea:
+    • Deep, cool "ink" surfaces instead of flat black — layered,
+      glassy, quietly dimensional.
+    • One electric "signal" lime used sparingly for focus, primary
+      actions and progress — never as decoration.
+    • "Ice" blue as the quiet second voice (links, AI, information).
+    • Tighter, more confident type; softer geometry; springy motion.
+  ────────────────────────────────────────────────────────────────
+*/
+
+@theme {
+  /* ── Ink (surfaces & text) ─────────────────────────────────── */
+  --color-ink-50: #f4f6f9;
+  --color-ink-100: #d3d8e0;
+  --color-ink-200: #a8b0bf;
+  --color-ink-300: #7d8698;
+  --color-ink-400: #565f6f;
+  --color-ink-500: #333a45;
+  --color-ink-600: #262b33;
+  --color-ink-700: #1c2026;
+  --color-ink-800: #14171c;
+  --color-ink-900: #0b0d10;
+  --color-ink-950: #060708;
+
+  /* ── Signal (primary accent) ───────────────────────────────── */
+  --color-signal-300: #e6ff7d;
+  --color-signal-400: #d2fb4d;
+  --color-signal-500: #c4f42e;
+  --color-signal-600: #a9d91f;
+  --color-signal-700: #84ad12;
+
+  /* ── Ice (secondary accent — links, AI, info) ──────────────── */
+  --color-ice-300: #a5e8ff;
+  --color-ice-400: #7fd4ff;
+  --color-ice-500: #5bb9f5;
+  --color-ice-600: #3d94d6;
+
+  /* ── Semantic ──────────────────────────────────────────────── */
+  --color-success: #34d399;
+  --color-warning: #fbbf24;
+  --color-danger: #fb7185;
+  --color-info: #7fd4ff;
+
+  /* ── Typography ────────────────────────────────────────────── */
+  --font-sans: -apple-system, "SF Pro Text", "SF Pro Display", "Helvetica Neue",
+    Helvetica, Arial, ui-sans-serif, system-ui, sans-serif;
+  --font-display: -apple-system, "SF Pro Display", "SF Pro Text", "Helvetica Neue",
+    Helvetica, Arial, ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "SFMono-Regular", "JetBrains Mono",
+    Menlo, Monaco, Consolas, monospace;
+
+  /* ── Geometry ──────────────────────────────────────────────── */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.875rem;
+  --radius-xl: 1.125rem;
+  --radius-2xl: 1.5rem;
+
+  /* ── Elevation ─────────────────────────────────────────────── */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 0 rgba(255, 255, 255, 0.03) inset;
+  --shadow-2: 0 2px 6px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+  --shadow-3: 0 8px 24px rgba(0, 0, 0, 0.5), 0 1px 0 rgba(255, 255, 255, 0.05) inset;
+  --shadow-glow: 0 0 0 1px rgba(196, 244, 46, 0.35),
+    0 0 24px rgba(196, 244, 46, 0.18);
+
+  /* ── Motion ────────────────────────────────────────────────── */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out-soft: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+/* ── Base ────────────────────────────────────────────────────── */
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#storybook-root {
+  min-height: 100%;
+}
+
+body {
+  background-color: var(--color-ink-950);
+  color: var(--color-ink-100);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: rgba(196, 244, 46, 0.28);
+  color: var(--color-ink-50);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-signal-500);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Slim, ink-toned scrollbars to match the new surfaces. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-ink-600);
+  border-radius: 999px;
+  border: 2px solid var(--color-ink-950);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-ink-500);
+}
+
+/* ── Reusable surface treatments ────────────────────────────── */
+
+/* A layered panel: ink-900 base with a faint top light and hairline border. */
+.surface {
+  background: linear-gradient(180deg, var(--color-ink-800), var(--color-ink-900));
+  border: 1px solid var(--color-ink-700);
+  box-shadow: var(--shadow-1);
+}
+
+/* A raised card with a soft radial glow and rounded geometry. */
+.card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0) 40%),
+    linear-gradient(180deg, var(--color-ink-800), var(--color-ink-900));
+  border: 1px solid var(--color-ink-700);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-2);
+}
+
+/* Signal gradient text — for hero / display moments only. */
+.text-signal-gradient {
+  background: linear-gradient(120deg, var(--color-signal-300), var(--color-signal-500) 45%, var(--color-ice-400));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Hairline used inside panels. */
+.hairline {
+  height: 1px;
+  background: var(--color-ink-700);
+}

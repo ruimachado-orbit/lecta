@@ -21,6 +21,7 @@ export default [
     ignores: [
       'out/**',
       'dist/**',
+      'storybook-static/**',
       'release/**',
       'node_modules/**',
       'web/**',

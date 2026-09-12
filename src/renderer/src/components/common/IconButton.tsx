@@ -26,7 +26,7 @@ export function IconButton({
 }): JSX.Element {
   const toneClass =
     tone === 'primary'
-      ? 'bg-white hover:bg-gray-200 text-black'
+      ? 'bg-signal-500 hover:bg-signal-400 text-ink-950 font-semibold'
       : tone === 'danger'
         ? 'bg-red-600 hover:bg-red-500 text-white'
         : active

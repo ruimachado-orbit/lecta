@@ -330,8 +330,8 @@ export function Toolbar(): JSX.Element {
         {/* Present */}
         <button
           onClick={startPresenting}
-          className="px-3 py-1.5 bg-white hover:bg-gray-200 text-black text-sm font-medium
-                     rounded-lg transition-colors flex items-center gap-1.5"
+          className="px-3 py-1.5 bg-signal-500 hover:bg-signal-400 text-ink-950 text-sm font-semibold
+                     rounded-lg transition-colors flex items-center gap-1.5 shadow-glow"
           title="Start presenting (F5)"
           aria-label="Start presenting (F5)"
         >
@@ -455,7 +455,7 @@ function PrettifyReviewDialog({ slideIndex, original, improved, queuePos, queueT
             Reject
           </button>
           <button onClick={onAccept}
-            className="px-4 py-2 text-sm rounded-lg bg-white hover:bg-gray-200 text-black font-medium transition-colors">
+            className="px-4 py-2 text-sm rounded-lg bg-signal-500 hover:bg-signal-400 text-ink-950 font-semibold transition-colors">
             Accept
           </button>
         </>
@@ -586,7 +586,7 @@ function SlideStoreDialog({ open, onClose }: { open: boolean; onClose: () => voi
               <div className="flex items-center gap-2 mt-2">
                 <button
                   onClick={() => void handleInsert(item.markdown, item.layout)}
-                  className="px-2.5 py-1 text-xs font-medium rounded bg-white hover:bg-gray-200 text-black transition-colors"
+                  className="px-2.5 py-1 text-xs font-semibold rounded bg-signal-500 hover:bg-signal-400 text-ink-950 transition-colors"
                 >
                   Insert
                 </button>

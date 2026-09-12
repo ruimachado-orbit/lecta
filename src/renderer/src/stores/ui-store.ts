@@ -9,7 +9,8 @@ export interface ColorPalette {
 }
 
 export const COLOR_PALETTES: ColorPalette[] = [
-  { name: 'White', accent: '#ffffff', accentLight: '#e5e5e5', accentDark: '#d4d4d4' },
+  { name: 'Signal', accent: '#c4f42e', accentLight: '#d2fb4d', accentDark: '#a9d91f' },
+  { name: 'Ice', accent: '#7fd4ff', accentLight: '#a5e8ff', accentDark: '#3d94d6' },
   { name: 'Silver', accent: '#a3a3a3', accentLight: '#d4d4d4', accentDark: '#737373' },
 ]
 

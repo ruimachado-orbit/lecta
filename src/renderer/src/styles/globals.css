@@ -22,9 +22,15 @@ html, body, * {
 
 /* Keyboard focus must always be visible — the app has no other focus indicator. */
 :focus-visible {
-  outline: 2px solid var(--color-brand, #ffffff);
+  outline: 2px solid var(--color-brand, #c4f42e);
   outline-offset: 2px;
   border-radius: 2px;
+}
+
+/* Signal-tinted selection, matching the new accent. */
+::selection {
+  background: color-mix(in srgb, var(--color-brand, #c4f42e) 30%, transparent);
+  color: var(--color-gray-100);
 }
 
 /* Respect the OS "reduce motion" setting: keep state changes, drop the movement. */
@@ -59,24 +65,83 @@ html, body, * {
 
 @theme {
   --font-sans: -apple-system, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
-  --color-brand: #ffffff;
-  --color-brand-light: #e5e5e5;
-  --color-brand-dark: #d4d4d4;
-  --color-surface: #1a1a1a;
-  --color-surface-light: #272727;
-  --color-surface-lighter: #3a3a3a;
-  --color-border: #3a3a3a;
-  --color-border-light: #525252;
-  --color-gray-950: #0c0c0c;
-  --color-gray-900: #1a1a1a;
-  --color-gray-800: #272727;
-  --color-gray-700: #3a3a3a;
-  --color-gray-600: #525252;
-  --color-gray-500: #737373;
-  --color-gray-400: #a3a3a3;
-  --color-gray-300: #d4d4d4;
-  --color-gray-200: #e5e5e5;
-  --color-gray-100: #f5f5f5;
+  --font-display: -apple-system, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "SFMono-Regular", "JetBrains Mono", Menlo, Monaco, Consolas, monospace;
+
+  /* ── Ink & Signal — the new app palette ────────────────────── */
+
+  /* Ink (cool, layered surfaces + text) */
+  --color-ink-50: #f4f6f9;
+  --color-ink-100: #d3d8e0;
+  --color-ink-200: #a8b0bf;
+  --color-ink-300: #7d8698;
+  --color-ink-400: #565f6f;
+  --color-ink-500: #333a45;
+  --color-ink-600: #262b33;
+  --color-ink-700: #1c2026;
+  --color-ink-800: #14171c;
+  --color-ink-900: #0b0d10;
+  --color-ink-950: #060708;
+
+  /* Signal (primary accent) */
+  --color-signal-300: #e6ff7d;
+  --color-signal-400: #d2fb4d;
+  --color-signal-500: #c4f42e;
+  --color-signal-600: #a9d91f;
+  --color-signal-700: #84ad12;
+
+  /* Ice (secondary accent — links, AI, info) */
+  --color-ice-300: #a5e8ff;
+  --color-ice-400: #7fd4ff;
+  --color-ice-500: #5bb9f5;
+  --color-ice-600: #3d94d6;
+
+  /* Semantic */
+  --color-success: #34d399;
+  --color-warning: #fbbf24;
+  --color-danger: #fb7185;
+  --color-info: #7fd4ff;
+
+  /* Brand = the user-selectable accent (defaults to Signal). */
+  --color-brand: #c4f42e;
+  --color-brand-light: #d2fb4d;
+  --color-brand-dark: #a9d91f;
+
+  --color-surface: #101318;
+  --color-surface-light: #1a1f27;
+  --color-surface-lighter: #2a303a;
+  --color-border: #1e232b;
+  --color-border-light: #2a303a;
+
+  /* Gray scale is remapped onto ink so every existing `gray-*` utility
+     picks up the new direction without touching component classes. */
+  --color-gray-950: #060708;
+  --color-gray-900: #0b0d10;
+  --color-gray-800: #14171c;
+  --color-gray-700: #1c2026;
+  --color-gray-600: #262b33;
+  --color-gray-500: #6b7380;
+  --color-gray-400: #9aa3b2;
+  --color-gray-300: #ccd2db;
+  --color-gray-200: #e3e7ed;
+  --color-gray-100: #f0f3f7;
+
+  /* Geometry */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.875rem;
+  --radius-xl: 1.125rem;
+  --radius-2xl: 1.5rem;
+
+  /* Elevation */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 0 rgba(255, 255, 255, 0.03) inset;
+  --shadow-2: 0 2px 6px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+  --shadow-3: 0 8px 24px rgba(0, 0, 0, 0.5), 0 1px 0 rgba(255, 255, 255, 0.05) inset;
+  --shadow-glow: 0 0 0 1px rgba(196, 244, 46, 0.35), 0 0 24px rgba(196, 244, 46, 0.18);
+
+  /* Motion */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out-soft: cubic-bezier(0.65, 0, 0.35, 1);
 }
 
 /* ============================================================
@@ -90,9 +155,9 @@ html, body, * {
     from 0deg,
     transparent 0%,
     transparent 35%,
-    rgba(255, 255, 255, 0.7) 40%,
-    rgba(255, 255, 255, 1) 45%,
-    rgba(255, 255, 255, 0.7) 50%,
+    rgba(196, 244, 46, 0.7) 40%,
+    rgba(196, 244, 46, 1) 45%,
+    rgba(196, 244, 46, 0.7) 50%,
     transparent 55%,
     transparent 100%
   );
@@ -152,31 +217,31 @@ html, body, * {
    oklch color variables that Tailwind generates.
    ============================================================ */
 html[data-theme="light"] {
-  /* Remap gray scale: dark grays become warm cream lights, light grays become dark */
-  --color-gray-950: #f5f1eb;
+  /* Remap gray scale onto a cool "paper" — dark grays become light, light grays become ink text */
+  --color-gray-950: #f4f6f9;
   --color-gray-900: #ffffff;
-  --color-gray-800: #ebe7e0;
-  --color-gray-700: #d6d0c8;
-  --color-gray-600: #a8a29e;
-  --color-gray-500: #78716c;
-  --color-gray-400: #57534e;
-  --color-gray-300: #44403c;
-  --color-gray-200: #292524;
-  --color-gray-100: #1c1917;
-  --color-white: #1a1a1a;
+  --color-gray-800: #eef1f5;
+  --color-gray-700: #e2e6ec;
+  --color-gray-600: #cbd1da;
+  --color-gray-500: #8a94a6;
+  --color-gray-400: #6b7380;
+  --color-gray-300: #4a5160;
+  --color-gray-200: #2f3540;
+  --color-gray-100: #1a1e26;
+  --color-white: #16181d;
   --color-black: #ffffff;
 
   /* Theme tokens */
   --color-surface: #ffffff;
-  --color-surface-light: #f5f1eb;
-  --color-surface-lighter: #ebe7e0;
-  --color-border: #d1cbc2;
-  --color-border-light: #e0dbd3;
+  --color-surface-light: #f4f6f9;
+  --color-surface-lighter: #eef1f5;
+  --color-border: #dbe0e8;
+  --color-border-light: #e8ecf1;
 }
 
 html[data-theme="light"] body {
-  background-color: #f5f1eb;
-  color: #1c1917;
+  background-color: #f4f6f9;
+  color: #1a1e26;
 }
 
 /* Light mode slide content — needs explicit overrides since
